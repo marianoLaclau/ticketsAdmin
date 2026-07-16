@@ -6,21 +6,42 @@ import {
   useGetMotivoStats 
 } from '@workspace/api-client-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Clock, PhoneIncoming, AlertCircle, CheckCircle2, Inbox } from 'lucide-react';
+import { Clock, PhoneIncoming, AlertCircle, CheckCircle2, Inbox, TrendingUp } from 'lucide-react';
 import { Link } from 'wouter';
-import { formatDate, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
+import { formatDate, PrioridadBadge } from '@/lib/utils-tickets';
 
-// Pastel palette for estado bars
-const ESTADO_PASTEL: Record<string, { bar: string; label: string }> = {
-  nuevo:     { bar: '#bfdbfe', label: 'Nuevo' },
-  en_proceso:{ bar: '#93c5fd', label: 'En proceso' },
-  pendiente: { bar: '#fde68a', label: 'Pendiente' },
-  resuelto:  { bar: '#86efac', label: 'Resuelto' },
-  cerrado:   { bar: '#cbd5e1', label: 'Cerrado' },
+// Estado colors — coherent with badge system
+const ESTADO_COLOR: Record<string, { bar: string; label: string; text: string }> = {
+  nuevo:      { bar: '#64748b', label: 'Nuevo',      text: 'text-slate-600' },
+  en_proceso: { bar: '#3b82f6', label: 'En proceso', text: 'text-blue-600' },
+  pendiente:  { bar: '#f59e0b', label: 'Pendiente',  text: 'text-amber-600' },
+  resuelto:   { bar: '#3d7532', label: 'Resuelto',   text: 'text-green-700' },
+  cerrado:    { bar: '#1e293b', label: 'Cerrado',    text: 'text-slate-800' },
 };
 
-// Pastel palette for motivos ranking
-const MOTIVO_PASTEL = ['#a5b4fc','#86efac','#fde68a','#fca5a5','#c4b5fd','#67e8f9','#6ee7b7','#f9a8d4'];
+// Motivo bar colors — varied but controlled
+const MOTIVO_COLORS = ['#3b82f6','#3d7532','#f59e0b','#8b5cf6','#ef4444','#0891b2','#ec4899','#f97316'];
+
+// Circular progress SVG component
+function GaugeRing({ pct, size = 120, stroke = 10, color = '#3d7532' }: {
+  pct: number; size?: number; stroke?: number; color?: string;
+}) {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const filled = circ * Math.min(pct / 100, 1);
+  return (
+    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={stroke} />
+      <circle
+        cx={size / 2} cy={size / 2} r={r} fill="none"
+        stroke={color} strokeWidth={stroke}
+        strokeDasharray={`${filled} ${circ}`}
+        strokeLinecap="round"
+        style={{ transition: 'stroke-dasharray 0.6s ease' }}
+      />
+    </svg>
+  );
+}
 
 export default function Dashboard() {
   const { data: stats, isLoading: loadingStats } = useGetDashboardStats();
@@ -31,11 +52,21 @@ export default function Dashboard() {
   const today = new Date();
   const dateString = today.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
+  // Estado derived values
   const totalEstados = stats?.por_estado?.reduce((acc: number, curr: any) => acc + curr.cantidad, 0) || 0;
   const nuevosSinRevisar = stats?.por_estado?.find((e: any) => e.estado === 'nuevo')?.cantidad || 0;
-  const enProceso = stats?.por_estado?.find((e: any) => e.estado === 'en_proceso')?.cantidad || 0;
+  const enProceso       = stats?.por_estado?.find((e: any) => e.estado === 'en_proceso')?.cantidad || 0;
+  const resueltos       = stats?.por_estado?.find((e: any) => e.estado === 'resuelto')?.cantidad || 0;
+  const cerrados        = stats?.por_estado?.find((e: any) => e.estado === 'cerrado')?.cantidad || 0;
+  const pendientes      = stats?.por_estado?.find((e: any) => e.estado === 'pendiente')?.cantidad || 0;
+  const total           = stats?.total || 0;
 
-  // Motivos sorted and max for relative bars
+  // Rendimiento metrics
+  const finalizados   = resueltos + cerrados;
+  const tasaResolucion = total > 0 ? Math.round((finalizados / total) * 100) : 0;
+  const activos        = enProceso + pendientes + nuevosSinRevisar;
+
+  // Motivos
   const motivosSorted = motivos ? [...motivos].sort((a: any, b: any) => b.cantidad - a.cantidad) : [];
   const maxMotivo = motivosSorted[0]?.cantidad || 1;
 
@@ -47,70 +78,48 @@ export default function Dashboard() {
         <p className="text-sm text-muted-foreground capitalize">{dateString}</p>
       </div>
 
-      {/* KPI Row — foco en tiempo real */}
+      {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Sin revisar — hero card */}
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm">
           <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
             <Inbox className="h-5 w-5 text-amber-600" />
           </div>
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Sin revisar</p>
-            {loadingStats
-              ? <Skeleton className="h-8 w-10 mt-1" />
-              : <p className="text-3xl font-bold text-amber-800 leading-none mt-1">{nuevosSinRevisar}</p>
-            }
+            {loadingStats ? <Skeleton className="h-8 w-10 mt-1" /> : <p className="text-3xl font-bold text-amber-800 leading-none mt-1">{nuevosSinRevisar}</p>}
             <p className="text-[11px] text-amber-600 mt-0.5">tickets nuevos</p>
           </div>
         </div>
 
-        {/* En proceso */}
         <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm">
           <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
             <PhoneIncoming className="h-5 w-5 text-blue-600" />
           </div>
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-700">En proceso</p>
-            {loadingStats
-              ? <Skeleton className="h-8 w-10 mt-1" />
-              : <p className="text-3xl font-bold text-blue-800 leading-none mt-1">{enProceso}</p>
-            }
+            {loadingStats ? <Skeleton className="h-8 w-10 mt-1" /> : <p className="text-3xl font-bold text-blue-800 leading-none mt-1">{enProceso}</p>}
             <p className="text-[11px] text-blue-600 mt-0.5">en atención</p>
           </div>
         </div>
 
-        {/* Vencidos */}
-        <div className={`rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm border ${
-          stats?.vencidos && stats.vencidos > 0
-            ? 'bg-red-50 border-red-200'
-            : 'bg-card border-border'
-        }`}>
-          <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-            stats?.vencidos && stats.vencidos > 0 ? 'bg-red-100' : 'bg-slate-100'
-          }`}>
+        <div className={`rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm border ${stats?.vencidos && stats.vencidos > 0 ? 'bg-red-50 border-red-200' : 'bg-card border-border'}`}>
+          <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${stats?.vencidos && stats.vencidos > 0 ? 'bg-red-100' : 'bg-slate-100'}`}>
             <AlertCircle className={`h-5 w-5 ${stats?.vencidos && stats.vencidos > 0 ? 'text-red-600' : 'text-slate-400'}`} />
           </div>
           <div>
             <p className={`text-[11px] font-semibold uppercase tracking-wider ${stats?.vencidos && stats.vencidos > 0 ? 'text-red-700' : 'text-muted-foreground'}`}>Vencidos</p>
-            {loadingStats
-              ? <Skeleton className="h-8 w-10 mt-1" />
-              : <p className={`text-3xl font-bold leading-none mt-1 ${stats?.vencidos && stats.vencidos > 0 ? 'text-red-800' : 'text-foreground'}`}>{stats?.vencidos || 0}</p>
-            }
+            {loadingStats ? <Skeleton className="h-8 w-10 mt-1" /> : <p className={`text-3xl font-bold leading-none mt-1 ${stats?.vencidos && stats.vencidos > 0 ? 'text-red-800' : 'text-foreground'}`}>{stats?.vencidos || 0}</p>}
             <p className={`text-[11px] mt-0.5 ${stats?.vencidos && stats.vencidos > 0 ? 'text-red-600' : 'text-muted-foreground'}`}>fuera de plazo</p>
           </div>
         </div>
 
-        {/* Resueltos hoy */}
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm">
           <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
             <CheckCircle2 className="h-5 w-5 text-emerald-600" />
           </div>
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Resueltos hoy</p>
-            {loadingStats
-              ? <Skeleton className="h-8 w-10 mt-1" />
-              : <p className="text-3xl font-bold text-emerald-800 leading-none mt-1">{stats?.resueltos_hoy || 0}</p>
-            }
+            {loadingStats ? <Skeleton className="h-8 w-10 mt-1" /> : <p className="text-3xl font-bold text-emerald-800 leading-none mt-1">{stats?.resueltos_hoy || 0}</p>}
             <p className="text-[11px] text-emerald-600 mt-0.5">cerrados</p>
           </div>
         </div>
@@ -121,38 +130,39 @@ export default function Dashboard() {
         {/* Left 2/3 */}
         <div className="lg:col-span-2 space-y-5">
 
-          {/* Distribución + Motivos */}
-          <div className="bg-card border rounded-xl p-5 shadow-sm space-y-6">
-            
-            {/* Distribución por estado — pastel stacked bar */}
-            <div>
+          {/* Distribución + Rendimiento */}
+          <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
+
+            {/* Distribución por estado */}
+            <div className="p-5 border-b">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Distribución por Estado</h3>
               {loadingStats ? (
                 <Skeleton className="h-5 w-full rounded-full" />
               ) : totalEstados > 0 ? (
                 <>
-                  <div className="h-5 w-full bg-slate-100 rounded-full overflow-hidden flex gap-0.5">
-                    {stats?.por_estado?.map((e: any) => {
+                  {/* Segmented bar */}
+                  <div className="h-5 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                    {stats?.por_estado?.map((e: any, i: number) => {
                       const pct = (e.cantidad / totalEstados) * 100;
-                      const color = ESTADO_PASTEL[e.estado]?.bar ?? '#e2e8f0';
+                      const color = ESTADO_COLOR[e.estado]?.bar ?? '#94a3b8';
                       return (
                         <div
                           key={e.estado}
                           style={{ width: `${pct}%`, backgroundColor: color }}
-                          className="h-full first:rounded-l-full last:rounded-r-full transition-all"
-                          title={`${ESTADO_PASTEL[e.estado]?.label ?? e.estado}: ${e.cantidad}`}
+                          className={`h-full transition-all ${i === 0 ? '' : 'ml-[2px]'}`}
+                          title={`${ESTADO_COLOR[e.estado]?.label ?? e.estado}: ${e.cantidad}`}
                         />
                       );
                     })}
                   </div>
-                  <div className="flex flex-wrap gap-3 mt-3">
+                  {/* Legend */}
+                  <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3">
                     {stats?.por_estado?.map((e: any) => {
-                      const color = ESTADO_PASTEL[e.estado]?.bar ?? '#e2e8f0';
-                      const label = ESTADO_PASTEL[e.estado]?.label ?? e.estado;
+                      const cfg = ESTADO_COLOR[e.estado];
                       return (
                         <div key={e.estado} className="flex items-center gap-1.5">
-                          <span className="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
-                          <span className="text-xs text-muted-foreground">{label}</span>
+                          <span className="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: cfg?.bar ?? '#94a3b8' }} />
+                          <span className="text-xs text-muted-foreground">{cfg?.label ?? e.estado}</span>
                           <span className="text-xs font-bold text-foreground">{e.cantidad}</span>
                         </div>
                       );
@@ -164,41 +174,93 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Motivos de contacto — ranking list con mini barras pastel */}
-            <div className="pt-4 border-t">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Motivos de Contacto</h3>
-              {loadingMotivos ? (
-                <div className="space-y-3">
-                  {[1,2,3,4].map(i => <Skeleton key={i} className="h-7 w-full" />)}
+            {/* Rendimiento */}
+            <div className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Rendimiento</h3>
+              </div>
+
+              <div className="flex items-center gap-8">
+                {/* Gauge ring */}
+                <div className="relative flex-shrink-0">
+                  {loadingStats ? (
+                    <Skeleton className="h-[120px] w-[120px] rounded-full" />
+                  ) : (
+                    <>
+                      <GaugeRing pct={tasaResolucion} size={120} stroke={11} color="#3d7532" />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-2xl font-bold text-foreground">{tasaResolucion}%</span>
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wide">resueltos</span>
+                      </div>
+                    </>
+                  )}
                 </div>
-              ) : motivosSorted.length === 0 ? (
-                <p className="text-sm text-slate-400">Sin datos</p>
-              ) : (
-                <div className="space-y-2.5">
-                  {motivosSorted.map((m: any, idx: number) => {
-                    const pct = (m.cantidad / maxMotivo) * 100;
-                    const color = MOTIVO_PASTEL[idx % MOTIVO_PASTEL.length];
-                    return (
-                      <div key={m.motivo} className="flex items-center gap-3">
-                        <span className="text-[11px] font-bold text-muted-foreground w-4 text-right flex-shrink-0">{idx + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs text-foreground font-medium truncate pr-2">{m.motivo}</span>
-                            <span className="text-xs font-bold text-foreground flex-shrink-0">{m.cantidad}</span>
-                          </div>
-                          <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all"
-                              style={{ width: `${pct}%`, backgroundColor: color }}
-                            />
-                          </div>
+
+                {/* Stats grid */}
+                <div className="flex-1 grid grid-cols-2 gap-x-6 gap-y-4">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Finalizados</p>
+                    {loadingStats ? <Skeleton className="h-6 w-12 mt-1" /> : (
+                      <p className="text-xl font-bold text-foreground mt-0.5">{finalizados}</p>
+                    )}
+                    <p className="text-[11px] text-muted-foreground">resueltos + cerrados</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Activos</p>
+                    {loadingStats ? <Skeleton className="h-6 w-12 mt-1" /> : (
+                      <p className="text-xl font-bold text-blue-600 mt-0.5">{activos}</p>
+                    )}
+                    <p className="text-[11px] text-muted-foreground">en curso</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Solo resueltos</p>
+                    {loadingStats ? <Skeleton className="h-6 w-12 mt-1" /> : (
+                      <p className="text-xl font-bold text-green-700 mt-0.5">{resueltos}</p>
+                    )}
+                    <p className="text-[11px] text-muted-foreground">listos p/ cerrar</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Total general</p>
+                    {loadingStats ? <Skeleton className="h-6 w-12 mt-1" /> : (
+                      <p className="text-xl font-bold text-foreground mt-0.5">{total}</p>
+                    )}
+                    <p className="text-[11px] text-muted-foreground">tickets</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Motivos de contacto */}
+          <div className="bg-card border rounded-xl p-5 shadow-sm">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Motivos de Contacto</h3>
+            {loadingMotivos ? (
+              <div className="space-y-3">{[1,2,3,4].map(i => <Skeleton key={i} className="h-7 w-full" />)}</div>
+            ) : motivosSorted.length === 0 ? (
+              <p className="text-sm text-slate-400">Sin datos</p>
+            ) : (
+              <div className="space-y-3">
+                {motivosSorted.map((m: any, idx: number) => {
+                  const pct = (m.cantidad / maxMotivo) * 100;
+                  const color = MOTIVO_COLORS[idx % MOTIVO_COLORS.length];
+                  return (
+                    <div key={m.motivo} className="flex items-center gap-3">
+                      <span className="text-[11px] font-bold text-muted-foreground w-4 text-right flex-shrink-0 tabular-nums">{idx + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-foreground font-medium truncate pr-2">{m.motivo}</span>
+                          <span className="text-xs font-bold tabular-nums" style={{ color }}>{m.cantidad}</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Tickets vencidos */}
@@ -209,7 +271,7 @@ export default function Dashboard() {
                 Requieren Atención Inmediata
               </h3>
               {vencidos && vencidos.length > 0 && (
-                <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                <span className="bg-red-500 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full">
                   {vencidos.length} vencidos
                 </span>
               )}
