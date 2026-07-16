@@ -3,7 +3,6 @@ import { Link, useLocation } from 'wouter';
 import { 
   LayoutDashboard, 
   Ticket, 
-  Plus, 
   UserCircle 
 } from 'lucide-react';
 import { useGetDashboardStats } from '@workspace/api-client-react';
@@ -18,7 +17,6 @@ export function Sidebar() {
   const links = [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/tickets', label: 'Tickets', icon: Ticket },
-    { href: '/tickets/nuevo', label: 'Nuevo Ticket', icon: Plus },
   ];
 
   return (

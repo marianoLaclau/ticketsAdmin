@@ -1,220 +1,231 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   useGetDashboardStats, 
   useGetActividadReciente, 
   useGetTicketsVencidos, 
   useGetMotivoStats 
 } from '@workspace/api-client-react';
-import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Clock, Activity, Building2, Users } from 'lucide-react';
+import { Clock, PhoneIncoming, AlertCircle, CheckCircle2, Inbox } from 'lucide-react';
 import { Link } from 'wouter';
-import { formatShortId, formatDate, getEstadoColor, getPrioridadStyle, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { formatDate, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
+
+// Pastel palette for estado bars
+const ESTADO_PASTEL: Record<string, { bar: string; label: string }> = {
+  nuevo:     { bar: '#bfdbfe', label: 'Nuevo' },
+  en_proceso:{ bar: '#93c5fd', label: 'En proceso' },
+  pendiente: { bar: '#fde68a', label: 'Pendiente' },
+  resuelto:  { bar: '#86efac', label: 'Resuelto' },
+  cerrado:   { bar: '#cbd5e1', label: 'Cerrado' },
+};
+
+// Pastel palette for motivos ranking
+const MOTIVO_PASTEL = ['#a5b4fc','#86efac','#fde68a','#fca5a5','#c4b5fd','#67e8f9','#6ee7b7','#f9a8d4'];
 
 export default function Dashboard() {
-  const [period, setPeriod] = useState<string>('Hoy');
-  
   const { data: stats, isLoading: loadingStats } = useGetDashboardStats();
-  const { data: actividades, isLoading: loadingActividad } = useGetActividadReciente({ limit: 10 });
+  const { data: actividades, isLoading: loadingActividad } = useGetActividadReciente({ limit: 12 });
   const { data: vencidos, isLoading: loadingVencidos } = useGetTicketsVencidos();
   const { data: motivos, isLoading: loadingMotivos } = useGetMotivoStats();
 
-  const MOTIVO_COLORS = ['#3d7532','#2563eb','#d97706','#dc2626','#7c3aed','#0891b2','#059669','#db2777'];
-  
   const today = new Date();
   const dateString = today.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-  // Calculate percentages for the stacked bar
   const totalEstados = stats?.por_estado?.reduce((acc: number, curr: any) => acc + curr.cantidad, 0) || 0;
+  const nuevosSinRevisar = stats?.por_estado?.find((e: any) => e.estado === 'nuevo')?.cantidad || 0;
+  const enProceso = stats?.por_estado?.find((e: any) => e.estado === 'en_proceso')?.cantidad || 0;
+
+  // Motivos sorted and max for relative bars
+  const motivosSorted = motivos ? [...motivos].sort((a: any, b: any) => b.cantidad - a.cantidad) : [];
+  const maxMotivo = motivosSorted[0]?.cantidad || 1;
 
   return (
-    <div className="p-8 max-w-[1400px] mx-auto w-full space-y-6">
-      {/* Top Bar */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Centro de Operaciones</h1>
-          <p className="text-sm text-muted-foreground mt-1 capitalize">{dateString}</p>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="flex bg-slate-100 p-1 rounded-md text-sm font-medium">
-            {['Hoy', '7 días', '30 días', 'Este mes'].map(p => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                className={`px-3 py-1.5 rounded-sm transition-colors ${period === p ? 'bg-white shadow-sm text-foreground' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                {p}
-              </button>
-            ))}
+    <div className="p-6 max-w-[1400px] mx-auto w-full space-y-5">
+      {/* Header */}
+      <div>
+        <h1 className="text-xl font-bold tracking-tight text-foreground">Centro de Operaciones</h1>
+        <p className="text-sm text-muted-foreground capitalize">{dateString}</p>
+      </div>
+
+      {/* KPI Row — foco en tiempo real */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Sin revisar — hero card */}
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm">
+          <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <Inbox className="h-5 w-5 text-amber-600" />
           </div>
-          <Link 
-            href="/tickets/nuevo" 
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4"
-          >
-            Nuevo Ticket
-          </Link>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Sin revisar</p>
+            {loadingStats
+              ? <Skeleton className="h-8 w-10 mt-1" />
+              : <p className="text-3xl font-bold text-amber-800 leading-none mt-1">{nuevosSinRevisar}</p>
+            }
+            <p className="text-[11px] text-amber-600 mt-0.5">tickets nuevos</p>
+          </div>
+        </div>
+
+        {/* En proceso */}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm">
+          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+            <PhoneIncoming className="h-5 w-5 text-blue-600" />
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-700">En proceso</p>
+            {loadingStats
+              ? <Skeleton className="h-8 w-10 mt-1" />
+              : <p className="text-3xl font-bold text-blue-800 leading-none mt-1">{enProceso}</p>
+            }
+            <p className="text-[11px] text-blue-600 mt-0.5">en atención</p>
+          </div>
+        </div>
+
+        {/* Vencidos */}
+        <div className={`rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm border ${
+          stats?.vencidos && stats.vencidos > 0
+            ? 'bg-red-50 border-red-200'
+            : 'bg-card border-border'
+        }`}>
+          <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+            stats?.vencidos && stats.vencidos > 0 ? 'bg-red-100' : 'bg-slate-100'
+          }`}>
+            <AlertCircle className={`h-5 w-5 ${stats?.vencidos && stats.vencidos > 0 ? 'text-red-600' : 'text-slate-400'}`} />
+          </div>
+          <div>
+            <p className={`text-[11px] font-semibold uppercase tracking-wider ${stats?.vencidos && stats.vencidos > 0 ? 'text-red-700' : 'text-muted-foreground'}`}>Vencidos</p>
+            {loadingStats
+              ? <Skeleton className="h-8 w-10 mt-1" />
+              : <p className={`text-3xl font-bold leading-none mt-1 ${stats?.vencidos && stats.vencidos > 0 ? 'text-red-800' : 'text-foreground'}`}>{stats?.vencidos || 0}</p>
+            }
+            <p className={`text-[11px] mt-0.5 ${stats?.vencidos && stats.vencidos > 0 ? 'text-red-600' : 'text-muted-foreground'}`}>fuera de plazo</p>
+          </div>
+        </div>
+
+        {/* Resueltos hoy */}
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm">
+          <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Resueltos hoy</p>
+            {loadingStats
+              ? <Skeleton className="h-8 w-10 mt-1" />
+              : <p className="text-3xl font-bold text-emerald-800 leading-none mt-1">{stats?.resueltos_hoy || 0}</p>
+            }
+            <p className="text-[11px] text-emerald-600 mt-0.5">cerrados</p>
+          </div>
         </div>
       </div>
 
-      {/* Row 1 - Compact KPI Chips */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-card border rounded-lg px-4 py-3 flex items-center justify-between shadow-sm">
-          <div className="flex flex-col">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total</span>
-            <span className="text-2xl font-bold text-foreground mt-0.5">{loadingStats ? <Skeleton className="h-7 w-12" /> : (stats?.total || 0)}</span>
-          </div>
-        </div>
-        
-        <div className="bg-card border rounded-lg px-4 py-3 flex items-center justify-between shadow-sm">
-          <div className="flex flex-col">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Nuevos hoy</span>
-            <span className="text-2xl font-bold text-foreground mt-0.5">{loadingStats ? <Skeleton className="h-7 w-12" /> : (stats?.nuevos_hoy || 0)}</span>
-          </div>
-        </div>
+      {/* Main grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Left 2/3 */}
+        <div className="lg:col-span-2 space-y-5">
 
-        <div className="bg-card border rounded-lg px-4 py-3 flex items-center justify-between shadow-sm">
-          <div className="flex flex-col">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Resueltos hoy</span>
-            <span className="text-2xl font-bold text-green-600 mt-0.5">{loadingStats ? <Skeleton className="h-7 w-12" /> : (stats?.resueltos_hoy || 0)}</span>
-          </div>
-        </div>
-
-        <div className={`bg-card border rounded-lg px-4 py-3 flex items-center justify-between shadow-sm ${stats?.vencidos && stats.vencidos > 0 ? 'border-red-200' : ''}`}>
-          <div className="flex flex-col">
-            <span className={`text-xs font-medium uppercase tracking-wide ${stats?.vencidos && stats.vencidos > 0 ? 'text-red-600' : 'text-muted-foreground'}`}>Vencidos</span>
-            <span className={`text-2xl font-bold mt-0.5 ${stats?.vencidos && stats.vencidos > 0 ? 'text-red-600' : 'text-foreground'}`}>
-              {loadingStats ? <Skeleton className="h-7 w-12" /> : (stats?.vencidos || 0)}
-            </span>
-          </div>
-          {stats?.vencidos && stats.vencidos > 0 ? (
-            <div className="h-8 w-8 rounded-full bg-red-100 flex items-center justify-center">
-              <Clock className="h-4 w-4 text-red-600" />
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column 2/3 */}
-        <div className="lg:col-span-2 space-y-6">
-          
-          {/* Distribucion Estados & Motivos */}
-          <div className="bg-card border rounded-lg p-5 shadow-sm space-y-6">
+          {/* Distribución + Motivos */}
+          <div className="bg-card border rounded-xl p-5 shadow-sm space-y-6">
+            
+            {/* Distribución por estado — pastel stacked bar */}
             <div>
-              <h3 className="text-sm font-semibold text-foreground mb-4 uppercase tracking-wide">Distribución por Estado</h3>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Distribución por Estado</h3>
               {loadingStats ? (
-                <Skeleton className="h-4 w-full rounded-full" />
+                <Skeleton className="h-5 w-full rounded-full" />
               ) : totalEstados > 0 ? (
                 <>
-                  <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                  <div className="h-5 w-full bg-slate-100 rounded-full overflow-hidden flex gap-0.5">
                     {stats?.por_estado?.map((e: any) => {
                       const pct = (e.cantidad / totalEstados) * 100;
-                      let bg = 'bg-slate-400';
-                      if (e.estado === 'nuevo') bg = 'bg-slate-400';
-                      else if (e.estado === 'en_proceso') bg = 'bg-blue-500';
-                      else if (e.estado === 'pendiente') bg = 'bg-amber-500';
-                      else if (e.estado === 'resuelto') bg = 'bg-green-500';
-                      else if (e.estado === 'cerrado') bg = 'bg-slate-800';
+                      const color = ESTADO_PASTEL[e.estado]?.bar ?? '#e2e8f0';
                       return (
-                        <div key={e.estado} style={{ width: `${pct}%` }} className={`h-full ${bg} transition-all`} title={`${e.estado}: ${e.cantidad}`} />
+                        <div
+                          key={e.estado}
+                          style={{ width: `${pct}%`, backgroundColor: color }}
+                          className="h-full first:rounded-l-full last:rounded-r-full transition-all"
+                          title={`${ESTADO_PASTEL[e.estado]?.label ?? e.estado}: ${e.cantidad}`}
+                        />
                       );
                     })}
                   </div>
-                  <div className="flex flex-wrap gap-4 mt-3">
-                    {stats?.por_estado?.map((e: any) => (
-                      <div key={e.estado} className="flex items-center gap-1.5">
-                        <EstadoBadge estado={e.estado} />
-                        <span className="text-sm font-bold text-foreground">{e.cantidad}</span>
-                      </div>
-                    ))}
+                  <div className="flex flex-wrap gap-3 mt-3">
+                    {stats?.por_estado?.map((e: any) => {
+                      const color = ESTADO_PASTEL[e.estado]?.bar ?? '#e2e8f0';
+                      const label = ESTADO_PASTEL[e.estado]?.label ?? e.estado;
+                      return (
+                        <div key={e.estado} className="flex items-center gap-1.5">
+                          <span className="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
+                          <span className="text-xs text-muted-foreground">{label}</span>
+                          <span className="text-xs font-bold text-foreground">{e.cantidad}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </>
               ) : (
-                <div className="text-sm text-slate-500">Sin datos de estado</div>
+                <p className="text-sm text-slate-400">Sin datos</p>
               )}
             </div>
 
+            {/* Motivos de contacto — ranking list con mini barras pastel */}
             <div className="pt-4 border-t">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">Motivos de Contacto</h3>
-                <span className="text-xs text-muted-foreground bg-slate-100 px-2 py-0.5 rounded">Todos los periodos</span>
-              </div>
-              <div className="h-[240px]">
-                {loadingMotivos ? (
-                  <Skeleton className="h-full w-full rounded-full max-w-[240px] mx-auto" />
-                ) : (!motivos || motivos.length === 0) ? (
-                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">Sin datos</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={motivos}
-                        dataKey="cantidad"
-                        nameKey="motivo"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={95}
-                        paddingAngle={3}
-                      >
-                        {motivos.map((_: any, index: number) => (
-                          <Cell key={`cell-${index}`} fill={MOTIVO_COLORS[index % MOTIVO_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{ borderRadius: '6px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px -1px rgb(0 0 0 / 0.05)', fontSize: '12px' }}
-                        formatter={(value: any, name: any) => [value, name]}
-                      />
-                      <Legend
-                        layout="vertical"
-                        align="right"
-                        verticalAlign="middle"
-                        iconType="circle"
-                        iconSize={8}
-                        formatter={(value) => <span style={{ fontSize: '11px', color: '#64748b' }}>{value}</span>}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Motivos de Contacto</h3>
+              {loadingMotivos ? (
+                <div className="space-y-3">
+                  {[1,2,3,4].map(i => <Skeleton key={i} className="h-7 w-full" />)}
+                </div>
+              ) : motivosSorted.length === 0 ? (
+                <p className="text-sm text-slate-400">Sin datos</p>
+              ) : (
+                <div className="space-y-2.5">
+                  {motivosSorted.map((m: any, idx: number) => {
+                    const pct = (m.cantidad / maxMotivo) * 100;
+                    const color = MOTIVO_PASTEL[idx % MOTIVO_PASTEL.length];
+                    return (
+                      <div key={m.motivo} className="flex items-center gap-3">
+                        <span className="text-[11px] font-bold text-muted-foreground w-4 text-right flex-shrink-0">{idx + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-foreground font-medium truncate pr-2">{m.motivo}</span>
+                            <span className="text-xs font-bold text-foreground flex-shrink-0">{m.cantidad}</span>
+                          </div>
+                          <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{ width: `${pct}%`, backgroundColor: color }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Vencidos Table */}
-          <div className="bg-card border border-red-100 rounded-lg shadow-sm overflow-hidden relative">
-            <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500"></div>
-            <div className="bg-red-50/50 px-5 py-3 border-b border-red-100 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-red-800 flex items-center gap-2 uppercase tracking-wide">
-                <Clock className="h-4 w-4" />
+          {/* Tickets vencidos */}
+          <div className="bg-card border border-red-100 rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-red-50 px-5 py-3 border-b border-red-100 flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-red-800 flex items-center gap-2 uppercase tracking-wider">
+                <Clock className="h-3.5 w-3.5" />
                 Requieren Atención Inmediata
               </h3>
               {vencidos && vencidos.length > 0 && (
-                <span className="bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-sm">
-                  {vencidos.length} VENCIDOS
+                <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  {vencidos.length} vencidos
                 </span>
               )}
             </div>
-            
             {loadingVencidos ? (
-              <div className="p-4 space-y-2">
-                {[1, 2, 3].map(i => <Skeleton key={i} className="h-10 w-full" />)}
-              </div>
+              <div className="p-4 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-9 w-full" />)}</div>
             ) : (!vencidos || vencidos.length === 0) ? (
-              <div className="p-8 text-center text-slate-500 flex flex-col items-center">
-                <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center mb-2">
-                  <div className="h-2 w-2 rounded-full bg-slate-300"></div>
-                </div>
-                <p className="text-sm font-medium">SIN VENCIDOS</p>
-                <p className="text-xs">Todos los tickets están al día.</p>
+              <div className="p-8 text-center flex flex-col items-center gap-2">
+                <CheckCircle2 className="h-7 w-7 text-emerald-300" />
+                <p className="text-sm text-slate-400">Todos los tickets están al día</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50/50 text-slate-500 text-xs uppercase">
+                  <thead className="text-[11px] uppercase text-muted-foreground bg-slate-50/60">
                     <tr>
-                      <th className="px-5 py-2 font-medium">ID</th>
                       <th className="px-5 py-2 font-medium">Contacto</th>
                       <th className="px-5 py-2 font-medium">Motivo</th>
                       <th className="px-5 py-2 font-medium">Prioridad</th>
@@ -223,27 +234,18 @@ export default function Dashboard() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {vencidos.map((ticket: any) => {
-                      // simple diff calculation
                       const limitDate = new Date(ticket.fecha_limite);
                       const diffHours = Math.floor((today.getTime() - limitDate.getTime()) / (1000 * 60 * 60));
-                      const vencioStr = diffHours > 24 ? `${Math.floor(diffHours/24)} d` : `${diffHours} h`;
-
+                      const vencioStr = diffHours > 24 ? `${Math.floor(diffHours / 24)}d` : `${diffHours}h`;
                       return (
-                        <tr key={ticket.id} className="hover:bg-slate-50 group cursor-pointer" onClick={() => window.location.href = `/tickets/${ticket.id}`}>
-                          <td className="px-5 py-2.5 font-mono text-xs text-slate-500">{formatShortId(ticket.conversation_id)}</td>
+                        <tr key={ticket.id} className="hover:bg-red-50/30 cursor-pointer transition-colors" onClick={() => window.location.href = `/tickets/${ticket.id}`}>
                           <td className="px-5 py-2.5">
-                            <div className="font-medium text-foreground">{ticket.nombre} {ticket.apellido}</div>
-                            {ticket.empresa && <div className="text-[11px] text-slate-500 truncate max-w-[120px]">{ticket.empresa}</div>}
+                            <p className="font-medium text-foreground text-sm">{ticket.nombre} {ticket.apellido}</p>
+                            {ticket.empresa && <p className="text-[11px] text-slate-400">{ticket.empresa}</p>}
                           </td>
-                          <td className="px-5 py-2.5 text-slate-600 truncate max-w-[200px]" title={ticket.motivo}>
-                            {ticket.motivo}
-                          </td>
-                          <td className="px-5 py-2.5">
-                            <PrioridadBadge prioridad={ticket.prioridad} />
-                          </td>
-                          <td className="px-5 py-2.5 text-right font-medium text-red-600 text-xs">
-                            {vencioStr}
-                          </td>
+                          <td className="px-5 py-2.5 text-slate-600 text-sm truncate max-w-[180px]" title={ticket.motivo}>{ticket.motivo}</td>
+                          <td className="px-5 py-2.5"><PrioridadBadge prioridad={ticket.prioridad} /></td>
+                          <td className="px-5 py-2.5 text-right font-bold text-red-600 text-xs">{vencioStr}</td>
                         </tr>
                       );
                     })}
@@ -254,54 +256,49 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Right Column 1/3 - Activity Feed */}
+        {/* Right 1/3 — actividad reciente */}
         <div className="lg:col-span-1">
-          <div className="bg-card border rounded-lg shadow-sm h-full flex flex-col">
-            <div className="px-5 py-4 border-b flex justify-between items-center">
-              <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">Actividad Reciente</h3>
+          <div className="bg-card border rounded-xl shadow-sm flex flex-col h-full">
+            <div className="px-5 py-4 border-b flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actividad Reciente</h3>
+              <span className="text-[10px] text-muted-foreground bg-slate-100 px-2 py-0.5 rounded-full">en vivo</span>
             </div>
             <div className="p-5 flex-1 overflow-y-auto">
               {loadingActividad ? (
-                <div className="space-y-6">
-                  {[1, 2, 3, 4, 5].map(i => (
+                <div className="space-y-5">
+                  {[1,2,3,4,5].map(i => (
                     <div key={i} className="flex gap-3">
-                      <Skeleton className="h-6 w-6 rounded-full" />
-                      <div className="space-y-2 flex-1">
+                      <Skeleton className="h-5 w-5 rounded-full flex-shrink-0" />
+                      <div className="space-y-1.5 flex-1">
                         <Skeleton className="h-3 w-full" />
-                        <Skeleton className="h-2 w-24" />
+                        <Skeleton className="h-2 w-20" />
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (!actividades || actividades.length === 0) ? (
-                <div className="text-center text-slate-500 py-8 text-sm">
-                  No hay actividad reciente
-                </div>
+                <p className="text-sm text-slate-400 text-center py-8">Sin actividad reciente</p>
               ) : (
-                <div className="space-y-5">
-                  {actividades.map((actividad: any, idx: number) => {
-                    const isCreation = actividad.tipo === 'ticket_creado';
-                    const dotColor = isCreation ? 'bg-green-500' : 'bg-blue-500';
-                    const ringColor = isCreation ? 'ring-green-100' : 'ring-blue-100';
-
+                <div className="space-y-4">
+                  {actividades.map((a: any, idx: number) => {
+                    const isNew = a.tipo === 'ticket_creado';
                     return (
-                      <div key={idx} className="relative pl-6">
+                      <div key={idx} className="relative pl-5">
                         {idx !== actividades.length - 1 && (
-                          <div className="absolute left-[7px] top-5 bottom-[-20px] w-px bg-slate-200" />
+                          <div className="absolute left-[7px] top-4 bottom-[-16px] w-px bg-slate-100" />
                         )}
-                        <div className={`absolute left-1 top-1 h-3 w-3 rounded-full ${dotColor} ring-4 ${ringColor} ring-offset-background`} />
-                        
-                        <div className="text-sm">
-                          <Link href={`/tickets/${actividad.ticket_id}`} className="font-medium text-foreground hover:text-primary transition-colors">
-                            ID: {actividad.ticket_id}
+                        <div className={`absolute left-0.5 top-1 h-3 w-3 rounded-full border-2 border-white shadow-sm ${isNew ? 'bg-amber-400' : 'bg-blue-400'}`} />
+                        <div>
+                          <Link href={`/tickets/${a.ticket_id}`} className="text-xs font-semibold text-foreground hover:text-primary transition-colors">
+                            Ticket #{a.ticket_id}
                           </Link>
-                          <p className="text-slate-600 text-[13px] mt-0.5 leading-snug">{actividad.descripcion}</p>
+                          <p className="text-[12px] text-slate-500 mt-0.5 leading-snug">{a.descripcion}</p>
                           <div className="flex items-center gap-1.5 mt-1">
-                            <span className="text-[11px] font-medium text-slate-400 uppercase">{formatDate(actividad.fecha)}</span>
-                            {actividad.nombre_contacto && (
+                            <span className="text-[10px] text-slate-400">{formatDate(a.fecha)}</span>
+                            {a.nombre_contacto && (
                               <>
-                                <span className="text-slate-300">•</span>
-                                <span className="text-[11px] text-slate-500 truncate max-w-[140px]">{actividad.nombre_contacto}</span>
+                                <span className="text-slate-300">·</span>
+                                <span className="text-[10px] text-slate-400 truncate max-w-[120px]">{a.nombre_contacto}</span>
                               </>
                             )}
                           </div>
