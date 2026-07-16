@@ -5,10 +5,6 @@
  * GSB Ticket Management System API
  * OpenAPI spec version: 0.1.0
  */
-export interface HealthStatus {
-  status: string;
-}
-
 export type TicketEstado = typeof TicketEstado[keyof typeof TicketEstado];
 
 
@@ -66,6 +62,15 @@ export interface Ticket {
      * @maximum 100
      */
   progreso?: number;
+}
+
+export interface TicketIngestResult {
+  created: boolean;
+  ticket: Ticket;
+}
+
+export interface HealthStatus {
+  status: string;
 }
 
 export interface Seguimiento {

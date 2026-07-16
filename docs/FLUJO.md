@@ -1,0 +1,174 @@
+# GSB Tickets — Documentación del flujo completo
+
+> Última actualización: julio 2026
+
+## 1. El flujo de punta a punta
+
+```
+  Llamada telefónica
+        │
+        ▼
+┌──────────────────┐   El agente de voz atiende, conversa con la persona
+│   ElevenLabs     │   y al cortar arma un JSON con todos los datos:
+│  (agente de voz) │   quién llamó, motivo, resumen, teléfono, DNI, empresa…
+└────────┬─────────┘
+         │ JSON
+         ▼
+┌──────────────────┐   Orquesta el post-llamada. Hace dos cosas en paralelo:
+│       n8n        │   1) agrega una fila al Excel (respaldo histórico)
+└────────┬─────────┘   2) POST al webhook de este sistema
+         │
+         │  POST /api/webhooks/ticket
+         │  Header: x-api-key: <WEBHOOK_API_KEY>
+         ▼
+┌──────────────────┐   Valida el JSON (Zod), chequea que el conversation_id
+│  Backend (API)   │   no exista ya (idempotente) y guarda el ticket
+│  Express :5000   │   con estado "nuevo".
+└────────┬─────────┘
+         │ Drizzle ORM
+         ▼
+┌──────────────────┐   Base de datos local. Un solo archivo:
+│      SQLite      │   data/tickets.db
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐   Los operadores ven el ticket aparecer en el
+│ Frontend (React) │   dashboard y el listado, lo abren, lo gestionan
+│    Vite :3000    │   y lo van moviendo de estado hasta cerrarlo.
+└──────────────────┘
+```
+
+**Regla de oro**: los tickets NO se crean a mano. Nacen solos con cada llamada. El trabajo del operador es gestionarlos (cambiar estado, asignar, anotar seguimientos), no crearlos.
+
+## 2. Qué hace cada componente
+
+### ElevenLabs (externo)
+Agente de voz conversacional que atiende el teléfono. Al finalizar cada llamada produce un JSON con los datos extraídos de la conversación y un link a la grabación (mp3 en SharePoint). Se identifica cada llamada con un `conversation_id` único (ej: `conv_4401kxjxp0te...`).
+
+### n8n (externo)
+Automatizador. Recibe el JSON de ElevenLabs y:
+1. Agrega una fila al Excel de respaldo (`registrosTelefonicos`).
+2. Hace un **HTTP Request** al webhook de este sistema:
+   - **URL**: `http://<ip-del-servidor>:5000/api/webhooks/ticket`
+   - **Método**: POST
+   - **Header**: `x-api-key: <el valor de WEBHOOK_API_KEY del .env>`
+   - **Body** (JSON): campos mínimos `conversation_id`, `hora`, `nombre`, `apellido`, `motivo`; opcionales `telefono`, `dni`, `empresa`, `email`, `resumen`, `audio_url`, `notificado`, `prioridad`, `notas`.
+
+Si n8n reintenta un envío (timeout, error de red), no pasa nada: el webhook detecta el `conversation_id` repetido y responde 200 sin duplicar.
+
+### Backend — [backend/](../backend/)
+API REST en Express 5. Único componente que toca la base. Rutas:
+
+| Ruta | Qué hace |
+|---|---|
+| `POST /api/webhooks/ticket` | **Ingesta**: crea el ticket de una llamada. Única ruta con API key. Idempotente. Si no viene `fecha_limite`, se preestablece a **+48 hs** (SLA). |
+| `GET /api/tickets` | Listado con filtros (estado, prioridad, fechas, horas, empresa, búsqueda libre, vencidos) y paginación. |
+| `GET /api/tickets/:id` | Detalle + historial de seguimientos. |
+| `PATCH /api/tickets/:id` | Editar (estado, prioridad, progreso, notas, fecha límite, asignación…). |
+| `DELETE /api/tickets/:id` | Eliminar. |
+| `GET/POST /api/tickets/:id/seguimientos` | Historial: notas con autor y cambios de estado. |
+| `GET /api/dashboard/stats` | Totales por estado/prioridad, vencidos, resueltos hoy, nuevos hoy, tiempo promedio de resolución. |
+| `GET /api/dashboard/actividad-reciente` | Línea de tiempo de tickets creados y seguimientos. |
+| `GET /api/dashboard/tickets-vencidos` | Los que pasaron su fecha límite sin resolverse. |
+| `GET /api/dashboard/motivos` | Top 10 de motivos de llamada. |
+| `GET /api/healthz` | Chequeo de vida. |
+
+Cada request: se loguea (pino) → se valida con Zod → se consulta/escribe con Drizzle → responde JSON.
+
+### Frontend — [frontend/](../frontend/)
+React + Vite. Tres pantallas:
+- **Dashboard** (`/`): KPIs (sin revisar, en proceso, vencidos, resueltos hoy), distribución por estado, rendimiento, motivos de contacto, prioridades, tickets vencidos y actividad reciente.
+- **Listado** (`/tickets`): tabla con contacto, empresa, motivo, estado, prioridad, progreso y fecha límite. Filtros combinables.
+- **Detalle** (`/tickets/:id`): resumen de la llamada, reproductor de la grabación, datos del contacto, tiempos, edición de estado/prioridad/progreso y el historial de seguimientos.
+
+**Notificaciones del sidebar**: junto a "Tickets" hay dos numeritos — **ámbar** = tickets en estado `nuevo` (sin abrir), **rojo** = tickets vencidos. Se actualizan solos cada 30 segundos.
+
+En desarrollo, Vite proxea todo `/api/*` al backend (puerto 5000), por eso el frontend usa rutas relativas.
+
+### El contrato OpenAPI — [lib/api-spec/openapi.yaml](../lib/api-spec/openapi.yaml)
+La fuente de verdad de la API. De ahí, `pnpm --filter @workspace/api-spec run codegen` genera:
+- [lib/api-client-react/](../lib/api-client-react/) — hooks de React Query que usa el frontend (`useListTickets`, `useGetDashboardStats`…)
+- [lib/api-zod/](../lib/api-zod/) — schemas de validación que usa el backend
+
+Si se cambia la API: primero se edita el yaml, se corre codegen, y después se implementa. Los dos lados quedan sincronizados por construcción.
+
+## 3. Cómo se guardan los datos
+
+**Motor**: SQLite — un único archivo en `data/tickets.db` (gitignoreado). Sin servidores de base de datos, sin credenciales. Backup = copiar el archivo. Modo WAL activado (lecturas y escrituras concurrentes sin bloquearse).
+
+**Schema** (definido en [lib/db/src/schema/tickets.ts](../lib/db/src/schema/tickets.ts)):
+
+### Tabla `tickets` — una fila por llamada
+| Campo | Tipo | Notas |
+|---|---|---|
+| `id` | entero autoincremental | **Uso interno** (rutas de la API). No se muestra en la UI. |
+| `conversation_id` | texto, **único** | El ID de ElevenLabs. Es la clave de idempotencia. |
+| `hora` | texto "HH:MM" | Hora de la llamada. |
+| `nombre`, `apellido` | texto | Datos del llamante. |
+| `telefono`, `dni`, `empresa`, `email` | texto, opcionales | Datos del llamante. `empresa` viene de n8n. |
+| `motivo` | texto | Por qué llamó (título del ticket). |
+| `resumen` | texto, opcional | Resumen de la conversación que arma ElevenLabs. |
+| `audio_url` | texto, opcional | Link a la grabación (SharePoint). |
+| `notificado` | booleano | Si ya se avisó al área correspondiente. |
+| `estado` | enum | `nuevo` → `en_proceso` → `pendiente` → `resuelto` → `cerrado` |
+| `prioridad` | enum | `baja` / `media` / `alta` / `urgente` |
+| `asignado_a` | texto, opcional | Quién lo tiene a cargo. |
+| `notas` | texto, opcional | Notas internas de gestión. |
+| `progreso` | entero 0-100 | Barra de avance. |
+| `fecha_creacion` | timestamp (ms) | Cuándo entró la llamada. |
+| `fecha_limite` | timestamp | **SLA: se preestablece a 48 hs de recibido el llamado** (webhook e importador). Editable desde el detalle del ticket. Si pasa sin resolverse, el ticket figura "vencido". |
+| `fecha_resolucion` | timestamp, opcional | **Se registra sola** la primera vez que el ticket pasa a `resuelto` o `cerrado`. Alimenta "resueltos hoy" y el tiempo promedio de resolución del dashboard. |
+
+Las fechas se guardan como enteros (milisegundos Unix); Drizzle convierte a `Date` automáticamente. Los enums son `text` con restricción (SQLite no tiene enums nativos).
+
+### Tabla `seguimientos` — historial de cada ticket
+| Campo | Tipo |
+|---|---|
+| `id` | entero autoincremental |
+| `ticket_id` | referencia a `tickets` (borrado en cascada) |
+| `nota` | texto |
+| `estado_anterior` / `estado_nuevo` | texto, opcionales (registra transiciones) |
+| `autor` | texto, opcional |
+| `fecha_creacion` | timestamp |
+
+**Cambios de schema**: se edita `tickets.ts` y se corre `pnpm --filter @workspace/db run push`.
+
+## 4. El importador del histórico
+
+[scripts/src/import-excel.ts](../scripts/src/import-excel.ts) — para cargar de una vez las llamadas viejas del Excel/CSV de n8n:
+
+```
+pnpm --filter @workspace/scripts run import-excel -- "ruta\archivo.csv" --dry-run   # simula
+pnpm --filter @workspace/scripts run import-excel -- "ruta\archivo.csv"             # importa
+```
+
+- Acepta `.xlsx` y `.csv` (detecta el delimitador `;` o `,` solo).
+- Reconoce los encabezados del export de n8n (`id`, `fecha_hora`, `Observaciones`, `audio`, `VERDADERO/FALSO`…) y variantes con acentos. El mapeo está en `HEADER_ALIASES` dentro del script.
+- **Idempotente**: las filas cuyo `conversation_id` ya está en la base se saltean. Se puede correr mil veces.
+- Deriva la hora del ticket del campo `fecha_hora` (`"16/07/2026 - 11:34hs"`).
+- Preestablece `fecha_limite` a +48 hs de la fecha del llamado (el mismo SLA que el webhook).
+
+## 5. Configuración y operación
+
+Archivo `.env` en la raíz (plantilla: [.env.example](../.env.example)):
+
+| Variable | Para qué |
+|---|---|
+| `PORT` | Puerto del backend (default 5000). |
+| `WEBHOOK_API_KEY` | La clave que n8n manda en `x-api-key`. Sin ella el webhook responde 503. |
+| `TICKETS_DB_PATH` | Ruta del archivo SQLite (opcional; default `data/tickets.db`). |
+
+Arrancar el sistema (dos terminales):
+
+```
+pnpm --filter @workspace/backend run dev    # API en :5000
+pnpm --filter @workspace/frontend run dev   # UI en :3000
+```
+
+Y abrir http://localhost:3000.
+
+## 6. Seguridad — estado actual
+
+- El **webhook** exige API key (comparación en tiempo constante). Es la única puerta de escritura desde afuera.
+- El **resto del CRUD no tiene autenticación**: el sistema está pensado para correr en la red local de la empresa. **Antes de exponerlo a internet hay que agregar login.**
+- Si n8n corre en la nube, necesita poder llegar a esta máquina: túnel (Cloudflare Tunnel / ngrok) o IP pública con firewall.

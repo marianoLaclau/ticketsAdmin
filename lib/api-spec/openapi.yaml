@@ -16,6 +16,8 @@ tags:
     description: Ticket follow-up tracking
   - name: dashboard
     description: Dashboard statistics
+  - name: webhooks
+    description: Ingesta automática de llamadas (n8n)
 
 paths:
   /healthz:
@@ -100,10 +102,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/TicketListResponse"
 
+  /webhooks/ticket:
     post:
-      operationId: createTicket
-      tags: [tickets]
-      summary: Create a new ticket
+      operationId: ingestTicket
+      tags: [webhooks]
+      summary: Ingesta de una llamada desde n8n
+      description: >
+        Recibe el JSON que arma ElevenLabs al finalizar una llamada.
+        Requiere el header x-api-key. Idempotente por conversation_id:
+        si el ticket ya existe devuelve 200 con created=false.
+      security:
+        - webhookApiKey: []
       requestBody:
         required: true
         content:
@@ -112,11 +121,19 @@ paths:
               $ref: "#/components/schemas/TicketInput"
       responses:
         "201":
-          description: Created ticket
+          description: Ticket creado
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Ticket"
+                $ref: "#/components/schemas/TicketIngestResult"
+        "200":
+          description: El ticket ya existía (reintento)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketIngestResult"
+        "401":
+          description: API key inválida
 
   /tickets/{id}:
     get:
@@ -287,7 +304,24 @@ paths:
                   $ref: "#/components/schemas/MotivoStat"
 
 components:
+  securitySchemes:
+    webhookApiKey:
+      type: apiKey
+      in: header
+      name: x-api-key
+
   schemas:
+    TicketIngestResult:
+      type: object
+      required:
+        - created
+        - ticket
+      properties:
+        created:
+          type: boolean
+        ticket:
+          $ref: "#/components/schemas/Ticket"
+
     HealthStatus:
       type: object
       properties:

@@ -4,8 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "hello": "tsx ./src/hello.ts",
+    "import-excel": "tsx ./src/import-excel.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@workspace/db": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "exceljs": "^4.4.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",

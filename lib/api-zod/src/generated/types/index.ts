@@ -21,6 +21,7 @@ export * from './seguimientoInput';
 export * from './ticket';
 export * from './ticketDetail';
 export * from './ticketEstado';
+export * from './ticketIngestResult';
 export * from './ticketInput';
 export * from './ticketInputEstado';
 export * from './ticketInputPrioridad';

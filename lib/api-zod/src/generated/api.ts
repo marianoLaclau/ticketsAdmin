@@ -74,18 +74,19 @@ export const ListTicketsResponse = zod.object({
 
 
 /**
- * @summary Create a new ticket
+ * Recibe el JSON que arma ElevenLabs al finalizar una llamada. Requiere el header x-api-key. Idempotente por conversation_id: si el ticket ya existe devuelve 200 con created=false.
+ * @summary Ingesta de una llamada desde n8n
  */
-export const createTicketBodyNotificadoDefault = false;
-export const createTicketBodyEstadoDefault = `nuevo`;
-export const createTicketBodyPrioridadDefault = `media`;
-export const createTicketBodyProgresoDefault = 0;
-export const createTicketBodyProgresoMin = 0;
-export const createTicketBodyProgresoMax = 100;
+export const ingestTicketBodyNotificadoDefault = false;
+export const ingestTicketBodyEstadoDefault = `nuevo`;
+export const ingestTicketBodyPrioridadDefault = `media`;
+export const ingestTicketBodyProgresoDefault = 0;
+export const ingestTicketBodyProgresoMin = 0;
+export const ingestTicketBodyProgresoMax = 100;
 
 
 
-export const CreateTicketBody = zod.object({
+export const IngestTicketBody = zod.object({
   "conversation_id": zod.string(),
   "hora": zod.string(),
   "nombre": zod.string(),
@@ -96,22 +97,24 @@ export const CreateTicketBody = zod.object({
   "email": zod.string().optional(),
   "motivo": zod.string(),
   "resumen": zod.string().optional(),
-  "notificado": zod.boolean().default(createTicketBodyNotificadoDefault),
-  "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']).default(createTicketBodyEstadoDefault),
-  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).default(createTicketBodyPrioridadDefault),
+  "notificado": zod.boolean().default(ingestTicketBodyNotificadoDefault),
+  "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']).default(ingestTicketBodyEstadoDefault),
+  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).default(ingestTicketBodyPrioridadDefault),
   "asignado_a": zod.string().optional(),
   "audio_url": zod.string().optional(),
   "notas": zod.string().optional(),
   "fecha_limite": zod.coerce.date().optional(),
-  "progreso": zod.number().min(createTicketBodyProgresoMin).max(createTicketBodyProgresoMax).default(createTicketBodyProgresoDefault)
+  "progreso": zod.number().min(ingestTicketBodyProgresoMin).max(ingestTicketBodyProgresoMax).default(ingestTicketBodyProgresoDefault)
 })
 
-export const createTicketResponseProgresoMin = 0;
-export const createTicketResponseProgresoMax = 100;
+export const ingestTicketResponseTicketProgresoMin = 0;
+export const ingestTicketResponseTicketProgresoMax = 100;
 
 
 
-export const CreateTicketResponse = zod.object({
+export const IngestTicketResponse = zod.object({
+  "created": zod.boolean(),
+  "ticket": zod.object({
   "id": zod.number(),
   "conversation_id": zod.string(),
   "hora": zod.string(),
@@ -132,7 +135,8 @@ export const CreateTicketResponse = zod.object({
   "fecha_creacion": zod.coerce.date(),
   "fecha_limite": zod.coerce.date().nullish(),
   "fecha_resolucion": zod.coerce.date().nullish(),
-  "progreso": zod.number().min(createTicketResponseProgresoMin).max(createTicketResponseProgresoMax).optional()
+  "progreso": zod.number().min(ingestTicketResponseTicketProgresoMin).max(ingestTicketResponseTicketProgresoMax).optional()
+})
 })
 
 

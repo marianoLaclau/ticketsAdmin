@@ -30,6 +30,7 @@ import type {
   SeguimientoInput,
   Ticket,
   TicketDetail,
+  TicketIngestResult,
   TicketInput,
   TicketListResponse,
   TicketUpdate
@@ -224,20 +225,21 @@ export function useListTickets<TData = Awaited<ReturnType<typeof listTickets>>, 
 
 
 
-export const getCreateTicketUrl = () => {
+export const getIngestTicketUrl = () => {
 
 
 
 
-  return `/api/tickets`
+  return `/api/webhooks/ticket`
 }
 
 /**
- * @summary Create a new ticket
+ * Recibe el JSON que arma ElevenLabs al finalizar una llamada. Requiere el header x-api-key. Idempotente por conversation_id: si el ticket ya existe devuelve 200 con created=false.
+ * @summary Ingesta de una llamada desde n8n
  */
-export const createTicket = async (ticketInput: TicketInput, options?: RequestInit): Promise<Ticket> => {
+export const ingestTicket = async (ticketInput: TicketInput, options?: RequestInit): Promise<TicketIngestResult> => {
 
-  return customFetch<Ticket>(getCreateTicketUrl(),
+  return customFetch<TicketIngestResult>(getIngestTicketUrl(),
   {
     ...options,
     method: 'POST',
@@ -250,11 +252,11 @@ export const createTicket = async (ticketInput: TicketInput, options?: RequestIn
 
 
 
-export const getCreateTicketMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTicket>>, TError,{data: BodyType<TicketInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof createTicket>>, TError,{data: BodyType<TicketInput>}, TContext> => {
+export const getIngestTicketMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ingestTicket>>, TError,{data: BodyType<TicketInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof ingestTicket>>, TError,{data: BodyType<TicketInput>}, TContext> => {
 
-const mutationKey = ['createTicket'];
+const mutationKey = ['ingestTicket'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -264,10 +266,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTicket>>, {data: BodyType<TicketInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof ingestTicket>>, {data: BodyType<TicketInput>}> = (props) => {
           const {data} = props ?? {};
 
-          return  createTicket(data,requestOptions)
+          return  ingestTicket(data,requestOptions)
         }
 
 
@@ -277,22 +279,22 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type CreateTicketMutationResult = NonNullable<Awaited<ReturnType<typeof createTicket>>>
-    export type CreateTicketMutationBody = BodyType<TicketInput>
-    export type CreateTicketMutationError = ErrorType<unknown>
+    export type IngestTicketMutationResult = NonNullable<Awaited<ReturnType<typeof ingestTicket>>>
+    export type IngestTicketMutationBody = BodyType<TicketInput>
+    export type IngestTicketMutationError = ErrorType<void>
 
     /**
- * @summary Create a new ticket
+ * @summary Ingesta de una llamada desde n8n
  */
-export const useCreateTicket = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTicket>>, TError,{data: BodyType<TicketInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useIngestTicket = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ingestTicket>>, TError,{data: BodyType<TicketInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
-        Awaited<ReturnType<typeof createTicket>>,
+        Awaited<ReturnType<typeof ingestTicket>>,
         TError,
         {data: BodyType<TicketInput>},
         TContext
       > => {
-      return useMutation(getCreateTicketMutationOptions(options));
+      return useMutation(getIngestTicketMutationOptions(options));
     }
 
 export const getGetTicketUrl = (id: number,) => {
