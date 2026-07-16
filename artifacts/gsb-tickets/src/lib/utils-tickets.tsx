@@ -1,38 +1,38 @@
 import React from 'react';
-import { Badge } from '@/components/ui/badge';
 import { TicketEstado, TicketPrioridad } from '@workspace/api-client-react';
 
 export const getEstadoColor = (estado: string) => {
   switch (estado) {
-    case TicketEstado.nuevo: return 'bg-slate-100 text-slate-800 hover:bg-slate-200 border-slate-200';
-    case TicketEstado.en_proceso: return 'bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-200';
-    case TicketEstado.pendiente: return 'bg-amber-100 text-amber-800 hover:bg-amber-200 border-amber-200';
-    case TicketEstado.resuelto: return 'bg-green-100 text-green-800 hover:bg-green-200 border-green-200';
-    case TicketEstado.cerrado: return 'bg-gray-100 text-gray-800 hover:bg-gray-200 border-gray-200';
-    default: return 'bg-slate-100 text-slate-800 border-slate-200';
+    case TicketEstado.nuevo: return 'bg-slate-400';
+    case TicketEstado.en_proceso: return 'bg-blue-500';
+    case TicketEstado.pendiente: return 'bg-amber-500';
+    case TicketEstado.resuelto: return 'bg-green-500';
+    case TicketEstado.cerrado: return 'bg-slate-800';
+    default: return 'bg-slate-400';
   }
 };
 
-export const getPrioridadColor = (prioridad: string) => {
+export const getPrioridadStyle = (prioridad: string) => {
   switch (prioridad) {
-    case TicketPrioridad.baja: return 'bg-slate-100 text-slate-800 border-slate-200';
-    case TicketPrioridad.media: return 'bg-blue-100 text-blue-800 border-blue-200';
-    case TicketPrioridad.alta: return 'bg-orange-100 text-orange-800 border-orange-200';
-    case TicketPrioridad.urgente: return 'bg-red-100 text-red-800 border-red-200';
-    default: return 'bg-slate-100 text-slate-800 border-slate-200';
+    case TicketPrioridad.baja: return 'bg-slate-100 text-slate-600';
+    case TicketPrioridad.media: return 'bg-blue-50 text-blue-700';
+    case TicketPrioridad.alta: return 'bg-orange-50 text-orange-700';
+    case TicketPrioridad.urgente: return 'bg-red-50 text-red-700 font-bold';
+    default: return 'bg-slate-100 text-slate-700';
   }
 };
 
 export const EstadoBadge = ({ estado, className = '' }: { estado: string, className?: string }) => (
-  <Badge variant="outline" className={`font-medium ${getEstadoColor(estado)} ${className}`}>
-    {estado.replace('_', ' ').toUpperCase()}
-  </Badge>
+  <div className={`inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 ${className}`}>
+    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${getEstadoColor(estado)}`} />
+    <span>{estado.replace('_', ' ').toUpperCase()}</span>
+  </div>
 );
 
 export const PrioridadBadge = ({ prioridad, className = '' }: { prioridad: string, className?: string }) => (
-  <Badge variant="outline" className={`font-medium ${getPrioridadColor(prioridad)} ${className}`}>
-    {prioridad.toUpperCase()}
-  </Badge>
+  <div className={`inline-flex items-center px-2 py-0.5 rounded-sm text-[11px] font-semibold tracking-wide uppercase ${getPrioridadStyle(prioridad)} ${className}`}>
+    {prioridad}
+  </div>
 );
 
 export const formatShortId = (uuid: string) => {
