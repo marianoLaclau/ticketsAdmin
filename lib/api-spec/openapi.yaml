@@ -3,13 +3,20 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: GSB Ticket Management System API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: tickets
+    description: Ticket management
+  - name: seguimientos
+    description: Ticket follow-up tracking
+  - name: dashboard
+    description: Dashboard statistics
+
 paths:
   /healthz:
     get:
@@ -24,6 +31,261 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /tickets:
+    get:
+      operationId: listTickets
+      tags: [tickets]
+      summary: List all tickets with optional filters
+      parameters:
+        - name: estado
+          in: query
+          schema:
+            type: string
+            enum: [nuevo, en_proceso, pendiente, resuelto, cerrado]
+        - name: prioridad
+          in: query
+          schema:
+            type: string
+            enum: [baja, media, alta, urgente]
+        - name: fecha_desde
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: fecha_hasta
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: hora_desde
+          in: query
+          schema:
+            type: string
+        - name: hora_hasta
+          in: query
+          schema:
+            type: string
+        - name: empresa
+          in: query
+          schema:
+            type: string
+        - name: motivo
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: vencidos
+          in: query
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of tickets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketListResponse"
+
+    post:
+      operationId: createTicket
+      tags: [tickets]
+      summary: Create a new ticket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TicketInput"
+      responses:
+        "201":
+          description: Created ticket
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+
+  /tickets/{id}:
+    get:
+      operationId: getTicket
+      tags: [tickets]
+      summary: Get ticket details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Ticket details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketDetail"
+        "404":
+          description: Not found
+
+    patch:
+      operationId: updateTicket
+      tags: [tickets]
+      summary: Update a ticket
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TicketUpdate"
+      responses:
+        "200":
+          description: Updated ticket
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+
+    delete:
+      operationId: deleteTicket
+      tags: [tickets]
+      summary: Delete a ticket
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /tickets/{id}/seguimientos:
+    get:
+      operationId: listSeguimientos
+      tags: [seguimientos]
+      summary: List follow-ups for a ticket
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of follow-ups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Seguimiento"
+
+    post:
+      operationId: createSeguimiento
+      tags: [seguimientos]
+      summary: Add a follow-up to a ticket
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SeguimientoInput"
+      responses:
+        "201":
+          description: Created follow-up
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Seguimiento"
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get dashboard statistics
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /dashboard/actividad-reciente:
+    get:
+      operationId: getActividadReciente
+      tags: [dashboard]
+      summary: Get recent ticket activity
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActividadItem"
+
+  /dashboard/tickets-vencidos:
+    get:
+      operationId: getTicketsVencidos
+      tags: [dashboard]
+      summary: Get overdue tickets
+      responses:
+        "200":
+          description: Overdue tickets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ticket"
+
+  /dashboard/motivos:
+    get:
+      operationId: getMotivoStats
+      tags: [dashboard]
+      summary: Get ticket counts grouped by motivo
+      responses:
+        "200":
+          description: Motivo statistics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MotivoStat"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +296,317 @@ components:
       required:
         - status
 
+    Ticket:
+      type: object
+      required:
+        - id
+        - conversation_id
+        - hora
+        - nombre
+        - apellido
+        - estado
+        - prioridad
+        - motivo
+        - fecha_creacion
+        - notificado
+      properties:
+        id:
+          type: integer
+        conversation_id:
+          type: string
+        hora:
+          type: string
+        nombre:
+          type: string
+        apellido:
+          type: string
+        telefono:
+          type: ["string", "null"]
+        dni:
+          type: ["string", "null"]
+        empresa:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        motivo:
+          type: string
+        resumen:
+          type: ["string", "null"]
+        notificado:
+          type: boolean
+        estado:
+          type: string
+          enum: [nuevo, en_proceso, pendiente, resuelto, cerrado]
+        prioridad:
+          type: string
+          enum: [baja, media, alta, urgente]
+        asignado_a:
+          type: ["string", "null"]
+        audio_url:
+          type: ["string", "null"]
+        notas:
+          type: ["string", "null"]
+        fecha_creacion:
+          type: string
+          format: date-time
+        fecha_limite:
+          type: ["string", "null"]
+          format: date-time
+        fecha_resolucion:
+          type: ["string", "null"]
+          format: date-time
+        progreso:
+          type: integer
+          minimum: 0
+          maximum: 100
+
+    TicketDetail:
+      allOf:
+        - $ref: "#/components/schemas/Ticket"
+        - type: object
+          properties:
+            seguimientos:
+              type: array
+              items:
+                $ref: "#/components/schemas/Seguimiento"
+
+    TicketListResponse:
+      type: object
+      required:
+        - tickets
+        - total
+        - page
+        - limit
+      properties:
+        tickets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ticket"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    TicketInput:
+      type: object
+      required:
+        - conversation_id
+        - hora
+        - nombre
+        - apellido
+        - motivo
+      properties:
+        conversation_id:
+          type: string
+        hora:
+          type: string
+        nombre:
+          type: string
+        apellido:
+          type: string
+        telefono:
+          type: string
+        dni:
+          type: string
+        empresa:
+          type: string
+        email:
+          type: string
+        motivo:
+          type: string
+        resumen:
+          type: string
+        notificado:
+          type: boolean
+          default: false
+        estado:
+          type: string
+          enum: [nuevo, en_proceso, pendiente, resuelto, cerrado]
+          default: nuevo
+        prioridad:
+          type: string
+          enum: [baja, media, alta, urgente]
+          default: media
+        asignado_a:
+          type: string
+        audio_url:
+          type: string
+        notas:
+          type: string
+        fecha_limite:
+          type: string
+          format: date-time
+        progreso:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 0
+
+    TicketUpdate:
+      type: object
+      properties:
+        hora:
+          type: string
+        nombre:
+          type: string
+        apellido:
+          type: string
+        telefono:
+          type: string
+        dni:
+          type: string
+        empresa:
+          type: string
+        email:
+          type: string
+        motivo:
+          type: string
+        resumen:
+          type: string
+        notificado:
+          type: boolean
+        estado:
+          type: string
+          enum: [nuevo, en_proceso, pendiente, resuelto, cerrado]
+        prioridad:
+          type: string
+          enum: [baja, media, alta, urgente]
+        asignado_a:
+          type: string
+        audio_url:
+          type: string
+        notas:
+          type: string
+        fecha_limite:
+          type: string
+          format: date-time
+        fecha_resolucion:
+          type: string
+          format: date-time
+        progreso:
+          type: integer
+          minimum: 0
+          maximum: 100
+
+    Seguimiento:
+      type: object
+      required:
+        - id
+        - ticket_id
+        - nota
+        - fecha_creacion
+      properties:
+        id:
+          type: integer
+        ticket_id:
+          type: integer
+        nota:
+          type: string
+        estado_anterior:
+          type: ["string", "null"]
+        estado_nuevo:
+          type: ["string", "null"]
+        autor:
+          type: ["string", "null"]
+        fecha_creacion:
+          type: string
+          format: date-time
+
+    SeguimientoInput:
+      type: object
+      required:
+        - nota
+      properties:
+        nota:
+          type: string
+        estado_anterior:
+          type: string
+        estado_nuevo:
+          type: string
+        autor:
+          type: string
+
+    DashboardStats:
+      type: object
+      required:
+        - total
+        - por_estado
+        - por_prioridad
+        - vencidos
+        - resueltos_hoy
+        - nuevos_hoy
+        - tiempo_promedio_resolucion
+      properties:
+        total:
+          type: integer
+        por_estado:
+          type: array
+          items:
+            $ref: "#/components/schemas/EstadoStat"
+        por_prioridad:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrioridadStat"
+        vencidos:
+          type: integer
+        resueltos_hoy:
+          type: integer
+        nuevos_hoy:
+          type: integer
+        tiempo_promedio_resolucion:
+          type: ["number", "null"]
+
+    EstadoStat:
+      type: object
+      required:
+        - estado
+        - cantidad
+      properties:
+        estado:
+          type: string
+        cantidad:
+          type: integer
+
+    PrioridadStat:
+      type: object
+      required:
+        - prioridad
+        - cantidad
+      properties:
+        prioridad:
+          type: string
+        cantidad:
+          type: integer
+
+    MotivoStat:
+      type: object
+      required:
+        - motivo
+        - cantidad
+      properties:
+        motivo:
+          type: string
+        cantidad:
+          type: integer
+
+    ActividadItem:
+      type: object
+      required:
+        - tipo
+        - ticket_id
+        - descripcion
+        - fecha
+      properties:
+        tipo:
+          type: string
+        ticket_id:
+          type: integer
+        nombre_contacto:
+          type: string
+        descripcion:
+          type: string
+        fecha:
+          type: string
+          format: date-time
