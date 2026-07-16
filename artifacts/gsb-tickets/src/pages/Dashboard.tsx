@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Clock, Activity, Building2, Users } from 'lucide-react';
 import { Link } from 'wouter';
 import { formatShortId, formatDate, getEstadoColor, getPrioridadStyle, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export default function Dashboard() {
   const [period, setPeriod] = useState<string>('Hoy');
@@ -20,7 +20,7 @@ export default function Dashboard() {
   const { data: vencidos, isLoading: loadingVencidos } = useGetTicketsVencidos();
   const { data: motivos, isLoading: loadingMotivos } = useGetMotivoStats();
 
-  const primaryColor = 'hsl(var(--primary))';
+  const MOTIVO_COLORS = ['#3d7532','#2563eb','#d97706','#dc2626','#7c3aed','#0891b2','#059669','#db2777'];
   
   const today = new Date();
   const dateString = today.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -53,7 +53,7 @@ export default function Dashboard() {
             href="/tickets/nuevo" 
             className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4"
           >
-            Nuevo Llamado
+            Nuevo Ticket
           </Link>
         </div>
       </div>
@@ -141,26 +141,41 @@ export default function Dashboard() {
                 <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">Motivos de Contacto</h3>
                 <span className="text-xs text-muted-foreground bg-slate-100 px-2 py-0.5 rounded">Todos los periodos</span>
               </div>
-              <div className="h-[240px] -ml-4">
+              <div className="h-[240px]">
                 {loadingMotivos ? (
-                  <Skeleton className="h-full w-full" />
+                  <Skeleton className="h-full w-full rounded-full max-w-[240px] mx-auto" />
                 ) : (!motivos || motivos.length === 0) ? (
                   <div className="h-full flex items-center justify-center text-slate-400 text-sm">Sin datos</div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={motivos} layout="vertical" margin={{ top: 0, right: 20, left: 0, bottom: 0 }}>
-                      <XAxis type="number" hide />
-                      <YAxis dataKey="motivo" type="category" width={140} tick={{fontSize: 11, fill: '#64748b'}} axisLine={false} tickLine={false} />
-                      <Tooltip 
-                        cursor={{fill: '#f8fafc'}} 
-                        contentStyle={{ borderRadius: '6px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px -1px rgb(0 0 0 / 0.05)', fontSize: '12px' }}
-                      />
-                      <Bar dataKey="cantidad" radius={[0, 4, 4, 0]} barSize={20}>
-                        {motivos.map((entry: any, index: number) => (
-                          <Cell key={`cell-${index}`} fill={primaryColor} fillOpacity={0.85 - (index * 0.05)} />
+                    <PieChart>
+                      <Pie
+                        data={motivos}
+                        dataKey="cantidad"
+                        nameKey="motivo"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={95}
+                        paddingAngle={3}
+                      >
+                        {motivos.map((_: any, index: number) => (
+                          <Cell key={`cell-${index}`} fill={MOTIVO_COLORS[index % MOTIVO_COLORS.length]} />
                         ))}
-                      </Bar>
-                    </BarChart>
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ borderRadius: '6px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px -1px rgb(0 0 0 / 0.05)', fontSize: '12px' }}
+                        formatter={(value: any, name: any) => [value, name]}
+                      />
+                      <Legend
+                        layout="vertical"
+                        align="right"
+                        verticalAlign="middle"
+                        iconType="circle"
+                        iconSize={8}
+                        formatter={(value) => <span style={{ fontSize: '11px', color: '#64748b' }}>{value}</span>}
+                      />
+                    </PieChart>
                   </ResponsiveContainer>
                 )}
               </div>

@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'wouter';
 import { 
   LayoutDashboard, 
-  PhoneIncoming, 
+  Ticket, 
   Plus, 
   UserCircle 
 } from 'lucide-react';
@@ -17,8 +17,8 @@ export function Sidebar() {
 
   const links = [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/tickets', label: 'Llamados', icon: PhoneIncoming },
-    { href: '/tickets/nuevo', label: 'Nuevo Llamado', icon: Plus },
+    { href: '/tickets', label: 'Tickets', icon: Ticket },
+    { href: '/tickets/nuevo', label: 'Nuevo Ticket', icon: Plus },
   ];
 
   return (
