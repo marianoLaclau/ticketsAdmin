@@ -1,0 +1,27 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      PORT: "5000"
+      WEBHOOK_API_KEY: ${WEBHOOK_API_KEY:?WEBHOOK_API_KEY is required — export it or set it in a .env next to this file}
+      TICKETS_DB_PATH: /data/tickets.db
+    volumes:
+      - tickets_data:/data
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  tickets_data:

@@ -1,0 +1,37 @@
+# syntax=docker/dockerfile:1
+#
+# Build context must be the repo root (monorepo): the backend depends on
+# workspace packages (lib/db, lib/api-zod) resolved via pnpm workspaces.
+
+FROM node:24-slim AS builder
+
+# python3/make/g++ are a fallback in case better-sqlite3 has no prebuilt
+# binary for this exact Node/OS/arch combo and needs to compile from source.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN corepack enable
+WORKDIR /app
+
+COPY . .
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @workspace/backend run build
+
+# Produces a self-contained, non-symlinked node_modules with only the
+# backend's production dependencies (this is what makes better-sqlite3's
+# native binary resolvable at runtime without dragging pnpm's whole
+# symlink-based store into the final image).
+RUN pnpm --filter @workspace/backend deploy --prod --legacy /prod/backend
+
+FROM node:24-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=builder /app/backend/dist ./dist
+COPY --from=builder /prod/backend/node_modules ./node_modules
+COPY --from=builder /app/lib/db/drizzle ./drizzle
+
+EXPOSE 5000
+# Aplica las migraciones pendientes (idempotente) y recién después levanta la API.
+CMD ["sh", "-c", "node dist/migrate.mjs && node --enable-source-maps dist/index.mjs"]

@@ -138,7 +138,7 @@ Si se cambia la API: primero se edita el yaml, se corre codegen, y después se i
 
 ## 3. Cómo se guardan los datos
 
-**Motor**: SQLite — un único archivo en `data/tickets.db` (gitignoreado). Sin servidores de base de datos, sin credenciales. Backup = copiar el archivo. Modo WAL activado (lecturas y escrituras concurrentes sin bloquearse).
+**Motor**: SQLite — un único archivo (`data/tickets.db` en desarrollo local; en el servidor de testing vive dentro de un volumen Docker, ver [docs/DEPLOY.md](DEPLOY.md)). Sin servidores de base de datos, sin credenciales. Modo WAL activado (lecturas y escrituras concurrentes sin bloquearse).
 
 **Schema** (definido en [lib/db/src/schema/tickets.ts](../lib/db/src/schema/tickets.ts)):
 
@@ -175,7 +175,7 @@ Las fechas se guardan como enteros (milisegundos Unix); Drizzle convierte a `Dat
 | `autor` | texto, opcional |
 | `fecha_creacion` | timestamp |
 
-**Cambios de schema**: se edita `tickets.ts` y se corre `pnpm --filter @workspace/db run push`.
+**Cambios de schema**: en desarrollo local se edita `tickets.ts` y se corre `pnpm --filter @workspace/db run push` (rápido, sin archivos de migración). Para que el cambio llegue al servidor de testing hay que además generar la migración SQL (`drizzle-kit generate`) y commitearla — el contenedor la aplica solo al arrancar. Ver [docs/DEPLOY.md](DEPLOY.md).
 
 ## 4. El importador del histórico
 
@@ -211,6 +211,8 @@ pnpm --filter @workspace/frontend run dev   # UI en :3000
 ```
 
 Y abrir http://localhost:3000.
+
+Esto es para **desarrollo local**. El servidor de testing corre los mismos dos servicios pero en contenedores Docker, con CI/CD automático en cada push a `main` — ver [docs/DEPLOY.md](DEPLOY.md) para el detalle completo (arquitectura, runbook del servidor, backups).
 
 ## 6. Seguridad — estado actual
 

@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/.tsbuildinfo
+.git
+.github
+.claude
+.agents
+data
+.env
+.env.example
+*.md
+docker-compose.yml
+Dockerfile.*
