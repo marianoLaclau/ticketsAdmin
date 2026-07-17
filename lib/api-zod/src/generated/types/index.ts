@@ -7,6 +7,11 @@
  */
 
 export * from './actividadItem';
+export * from './adminImportColumna';
+export * from './adminImportInput';
+export * from './adminImportResult';
+export * from './adminTruncateInput';
+export * from './adminTruncateResult';
 export * from './dashboardStats';
 export * from './estadoStat';
 export * from './getActividadRecienteParams';

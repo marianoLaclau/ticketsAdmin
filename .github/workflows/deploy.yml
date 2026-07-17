@@ -16,6 +16,8 @@ jobs:
       # CUALQUIER subcomando (build, up, ps...), no solo en "up" — por eso
       # va a nivel de job y no en un solo step.
       WEBHOOK_API_KEY: ${{ secrets.WEBHOOK_API_KEY }}
+      # Opcional: proteger el panel /admin (si el secreto no existe, queda abierto)
+      ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

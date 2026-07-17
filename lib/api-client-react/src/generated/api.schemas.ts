@@ -5,6 +5,42 @@
  * GSB Ticket Management System API
  * OpenAPI spec version: 0.1.0
  */
+export interface AdminImportInput {
+  /** Contenido completo del archivo CSV (texto plano) */
+  csv: string;
+  /** Si es true, simula la importación sin escribir nada */
+  dry_run?: boolean;
+}
+
+export interface AdminImportColumna {
+  /** Encabezado original del CSV */
+  columna: string;
+  /** Campo del ticket al que se mapeó */
+  campo: string;
+}
+
+export interface AdminImportResult {
+  dry_run: boolean;
+  /** Filas de datos leídas del CSV */
+  filas: number;
+  insertados: number;
+  ya_existentes: number;
+  invalidos: number;
+  columnas: AdminImportColumna[];
+  sin_mapear: string[];
+  advertencias: string[];
+}
+
+export interface AdminTruncateInput {
+  /** Debe ser true para ejecutar el borrado */
+  confirmar: boolean;
+}
+
+export interface AdminTruncateResult {
+  tickets_eliminados: number;
+  seguimientos_eliminados: number;
+}
+
 export type TicketEstado = typeof TicketEstado[keyof typeof TicketEstado];
 
 

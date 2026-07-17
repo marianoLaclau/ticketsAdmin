@@ -116,6 +116,11 @@ API REST en Express 5. Único componente que toca la base. Rutas:
 | `GET /api/dashboard/tickets-vencidos` | Los que pasaron su fecha límite sin resolverse. |
 | `GET /api/dashboard/motivos` | Top 10 de motivos de llamada. |
 | `GET /api/healthz` | Chequeo de vida. |
+| `POST /api/admin/tickets` | **Admin**: alta manual de un registro (409 si el conversation_id existe). |
+| `POST /api/admin/import` | **Admin**: importación masiva desde CSV, con `dry_run` para simular. Idempotente. |
+| `POST /api/admin/truncate` | **Admin**: borra todos los registros y reinicia los ids (requiere `confirmar: true`). |
+
+Las rutas `admin` exigen el header `x-admin-key` **solo si** `ADMIN_API_KEY` está configurada; sin esa variable, quedan abiertas (modo red local). La lógica de parseo del CSV es la misma del importador CLI: vive compartida en [lib/ingesta/](../lib/ingesta/).
 
 Cada request: se loguea (pino) → se valida con Zod → se consulta/escribe con Drizzle → responde JSON.
 
@@ -126,6 +131,8 @@ React + Vite. Tres pantallas:
 - **Detalle** (`/tickets/:id`): resumen de la llamada, reproductor de la grabación, datos del contacto, tiempos, edición de estado/prioridad/progreso y el historial de seguimientos.
 
 **Notificaciones del sidebar**: junto a "Tickets" hay dos numeritos — **ámbar** = tickets en estado `nuevo` (sin abrir), **rojo** = tickets vencidos. Se actualizan solos cada 30 segundos.
+
+- **Administración** (`/admin`): gestión directa de la base — tabla CRUD de registros (crear/editar/eliminar cualquier campo), importador de CSV con simulación previa, y "zona peligrosa" para vaciar la base (truncate, exige tipear BORRAR). Si `ADMIN_API_KEY` está configurada en el servidor, el panel pide esa clave (campo arriba a la derecha, header `x-admin-key`); si no, queda abierto para la red local.
 
 En desarrollo, Vite proxea todo `/api/*` al backend (puerto 5000), por eso el frontend usa rutas relativas.
 
@@ -201,6 +208,7 @@ Archivo `.env` en la raíz (plantilla: [.env.example](../.env.example)):
 | `PORT` | Puerto del backend (default 5000). |
 | `HOST_IP` | IP de esta máquina en la red interna — la usa n8n para llegar al webhook. Actualizar acá cuando cambie la IP o se mude de servidor. |
 | `WEBHOOK_API_KEY` | La clave que n8n manda en `x-api-key`. Sin ella el webhook responde 503. |
+| `ADMIN_API_KEY` | Clave del panel `/admin` (opcional — si no está, el panel queda abierto en la red local). |
 | `TICKETS_DB_PATH` | Ruta del archivo SQLite (opcional; default `data/tickets.db`). |
 
 Arrancar el sistema (dos terminales):
@@ -217,5 +225,6 @@ Esto es para **desarrollo local**. El servidor de testing corre los mismos dos s
 ## 6. Seguridad — estado actual
 
 - El **webhook** exige API key (comparación en tiempo constante). Es la única puerta de escritura desde afuera.
-- El **resto del CRUD no tiene autenticación**: el sistema está pensado para correr en la red local de la empresa. **Antes de exponerlo a internet hay que agregar login.**
+- El **panel de administración** (`/admin` y sus endpoints) puede protegerse con `ADMIN_API_KEY` — recomendado en el servidor de testing, dado que incluye el truncate. Sin esa variable queda abierto.
+- El **resto del CRUD no tiene autenticación**: el sistema está pensado para correr en la red local de la empresa. **Antes de exponerlo a internet hay que agregar login.** (La gestión de usuarios está planificada como próximo paso del panel de administración.)
 - Si n8n corre en la nube, necesita poder llegar a esta máquina: túnel (Cloudflare Tunnel / ngrok) o IP pública con firewall.

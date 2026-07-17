@@ -12,6 +12,7 @@ backend/    → API Express 5 (puerto 5000)
 frontend/   → React + Vite (puerto 3000, proxea /api al backend)
 lib/
   db/               → schema Drizzle + cliente SQLite (source of truth del modelo) + migraciones (drizzle/)
+  ingesta/          → lógica compartida de parseo CSV/mapeo de columnas (la usan el CLI y /admin)
   api-spec/         → contrato OpenAPI (openapi.yaml) + config de Orval
   api-client-react/ → hooks React Query generados
   api-zod/          → schemas Zod generados
@@ -39,6 +40,7 @@ Copiar `.env.example` a `.env` en la raíz:
 
 - `PORT` — puerto del backend (default 5000)
 - `WEBHOOK_API_KEY` — clave que n8n manda en el header `x-api-key` (requerida para el webhook)
+- `ADMIN_API_KEY` — clave del panel `/admin` (opcional; sin ella el panel queda abierto en red local)
 - `TICKETS_DB_PATH` — ruta del archivo SQLite (opcional, default `data/tickets.db`)
 
 ## Stack
@@ -52,7 +54,7 @@ Copiar `.env.example` a `.env` en la raíz:
 
 - **Ingesta por webhook, no leyendo el Excel**: n8n hace POST a `/api/webhooks/ticket` con header `x-api-key`. El endpoint es idempotente por `conversation_id` (reintento ⇒ 200 con `created: false`); el Excel queda solo como respaldo/histórico.
 - **SQLite en lugar de Postgres** (migrado 2026-07): better-sqlite3 con WAL alcanza para el volumen de llamadas. Fechas como `integer { mode: "timestamp_ms" }`, estados/prioridades como `text { enum }`.
-- Los tickets **no se crean a mano**: la única vía de alta es el webhook (o el importador del histórico). No existe `POST /api/tickets`.
+- Los tickets **no se crean a mano** en el flujo normal: la vía de alta es el webhook (o el importador). El alta manual existe solo dentro del panel `/admin` (`POST /api/admin/tickets`), pensado para corrección de datos.
 - El resto del CRUD no tiene auth: pensado para red local. Si se expone a internet, agregar autenticación antes.
 - **Migraciones en Docker, `push` en desarrollo local**: en local se usa `drizzle-kit push` (rápido, sin archivos de migración) contra `data/tickets.db`. En Docker el volumen arranca vacío, así que el contenedor corre `dist/migrate.mjs` (aplica `lib/db/drizzle/*.sql` vía el migrator de drizzle-orm, idempotente) antes de levantar la API — ver [docs/DEPLOY.md](docs/DEPLOY.md).
 

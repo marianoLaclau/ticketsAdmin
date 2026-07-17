@@ -4,6 +4,7 @@ import { Route, Switch, Router as WouterRouter } from 'wouter';
 import Dashboard from '@/pages/Dashboard';
 import TicketList from '@/pages/TicketList';
 import TicketDetail from '@/pages/TicketDetail';
+import Admin from '@/pages/Admin';
 import NotFound from '@/pages/not-found';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
@@ -23,6 +24,7 @@ function Router() {
     <AppLayout>
       <Switch>
         <Route path="/" component={Dashboard} />
+        <Route path="/admin" component={Admin} />
         <Route path="/tickets/:id" component={TicketDetail} />
         <Route path="/tickets" component={TicketList} />
         <Route component={NotFound} />

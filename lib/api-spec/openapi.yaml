@@ -18,6 +18,8 @@ tags:
     description: Dashboard statistics
   - name: webhooks
     description: Ingesta automática de llamadas (n8n)
+  - name: admin
+    description: Gestión de la base de datos (CRUD manual, importación masiva, truncate)
 
 paths:
   /healthz:
@@ -134,6 +136,92 @@ paths:
                 $ref: "#/components/schemas/TicketIngestResult"
         "401":
           description: API key inválida
+
+  /admin/tickets:
+    post:
+      operationId: createAdminTicket
+      tags: [admin]
+      summary: Crear un registro manualmente (solo administración)
+      description: >
+        Alta manual de un registro desde el panel de administración. El flujo
+        normal de creación de tickets sigue siendo el webhook de n8n.
+      security:
+        - adminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TicketInput"
+      responses:
+        "201":
+          description: Registro creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticket"
+        "401":
+          description: Clave de administración inválida
+        "409":
+          description: Ya existe un ticket con ese conversation_id
+
+  /admin/import:
+    post:
+      operationId: importCsv
+      tags: [admin]
+      summary: Importación masiva desde CSV
+      description: >
+        Recibe el contenido de un CSV (texto plano), detecta las columnas con
+        los mismos alias que el importador CLI, y crea los registros que no
+        existan. Idempotente por conversation_id. Con dry_run true solo simula
+        y devuelve el resumen sin escribir nada.
+      security:
+        - adminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminImportInput"
+      responses:
+        "200":
+          description: Resumen de la importación (o de la simulación)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminImportResult"
+        "400":
+          description: CSV inválido o sin columna conversation_id
+        "401":
+          description: Clave de administración inválida
+
+  /admin/truncate:
+    post:
+      operationId: truncateTickets
+      tags: [admin]
+      summary: Borrar todos los registros (truncate)
+      description: >
+        Elimina TODOS los tickets y seguimientos y reinicia los contadores de
+        id. El schema queda intacto. Requiere confirmar explícitamente.
+      security:
+        - adminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminTruncateInput"
+      responses:
+        "200":
+          description: Registros eliminados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminTruncateResult"
+        "400":
+          description: Falta la confirmación explícita
+        "401":
+          description: Clave de administración inválida
 
   /tickets/{id}:
     get:
@@ -309,8 +397,94 @@ components:
       type: apiKey
       in: header
       name: x-api-key
+    adminApiKey:
+      type: apiKey
+      in: header
+      name: x-admin-key
 
   schemas:
+    AdminImportInput:
+      type: object
+      required:
+        - csv
+      properties:
+        csv:
+          type: string
+          description: Contenido completo del archivo CSV (texto plano)
+        dry_run:
+          type: boolean
+          default: false
+          description: Si es true, simula la importación sin escribir nada
+
+    AdminImportColumna:
+      type: object
+      required:
+        - columna
+        - campo
+      properties:
+        columna:
+          type: string
+          description: Encabezado original del CSV
+        campo:
+          type: string
+          description: Campo del ticket al que se mapeó
+
+    AdminImportResult:
+      type: object
+      required:
+        - dry_run
+        - filas
+        - insertados
+        - ya_existentes
+        - invalidos
+        - columnas
+        - sin_mapear
+        - advertencias
+      properties:
+        dry_run:
+          type: boolean
+        filas:
+          type: integer
+          description: Filas de datos leídas del CSV
+        insertados:
+          type: integer
+        ya_existentes:
+          type: integer
+        invalidos:
+          type: integer
+        columnas:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminImportColumna"
+        sin_mapear:
+          type: array
+          items:
+            type: string
+        advertencias:
+          type: array
+          items:
+            type: string
+
+    AdminTruncateInput:
+      type: object
+      required:
+        - confirmar
+      properties:
+        confirmar:
+          type: boolean
+          description: Debe ser true para ejecutar el borrado
+
+    AdminTruncateResult:
+      type: object
+      required:
+        - tickets_eliminados
+        - seguimientos_eliminados
+      properties:
+        tickets_eliminados:
+          type: integer
+        seguimientos_eliminados:
+          type: integer
+
     TicketIngestResult:
       type: object
       required:

@@ -84,6 +84,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../lib/db
+      '@workspace/ingesta':
+        specifier: workspace:*
+        version: link:../lib/ingesta
       better-sqlite3:
         specifier: ^12.4.1
         version: 12.11.1
@@ -357,11 +360,16 @@ importers:
         specifier: ^0.31.10
         version: 0.31.10
 
+  lib/ingesta: {}
+
   scripts:
     dependencies:
       '@workspace/db':
         specifier: workspace:*
         version: link:../lib/db
+      '@workspace/ingesta':
+        specifier: workspace:*
+        version: link:../lib/ingesta
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@12.11.1)

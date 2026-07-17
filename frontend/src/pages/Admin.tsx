@@ -1,0 +1,627 @@
+import React, { useMemo, useState } from 'react';
+import {
+  useListTickets,
+  useCreateAdminTicket,
+  useUpdateTicket,
+  useDeleteTicket,
+  useImportCsv,
+  useTruncateTickets,
+  useGetDashboardStats,
+  TicketEstado,
+  TicketPrioridad,
+  type Ticket,
+  type AdminImportResult,
+} from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Database, Upload, AlertTriangle, Plus, Pencil, Trash2, Search,
+  ChevronLeft, ChevronRight, KeyRound, FileText, CheckCircle2,
+} from 'lucide-react';
+import { EstadoBadge, PrioridadBadge, formatDate } from '@/lib/utils-tickets';
+
+const PAGE_SIZE = 25;
+
+const CAMPOS_TEXTO: Array<{ campo: string; label: string; requerido?: boolean }> = [
+  { campo: 'conversation_id', label: 'Conversation ID', requerido: true },
+  { campo: 'hora', label: 'Hora (HH:MM)', requerido: true },
+  { campo: 'nombre', label: 'Nombre', requerido: true },
+  { campo: 'apellido', label: 'Apellido' },
+  { campo: 'telefono', label: 'Teléfono' },
+  { campo: 'dni', label: 'DNI' },
+  { campo: 'empresa', label: 'Empresa' },
+  { campo: 'email', label: 'Email' },
+  { campo: 'asignado_a', label: 'Asignado a' },
+  { campo: 'audio_url', label: 'URL del audio' },
+];
+
+function formVacio() {
+  const now = new Date();
+  return {
+    conversation_id: `manual_${Date.now()}`,
+    hora: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+    nombre: '',
+    apellido: '',
+    telefono: '',
+    dni: '',
+    empresa: '',
+    email: '',
+    motivo: '',
+    resumen: '',
+    notas: '',
+    asignado_a: '',
+    audio_url: '',
+    estado: 'nuevo',
+    prioridad: 'media',
+  } as Record<string, string>;
+}
+
+export default function Admin() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Clave de administración (solo necesaria si ADMIN_API_KEY está seteada en el servidor)
+  const [adminKey, setAdminKey] = useState(() => sessionStorage.getItem('admin-key') ?? '');
+  const guardarAdminKey = (v: string) => {
+    setAdminKey(v);
+    sessionStorage.setItem('admin-key', v);
+  };
+  const adminRequest = useMemo(
+    () => (adminKey ? { headers: { 'x-admin-key': adminKey } } : {}),
+    [adminKey],
+  );
+
+  const refrescarTodo = () => queryClient.invalidateQueries();
+
+  const errorToast = (err: unknown) => {
+    const msg = err instanceof Error ? err.message : 'Error desconocido';
+    toast({
+      variant: 'destructive',
+      title: 'Error',
+      description: msg.includes('401') ? 'Clave de administración inválida (completala arriba a la derecha)' : msg,
+    });
+  };
+
+  // ---------- Registros (CRUD) ----------
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const { data: listResponse, isLoading } = useListTickets({
+    page,
+    limit: PAGE_SIZE,
+    ...(search ? { search } : {}),
+  });
+  const tickets = listResponse?.tickets ?? [];
+  const total = listResponse?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const createTicket = useCreateAdminTicket({ request: adminRequest });
+  const updateTicket = useUpdateTicket();
+  const deleteTicket = useDeleteTicket();
+
+  const [dialogAbierto, setDialogAbierto] = useState(false);
+  const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [form, setForm] = useState<Record<string, string>>(formVacio());
+  const [aEliminar, setAEliminar] = useState<Ticket | null>(null);
+
+  const abrirCrear = () => {
+    setEditandoId(null);
+    setForm(formVacio());
+    setDialogAbierto(true);
+  };
+
+  const abrirEditar = (t: Ticket) => {
+    setEditandoId(t.id);
+    setForm({
+      conversation_id: t.conversation_id,
+      hora: t.hora,
+      nombre: t.nombre,
+      apellido: t.apellido,
+      telefono: t.telefono ?? '',
+      dni: t.dni ?? '',
+      empresa: t.empresa ?? '',
+      email: t.email ?? '',
+      motivo: t.motivo,
+      resumen: t.resumen ?? '',
+      notas: t.notas ?? '',
+      asignado_a: t.asignado_a ?? '',
+      audio_url: t.audio_url ?? '',
+      estado: t.estado,
+      prioridad: t.prioridad,
+    });
+    setDialogAbierto(true);
+  };
+
+  const guardarRegistro = () => {
+    const comunes = {
+      hora: form.hora,
+      nombre: form.nombre,
+      apellido: form.apellido,
+      telefono: form.telefono || undefined,
+      dni: form.dni || undefined,
+      empresa: form.empresa || undefined,
+      email: form.email || undefined,
+      motivo: form.motivo,
+      resumen: form.resumen || undefined,
+      notas: form.notas || undefined,
+      asignado_a: form.asignado_a || undefined,
+      audio_url: form.audio_url || undefined,
+      estado: form.estado as TicketEstado,
+      prioridad: form.prioridad as TicketPrioridad,
+    };
+    const onOk = (titulo: string) => () => {
+      setDialogAbierto(false);
+      refrescarTodo();
+      toast({ title: titulo });
+    };
+    if (editandoId === null) {
+      createTicket.mutate(
+        { data: { ...comunes, conversation_id: form.conversation_id } as any },
+        { onSuccess: onOk('Registro creado'), onError: errorToast },
+      );
+    } else {
+      updateTicket.mutate(
+        { id: editandoId, data: comunes as any },
+        { onSuccess: onOk('Registro actualizado'), onError: errorToast },
+      );
+    }
+  };
+
+  const confirmarEliminar = () => {
+    if (!aEliminar) return;
+    deleteTicket.mutate(
+      { id: aEliminar.id },
+      {
+        onSuccess: () => {
+          setAEliminar(null);
+          refrescarTodo();
+          toast({ title: 'Registro eliminado' });
+        },
+        onError: errorToast,
+      },
+    );
+  };
+
+  // ---------- Importador CSV ----------
+  const importCsv = useImportCsv({ request: adminRequest });
+  const [csvNombre, setCsvNombre] = useState('');
+  const [csvTexto, setCsvTexto] = useState('');
+  const [resultadoImport, setResultadoImport] = useState<AdminImportResult | null>(null);
+
+  const onArchivoSeleccionado = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const texto = await file.text();
+    setCsvNombre(file.name);
+    setCsvTexto(texto);
+    setResultadoImport(null);
+    // Simulación automática al elegir el archivo
+    importCsv.mutate(
+      { data: { csv: texto, dry_run: true } },
+      { onSuccess: setResultadoImport, onError: errorToast },
+    );
+    e.target.value = '';
+  };
+
+  const importarDefinitivo = () => {
+    importCsv.mutate(
+      { data: { csv: csvTexto, dry_run: false } },
+      {
+        onSuccess: (r) => {
+          setResultadoImport(r);
+          refrescarTodo();
+          toast({ title: `Importación terminada: ${r.insertados} registros nuevos` });
+        },
+        onError: errorToast,
+      },
+    );
+  };
+
+  // ---------- Zona peligrosa ----------
+  const { data: stats } = useGetDashboardStats();
+  const truncate = useTruncateTickets({ request: adminRequest });
+  const [confirmTexto, setConfirmTexto] = useState('');
+
+  const ejecutarTruncate = () => {
+    truncate.mutate(
+      { data: { confirmar: true } },
+      {
+        onSuccess: (r) => {
+          setConfirmTexto('');
+          refrescarTodo();
+          toast({
+            title: 'Base vaciada',
+            description: `${r.tickets_eliminados} tickets y ${r.seguimientos_eliminados} seguimientos eliminados.`,
+          });
+        },
+        onError: errorToast,
+      },
+    );
+  };
+
+  return (
+    <div className="p-8 max-w-[1600px] mx-auto w-full space-y-4">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
+            <Database className="h-6 w-6 text-primary" />
+            Administración
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Gestión directa de la base de datos: registros, importación masiva y mantenimiento.
+          </p>
+        </div>
+        <div className="relative w-[280px]">
+          <KeyRound className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            type="password"
+            placeholder="Clave de administración (si aplica)"
+            className="pl-8 h-9 text-sm"
+            value={adminKey}
+            onChange={(e) => guardarAdminKey(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <Tabs defaultValue="registros">
+        <TabsList>
+          <TabsTrigger value="registros" className="gap-1.5"><Database className="h-3.5 w-3.5" /> Registros</TabsTrigger>
+          <TabsTrigger value="importar" className="gap-1.5"><Upload className="h-3.5 w-3.5" /> Importar CSV</TabsTrigger>
+          <TabsTrigger value="peligro" className="gap-1.5 data-[state=active]:text-red-600"><AlertTriangle className="h-3.5 w-3.5" /> Zona peligrosa</TabsTrigger>
+        </TabsList>
+
+        {/* ------------------- REGISTROS ------------------- */}
+        <TabsContent value="registros" className="space-y-3 mt-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Buscar en todos los campos..."
+                className="pl-8 h-9"
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              />
+            </div>
+            <Button onClick={abrirCrear} className="h-9">
+              <Plus className="mr-1.5 h-4 w-4" /> Nuevo registro
+            </Button>
+          </div>
+
+          <div className="bg-card border border-border rounded-md shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-slate-50/80">
+                  <TableRow>
+                    <TableHead className="w-[60px] text-xs uppercase">ID</TableHead>
+                    <TableHead className="w-[200px] text-xs uppercase">Conversation ID</TableHead>
+                    <TableHead className="text-xs uppercase">Contacto</TableHead>
+                    <TableHead className="text-xs uppercase">Empresa</TableHead>
+                    <TableHead className="text-xs uppercase">Estado</TableHead>
+                    <TableHead className="text-xs uppercase">Prioridad</TableHead>
+                    <TableHead className="text-xs uppercase">Creado</TableHead>
+                    <TableHead className="w-[100px] text-xs uppercase text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    Array.from({ length: 8 }).map((_, i) => (
+                      <TableRow key={i}>
+                        {Array.from({ length: 8 }).map((_, j) => (
+                          <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  ) : tickets.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="h-40 text-center text-sm text-muted-foreground">
+                        No hay registros{search ? ' que coincidan con la búsqueda' : ''}.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    tickets.map((t) => (
+                      <TableRow key={t.id} className="text-sm">
+                        <TableCell className="text-muted-foreground tabular-nums">{t.id}</TableCell>
+                        <TableCell>
+                          <span className="font-mono text-[11px] bg-slate-100 px-1.5 py-0.5 rounded" title={t.conversation_id}>
+                            {t.conversation_id.length > 24 ? `${t.conversation_id.slice(0, 24)}…` : t.conversation_id}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-medium">{t.nombre} {t.apellido}</TableCell>
+                        <TableCell className="text-muted-foreground">{t.empresa || '-'}</TableCell>
+                        <TableCell><EstadoBadge estado={t.estado} /></TableCell>
+                        <TableCell><PrioridadBadge prioridad={t.prioridad} /></TableCell>
+                        <TableCell className="text-muted-foreground text-xs">{formatDate(t.fecha_creacion as unknown as string)}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => abrirEditar(t)} title="Editar">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-red-600 hover:text-red-700" onClick={() => setAEliminar(t)} title="Eliminar">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            {/* Paginación */}
+            <div className="flex items-center justify-between px-4 py-2.5 border-t bg-slate-50/50 text-sm">
+              <span className="text-muted-foreground text-xs">
+                {total} registros — página {page} de {totalPages}
+              </span>
+              <div className="flex gap-1">
+                <Button variant="outline" size="sm" className="h-7 px-2" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <Button variant="outline" size="sm" className="h-7 px-2" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* ------------------- IMPORTAR CSV ------------------- */}
+        <TabsContent value="importar" className="mt-4 space-y-4 max-w-3xl">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileText className="h-4 w-4 text-primary" />
+                Importar registros desde CSV
+              </CardTitle>
+              <CardDescription>
+                Mismo formato que el export de n8n (separado por «;» o «,»). Se detectan las columnas
+                automáticamente y las filas cuyo conversation_id ya existe se saltean — se puede importar
+                el mismo archivo varias veces sin duplicar. Al elegir el archivo se muestra una
+                <strong> simulación</strong>; nada se escribe hasta confirmar.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-3">
+                <Input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={onArchivoSeleccionado}
+                  className="max-w-sm cursor-pointer"
+                />
+                {csvNombre && <span className="text-sm text-muted-foreground">{csvNombre}</span>}
+              </div>
+
+              {importCsv.isPending && <Skeleton className="h-24 w-full" />}
+
+              {resultadoImport && (
+                <div className={`rounded-lg border p-4 space-y-3 ${resultadoImport.dry_run ? 'bg-blue-50/50 border-blue-200' : 'bg-emerald-50/50 border-emerald-200'}`}>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                      {resultadoImport.dry_run
+                        ? <>Simulación — así quedaría la importación</>
+                        : <><CheckCircle2 className="h-4 w-4 text-emerald-600" /> Importación aplicada</>}
+                    </h4>
+                    <span className="text-xs text-muted-foreground">{resultadoImport.filas} filas leídas</span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="bg-white rounded-md border p-2">
+                      <p className="text-2xl font-bold text-emerald-700">{resultadoImport.insertados}</p>
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{resultadoImport.dry_run ? 'a insertar' : 'insertados'}</p>
+                    </div>
+                    <div className="bg-white rounded-md border p-2">
+                      <p className="text-2xl font-bold text-slate-500">{resultadoImport.ya_existentes}</p>
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">ya existentes</p>
+                    </div>
+                    <div className="bg-white rounded-md border p-2">
+                      <p className="text-2xl font-bold text-amber-600">{resultadoImport.invalidos}</p>
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">inválidos</p>
+                    </div>
+                  </div>
+
+                  <div className="text-xs space-y-1">
+                    <p className="font-medium text-slate-700">Columnas detectadas:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {resultadoImport.columnas.map((c) => (
+                        <span key={c.campo} className="bg-white border rounded px-1.5 py-0.5 font-mono text-[11px]">
+                          {c.columna} → <span className="text-primary font-semibold">{c.campo}</span>
+                        </span>
+                      ))}
+                    </div>
+                    {resultadoImport.sin_mapear.length > 0 && (
+                      <p className="text-amber-700 mt-1">Ignoradas: {resultadoImport.sin_mapear.join(', ')}</p>
+                    )}
+                    {resultadoImport.advertencias.map((a, i) => (
+                      <p key={i} className="text-amber-700">⚠ {a}</p>
+                    ))}
+                  </div>
+
+                  {resultadoImport.dry_run && (
+                    <Button
+                      onClick={importarDefinitivo}
+                      disabled={resultadoImport.insertados === 0 || importCsv.isPending}
+                      className="w-full"
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      {resultadoImport.insertados === 0
+                        ? 'Nada nuevo para importar'
+                        : `Importar ${resultadoImport.insertados} registros`}
+                    </Button>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ------------------- ZONA PELIGROSA ------------------- */}
+        <TabsContent value="peligro" className="mt-4 max-w-3xl">
+          <Card className="border-red-200">
+            <CardHeader className="pb-3 bg-red-50/50 border-b border-red-100 rounded-t-xl">
+              <CardTitle className="text-base flex items-center gap-2 text-red-700">
+                <AlertTriangle className="h-4 w-4" />
+                Vaciar la base de datos
+              </CardTitle>
+              <CardDescription>
+                Elimina <strong>todos</strong> los tickets y sus seguimientos, y reinicia los contadores
+                de ID. La estructura de la base queda intacta. Esta acción <strong>no se puede deshacer</strong>.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-4">
+              <p className="text-sm text-slate-600">
+                Actualmente hay <strong>{stats?.total ?? '…'}</strong> tickets en la base.
+              </p>
+              <div className="space-y-2 max-w-sm">
+                <Label htmlFor="confirm-borrar" className="text-sm">
+                  Para confirmar, escribí <span className="font-mono font-bold">BORRAR</span>:
+                </Label>
+                <Input
+                  id="confirm-borrar"
+                  value={confirmTexto}
+                  onChange={(e) => setConfirmTexto(e.target.value)}
+                  placeholder="BORRAR"
+                  autoComplete="off"
+                />
+              </div>
+              <Button
+                variant="destructive"
+                disabled={confirmTexto !== 'BORRAR' || truncate.isPending}
+                onClick={ejecutarTruncate}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {truncate.isPending ? 'Borrando...' : 'Borrar todos los registros'}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* ------------------- DIALOG CREAR/EDITAR ------------------- */}
+      <Dialog open={dialogAbierto} onOpenChange={setDialogAbierto}>
+        <DialogContent className="sm:max-w-[640px] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editandoId === null ? 'Nuevo registro' : `Editar registro #${editandoId}`}</DialogTitle>
+            <DialogDescription>
+              {editandoId === null
+                ? 'Alta manual directa en la base (el flujo normal es la ingesta automática por llamada).'
+                : 'Edición directa de todos los campos del registro.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            {CAMPOS_TEXTO.map(({ campo, label, requerido }) => (
+              <div key={campo} className="space-y-1">
+                <Label className="text-xs">{label}{requerido && <span className="text-red-500"> *</span>}</Label>
+                <Input
+                  value={form[campo] ?? ''}
+                  onChange={(e) => setForm({ ...form, [campo]: e.target.value })}
+                  disabled={campo === 'conversation_id' && editandoId !== null}
+                  className="h-8 text-sm"
+                />
+              </div>
+            ))}
+            <div className="space-y-1">
+              <Label className="text-xs">Estado</Label>
+              <Select value={form.estado} onValueChange={(v) => setForm({ ...form, estado: v })}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.values(TicketEstado).map((e) => (
+                    <SelectItem key={e} value={e}>{e.replace('_', ' ').toUpperCase()}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Prioridad</Label>
+              <Select value={form.prioridad} onValueChange={(v) => setForm({ ...form, prioridad: v })}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.values(TicketPrioridad).map((p) => (
+                    <SelectItem key={p} value={p}>{p.toUpperCase()}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label className="text-xs">Motivo<span className="text-red-500"> *</span></Label>
+              <Input
+                value={form.motivo}
+                onChange={(e) => setForm({ ...form, motivo: e.target.value })}
+                className="h-8 text-sm"
+              />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label className="text-xs">Resumen</Label>
+              <Textarea
+                value={form.resumen}
+                onChange={(e) => setForm({ ...form, resumen: e.target.value })}
+                className="h-20 text-sm"
+              />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label className="text-xs">Notas internas</Label>
+              <Textarea
+                value={form.notas}
+                onChange={(e) => setForm({ ...form, notas: e.target.value })}
+                className="h-16 text-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogAbierto(false)}>Cancelar</Button>
+            <Button
+              onClick={guardarRegistro}
+              disabled={
+                createTicket.isPending || updateTicket.isPending ||
+                !form.conversation_id || !form.hora || !form.nombre || !form.motivo
+              }
+            >
+              {createTicket.isPending || updateTicket.isPending ? 'Guardando...' : 'Guardar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ------------------- CONFIRMAR ELIMINAR ------------------- */}
+      <AlertDialog open={aEliminar !== null} onOpenChange={(open) => !open && setAEliminar(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar este registro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se va a eliminar el registro de <strong>{aEliminar?.nombre} {aEliminar?.apellido}</strong>
+              {' '}({aEliminar?.motivo}) junto con todos sus seguimientos. No se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmarEliminar}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleteTicket.isPending ? 'Eliminando...' : 'Eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}

@@ -1,38 +1,15 @@
-import { Router, type Request, type Response, type NextFunction } from "express";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { Router } from "express";
 import { db, ticketsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { IngestTicketBody } from "@workspace/api-zod";
+import { SLA_MS } from "@workspace/ingesta";
+import { requireWebhookKey } from "../lib/auth";
 
 const router = Router();
 
-// SLA: todo llamado debe resolverse dentro de las 48 hs de recibido.
-// Si n8n no manda fecha_limite, se preestablece acá (después es editable desde la UI).
-const SLA_MS = 48 * 60 * 60 * 1000;
-
-function safeEquals(a: string, b: string): boolean {
-  const hashA = createHash("sha256").update(a).digest();
-  const hashB = createHash("sha256").update(b).digest();
-  return timingSafeEqual(hashA, hashB);
-}
-
-function requireApiKey(req: Request, res: Response, next: NextFunction) {
-  const configuredKey = process.env.WEBHOOK_API_KEY;
-  if (!configuredKey) {
-    res.status(503).json({ error: "WEBHOOK_API_KEY no está configurada en el servidor" });
-    return;
-  }
-  const providedKey = req.header("x-api-key");
-  if (!providedKey || !safeEquals(providedKey, configuredKey)) {
-    res.status(401).json({ error: "API key inválida" });
-    return;
-  }
-  next();
-}
-
 // Ingesta de llamadas: n8n envía el JSON que arma ElevenLabs al terminar la llamada.
 // Idempotente por conversation_id — un reintento de n8n devuelve el ticket existente.
-router.post("/webhooks/ticket", requireApiKey, async (req, res) => {
+router.post("/webhooks/ticket", requireWebhookKey, async (req, res) => {
   const parsed = IngestTicketBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid body", details: parsed.error.issues });

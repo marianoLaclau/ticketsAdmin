@@ -21,6 +21,10 @@ import type {
 
 import type {
   ActividadItem,
+  AdminImportInput,
+  AdminImportResult,
+  AdminTruncateInput,
+  AdminTruncateResult,
   DashboardStats,
   GetActividadRecienteParams,
   HealthStatus,
@@ -295,6 +299,222 @@ export const useIngestTicket = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getIngestTicketMutationOptions(options));
+    }
+
+export const getCreateAdminTicketUrl = () => {
+
+
+
+
+  return `/api/admin/tickets`
+}
+
+/**
+ * Alta manual de un registro desde el panel de administración. El flujo normal de creación de tickets sigue siendo el webhook de n8n.
+ * @summary Crear un registro manualmente (solo administración)
+ */
+export const createAdminTicket = async (ticketInput: TicketInput, options?: RequestInit): Promise<Ticket> => {
+
+  return customFetch<Ticket>(getCreateAdminTicketUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(ticketInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAdminTicketMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminTicket>>, TError,{data: BodyType<TicketInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdminTicket>>, TError,{data: BodyType<TicketInput>}, TContext> => {
+
+const mutationKey = ['createAdminTicket'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminTicket>>, {data: BodyType<TicketInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAdminTicket(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAdminTicketMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminTicket>>>
+    export type CreateAdminTicketMutationBody = BodyType<TicketInput>
+    export type CreateAdminTicketMutationError = ErrorType<void>
+
+    /**
+ * @summary Crear un registro manualmente (solo administración)
+ */
+export const useCreateAdminTicket = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminTicket>>, TError,{data: BodyType<TicketInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAdminTicket>>,
+        TError,
+        {data: BodyType<TicketInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAdminTicketMutationOptions(options));
+    }
+
+export const getImportCsvUrl = () => {
+
+
+
+
+  return `/api/admin/import`
+}
+
+/**
+ * Recibe el contenido de un CSV (texto plano), detecta las columnas con los mismos alias que el importador CLI, y crea los registros que no existan. Idempotente por conversation_id. Con dry_run true solo simula y devuelve el resumen sin escribir nada.
+ * @summary Importación masiva desde CSV
+ */
+export const importCsv = async (adminImportInput: AdminImportInput, options?: RequestInit): Promise<AdminImportResult> => {
+
+  return customFetch<AdminImportResult>(getImportCsvUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminImportInput)
+  }
+);}
+
+
+
+
+
+export const getImportCsvMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importCsv>>, TError,{data: BodyType<AdminImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importCsv>>, TError,{data: BodyType<AdminImportInput>}, TContext> => {
+
+const mutationKey = ['importCsv'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importCsv>>, {data: BodyType<AdminImportInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  importCsv(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportCsvMutationResult = NonNullable<Awaited<ReturnType<typeof importCsv>>>
+    export type ImportCsvMutationBody = BodyType<AdminImportInput>
+    export type ImportCsvMutationError = ErrorType<void>
+
+    /**
+ * @summary Importación masiva desde CSV
+ */
+export const useImportCsv = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importCsv>>, TError,{data: BodyType<AdminImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importCsv>>,
+        TError,
+        {data: BodyType<AdminImportInput>},
+        TContext
+      > => {
+      return useMutation(getImportCsvMutationOptions(options));
+    }
+
+export const getTruncateTicketsUrl = () => {
+
+
+
+
+  return `/api/admin/truncate`
+}
+
+/**
+ * Elimina TODOS los tickets y seguimientos y reinicia los contadores de id. El schema queda intacto. Requiere confirmar explícitamente.
+ * @summary Borrar todos los registros (truncate)
+ */
+export const truncateTickets = async (adminTruncateInput: AdminTruncateInput, options?: RequestInit): Promise<AdminTruncateResult> => {
+
+  return customFetch<AdminTruncateResult>(getTruncateTicketsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminTruncateInput)
+  }
+);}
+
+
+
+
+
+export const getTruncateTicketsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof truncateTickets>>, TError,{data: BodyType<AdminTruncateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof truncateTickets>>, TError,{data: BodyType<AdminTruncateInput>}, TContext> => {
+
+const mutationKey = ['truncateTickets'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof truncateTickets>>, {data: BodyType<AdminTruncateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  truncateTickets(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TruncateTicketsMutationResult = NonNullable<Awaited<ReturnType<typeof truncateTickets>>>
+    export type TruncateTicketsMutationBody = BodyType<AdminTruncateInput>
+    export type TruncateTicketsMutationError = ErrorType<void>
+
+    /**
+ * @summary Borrar todos los registros (truncate)
+ */
+export const useTruncateTickets = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof truncateTickets>>, TError,{data: BodyType<AdminTruncateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof truncateTickets>>,
+        TError,
+        {data: BodyType<AdminTruncateInput>},
+        TContext
+      > => {
+      return useMutation(getTruncateTicketsMutationOptions(options));
     }
 
 export const getGetTicketUrl = (id: number,) => {

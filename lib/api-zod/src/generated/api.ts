@@ -141,6 +141,110 @@ export const IngestTicketResponse = zod.object({
 
 
 /**
+ * Alta manual de un registro desde el panel de administración. El flujo normal de creación de tickets sigue siendo el webhook de n8n.
+ * @summary Crear un registro manualmente (solo administración)
+ */
+export const createAdminTicketBodyNotificadoDefault = false;
+export const createAdminTicketBodyEstadoDefault = `nuevo`;
+export const createAdminTicketBodyPrioridadDefault = `media`;
+export const createAdminTicketBodyProgresoDefault = 0;
+export const createAdminTicketBodyProgresoMin = 0;
+export const createAdminTicketBodyProgresoMax = 100;
+
+
+
+export const CreateAdminTicketBody = zod.object({
+  "conversation_id": zod.string(),
+  "hora": zod.string(),
+  "nombre": zod.string(),
+  "apellido": zod.string(),
+  "telefono": zod.string().optional(),
+  "dni": zod.string().optional(),
+  "empresa": zod.string().optional(),
+  "email": zod.string().optional(),
+  "motivo": zod.string(),
+  "resumen": zod.string().optional(),
+  "notificado": zod.boolean().default(createAdminTicketBodyNotificadoDefault),
+  "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']).default(createAdminTicketBodyEstadoDefault),
+  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).default(createAdminTicketBodyPrioridadDefault),
+  "asignado_a": zod.string().optional(),
+  "audio_url": zod.string().optional(),
+  "notas": zod.string().optional(),
+  "fecha_limite": zod.coerce.date().optional(),
+  "progreso": zod.number().min(createAdminTicketBodyProgresoMin).max(createAdminTicketBodyProgresoMax).default(createAdminTicketBodyProgresoDefault)
+})
+
+export const createAdminTicketResponseProgresoMin = 0;
+export const createAdminTicketResponseProgresoMax = 100;
+
+
+
+export const CreateAdminTicketResponse = zod.object({
+  "id": zod.number(),
+  "conversation_id": zod.string(),
+  "hora": zod.string(),
+  "nombre": zod.string(),
+  "apellido": zod.string(),
+  "telefono": zod.string().nullish(),
+  "dni": zod.string().nullish(),
+  "empresa": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "motivo": zod.string(),
+  "resumen": zod.string().nullish(),
+  "notificado": zod.boolean(),
+  "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
+  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']),
+  "asignado_a": zod.string().nullish(),
+  "audio_url": zod.string().nullish(),
+  "notas": zod.string().nullish(),
+  "fecha_creacion": zod.coerce.date(),
+  "fecha_limite": zod.coerce.date().nullish(),
+  "fecha_resolucion": zod.coerce.date().nullish(),
+  "progreso": zod.number().min(createAdminTicketResponseProgresoMin).max(createAdminTicketResponseProgresoMax).optional()
+})
+
+
+/**
+ * Recibe el contenido de un CSV (texto plano), detecta las columnas con los mismos alias que el importador CLI, y crea los registros que no existan. Idempotente por conversation_id. Con dry_run true solo simula y devuelve el resumen sin escribir nada.
+ * @summary Importación masiva desde CSV
+ */
+export const importCsvBodyDryRunDefault = false;
+
+export const ImportCsvBody = zod.object({
+  "csv": zod.string().describe('Contenido completo del archivo CSV (texto plano)'),
+  "dry_run": zod.boolean().default(importCsvBodyDryRunDefault).describe('Si es true, simula la importación sin escribir nada')
+})
+
+export const ImportCsvResponse = zod.object({
+  "dry_run": zod.boolean(),
+  "filas": zod.number().describe('Filas de datos leídas del CSV'),
+  "insertados": zod.number(),
+  "ya_existentes": zod.number(),
+  "invalidos": zod.number(),
+  "columnas": zod.array(zod.object({
+  "columna": zod.string().describe('Encabezado original del CSV'),
+  "campo": zod.string().describe('Campo del ticket al que se mapeó')
+})),
+  "sin_mapear": zod.array(zod.string()),
+  "advertencias": zod.array(zod.string())
+})
+
+
+/**
+ * Elimina TODOS los tickets y seguimientos y reinicia los contadores de id. El schema queda intacto. Requiere confirmar explícitamente.
+ * @summary Borrar todos los registros (truncate)
+ */
+export const TruncateTicketsBody = zod.object({
+  "confirmar": zod.boolean().describe('Debe ser true para ejecutar el borrado')
+})
+
+export const TruncateTicketsResponse = zod.object({
+  "tickets_eliminados": zod.number(),
+  "seguimientos_eliminados": zod.number()
+})
+
+
+/**
  * @summary Get ticket details
  */
 export const GetTicketParams = zod.object({
