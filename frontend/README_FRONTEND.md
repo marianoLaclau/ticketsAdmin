@@ -53,9 +53,9 @@ frontend/
     components/
       layout/AppLayout.tsx        → Sidebar + listener de eventos en vivo
       admin/AdminHeader.tsx        → header compartido de las pantallas de admin (llave + nav)
-      ui/                            → primitivas shadcn/ui (button, dialog, table, toast, ...)
+      ui/                            → primitivas shadcn/ui (button, dialog, table, toast, password-input, ...)
     hooks/
-      use-admin-access.ts          → estado de la llave de administración (sessionStorage)
+      use-admin-access.ts          → llave administrativa persistida por usuario en el navegador
       use-toast.ts                   → sistema de notificaciones
       use-mobile.tsx                   → media query helper
     lib/
@@ -68,20 +68,27 @@ frontend/
 
 ## Routing y el candado de autenticación
 
-Todo se define en `App.tsx`. No hay rutas públicas del lado del cliente: **incluso el layout con el sidebar solo se monta si hay sesión**.
+Todo se define en `App.tsx`. La raíz es la única entrada pública del lado del cliente; **el layout con el sidebar solo se monta si hay sesión**.
 
 ```tsx
 <WouterRouter>
-  <AuthGate>       {/* sin sesión → <Login/>, nada más se renderiza */}
-    <Router />      {/* acá adentro vive el <AppLayout><Switch>...</Switch></AppLayout> */}
-  </AuthGate>
+  <Switch>
+    <Route path="/" component={PublicEntry} />  {/* login; con sesión → /dashboard */}
+    <Route>
+      <AuthGate>
+        <ProtectedRouter />  {/* AppLayout + rutas autenticadas */}
+      </AuthGate>
+    </Route>
+  </Switch>
 </WouterRouter>
 ```
 
-- **`AuthGate`** llama a `useGetMe()` (`GET /api/auth/me`). Mientras carga, muestra un spinner de pantalla completa. Si no hay usuario (`401`), renderiza `<Login />` **en vez de** cualquier otra cosa — la URL pedida por el usuario no se pierde (wouter no navega), así que al loguearse cae exactamente donde quería ir.
-- **`SoloSysAdmin`** envuelve las rutas `/admin` y `/admin/roles-usuarios`: si `me.rol !== 'SysAdmin'`, renderiza `<NotFound />` en vez del contenido. El backend valida lo mismo de forma independiente (`403`) — este guard es solo para no exponer ni cargar la UI, no la única defensa.
-- **Manejo de sesión vencida**: el `QueryClient` tiene un `QueryCache.onError` global que, ante cualquier `401`, invalida `/auth/me` — eso hace que `AuthGate` vuelva a evaluar y caiga al login. **Excepción importante**: la propia query de `/auth/me` está excluida de este handler. Si no lo estuviera, su propio `401` se invalidaría a sí misma, se refetchearía, volvería a dar `401`... un loop infinito que de hecho ocurrió una vez en desarrollo (ver `docs/BITACORA_AGENTES.MD`).
-- **Logout**: `queryClient.clear()` completo (no solo invalidar) + invalidar `/auth/me`, para no dejar en caché ningún dato del usuario anterior.
+- **`PublicEntry`** atiende `/`: sin sesión muestra `<Login />`; si la sesión todavía es válida redirige a `/dashboard` con reemplazo de historial.
+- **`AuthGate`** protege `/dashboard`, `/tickets` y `/admin`. Llama a `useGetMe()` (`GET /api/auth/me`), muestra un spinner mientras verifica y, ante un `401`, normaliza la URL a `/`. Un fallo de red o del backend muestra una pantalla de error con opción de reintentar, no un login engañoso.
+- **`SoloSysAdmin`** envuelve las rutas `/admin` y `/admin/roles-usuarios`: si `me.rol !== 'SysAdmin'`, muestra una pantalla `403 Acceso denegado`. El backend valida lo mismo de forma independiente; este guard visual no es la única defensa.
+- **Manejo de sesión vencida**: `QueryCache` y `MutationCache` revalidan `/auth/me` ante un `401` de sesión, lo que devuelve la aplicación a la raíz/login. Se excluyen el propio `/auth/me`, los intentos de login y los `401` de la llave administrativa para evitar loops o expulsar al SysAdmin por una key mal escrita.
+- **Login**: tras autenticar, actualiza el caché de `/auth/me` y navega explícitamente a `/dashboard` con `replace`.
+- **Logout**: tras el `204`, `queryClient.clear()` elimina los datos de la sesión y hace una recarga limpia en `/`. La recarga fuerza una nueva verificación de la cookie ya eliminada y evita que un observer conserve momentáneamente al usuario anterior. La llave administrativa no se borra: permanece localmente, separada por ID de SysAdmin.
 
 ## Roles en la UI
 
@@ -103,7 +110,7 @@ En ambos casos es **solo UX** — la fuente de verdad de la restricción es el b
 
 ## Páginas
 
-### `Dashboard.tsx`
+### `Dashboard.tsx` (ruta `/dashboard`)
 KPIs (sin revisar, en proceso, vencidos, resueltos hoy), distribución por estado (barra segmentada), gauge de tasa de resolución, ranking de motivos (usa `getMotivoCategoriaConfig` de `lib/motivos.ts` para color y label), gráfico de barras por prioridad (Recharts), tabla de vencidos y feed de actividad reciente. Todo vía los hooks `useGetDashboardStats`, `useGetActividadReciente`, `useGetTicketsVencidos`, `useGetMotivoStats`.
 
 ### `TicketList.tsx`
@@ -123,11 +130,11 @@ Tres tabs:
 - **Importar CSV**: al elegir un archivo corre automáticamente un `dry_run` y muestra el resumen (columnas detectadas, a insertar/ya existentes/inválidos) antes de escribir nada; botón para confirmar la importación real.
 - **Zona peligrosa**: truncate de toda la base, con doble seguro — hay que tipear literalmente `BORRAR` para habilitar el botón, y el backend además exige `{ confirmar: true }`.
 
-Usa `AdminHeader` (compartido con `AdminRolesUsers.tsx`) para el campo de la llave de administración y la navegación entre las dos pantallas de admin.
+Usa `AdminHeader` (compartido con `AdminRolesUsers.tsx`) para el campo de la llave de administración y la navegación entre las dos pantallas de admin. La llave se muestra enmascarada, puede revelarse con el botón de ojo y se guarda en `localStorage` bajo una clave asociada al ID del usuario. No se guarda en la base de datos ni forma parte del `queryKey` de React Query. Crear, editar y eliminar desde este CRUD envía `x-admin-key`; el backend valida además que la sesión pertenezca al rol SysAdmin.
 
 ### `AdminRolesUsers.tsx` (ruta `/admin/roles-usuarios`, solo SysAdmin)
 Dos tabs, cada uno con su propia paginación/búsqueda/filtros:
-- **Usuarios**: alta/edición (nombre, apellido, **nombre de usuario**, email, rol, activo), activación/desactivación con `Switch` (nunca borrado físico). **Al crear** un usuario, el formulario pide además contraseña + repetir (mínimo 6 caracteres) — el SysAdmin define las credenciales ahí mismo y se las entrega a la persona; esos campos no aparecen al editar un usuario existente. Cambiar la contraseña de alguien que ya existe se hace con la **llavesita de reset** (ícono ámbar) — abre un dialog con clave nueva + repetir y, al guardar, revoca las sesiones activas de ese usuario en el backend.
+- **Usuarios**: alta/edición (nombre, apellido, **nombre de usuario**, email, rol, activo), activación/desactivación con `Switch` (nunca borrado físico). **Al crear** un usuario, el formulario pide además contraseña + repetir (mínimo 6 caracteres) — el SysAdmin define las credenciales ahí mismo y se las entrega a la persona; esos campos no aparecen al editar un usuario existente. Cambiar la contraseña de alguien que ya existe se hace con la **llavesita de reset** (ícono ámbar) — abre un dialog con clave nueva + repetir y, al guardar, revoca las sesiones activas de ese usuario en el backend. Todos los campos de contraseña usan `PasswordInput`: permanecen ocultos por defecto y tienen un ojo accesible para mostrar/ocultar.
 - **Roles**: alta/edición/activación, borrado con confirmación (bloqueado por el backend con `409` si el rol tiene usuarios asignados — se le indica al usuario que lo desactive en cambio).
 
 ## Actualización en vivo (SSE)
@@ -157,7 +164,13 @@ const { adminRequest } = useAdminAccess(); // { headers: { 'x-admin-key': ... } 
 useCreateAdminTicket({ request: adminRequest });
 ```
 
+Al cerrar sesión, el sidebar limpia el caché de la sesión y recarga la entrada raíz mediante `window.location.replace(import.meta.env.BASE_URL)`. La llave administrativa persiste para ese ID de usuario en `localStorage`, de modo que no hay que ingresarla en cada login desde el mismo navegador; vaciar manualmente el campo la elimina. No existe una ruta `/login`: el formulario vive en `/`; el Dashboard vive en `/dashboard`.
+
 El transporte real (`customFetch`) vive en `lib/api-client-react/src/custom-fetch.ts`: parsea JSON/texto según `content-type`, arma `ApiError` con `status` y el body de error, y no hace throw en respuestas sin body (204).
+
+## Pantallas de error
+
+`components/ErrorPage.tsx` centraliza mensajes en español para `401`, `403`, `404`, `409`, `500`, `503` y errores de conexión. Siempre ofrece **Volver al inicio** (al Dashboard para errores dentro de una sesión; a la raíz durante la verificación de acceso) y, cuando el error puede recuperarse, **Reintentar**. Se usa en el guard de sesión, permisos SysAdmin, rutas inexistentes, Dashboard, listado, detalle y Administración. `AppErrorBoundary` cubre además errores inesperados de renderizado.
 
 `GET /api/events` es la única excepción — vive fuera del contrato OpenAPI (es un stream, no un request/response), por eso se consume con `EventSource` nativo en vez de un hook generado.
 
@@ -168,7 +181,7 @@ El transporte real (`customFetch`) vive en `lib/api-client-react/src/custom-fetc
 ## Librerías propias (`src/lib`)
 
 - **`roles.ts`** — ver [Roles en la UI](#roles-en-la-ui).
-- **`motivos.ts`** — espejo en el frontend del catálogo de `lib/ingesta/src/motivos.ts` del backend, pero con estilos (`color`, `badgeClass`) en vez de solo lógica de clasificación. `getMotivoCategoriaConfig(categoria)` devuelve un fallback razonable (label capitalizado desde el código) si llega una categoría que el frontend no conoce todavía — para no romper si el backend agrega una categoría nueva antes que se actualice este archivo.
+- **`motivos.ts`** — espejo en el frontend del catálogo de `lib/ingesta/src/motivos.ts` del backend, pero con estilos (`color`, `badgeClass`) en vez de solo lógica de clasificación. Incluye la categoría `legales` para cartas documento, telegramas laborales, consultas jurídicas, contacto explícito con abogados, SECLO, intimaciones y otros indicadores legales concretos. `getMotivoCategoriaConfig(categoria)` devuelve un fallback razonable (label capitalizado desde el código) si llega una categoría que el frontend no conoce todavía — para no romper si el backend agrega una categoría nueva antes que se actualice este archivo.
 - **`utils-tickets.tsx`** — `EstadoBadge`/`PrioridadBadge` (los puntos de color + texto que aparecen en todas las tablas), `formatDate` (formato `es-AR`), `isVencido` (fecha límite pasada y el ticket no está resuelto/cerrado).
 - **`datetime-local.ts`** — `toDateTimeLocalValue`/`dateTimeLocalValueToIso`: convierten entre un ISO string y el formato que espera `<input type="datetime-local">`, **en la zona horaria del navegador** (no UTC). `dateTimeLocalValueToIso` rechaza (devuelve `null`) fechas imposibles o horas inexistentes por cambio de horario de verano, en vez de dejar que `Date` las normalice silenciosamente.
 

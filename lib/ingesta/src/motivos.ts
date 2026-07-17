@@ -12,6 +12,7 @@ export const MOTIVO_CATEGORIAS = [
   { codigo: "empleo_postulaciones", label: "Empleo y postulaciones" },
   { codigo: "contacto_general", label: "Contacto y consultas generales" },
   { codigo: "reclamos", label: "Reclamos" },
+  { codigo: "legales", label: "Legales" },
   { codigo: "sin_clasificar", label: "Sin clasificar" },
 ] as const;
 
@@ -33,6 +34,7 @@ export const MOTIVO_CATEGORIA_LABELS: Record<
   empleo_postulaciones: "Empleo y postulaciones",
   contacto_general: "Contacto y consultas generales",
   reclamos: "Reclamos",
+  legales: "Legales",
   sin_clasificar: "Sin clasificar",
 };
 
@@ -48,6 +50,24 @@ interface ReglaClasificacionMotivo {
  */
 export const REGLAS_CLASIFICACION_MOTIVO: readonly ReglaClasificacionMotivo[] =
   [
+    {
+      categoria: "legales",
+      patrones: [
+        /\b(?:carta documento|telegrama laboral|patrocinio letrado)\b/,
+        /\b(?:estudio juridico|seclo)\b/,
+        /\b(?:habl\w*|comunic\w*|contact\w*|consult\w*)(?:\s+\w+){0,2}\s+(?:con|a|al)\s+(?:un[oa]\s+)?abogad[oa]s?\b/,
+        /\bderiv\w*(?:\s+\w+){0,2}\s+(?:a|al)\s+(?:un[oa]\s+)?abogad[oa]s?\b/,
+        /\b(?:asesor\w*|represent\w*|patrocin\w*)(?:\s+\w+){0,2}\s+(?:de|por|con)\s+(?:un[oa]\s+)?abogad[oa]s?\b/,
+        /\b(?:solicit\w*|busc\w*|requi\w*)(?:\s+\w+){0,1}\s+abogad[oa]s?\b/,
+        /\babogad[oa]s?(?:\s+\w+){0,4}\s+(?:consulta|asesoramiento|representacion|patrocinio|demanda|juicio|audiencia|legal|laboral|judicial)\b/,
+        /\b(?:asesoramiento|asesoria|consulta|orientacion)(?:\s+\w+){0,3}\s+(?:legal|juridic\w*)\b/,
+        /\b(?:demanda|denuncia|juicio|litigio|accion)(?:\s+\w+){0,3}\s+(?:laboral|judicial|legal)\b/,
+        /\b(?:audiencia|conciliacion|mediacion)(?:\s+\w+){0,3}\s+(?:laboral|judicial|seclo)\b/,
+        /\b(?:area|departamento|sector)(?:\s+de)?\s+legales\b/,
+        /\b(?:intimacion|intimar|intimado|intimada)\b/,
+        /\b(?:embargo|medida cautelar)(?:\s+\w+){0,2}\s+(?:judicial|laboral)\b/,
+      ],
+    },
     {
       categoria: "bajas_liquidacion",
       patrones: [

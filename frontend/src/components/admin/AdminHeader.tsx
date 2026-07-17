@@ -1,5 +1,6 @@
+import { useMemo, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { CheckCircle2, Database, KeyRound, Loader2, Ticket, UsersRound, XCircle } from 'lucide-react';
+import { CheckCircle2, Database, Eye, EyeOff, KeyRound, Loader2, Ticket, UsersRound, XCircle } from 'lucide-react';
 import { useListAdminRoles } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,16 +21,26 @@ const adminLinks = [
   },
 ];
 
+let adminKeyProbeVersion = 0;
+
+function nextAdminKeyProbeVersion(): number {
+  adminKeyProbeVersion += 1;
+  return adminKeyProbeVersion;
+}
+
 /**
  * Verifica en vivo si la llave de administración habilita el acceso,
  * haciendo una consulta mínima a la API con la llave actual.
  */
 function EstadoLlave({ adminKey }: { adminKey: string }) {
+  // La clave nunca debe formar parte del query key: React Query conserva esos
+  // identificadores en memoria y puede exponerlos en herramientas de desarrollo.
+  const probeVersion = useMemo(nextAdminKeyProbeVersion, [adminKey]);
   const probe = useListAdminRoles(
     { page: 1, limit: 1 },
     {
       query: {
-        queryKey: ['admin-key-probe', adminKey],
+        queryKey: ['admin-key-probe', probeVersion],
         retry: false,
         refetchOnWindowFocus: false,
       },
@@ -59,6 +70,8 @@ function EstadoLlave({ adminKey }: { adminKey: string }) {
         ? adminKey
           ? 'Llave inválida — verificala'
           : 'Falta la llave de administración'
+        : status === 503
+          ? 'ADMIN_API_KEY no está configurada en el servidor'
         : 'Sin acceso — verificá la conexión'}
     </span>
   );
@@ -66,6 +79,7 @@ function EstadoLlave({ adminKey }: { adminKey: string }) {
 
 export function AdminHeader({ title, description, adminKey, onAdminKeyChange }: AdminHeaderProps) {
   const [location] = useLocation();
+  const [showAdminKey, setShowAdminKey] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -81,17 +95,28 @@ export function AdminHeader({ title, description, adminKey, onAdminKeyChange }: 
           <div className="relative">
             <KeyRound className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
-              type="password"
+              type={showAdminKey ? 'text' : 'password'}
               placeholder="Llave de administración"
-              className="h-9 pl-8 text-sm"
+              className="h-9 pl-8 pr-10 text-sm"
               value={adminKey}
               onChange={(event) => onAdminKeyChange(event.target.value)}
               autoComplete="off"
+              spellCheck={false}
             />
+            <button
+              type="button"
+              onClick={() => setShowAdminKey((visible) => !visible)}
+              className="absolute right-1 top-1/2 flex h-7 w-8 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={showAdminKey ? 'Ocultar llave de administración' : 'Mostrar llave de administración'}
+              aria-pressed={showAdminKey}
+              title={showAdminKey ? 'Ocultar llave' : 'Mostrar llave'}
+            >
+              {showAdminKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
           <EstadoLlave adminKey={adminKey} />
           <p className="text-[11px] leading-snug text-muted-foreground">
-            Segunda verificación para operar el panel (además de tu sesión y rol).
+            Segunda verificación para operar el panel. Se recuerda para tu usuario en este navegador.
           </p>
         </div>
       </div>

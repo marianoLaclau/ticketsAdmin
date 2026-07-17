@@ -18,7 +18,7 @@ Llamada telefónica → ElevenLabs (agente de voz) → n8n → POST /api/webhook
 
 - **Ingesta automática**: cada llamada atendida por el agente de voz crea un ticket solo, vía webhook. Idempotente — un reintento de n8n no duplica nada.
 - **Gestión de tickets**: dashboard con KPIs y gráficos, listado con filtros (estado, prioridad, motivo, empresa, fechas, horas, texto libre) y orden/paginación, detalle con historial de seguimientos y reproductor de audio de la llamada.
-- **Categorización automática del motivo**: un clasificador basado en reglas agrupa el texto libre de `motivo`/`resumen` en categorías estables (haberes y pagos, recibos, vacaciones, bajas, empleo, reclamos, etc.) para poder filtrar y graficar sin que cada redacción de n8n sea una categoría nueva.
+- **Categorización automática del motivo**: un clasificador basado en reglas agrupa el texto libre de `motivo`/`resumen` en categorías estables (haberes y pagos, recibos, vacaciones, bajas, empleo, reclamos, legales, etc.) para poder filtrar y graficar sin que cada redacción de n8n sea una categoría nueva.
 - **Actualización en vivo**: la app mantiene una conexión de Server-Sent Events; cuando entra un llamado nuevo (o se importa un CSV), todas las pestañas abiertas se refrescan al instante y muestran una notificación — sin recargar la página.
 - **Login obligatorio con roles**: nadie ve ninguna pantalla ni puede pegarle a la API sin sesión iniciada. Tres roles con permisos distintos (ver sección Autenticación).
 - **Panel de administración** (solo rol SysAdmin): CRUD manual de tickets, importador de CSV con simulación previa, "zona peligrosa" para vaciar la base, y gestión de roles/usuarios con reset de contraseña.
@@ -90,7 +90,7 @@ Copiar `.env.example` a `.env` en la raíz:
 | `PORT` | Puerto del backend (default 5000) |
 | `HOST_IP` | IP de esta máquina en la red interna — la usa n8n para llegar al webhook (solo referencia, no la lee el código) |
 | `WEBHOOK_API_KEY` | Clave que n8n manda en `x-api-key` al crear tickets (requerida para el webhook) |
-| `ADMIN_API_KEY` | Segunda llave de las operaciones `/api/admin/*` (opcional en desarrollo; sin ella esas rutas solo dependen de la sesión + rol SysAdmin) |
+| `ADMIN_API_KEY` | Segunda credencial obligatoria de las operaciones administrativas del SysAdmin; si falta, esas operaciones responden `503` |
 | `TICKETS_DB_PATH` | Ruta del archivo SQLite (opcional, default `data/tickets.db`) |
 | `TZ` | Timezone del proceso backend — en Docker por default `America/Argentina/Buenos_Aires`; los filtros por día calendario usan esta zona |
 
@@ -108,7 +108,7 @@ Copiar `.env.example` a `.env` en la raíz:
 - **Contract-first**: todo el contrato vive en `lib/api-spec/openapi.yaml`. Se edita el yaml, se corre `codegen`, y los dos lados (frontend y backend) quedan sincronizados por construcción.
 - **SQLite en lugar de Postgres** (migrado 2026-07): better-sqlite3 con WAL alcanza para el volumen de llamadas, sin servidor de base de datos que administrar.
 - **Login real con roles**, no solo una API key: sesiones en cookie `httpOnly` respaldadas en tabla, contraseñas con scrypt, y un candado global (`requireSession`) que protege toda la API salvo el webhook y el propio login.
-- **`ADMIN_API_KEY` es una segunda verificación, no la única**: las rutas `/admin/*` exigen sesión + rol SysAdmin + (opcionalmente) esta clave. Es defensa en profundidad para el panel más peligroso (incluye el truncate).
+- **`ADMIN_API_KEY` es una segunda verificación obligatoria, no la única**: las rutas `/admin/*`, el borrado y la edición administrativa de tickets exigen sesión + rol SysAdmin + esta clave. Si la variable falta, el backend falla cerrado con `503`.
 - **Motivo original inmutable, categoría derivada**: `ticket.motivo` nunca se reescribe; `ticket.motivo_categoria` se recalcula con un clasificador de reglas cada vez que `motivo` o `resumen` cambian, y es lo que se usa para filtrar/graficar.
 - Los tickets **no se crean a mano** en el flujo normal: la vía de alta es el webhook (o el importador). El alta manual existe solo dentro del panel `/admin` (`POST /api/admin/tickets`), pensado para corrección de datos.
 - **Migraciones en Docker, `push` en desarrollo local**: en local se usa `drizzle-kit push` (rápido, sin archivos de migración) contra `data/tickets.db`. En Docker el volumen arranca vacío, así que el contenedor corre `dist/migrate.mjs` (aplica `lib/db/drizzle/*.sql`, idempotente) antes de levantar la API.

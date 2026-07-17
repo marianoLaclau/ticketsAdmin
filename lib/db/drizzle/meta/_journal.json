@@ -43,6 +43,13 @@
       "when": 1784313798649,
       "tag": "0005_sturdy_night_nurse",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1784318351542,
+      "tag": "0006_add_legales_category",
+      "breakpoints": true
     }
   ]
 }

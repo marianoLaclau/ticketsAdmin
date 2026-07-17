@@ -44,7 +44,6 @@ import {
   Mail, 
   Clock, 
   FileText, 
-  AlertCircle, 
   CheckCircle2, 
   PlayCircle,
   MessageSquare,
@@ -55,6 +54,7 @@ import {
 import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
 import { dateTimeLocalValueToIso, toDateTimeLocalValue } from '@/lib/datetime-local';
 import { puedeCerrarTickets } from '@/lib/roles';
+import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
 
 const PROGRESS_STEPS = [
   { estado: TicketEstado.nuevo, value: 0, label: 'Nuevo' },
@@ -75,13 +75,15 @@ export default function TicketDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: ticket, isLoading: loadingTicket } = useGetTicket(ticketId, {
+  const ticketQuery = useGetTicket(ticketId, {
     query: { enabled: !!ticketId, queryKey: ['/api/tickets', ticketId] }
   });
+  const { data: ticket, isLoading: loadingTicket } = ticketQuery;
 
-  const { data: seguimientos, isLoading: loadingSeguimientos } = useListSeguimientos(ticketId, {
+  const seguimientosQuery = useListSeguimientos(ticketId, {
     query: { enabled: !!ticketId, queryKey: ['/api/tickets', ticketId, 'seguimientos'] }
   });
+  const { data: seguimientos, isLoading: loadingSeguimientos } = seguimientosQuery;
 
   const updateTicket = useUpdateTicket();
   const createSeguimiento = useCreateSeguimiento();
@@ -203,6 +205,26 @@ export default function TicketDetail() {
     );
   };
 
+  const detailError = ticketQuery.error ?? seguimientosQuery.error;
+  const detailStatus = getErrorStatus(detailError);
+  if (ticketQuery.isError || seguimientosQuery.isError) {
+    const notFound = detailStatus === 404;
+    return (
+      <ErrorPage
+        status={detailStatus ?? 503}
+        title={notFound ? 'Ticket no encontrado' : 'No pudimos cargar el ticket'}
+        message={notFound
+          ? 'El ticket solicitado no existe o ya fue eliminado.'
+          : 'No fue posible obtener el ticket o su historial. Reintentá o volvé al inicio.'}
+        onRetry={notFound ? undefined : () => {
+          void ticketQuery.refetch();
+          void seguimientosQuery.refetch();
+        }}
+        isRetrying={ticketQuery.isFetching || seguimientosQuery.isFetching}
+      />
+    );
+  }
+
   if (loadingTicket) {
     return (
       <div className="p-8 max-w-6xl mx-auto w-full space-y-6">
@@ -222,14 +244,7 @@ export default function TicketDetail() {
   }
 
   if (!ticket) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-slate-500">
-        <AlertCircle className="h-12 w-12 text-slate-300 mb-4" />
-        <h2 className="text-xl font-medium text-slate-900 mb-2">Ticket no encontrado</h2>
-        <p className="mb-4">El ticket que buscas no existe o fue eliminado.</p>
-        <Button onClick={() => setLocation('/tickets')}>Volver a tickets</Button>
-      </div>
-    );
+    return <ErrorPage status={404} title="Ticket no encontrado" message="El ticket solicitado no existe o ya fue eliminado." />;
   }
 
   const vencido = isVencido(ticket.fecha_limite, ticket.estado);

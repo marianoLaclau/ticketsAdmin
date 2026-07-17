@@ -116,13 +116,13 @@ export function requireSysAdmin(_req: Request, res: Response, next: NextFunction
   next();
 }
 
-// Admin: la clave es OPCIONAL — si ADMIN_API_KEY no está seteada, el panel
-// queda abierto (modo red local de confianza). Si está seteada, se exige
-// el header x-admin-key en todas las operaciones de administración.
+// Admin: la clave es obligatoria y falla de forma cerrada. Una configuración
+// ausente o vacía nunca debe convertir accidentalmente una ruta protegida en
+// pública; el servidor devuelve 503 hasta que ADMIN_API_KEY sea configurada.
 export function requireAdminKey(req: Request, res: Response, next: NextFunction) {
   const configuredKey = process.env.ADMIN_API_KEY;
-  if (!configuredKey) {
-    next();
+  if (!configuredKey?.trim()) {
+    res.status(503).json({ error: "ADMIN_API_KEY no está configurada en el servidor" });
     return;
   }
   const providedKey = req.header("x-admin-key");

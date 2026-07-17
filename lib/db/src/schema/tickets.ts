@@ -13,6 +13,7 @@ export const MOTIVO_CATEGORIAS = [
   "empleo_postulaciones",
   "contacto_general",
   "reclamos",
+  "legales",
   "sin_clasificar",
 ] as const;
 

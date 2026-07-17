@@ -54,6 +54,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -195,6 +196,12 @@ export default function AdminRolesUsers() {
   const [passwordNueva, setPasswordNueva] = useState('');
   const [passwordRepetida, setPasswordRepetida] = useState('');
 
+  const closeResetPassword = () => {
+    setPasswordUser(null);
+    setPasswordNueva('');
+    setPasswordRepetida('');
+  };
+
   const openResetPassword = (user: AdminUser) => {
     setPasswordNueva('');
     setPasswordRepetida('');
@@ -207,7 +214,7 @@ export default function AdminRolesUsers() {
       { id: passwordUser.id, data: { password: passwordNueva } },
       {
         onSuccess: () => {
-          setPasswordUser(null);
+          closeResetPassword();
           toast({
             variant: 'success',
             title: 'Contraseña actualizada',
@@ -241,6 +248,15 @@ export default function AdminRolesUsers() {
       activo: user.activo,
     });
     setUserDialogOpen(true);
+  };
+
+  const closeUserDialog = () => {
+    setUserDialogOpen(false);
+    setUserForm((form) => ({
+      ...form,
+      password: '',
+      passwordRepetida: '',
+    }));
   };
 
   const saveUser = () => {
@@ -281,7 +297,7 @@ export default function AdminRolesUsers() {
     const userName = `${nombre} ${userForm.apellido.trim()}`.trim();
     const roleName = roleById.get(roleId) ?? `Rol #${roleId}`;
     const onSuccess = () => {
-      setUserDialogOpen(false);
+      closeUserDialog();
       void refreshUsers();
       toast({
         variant: 'success',
@@ -787,7 +803,10 @@ export default function AdminRolesUsers() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={userDialogOpen} onOpenChange={setUserDialogOpen}>
+      <Dialog
+        open={userDialogOpen}
+        onOpenChange={(open) => (open ? setUserDialogOpen(true) : closeUserDialog())}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingUser ? 'Editar usuario' : 'Nuevo usuario'}</DialogTitle>
@@ -866,9 +885,8 @@ export default function AdminRolesUsers() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="user-password">Contraseña *</Label>
-                  <Input
+                  <PasswordInput
                     id="user-password"
-                    type="password"
                     value={userForm.password}
                     onChange={(event) =>
                       setUserForm((form) => ({
@@ -881,9 +899,8 @@ export default function AdminRolesUsers() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="user-password-repeat">Repetir contraseña *</Label>
-                  <Input
+                  <PasswordInput
                     id="user-password-repeat"
-                    type="password"
                     value={userForm.passwordRepetida}
                     onChange={(event) =>
                       setUserForm((form) => ({
@@ -933,7 +950,7 @@ export default function AdminRolesUsers() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setUserDialogOpen(false)}>
+            <Button variant="outline" onClick={closeUserDialog}>
               Cancelar
             </Button>
             <Button onClick={saveUser} disabled={userMutationPending}>
@@ -1028,7 +1045,7 @@ export default function AdminRolesUsers() {
       </AlertDialog>
 
       {/* Reestablecer contraseña */}
-      <Dialog open={Boolean(passwordUser)} onOpenChange={(open) => !open && setPasswordUser(null)}>
+      <Dialog open={Boolean(passwordUser)} onOpenChange={(open) => !open && closeResetPassword()}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1043,9 +1060,8 @@ export default function AdminRolesUsers() {
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
               <Label htmlFor="password-nueva">Contraseña nueva</Label>
-              <Input
+              <PasswordInput
                 id="password-nueva"
-                type="password"
                 value={passwordNueva}
                 onChange={(event) => setPasswordNueva(event.target.value)}
                 autoComplete="new-password"
@@ -1055,9 +1071,8 @@ export default function AdminRolesUsers() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password-repetida">Repetir contraseña</Label>
-              <Input
+              <PasswordInput
                 id="password-repetida"
-                type="password"
                 value={passwordRepetida}
                 onChange={(event) => setPasswordRepetida(event.target.value)}
                 autoComplete="new-password"
@@ -1068,7 +1083,7 @@ export default function AdminRolesUsers() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPasswordUser(null)}>
+            <Button variant="outline" onClick={closeResetPassword}>
               Cancelar
             </Button>
             <Button

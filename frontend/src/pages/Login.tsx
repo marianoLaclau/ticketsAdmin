@@ -3,15 +3,18 @@ import { useLogin, getGetMeQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { AlertCircle, KeyRound, LogIn, User } from 'lucide-react';
+import { useLocation } from 'wouter';
 
 // @ts-ignore
 import gsbLogo from '@/assets/gsb-logo.jpg';
 
 export default function Login() {
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
   const login = useLogin();
   const [usuario, setUsuario] = useState('');
   const [password, setPassword] = useState('');
@@ -24,8 +27,10 @@ export default function Login() {
       { data: { usuario, password } },
       {
         onSuccess: (user) => {
-          // El AuthGate escucha esta query: al setearla, la app entra sola
+          // Actualizar primero la sesión evita un nuevo pedido mientras se
+          // ingresa al área autenticada.
           queryClient.setQueryData(getGetMeQueryKey(), user);
+          navigate('/dashboard', { replace: true });
         },
         onError: (err) => {
           const msg = err instanceof Error ? err.message : '';
@@ -73,9 +78,8 @@ export default function Login() {
               <Label htmlFor="password">Contraseña</Label>
               <div className="relative">
                 <KeyRound className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
+                <PasswordInput
                   id="password"
-                  type="password"
                   className="pl-8"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

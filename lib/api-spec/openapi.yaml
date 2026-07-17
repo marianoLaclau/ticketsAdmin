@@ -583,6 +583,11 @@ paths:
       operationId: updateTicket
       tags: [tickets]
       summary: Update a ticket
+      description: |
+        Las actualizaciones operativas (estado, prioridad, notas, progreso y
+        fecha limite) requieren una sesion valida. La edicion administrativa
+        de los datos de origen/contacto requiere ademas rol SysAdmin y el
+        header x-admin-key.
       parameters:
         - name: id
           in: path
@@ -602,11 +607,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Ticket"
+        "401":
+          description: Sesion requerida o clave de administracion invalida
+        "403":
+          description: La edicion administrativa requiere rol SysAdmin
+        "503":
+          description: ADMIN_API_KEY no esta configurada en el servidor
 
     delete:
       operationId: deleteTicket
       tags: [tickets]
-      summary: Delete a ticket
+      summary: Delete a ticket (solo SysAdmin con clave administrativa)
+      description: Requiere sesion con rol SysAdmin y el header x-admin-key.
+      security:
+        - adminApiKey: []
       parameters:
         - name: id
           in: path
@@ -616,6 +630,12 @@ paths:
       responses:
         "204":
           description: Deleted
+        "401":
+          description: Clave de administracion invalida
+        "403":
+          description: Requiere rol SysAdmin
+        "503":
+          description: ADMIN_API_KEY no esta configurada en el servidor
 
   /tickets/{id}/seguimientos:
     get:
@@ -736,6 +756,7 @@ components:
       type: apiKey
       in: header
       name: x-admin-key
+      description: Segunda verificacion obligatoria, utilizable solo junto a una sesion SysAdmin.
 
   schemas:
     LoginInput:
@@ -1374,6 +1395,7 @@ components:
         - empleo_postulaciones
         - contacto_general
         - reclamos
+        - legales
         - sin_clasificar
 
     MotivoStat:

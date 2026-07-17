@@ -12,11 +12,11 @@ jobs:
       group: deploy-testing
       cancel-in-progress: false
     env:
-      # docker compose interpola ${WEBHOOK_API_KEY} de docker-compose.yml en
-      # CUALQUIER subcomando (build, up, ps...), no solo en "up" — por eso
-      # va a nivel de job y no en un solo step.
+      # docker compose interpola ambas claves de docker-compose.yml en CUALQUIER
+      # subcomando (build, up, ps...), no solo en "up" — por eso van a nivel de
+      # job y no en un solo step.
       WEBHOOK_API_KEY: ${{ secrets.WEBHOOK_API_KEY }}
-      # Opcional: proteger el panel /admin (si el secreto no existe, queda abierto)
+      # Obligatoria: segunda credencial de las operaciones SysAdmin
       ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
     steps:
       - name: Checkout

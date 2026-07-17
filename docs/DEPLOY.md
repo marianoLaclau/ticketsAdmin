@@ -127,10 +127,10 @@ GitHub inyecta ese secreto solo durante el job. Para ejecutar manualmente comand
 docker compose --env-file /etc/ticketsadmin/compose.env up -d
 ```
 
-El archivo debe definir `WEBHOOK_API_KEY`, y puede definir `ADMIN_API_KEY` y `TZ`; no se commitea. Para comandos que solo inspeccionan o actúan sobre contenedores existentes (`ps`, `logs`, `exec`, `cp`), Compose igualmente exige interpolar la variable, pero se puede usar un placeholder porque no cambia el entorno del contenedor ya creado:
+El archivo debe definir `WEBHOOK_API_KEY` y `ADMIN_API_KEY`, y puede definir `TZ`; no se commitea. Ambas claves fallan cerradas si faltan. Para comandos que solo inspeccionan o actúan sobre contenedores existentes (`ps`, `logs`, `exec`, `cp`), Compose igualmente exige interpolar las variables, pero se puede usar un placeholder porque no cambia el entorno del contenedor ya creado:
 
 ```bash
-WEBHOOK_API_KEY=not-used-for-readonly-command docker compose ps
+WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose ps
 ```
 
 No usar ese placeholder con `up`, `create` ni para iniciar la API.
@@ -148,7 +148,7 @@ Seguir el progreso en la pestaña **Actions** del repo. Al terminar:
 # desde el servidor, para confirmar que quedó arriba
 curl http://localhost:5000/api/healthz
 curl http://localhost:3000/
-WEBHOOK_API_KEY=not-used-for-readonly-command docker compose ps
+WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose ps
 ```
 
 ## 5. Actualizar la configuración de n8n

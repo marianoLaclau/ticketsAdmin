@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import { db, ticketsTable, seguimientosTable } from "@workspace/db";
 import { eq, and, gte, lte, like, or, lt, not, inArray, asc, desc, count, sql } from "drizzle-orm";
 import {
@@ -12,10 +12,55 @@ import {
   CreateSeguimientoBody,
 } from "@workspace/api-zod";
 import { clasificarMotivo } from "@workspace/ingesta";
-import { puedeCerrarTickets, type SessionUser } from "../lib/auth";
+import {
+  puedeCerrarTickets,
+  requireAdminKey,
+  requireSysAdmin,
+  type SessionUser,
+} from "../lib/auth";
 import { broadcastEvent } from "../lib/events";
 
 const router = Router();
+
+// Estos campos modifican los datos administrativos/originales del ticket.
+// Cuando alguno está presente, además de la sesión se exigen rol SysAdmin y
+// ADMIN_API_KEY. Los campos operativos conservan el flujo normal por roles.
+const ADMIN_TICKET_UPDATE_FIELDS = [
+  "hora",
+  "nombre",
+  "apellido",
+  "telefono",
+  "dni",
+  "empresa",
+  "email",
+  "motivo",
+  "resumen",
+  "notificado",
+  "audio_url",
+  "fecha_resolucion",
+] as const;
+
+const requireAdminTicketUpdate = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const body = req.body;
+  const hasAdminFields =
+    body !== null &&
+    typeof body === "object" &&
+    !Array.isArray(body) &&
+    ADMIN_TICKET_UPDATE_FIELDS.some((field) =>
+      Object.prototype.hasOwnProperty.call(body, field),
+    );
+
+  if (!hasAdminFields) {
+    next();
+    return;
+  }
+
+  requireSysAdmin(req, res, () => requireAdminKey(req, res, next));
+};
 
 const parseBooleanQueryParam = (value: unknown): unknown => {
   if (value === "true" || value === true) return true;
@@ -130,7 +175,7 @@ router.get("/tickets/:id", async (req, res) => {
 });
 
 // Update ticket
-router.patch("/tickets/:id", async (req, res) => {
+router.patch("/tickets/:id", requireAdminTicketUpdate, async (req, res) => {
   const paramsParsed = UpdateTicketParams.safeParse({ id: Number(req.params.id) });
   if (!paramsParsed.success) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -229,7 +274,7 @@ router.patch("/tickets/:id", async (req, res) => {
 });
 
 // Delete ticket
-router.delete("/tickets/:id", async (req, res) => {
+router.delete("/tickets/:id", requireSysAdmin, requireAdminKey, async (req, res) => {
   const parsed = DeleteTicketParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) { res.status(400).json({ error: "Invalid id" }); return; }
 

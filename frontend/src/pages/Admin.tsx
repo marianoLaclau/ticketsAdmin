@@ -16,6 +16,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { adminErrorMessage, useAdminAccess } from '@/hooks/use-admin-access';
 import { AdminHeader } from '@/components/admin/AdminHeader';
+import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -79,7 +80,7 @@ export default function Admin() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Clave de administración (solo necesaria si ADMIN_API_KEY está seteada en el servidor)
+  // Segunda credencial obligatoria para las operaciones del panel SysAdmin.
   const { adminKey, saveAdminKey, adminRequest } = useAdminAccess();
 
   const refrescarTodo = () => queryClient.invalidateQueries();
@@ -96,11 +97,12 @@ export default function Admin() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState('');
-  const { data: listResponse, isLoading } = useListTickets({
+  const listQuery = useListTickets({
     page,
     limit: pageSize,
     ...(search ? { search } : {}),
   });
+  const { data: listResponse, isLoading } = listQuery;
   const tickets = listResponse?.tickets ?? [];
   const total = listResponse?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -114,8 +116,8 @@ export default function Admin() {
   }, [listResponse, page, totalPages]);
 
   const createTicket = useCreateAdminTicket({ request: adminRequest });
-  const updateTicket = useUpdateTicket();
-  const deleteTicket = useDeleteTicket();
+  const updateTicket = useUpdateTicket({ request: adminRequest });
+  const deleteTicket = useDeleteTicket({ request: adminRequest });
 
   const [dialogAbierto, setDialogAbierto] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null);
@@ -270,6 +272,18 @@ export default function Admin() {
       },
     );
   };
+
+  if (listQuery.isError) {
+    return (
+      <ErrorPage
+        status={getErrorStatus(listQuery.error) ?? 503}
+        title="No pudimos cargar la administración"
+        message="No fue posible obtener los tickets para administrar. Reintentá o volvé al inicio."
+        onRetry={() => void listQuery.refetch()}
+        isRetrying={listQuery.isFetching}
+      />
+    );
+  }
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto w-full space-y-4">

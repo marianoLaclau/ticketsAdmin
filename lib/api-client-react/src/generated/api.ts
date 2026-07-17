@@ -1436,6 +1436,10 @@ export const getUpdateTicketUrl = (id: number,) => {
 }
 
 /**
+ * Las actualizaciones operativas (estado, prioridad, notas, progreso y
+ * fecha limite) requieren una sesion valida. La edicion administrativa
+ * de los datos de origen/contacto requiere ademas rol SysAdmin y el
+ * header x-admin-key.
  * @summary Update a ticket
  */
 export const updateTicket = async (id: number,
@@ -1454,7 +1458,7 @@ export const updateTicket = async (id: number,
 
 
 
-export const getUpdateTicketMutationOptions = <TError = ErrorType<unknown>,
+export const getUpdateTicketMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>}, TContext> => {
 
@@ -1483,12 +1487,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateTicketMutationResult = NonNullable<Awaited<ReturnType<typeof updateTicket>>>
     export type UpdateTicketMutationBody = BodyType<TicketUpdate>
-    export type UpdateTicketMutationError = ErrorType<unknown>
+    export type UpdateTicketMutationError = ErrorType<void>
 
     /**
  * @summary Update a ticket
  */
-export const useUpdateTicket = <TError = ErrorType<unknown>,
+export const useUpdateTicket = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateTicket>>,
@@ -1508,7 +1512,8 @@ export const getDeleteTicketUrl = (id: number,) => {
 }
 
 /**
- * @summary Delete a ticket
+ * Requiere sesion con rol SysAdmin y el header x-admin-key.
+ * @summary Delete a ticket (solo SysAdmin con clave administrativa)
  */
 export const deleteTicket = async (id: number, options?: RequestInit): Promise<void> => {
 
@@ -1525,7 +1530,7 @@ export const deleteTicket = async (id: number, options?: RequestInit): Promise<v
 
 
 
-export const getDeleteTicketMutationOptions = <TError = ErrorType<unknown>,
+export const getDeleteTicketMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTicket>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteTicket>>, TError,{id: number}, TContext> => {
 
@@ -1554,12 +1559,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeleteTicketMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTicket>>>
 
-    export type DeleteTicketMutationError = ErrorType<unknown>
+    export type DeleteTicketMutationError = ErrorType<void>
 
     /**
- * @summary Delete a ticket
+ * @summary Delete a ticket (solo SysAdmin con clave administrativa)
  */
-export const useDeleteTicket = <TError = ErrorType<unknown>,
+export const useDeleteTicket = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTicket>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof deleteTicket>>,

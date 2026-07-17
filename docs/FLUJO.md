@@ -113,8 +113,8 @@ API REST en Express 5. Único componente que toca la base. Rutas:
 | `POST /api/webhooks/ticket`              | **Ingesta**: crea el ticket de una llamada. Única ruta con API key. Idempotente. Si no viene `fecha_limite`, se preestablece a **+48 hs** (SLA). |
 | `GET /api/tickets`                       | Listado con filtros (estado, prioridad, fechas, horas, empresa, búsqueda libre, vencidos) y paginación.                                          |
 | `GET /api/tickets/:id`                   | Detalle + historial de seguimientos.                                                                                                             |
-| `PATCH /api/tickets/:id`                 | Editar estado, prioridad, progreso, notas o fecha límite. Una transición real de estado autoasigna al usuario de la sesión.                     |
-| `DELETE /api/tickets/:id`                | Eliminar.                                                                                                                                        |
+| `PATCH /api/tickets/:id`                 | Editar estado, prioridad, progreso, notas o fecha límite. Una transición real de estado autoasigna al usuario de la sesión; los campos administrativos exigen SysAdmin + `x-admin-key`. |
+| `DELETE /api/tickets/:id`                | Eliminar; exige sesión SysAdmin + `x-admin-key`.                                                                                                  |
 | `GET/POST /api/tickets/:id/seguimientos` | Historial: notas con autor y cambios de estado.                                                                                                  |
 | `GET /api/dashboard/stats`               | Totales por estado/prioridad, vencidos, resueltos hoy, nuevos hoy, tiempo promedio de resolución.                                                |
 | `GET /api/dashboard/actividad-reciente`  | Línea de tiempo de tickets creados y seguimientos.                                                                                               |
@@ -130,7 +130,7 @@ API REST en Express 5. Único componente que toca la base. Rutas:
 | `PATCH /api/admin/users/:id`             | **Admin**: edición, cambio de rol y activación/desactivación sin borrado físico.                                                                 |
 | `GET /api/events`                        | **SSE**: stream de eventos en vivo. El frontend lo mantiene abierto y recibe `ticket_creado` / `tickets_importados` / `datos_actualizados` al instante. Fuera del contrato OpenAPI a propósito (es un stream, Orval no lo modela). |
 
-Las rutas `admin` exigen el header `x-admin-key` **solo si** `ADMIN_API_KEY` está configurada; sin esa variable, quedan abiertas (modo red local). Los nombres de rol y emails son únicos, los emails se normalizan a minúsculas y una clave foránea impide borrar roles asignados. La lógica de parseo del CSV es la misma del importador CLI: vive compartida en [lib/ingesta/](../lib/ingesta/).
+Las rutas `admin`, el borrado y la edición administrativa de tickets exigen sesión SysAdmin y el header `x-admin-key`. Si `ADMIN_API_KEY` falta o está vacía, responden `503` y permanecen cerradas. Los nombres de rol y emails son únicos, los emails se normalizan a minúsculas y una clave foránea impide borrar roles asignados. La lógica de parseo del CSV es la misma del importador CLI: vive compartida en [lib/ingesta/](../lib/ingesta/).
 
 Cada request: se loguea (pino) → se valida con Zod → se consulta/escribe con Drizzle → responde JSON.
 
@@ -138,7 +138,7 @@ Cada request: se loguea (pino) → se valida con Zod → se consulta/escribe con
 
 React + Vite. Pantallas principales:
 
-- **Dashboard** (`/`): KPIs (sin revisar, en proceso, vencidos, resueltos hoy), distribución por estado, rendimiento, motivos de contacto, prioridades, tickets vencidos y actividad reciente.
+- **Dashboard** (`/dashboard`): KPIs (sin revisar, en proceso, vencidos, resueltos hoy), distribución por estado, rendimiento, motivos de contacto, prioridades, tickets vencidos y actividad reciente.
 - **Listado** (`/tickets`): tabla con contacto, empresa, motivo, estado, prioridad, progreso y fecha límite. Filtros combinables.
 - **Detalle** (`/tickets/:id`): resumen de la llamada, reproductor de la grabación, datos del contacto, tiempos, edición de estado/prioridad/progreso y el historial de seguimientos.
 
@@ -146,8 +146,9 @@ React + Vite. Pantallas principales:
 
 **Notificaciones del sidebar**: junto a "Tickets" hay dos numeritos — **ámbar** = tickets en estado `nuevo` (sin abrir), **rojo** = tickets vencidos.
 
-- **Administración** (`/admin`): conserva la rueda de configuración a la izquierda y muestra un escudo administrativo en el extremo derecho del botón del sidebar; dentro del panel, la sección **Tickets** conserva la tabla CRUD con paginación configurable 10/25/50/100, el importador CSV y la zona peligrosa.
-- **Roles y usuarios** (`/admin/roles-usuarios`): altas y edición de perfiles, asignación de rol, filtros, activación/desactivación y gestión del catálogo de roles. Comparte con Tickets la clave `ADMIN_API_KEY` guardada en `sessionStorage`.
+- **Administración** (`/admin`): conserva la rueda de configuración a la izquierda y muestra un escudo administrativo en el extremo derecho del botón del sidebar; dentro del panel, la sección **Tickets** conserva la tabla CRUD con paginación configurable 10/25/50/100, el importador CSV y la zona peligrosa. Sus mutaciones envían la segunda credencial `x-admin-key`.
+- **Roles y usuarios** (`/admin/roles-usuarios`): altas y edición de perfiles, asignación de rol, filtros, activación/desactivación y gestión del catálogo de roles. Comparte con Tickets la clave `ADMIN_API_KEY`, enmascarada y persistida en el navegador por ID de SysAdmin. Los campos de contraseña también permanecen ocultos y ofrecen un botón de ojo.
+- **Errores y sesión**: el login no tiene una ruta `/login`; vive en `/` cuando no hay sesión, mientras que una sesión válida que entra a la raíz se redirige a `/dashboard`. Un `401` vuelve a la raíz, un `403` muestra acceso denegado, un `404` identifica páginas o tickets inexistentes y los fallos `5xx`/conexión ofrecen reintentar. Todas las pantallas de error incluyen **Volver al inicio**.
 
 En desarrollo, Vite proxea todo `/api/*` al backend (puerto 5000), por eso el frontend usa rutas relativas.
 
@@ -176,6 +177,7 @@ Si se cambia la API: primero se edita el yaml, se corre codegen, y después se i
 | `nombre`, `apellido`                  | texto                  | Datos del llamante.                                                                                                                                                       |
 | `telefono`, `dni`, `empresa`, `email` | texto, opcionales      | Datos del llamante. `empresa` viene de n8n.                                                                                                                               |
 | `motivo`                              | texto                  | Por qué llamó (título del ticket).                                                                                                                                        |
+| `motivo_categoria`                    | enum derivado          | Clasificación estable sin alterar el texto original: haberes/pagos, recibos/documentación, vacaciones/licencias, bajas/liquidación, empleo, contacto, reclamos, legales o sin clasificar. |
 | `resumen`                             | texto, opcional        | Resumen de la conversación que arma ElevenLabs.                                                                                                                           |
 | `audio_url`                           | texto, opcional        | Link a la grabación (SharePoint).                                                                                                                                         |
 | `notificado`                          | booleano               | Si ya se avisó al área correspondiente.                                                                                                                                   |
@@ -253,7 +255,7 @@ Archivo `.env` en la raíz (plantilla: [.env.example](../.env.example)):
 | `PORT`            | Puerto del backend (default 5000).                                                                                                                                     |
 | `HOST_IP`         | IP de esta máquina en la red interna — la usa n8n para llegar al webhook. Actualizar acá cuando cambie la IP o se mude de servidor.                                    |
 | `WEBHOOK_API_KEY` | La clave que n8n manda en `x-api-key`. Sin ella el webhook responde 503.                                                                                               |
-| `ADMIN_API_KEY`   | Única llave de las operaciones `/api/admin/*`, incluida la gestión de roles y usuarios. Es opcional en desarrollo; no es una contraseña de usuario ni crea una sesión. |
+| `ADMIN_API_KEY`   | Segunda credencial obligatoria de las operaciones administrativas del SysAdmin, incluida la gestión de tickets, roles y usuarios. No reemplaza el login ni crea una sesión; si falta, el backend responde `503`. |
 | `TICKETS_DB_PATH` | Ruta del archivo SQLite (opcional; default `data/tickets.db`).                                                                                                         |
 
 Arrancar el sistema (dos terminales):
@@ -269,10 +271,10 @@ Esto es para **desarrollo local**. El servidor de testing corre los mismos dos s
 
 ## 6. Seguridad — estado actual
 
-- **Login obligatorio en toda la aplicación**: sin sesión iniciada no se ve ninguna pantalla (cualquier URL muestra el login) ni se puede consumir ningún endpoint de la API — responden 401. Únicas excepciones: `GET /api/healthz` (chequeo de vida), `POST /api/webhooks/ticket` (n8n, autenticado con su propia `x-api-key`) y `POST /api/auth/login`.
+- **Login obligatorio en toda la aplicación**: sin sesión iniciada no se ve ninguna pantalla privada (cualquier URL protegida vuelve a `/`, donde está el login) ni se puede consumir ningún endpoint de la API — responden 401. Únicas excepciones: `GET /api/healthz` (chequeo de vida), `POST /api/webhooks/ticket` (n8n, autenticado con su propia `x-api-key`) y `POST /api/auth/login`.
 - **Sesiones**: cookie `httpOnly` + `SameSite=Lax` respaldada en la tabla `sesiones` (revocables, sobreviven reinicios del backend), expiración a los 7 días. Contraseñas hasheadas con scrypt (módulo nativo de Node, sin dependencias extra).
 - **Usuario semilla**: en el primer arranque (si ningún usuario tiene contraseña asignada) se crea el rol `Administrador` y el usuario **`admin` / clave `admin`** — **cambiar esa clave apenas se pueda**. El seed no revive al admin si después lo reemplazan por cuentas propias con contraseña.
-- **Doble verificación en administración**: los endpoints `/api/admin/*` exigen sesión **y además** el header `x-admin-key` (`ADMIN_API_KEY`, guardada por comodidad en `sessionStorage` del navegador). Dos llaves distintas para las operaciones peligrosas.
+- **Triple verificación en administración**: los endpoints `/api/admin/*`, el borrado y la edición administrativa de tickets exigen sesión, rol SysAdmin **y además** el header `x-admin-key`. La `ADMIN_API_KEY` no se guarda en la base: queda en `localStorage`, separada por ID de SysAdmin, para reutilizarla en futuros logins desde ese navegador. La variable ausente nunca abre las rutas: devuelve `503`.
 - **Seguimientos auditables**: el campo `autor` lo asigna el backend con el usuario de la sesión — lo que mande el cliente se ignora.
 - **Pendiente (próxima fase)**: permisos por rol con checkboxes — el botón y la ruta `/admin` visibles solo para usuarios con ese permiso, validado en el backend, no solo ocultado en la UI.
 - Si n8n corre en la nube, necesita poder llegar a esta máquina: túnel (Cloudflare Tunnel / ngrok) o IP pública con firewall.

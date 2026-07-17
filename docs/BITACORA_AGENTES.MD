@@ -238,7 +238,7 @@ Archivos afectados: `backend/src/routes/tickets.ts` y `lib/api-spec/openapi.yaml
   - **Seed idempotente** al arrancar: solo si ningún usuario tiene contraseña, crea el rol `Administrador` y el usuario `admin`/`admin` (con warning en el log para cambiar la clave). No revive al admin si ya existen cuentas con contraseña — y evita el lockout total.
   - **Seguimientos**: `autor` sale siempre de la sesión; el valor del cliente se ignora (el historial deja de ser falsificable). Se quitó el `'Usuario Actual'` hardcodeado del frontend.
 - **Frontend**:
-  - `AuthGate` en `App.tsx`: sin sesión, cualquier URL renderiza únicamente la pantalla de login (la URL se conserva: tras loguearse el usuario cae donde quería ir). Mientras verifica sesión muestra un spinner.
+  - `AuthGate` en `App.tsx`: sin sesión, cualquier URL renderiza únicamente la pantalla de login. Este fue el comportamiento inicial; la separación posterior de rutas normaliza el acceso en `/` y lleva el Dashboard a `/dashboard`.
   - Pantalla `Login.tsx` con manejo de errores 401 vs. red.
   - Ante cualquier respuesta 401 de la API (sesión vencida/revocada), un `QueryCache.onError` invalida `/auth/me` y el gate devuelve al login.
   - Footer del sidebar: usuario logueado + rol + botón de cerrar sesión (limpia todo el caché de queries).
@@ -313,6 +313,136 @@ Archivos afectados: `backend/src/routes/tickets.ts` y `lib/api-spec/openapi.yaml
 ### Pendiente
 
 - Cambios sin commitear a la espera del OK del usuario tras la prueba local.
+
+## 2026-07-17 — Persistencia de llave, visibilidad de secretos y categoría Legales
+
+**Agente:** Codex
+**Contexto:** se pidió no tener que volver a ingresar la `ADMIN_API_KEY` después de cada login, mantener los secretos ocultos con opción de visualizarlos y sumar `Legales` a la clasificación automática de motivos.
+
+### Llave administrativa recordada
+
+- La llave **no se guarda en la base de datos** ni se incorpora a usuarios, roles o sesiones. Guardar el secreto maestro reversible en SQLite eliminaría el valor de la segunda verificación y aumentaría su exposición.
+- `useAdminAccess` la persiste en `localStorage` bajo `admin-key:user:<id>`, separada por usuario SysAdmin. El valor legado de `sessionStorage` se migra una sola vez.
+- El logout conserva esta preferencia local, pero sigue revocando la sesión, limpiando React Query y recargando la raíz. Vaciar manualmente el campo elimina la llave persistida para ese usuario.
+- El campo permanece enmascarado por defecto y tiene un botón accesible para mostrar/ocultar. La llave tampoco forma parte del `queryKey` de React Query.
+- Alcance de seguridad: la comodidad funciona solamente en ese navegador/perfil. Como todo valor de `localStorage`, podría ser leído por JavaScript del mismo origen ante una vulnerabilidad XSS; cifrarlo solo del lado cliente no aporta protección real sin solicitar otro secreto.
+
+### Campos de contraseña
+
+- Se agregó el componente reutilizable `PasswordInput` con ojo abierto/cerrado, botón `type="button"`, texto accesible, foco visible y soporte de campos deshabilitados.
+- Se aplicó al login, contraseña inicial y repetición al crear usuarios, y ambos campos del restablecimiento de contraseña.
+- Al cerrar, cancelar o guardar los diálogos administrativos, los valores de contraseña se eliminan del estado React y la visibilidad vuelve a oculta al reabrir.
+
+### Categoría `Legales`
+
+- El código estable `legales` y la etiqueta **Legales** se agregaron al clasificador compartido, schema Drizzle, contrato OpenAPI, clientes generados, filtros, badges y gráficos.
+- Las reglas priorizan señales legales explícitas: carta documento, telegrama laboral, SECLO, asesoramiento jurídico, intimaciones, demandas/juicios/audiencias con contexto laboral o judicial y contacto explícito con abogados.
+- Se agregaron casos negativos para evitar falsos positivos: un recibo destinado a un abogado conserva `recibos_documentacion`, una abogada postulándose conserva `empleo_postulaciones` y una referencia genérica al nombre legal de la empresa queda sin clasificar.
+- La migración de datos `0006_add_legales_category.sql` actualiza únicamente `motivo_categoria`; respeta la prioridad del motivo sobre el resumen y conserva intactos `motivo` y `resumen`. Incluye snapshot y journal de Drizzle para mantener la cadena de migraciones.
+- Antes del backfill local se creó `backups/pre-legales-20260717-171039.db`, verificado con `integrity_check = ok`. La base actual no contenía coincidencias legales: se modificaron 0 filas, los campos originales conservaron el mismo hash y la integridad permaneció en `ok`.
+
+### Validaciones
+
+- Tests del clasificador: 10/10 correctos, incluidos prioridad motivo/resumen, acentos y falsos positivos.
+- Test de la migración sobre SQLite en memoria: correcto; solo cambia la categoría derivada de los fixtures legales.
+- Typecheck del frontend: correcto.
+- Build completo del workspace: correcto. El codegen de OpenAPI también finalizó correctamente.
+- Servicios verificados después del reinicio: frontend `/` y `/dashboard` en HTTP 200; backend `/api/healthz` en HTTP 200.
+- La comprobación E2E adicional del navegador no se contabilizó porque Chromium quedó bloqueado; se detuvieron exclusivamente esos procesos de prueba y se eliminó su perfil temporal.
+- No se realizó commit ni push.
+
+## 2026-07-17 — API key obligatoria para gestiones SysAdmin y redirección de logout
+
+**Agente:** Codex
+**Contexto:** se detectó que el CRUD de tickets dentro de Administración mezclaba endpoints protegidos por `x-admin-key` con rutas operativas que solo exigían sesión. Por eso un SysAdmin podía vaciar el campo de la llave y aun así editar o borrar desde esa pantalla. También se pidió que el cierre de sesión navegue automáticamente a la raíz, donde vive el login.
+
+### Autorización aplicada
+
+- `requireAdminKey` ahora **falla cerrado**: si `ADMIN_API_KEY` falta, está vacía o contiene solo espacios, responde `503`. Una llave ausente o incorrecta responde `401`; nunca se abre el panel por falta de configuración.
+- Todas las rutas `/api/admin/*` mantienen el orden de candados: sesión válida → rol `SysAdmin` → `x-admin-key`. Esto incluye alta/edición de usuarios y roles, reset de contraseñas, alta manual de tickets, importación y truncate.
+- `DELETE /api/tickets/:id` quedó reservado a sesión SysAdmin + API key. Ya no puede ejecutarlo cualquier usuario autenticado.
+- `PATCH /api/tickets/:id` diferencia los usos:
+  - los campos operativos `estado`, `prioridad`, `notas`, `progreso` y `fecha_limite` conservan el flujo normal por sesión/rol;
+  - modificar datos administrativos u originales (`hora`, contacto, empresa, motivo/resumen, audio, notificación o fecha de resolución) exige SysAdmin + API key.
+- El formulario CRUD de Administración ahora envía `x-admin-key` tanto al editar como al eliminar. La validación es del backend; ocultar botones o rutas en el frontend no se considera una defensa.
+
+### Logout y experiencia de usuario
+
+- Tras un logout exitoso se limpia React Query, se bloquea el doble clic mientras la petición está pendiente y se recarga `/` con reemplazo de historial para descartar por completo el estado autenticado anterior. La llave administrativa se conserva en el almacenamiento local por usuario, según la actualización posterior documentada en esta bitácora.
+- No existe una pantalla independiente en `/login`: cuando no hay sesión, `AuthGate` muestra el formulario de acceso en la raíz (`http://<host>:3000/`).
+- El indicador de la llave muestra específicamente cuando el servidor responde `503` por falta de `ADMIN_API_KEY`.
+
+### Contrato, despliegue y validaciones
+
+- OpenAPI documenta la autorización condicional del `PATCH`, el borrado exclusivo de SysAdmin y las respuestas `401/403/503`; los clientes React Query y Zod se regeneraron correctamente.
+- `.env.example`, Docker Compose, el workflow de deploy y los README/runbooks declaran `ADMIN_API_KEY` como obligatoria. Compose corta el despliegue si no se entrega la variable.
+- `pnpm run build`: correcto para librerías, backend, frontend y scripts. Persisten únicamente los avisos no bloqueantes conocidos de sourcemaps y tamaño del bundle.
+- Pruebas HTTP contra los servidores reconstruidos, usando IDs inexistentes para no modificar tickets reales:
+  - edición administrativa sin llave / con llave incorrecta → `401`; con llave válida llega al recurso y devuelve `404`;
+  - edición operativa sin llave llega al recurso y devuelve `404`, confirmando que no se bloqueó el trabajo diario;
+  - borrado sin llave → `401`; con llave válida → `204` sobre ID inexistente;
+  - alta de usuario o rol sin llave → `401`; con llave válida y body deliberadamente inválido → `400`, confirmando que superó autorización y llegó a validación;
+  - backend aislado con `ADMIN_API_KEY` en blanco → `503` en `/api/admin/roles`.
+- Las sesiones temporales se cerraron al finalizar. Backend y frontend quedaron activos en `5000` y `3000`, ambos con HTTP `200`. No se realizó commit ni push.
+
+## 2026-07-17 — Raíz de login y pantallas de error
+
+**Agente:** Codex
+**Contexto:** se corrigió el destino del logout porque el login no es una ruta propia: se renderiza en `/` cuando no existe una sesión válida. También se unificó el tratamiento visual de errores para evitar pantallas vacías o mensajes 404 engañosos ante problemas de permisos, red o servidor.
+
+### Navegación y sesión
+
+- El logout recarga `/` mediante reemplazo de historial; no genera ni utiliza `/login`.
+- Un `401` de sesión invalida/revalida `/auth/me`, normaliza la URL a `/` y muestra allí el formulario de acceso.
+- Los `401` causados por una API key administrativa ausente o incorrecta no cierran la sesión del SysAdmin: se informan dentro de la gestión correspondiente.
+
+### Experiencia de error
+
+- Se agregó una pantalla reutilizable con textos en español para `401`, `403`, `404`, `409`, `500`, `503` y errores desconocidos.
+- Todas las variantes ofrecen **Volver al inicio**; los fallos recuperables de red o servidor agregan **Reintentar** con indicador de carga.
+- El acceso a Administración sin rol SysAdmin muestra correctamente `403`, y una ruta inexistente muestra `404`.
+- Un límite global de errores de React captura fallos de render no controlados y ofrece recargar la aplicación.
+- Dashboard, listado de tickets, detalle y CRUD administrativo distinguen un fallo de carga de un resultado vacío y permiten reintentar. Un ticket inexistente conserva su tratamiento específico como `404`.
+
+### Documentación
+
+- Se actualizaron `frontend/README_FRONTEND.md`, `docs/FLUJO.md` y esta bitácora con la raíz real del login y la matriz de errores.
+- `pnpm --filter @workspace/frontend run typecheck`: correcto.
+- `pnpm run build`: correcto para librerías, backend, frontend y scripts; solo permanecen los avisos no bloqueantes ya conocidos de sourcemaps y tamaño del bundle.
+- Verificación HTTP final: frontend en `3000` y backend (`/api/healthz`) en `5000`, ambos con respuesta `200`.
+- `git diff --check`: correcto; únicamente se informaron las advertencias esperadas de conversión LF/CRLF de Git en Windows.
+- No se realizó commit ni push.
+
+## 2026-07-17 — Separación entre login y Dashboard
+
+**Agente:** Codex
+**Contexto:** después del logout la URL cambiaba a `/`, pero esa misma ruta también renderizaba el Dashboard. `queryClient.clear()` elimina las queries, aunque un observer activo puede conservar brevemente su último resultado; durante esa ventana la raíz volvía a mostrar contenido autenticado. Se eligió la alternativa de conservar el login en la raíz y crear `/dashboard` como ruta independiente.
+
+### Contrato de navegación
+
+- `/` es la entrada pública: sin sesión muestra el formulario de login y con una sesión válida redirige a `/dashboard` mediante reemplazo de historial.
+- `/dashboard` contiene el Dashboard y está protegido, al igual que `/tickets` y `/admin`, por `AuthGate`.
+- El login exitoso actualiza primero el caché de `/auth/me` y navega explícitamente a `/dashboard`.
+- El enlace Dashboard del sidebar apunta a `/dashboard` y su estado activo contempla subrutas sin confundirlo con la raíz.
+- No se agregó un endpoint de backend ni una pantalla `/login`: el cambio es exclusivamente de routing del frontend.
+
+### Logout sin estado residual
+
+- Después del `204` se limpia React Query, se conserva la llave administrativa local del usuario y se usa `window.location.replace(import.meta.env.BASE_URL)` para recargar la raíz.
+- La recarga completa desmonta el árbol autenticado y vuelve a consultar `/auth/me` con la cookie ya eliminada; así no puede reaparecer el Dashboard por un usuario retenido en memoria.
+- Las pantallas de error autenticadas vuelven por defecto a `/dashboard`; los errores ocurridos mientras se verifica la sesión vuelven a `/`.
+
+### Documentación y validación
+
+- Se actualizaron `frontend/README_FRONTEND.md`, `docs/FLUJO.md` y esta bitácora con el nuevo mapa de rutas.
+- `pnpm run build`: correcto para librerías, backend, frontend y scripts; solo permanecen los avisos no bloqueantes ya conocidos de sourcemaps y tamaño del bundle.
+- Prueba E2E headless con un perfil aislado de navegador:
+  - abrir `/dashboard` sin sesión terminó en `/` mostrando Login;
+  - un login exitoso terminó en `/dashboard` mostrando el Dashboard;
+  - el botón de logout terminó en `/` mostrando nuevamente Login.
+- `/` y `/dashboard` respondieron `200` como rutas SPA, y `/api/auth/me` sin cookie respondió `401`.
+- Los perfiles y scripts temporales usados para la prueba se eliminaron del workspace.
+- No se realizó commit ni push.
 
 ## 2026-07-17 — Clasificación automática de motivos sin alterar datos de n8n
 

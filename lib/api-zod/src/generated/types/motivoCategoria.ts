@@ -17,5 +17,6 @@ export const MotivoCategoria = {
   empleo_postulaciones: 'empleo_postulaciones',
   contacto_general: 'contacto_general',
   reclamos: 'reclamos',
+  legales: 'legales',
   sin_clasificar: 'sin_clasificar',
 } as const;

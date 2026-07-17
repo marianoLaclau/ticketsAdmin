@@ -77,11 +77,17 @@ export function Sidebar() {
   const logout = useLogout();
 
   const handleLogout = () => {
+    if (logout.isPending) return;
+
     logout.mutate(undefined as never, {
-      onSettled: () => {
-        // Limpiar todo el caché: el AuthGate vuelve a /auth/me → login
+      onSuccess: () => {
+        // La caché de datos sí es propia de la sesión. La llave administrativa
+        // persiste en el navegador, separada por usuario, para no pedirla en
+        // cada ingreso al panel.
         queryClient.clear();
-        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+        // La recarga completa descarta cualquier árbol autenticado todavía
+        // montado y obliga a verificar la cookie ya eliminada por el backend.
+        window.location.replace(import.meta.env.BASE_URL);
       },
     });
   };
@@ -93,7 +99,7 @@ export function Sidebar() {
   // lo valida igual; esto es para que los demás ni siquiera lo vean).
   const esSysAdmin = me?.rol === ROL_SYSADMIN;
   const links = [
-    { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/tickets', label: 'Tickets', icon: Ticket },
     ...(esSysAdmin ? [{ href: '/admin', label: 'Administración', icon: Settings }] : []),
   ];
@@ -119,8 +125,7 @@ export function Sidebar() {
         <nav className="space-y-1.5 px-3">
           {links.map((link) => {
             const Icon = link.icon;
-            const isActive = location === link.href ||
-                            (link.href !== '/' && location.startsWith(link.href));
+            const isActive = location === link.href || location.startsWith(`${link.href}/`);
 
             return (
               <Link
@@ -219,8 +224,9 @@ export function Sidebar() {
           </div>
           <button
             onClick={handleLogout}
+            disabled={logout.isPending}
             title="Cerrar sesión"
-            className="h-8 w-8 rounded-md flex items-center justify-center text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-colors shrink-0"
+            className="h-8 w-8 rounded-md flex items-center justify-center text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-colors shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
             data-testid="logout-button"
           >
             <LogOut className="h-4 w-4" />

@@ -25,6 +25,7 @@ import {
 import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
 import { getMotivoCategoriaConfig, MOTIVO_CATEGORIA_OPTIONS } from '@/lib/motivos';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
 
 export default function TicketList() {
   const [, setLocation] = useLocation();
@@ -64,7 +65,14 @@ export default function TicketList() {
   if (horaHasta) params.hora_hasta = horaHasta;
   if (empresa) params.empresa = empresa;
 
-  const { data: listResponse, isLoading } = useListTickets(params);
+  const {
+    data: listResponse,
+    error: listError,
+    isError: listIsError,
+    isFetching: listIsFetching,
+    isLoading,
+    refetch: refetchTickets,
+  } = useListTickets(params);
   const tickets = listResponse?.tickets || [];
   const total = listResponse?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -83,6 +91,18 @@ export default function TicketList() {
     setHoraHasta('');
     setEmpresa('');
   };
+
+  if (listIsError) {
+    return (
+      <ErrorPage
+        status={getErrorStatus(listError) ?? 503}
+        title="No pudimos cargar los llamados"
+        message="No fue posible obtener el listado de tickets. Reintentá o volvé al inicio."
+        onRetry={() => void refetchTickets()}
+        isRetrying={listIsFetching}
+      />
+    );
+  }
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto w-full space-y-4 flex flex-col h-full">

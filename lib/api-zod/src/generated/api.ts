@@ -37,7 +37,7 @@ export const ListTicketsQueryParams = zod.object({
   "hora_hasta": zod.coerce.string().optional(),
   "empresa": zod.coerce.string().optional(),
   "motivo": zod.coerce.string().optional(),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'sin_clasificar']).optional().describe('Categoría normalizada derivada del motivo original'),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']).optional().describe('Categoría normalizada derivada del motivo original'),
   "search": zod.coerce.string().optional(),
   "vencidos": zod.boolean().optional(),
   "order": zod.enum(['asc', 'desc']).default(listTicketsQueryOrderDefault).describe('Orden compuesto por día de creación y, dentro de cada día, por hora del llamado'),
@@ -62,7 +62,7 @@ export const ListTicketsResponse = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'sin_clasificar']),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
@@ -171,7 +171,7 @@ export const IngestTicketResponse = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'sin_clasificar']),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
@@ -238,7 +238,7 @@ export const CreateAdminTicketResponse = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'sin_clasificar']),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
@@ -572,7 +572,7 @@ export const GetTicketResponse = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'sin_clasificar']),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
@@ -599,6 +599,10 @@ export const GetTicketResponse = zod.object({
 
 
 /**
+ * Las actualizaciones operativas (estado, prioridad, notas, progreso y
+ * fecha limite) requieren una sesion valida. La edicion administrativa
+ * de los datos de origen/contacto requiere ademas rol SysAdmin y el
+ * header x-admin-key.
  * @summary Update a ticket
  */
 export const UpdateTicketParams = zod.object({
@@ -646,7 +650,7 @@ export const UpdateTicketResponse = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'sin_clasificar']),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
@@ -663,7 +667,8 @@ export const UpdateTicketResponse = zod.object({
 
 
 /**
- * @summary Delete a ticket
+ * Requiere sesion con rol SysAdmin y el header x-admin-key.
+ * @summary Delete a ticket (solo SysAdmin con clave administrativa)
  */
 export const DeleteTicketParams = zod.object({
   "id": zod.coerce.number()
@@ -774,7 +779,7 @@ export const GetTicketsVencidosResponseItem = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'sin_clasificar']),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
@@ -795,7 +800,7 @@ export const GetTicketsVencidosResponse = zod.array(GetTicketsVencidosResponseIt
  * @summary Get ticket counts grouped by normalized contact category
  */
 export const GetMotivoStatsResponseItem = zod.object({
-  "categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'sin_clasificar']),
+  "categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']),
   "motivo": zod.string().describe('Etiqueta legible de la categoría'),
   "cantidad": zod.number()
 })

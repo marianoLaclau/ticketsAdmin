@@ -102,8 +102,8 @@ Todas bajo el prefijo `/api`. ✅ = requiere sesión (candado global). 🔑 = ad
 | `GET /auth/me` | Devuelve el `AuthUser` de la sesión activa, o `401`. | ✅ |
 | `GET /tickets` | Listado con filtros: `estado`, `prioridad`, `fecha_desde`/`fecha_hasta` (día calendario **local**, según `TZ`), `hora_desde`/`hora_hasta`, `empresa`, `motivo` (texto libre), `motivo_categoria` (código exacto), `search` (nombre/apellido/teléfono/DNI/email/empresa/motivo/conversation_id), `vencidos` (boolean estricto), `order` (`asc`/`desc`, default `desc`), `page`/`limit` (1–100). | ✅ |
 | `GET /tickets/:id` | Detalle + array de `seguimientos`. | ✅ |
-| `PATCH /tickets/:id` | Actualiza cualquier campo editable. Si `motivo` o `resumen` cambian, recalcula `motivo_categoria` server-side. Si `estado` pasa a `cerrado`, exige rol SysAdmin/Administrador (`403` si no). Si pasa a `resuelto`/`cerrado` y no tenía `fecha_resolucion`, la setea sola. | ✅ |
-| `DELETE /tickets/:id` | Borra el ticket (cascada sobre sus seguimientos). `204`. | ✅ |
+| `PATCH /tickets/:id` | Los campos operativos (estado/prioridad/notas/progreso/fecha límite) requieren sesión. Los datos administrativos de contacto/origen exigen además SysAdmin + `x-admin-key`. Si `motivo` o `resumen` cambian, recalcula `motivo_categoria`; una transición real autoasigna al usuario. | ✅ / ✅🔑🗝️ |
+| `DELETE /tickets/:id` | Borra el ticket (cascada sobre sus seguimientos). `204`. | ✅🔑🗝️ |
 | `GET /tickets/:id/seguimientos` | Historial ordenado por fecha. | ✅ |
 | `POST /tickets/:id/seguimientos` | Crea una nota. **El campo `autor` lo asigna el backend con el usuario de la sesión** — lo que mande el body se ignora, así el historial no es falsificable. | ✅ |
 | `GET /dashboard/stats` | Totales por estado/prioridad, vencidos, resueltos hoy, nuevos hoy, tiempo promedio de resolución (horas). | ✅ |
@@ -157,11 +157,11 @@ Tres roles fijos por nombre (constantes en `auth.ts`, espejadas en `frontend/src
 router.use("/admin", requireSysAdmin, requireAdminKey);
 ```
 
-Dos capas encima de la sesión: primero el rol (`403` si no es SysAdmin), después la clave `ADMIN_API_KEY` vía header `x-admin-key` (`401` si no coincide). Si `ADMIN_API_KEY` no está configurada en el servidor, esa segunda capa queda abierta — pero el rol se sigue exigiendo siempre.
+Dos capas encima de la sesión: primero el rol (`403` si no es SysAdmin), después la clave `ADMIN_API_KEY` vía header `x-admin-key` (`401` si no coincide). Si `ADMIN_API_KEY` no está configurada o está vacía, el backend responde `503`: la protección falla cerrada y nunca abre el panel accidentalmente.
 
 ### El webhook es independiente
 
-`requireWebhookKey` no usa sesión: valida el header `x-api-key` contra `WEBHOOK_API_KEY` con comparación en tiempo constante (`timingSafeEqual` sobre un hash SHA-256, para no filtrar la clave por timing). Si la variable no está configurada, responde `503` (ingesta cerrada) en vez de quedar abierta — al revés que `/admin`.
+`requireWebhookKey` no usa sesión: valida el header `x-api-key` contra `WEBHOOK_API_KEY` con comparación en tiempo constante (`timingSafeEqual` sobre un hash SHA-256, para no filtrar la clave por timing). Igual que la administración, si su variable no está configurada responde `503` y queda cerrado.
 
 ### Contraseñas
 
@@ -258,7 +258,8 @@ No se puede borrar un rol con usuarios asignados (`409`), aunque esté inactivo.
 
 - `clasificarMotivo(motivo, resumen?)` normaliza el texto (minúsculas, sin tildes, sin puntuación) y lo corre contra una lista ordenada de reglas (`REGLAS_CLASIFICACION_MOTIVO`, cada una con una categoría y un array de regex). **Gana la primera regla que matchea**, evaluada de la más específica a la más general (ej. "liquidación" antes que "sueldo", para no confundir un despido con una consulta de haberes).
 - Si `motivo` no matchea ninguna regla, se prueba con `resumen` antes de rendirse. Si tampoco, cae en `sin_clasificar`.
-- Categorías actuales: `haberes_pagos`, `recibos_documentacion`, `vacaciones_licencias`, `bajas_liquidacion`, `empleo_postulaciones`, `contacto_general`, `reclamos`, `sin_clasificar`.
+- Categorías actuales: `haberes_pagos`, `recibos_documentacion`, `vacaciones_licencias`, `bajas_liquidacion`, `empleo_postulaciones`, `contacto_general`, `reclamos`, `legales`, `sin_clasificar`.
+- `legales` exige señales jurídicas concretas (por ejemplo, carta documento, telegrama laboral, contacto explícito con un abogado, SECLO, intimación o consulta jurídica). Una profesión mencionada incidentalmente o la palabra `legal` aislada no alcanzan, para evitar falsos positivos.
 - Se recalcula en tres puntos: al ingerir por webhook, al importar CSV, y al editar `motivo`/`resumen` de un ticket existente (`PATCH /tickets/:id`). **`motivo` original nunca se pisa** — solo se deriva `motivo_categoria` a partir de él.
 
 ## Ingesta y CSV compartidos
@@ -292,7 +293,7 @@ Ver también la tabla en el [README raíz](../README.md#configuración). Las que
 |---|---|---|
 | `PORT` | `index.ts` | Default `5000` |
 | `WEBHOOK_API_KEY` | `requireWebhookKey` | El webhook responde `503` (cerrado) |
-| `ADMIN_API_KEY` | `requireAdminKey` | `/admin/*` no exige `x-admin-key` (sigue exigiendo sesión + rol SysAdmin) |
+| `ADMIN_API_KEY` | `requireAdminKey` | Las operaciones administrativas responden `503` (cerradas) |
 | `TICKETS_DB_PATH` | `lib/db/src/db-path.ts` | Default `<repo>/data/tickets.db` (busca la raíz del monorepo por `pnpm-workspace.yaml`) |
 | `TZ` | proceso Node (filtros de fecha) | Zona del sistema; en Docker se fija `America/Argentina/Buenos_Aires` por default |
 | `NODE_ENV` | `logger.ts` | En producción desactiva `pino-pretty` (logs JSON crudos) |

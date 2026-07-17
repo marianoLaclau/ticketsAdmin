@@ -11,6 +11,7 @@ import { Link } from 'wouter';
 import { formatDate, PrioridadBadge } from '@/lib/utils-tickets';
 import { getMotivoCategoriaConfig } from '@/lib/motivos';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
 
 // Estado colors — coherent with badge system
 const ESTADO_COLOR: Record<string, { bar: string; label: string; text: string }> = {
@@ -57,10 +58,39 @@ function GaugeRing({ pct, size = 120, stroke = 10, color = '#3d7532' }: {
 }
 
 export default function Dashboard() {
-  const { data: stats, isLoading: loadingStats } = useGetDashboardStats();
-  const { data: actividades, isLoading: loadingActividad } = useGetActividadReciente({ limit: 12 });
-  const { data: vencidos, isLoading: loadingVencidos } = useGetTicketsVencidos();
-  const { data: motivos, isLoading: loadingMotivos } = useGetMotivoStats();
+  const statsQuery = useGetDashboardStats();
+  const actividadQuery = useGetActividadReciente({ limit: 12 });
+  const vencidosQuery = useGetTicketsVencidos();
+  const motivosQuery = useGetMotivoStats();
+
+  const { data: stats, isLoading: loadingStats } = statsQuery;
+  const { data: actividades, isLoading: loadingActividad } = actividadQuery;
+  const { data: vencidos, isLoading: loadingVencidos } = vencidosQuery;
+  const { data: motivos, isLoading: loadingMotivos } = motivosQuery;
+
+  const dashboardError =
+    statsQuery.error ?? actividadQuery.error ?? vencidosQuery.error ?? motivosQuery.error;
+  const dashboardIsError =
+    statsQuery.isError || actividadQuery.isError || vencidosQuery.isError || motivosQuery.isError;
+  const dashboardIsFetching =
+    statsQuery.isFetching || actividadQuery.isFetching || vencidosQuery.isFetching || motivosQuery.isFetching;
+
+  if (dashboardIsError) {
+    return (
+      <ErrorPage
+        status={getErrorStatus(dashboardError) ?? 503}
+        title="No pudimos cargar el dashboard"
+        message="Una o más secciones no pudieron obtener sus datos. Reintentá para volver a cargar el panel."
+        onRetry={() => {
+          void statsQuery.refetch();
+          void actividadQuery.refetch();
+          void vencidosQuery.refetch();
+          void motivosQuery.refetch();
+        }}
+        isRetrying={dashboardIsFetching}
+      />
+    );
+  }
 
   const today = new Date();
   const dateString = today.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
