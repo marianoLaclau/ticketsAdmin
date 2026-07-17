@@ -11,6 +11,11 @@ jobs:
     concurrency:
       group: deploy-testing
       cancel-in-progress: false
+    env:
+      # docker compose interpola ${WEBHOOK_API_KEY} de docker-compose.yml en
+      # CUALQUIER subcomando (build, up, ps...), no solo en "up" — por eso
+      # va a nivel de job y no en un solo step.
+      WEBHOOK_API_KEY: ${{ secrets.WEBHOOK_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,8 +24,6 @@ jobs:
         run: docker compose build
 
       - name: Restart containers
-        env:
-          WEBHOOK_API_KEY: ${{ secrets.WEBHOOK_API_KEY }}
         run: docker compose up -d --remove-orphans
 
       - name: Clean up dangling images
