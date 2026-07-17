@@ -96,7 +96,7 @@ export default function Dashboard() {
     <div className="p-6 max-w-[1400px] mx-auto w-full space-y-5">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold tracking-tight text-foreground">Centro de Operaciones</h1>
+        <h1 className="text-xl font-bold tracking-tight text-foreground">Sistema de Tickets</h1>
         <p className="text-sm text-muted-foreground capitalize">{dateString}</p>
       </div>
 

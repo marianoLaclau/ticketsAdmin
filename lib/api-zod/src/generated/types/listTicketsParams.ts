@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ListTicketsEstado } from './listTicketsEstado';
+import type { ListTicketsOrder } from './listTicketsOrder';
 import type { ListTicketsPrioridad } from './listTicketsPrioridad';
 
 export type ListTicketsParams = {
@@ -19,6 +20,10 @@ empresa?: string;
 motivo?: string;
 search?: string;
 vencidos?: boolean;
+/**
+ * Orden por fecha y hora de creación del llamado
+ */
+order?: ListTicketsOrder;
 page?: number;
 limit?: number;
 };

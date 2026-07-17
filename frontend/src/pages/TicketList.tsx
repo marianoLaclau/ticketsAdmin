@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   useListTickets, 
   TicketEstado, 
@@ -19,7 +19,8 @@ import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import {
-  Search, Filter, Building, AlertCircle
+  Search, Filter, Building, AlertCircle,
+  ArrowUp, ArrowDown, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -38,8 +39,18 @@ export default function TicketList() {
   const [horaHasta, setHoraHasta] = useState('');
   const [empresa, setEmpresa] = useState('');
 
+  // Orden por fecha/hora del llamado + paginación
+  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Al cambiar cualquier filtro u orden, volver a la primera página
+  useEffect(() => {
+    setPage(1);
+  }, [search, estadoFilter, prioridadFilter, vencidosFilter, fechaDesde, fechaHasta, horaDesde, horaHasta, empresa, order, pageSize]);
+
   // Custom hook usage with active filters
-  const params: any = {};
+  const params: any = { order, page, limit: pageSize };
   if (search) params.search = search;
   if (estadoFilter !== '_all') params.estado = estadoFilter as ListTicketsEstado;
   if (prioridadFilter !== '_all') params.prioridad = prioridadFilter as ListTicketsPrioridad;
@@ -52,6 +63,8 @@ export default function TicketList() {
 
   const { data: listResponse, isLoading } = useListTickets(params);
   const tickets = listResponse?.tickets || [];
+  const total = listResponse?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const hasFilters = search || estadoFilter !== '_all' || prioridadFilter !== '_all' || vencidosFilter || fechaDesde || fechaHasta || horaDesde || horaHasta || empresa;
 
@@ -196,6 +209,16 @@ export default function TicketList() {
           <Table>
             <TableHeader className="bg-slate-50/80 sticky top-0 z-10 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
               <TableRow className="hover:bg-transparent border-b border-border">
+                <TableHead className="w-[140px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">
+                  <button
+                    className="flex items-center gap-1 uppercase tracking-wider font-semibold hover:text-slate-900 transition-colors"
+                    onClick={() => setOrder(order === 'desc' ? 'asc' : 'desc')}
+                    title={order === 'desc' ? 'Más recientes primero (click para invertir)' : 'Más antiguos primero (click para invertir)'}
+                  >
+                    Fecha y Hora
+                    {order === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />}
+                  </button>
+                </TableHead>
                 <TableHead className="w-[200px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Contacto</TableHead>
                 <TableHead className="w-[160px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Empresa</TableHead>
                 <TableHead className="w-[250px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Motivo</TableHead>
@@ -207,10 +230,11 @@ export default function TicketList() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                Array.from({ length: 12 }).map((_, i) => (
+                Array.from({ length: 10 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell className="py-2.5"><Skeleton className="h-4 w-12" /></TableCell>
+                    <TableCell className="py-2.5"><Skeleton className="h-4 w-20" /></TableCell>
                     <TableCell className="py-2.5"><Skeleton className="h-4 w-32" /></TableCell>
+                    <TableCell className="py-2.5"><Skeleton className="h-4 w-24" /></TableCell>
                     <TableCell className="py-2.5"><Skeleton className="h-4 w-48" /></TableCell>
                     <TableCell className="py-2.5"><Skeleton className="h-4 w-20" /></TableCell>
                     <TableCell className="py-2.5"><Skeleton className="h-4 w-16" /></TableCell>
@@ -220,7 +244,7 @@ export default function TicketList() {
                 ))
               ) : tickets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-64 text-center border-b-0">
+                  <TableCell colSpan={8} className="h-64 text-center border-b-0">
                     <div className="flex flex-col items-center justify-center text-slate-500 space-y-3">
                       <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100">
                         <Filter className="h-5 w-5 text-slate-400" />
@@ -244,6 +268,14 @@ export default function TicketList() {
                       <TableCell className="py-2.5">
                         {/* Hover Left Border Accent */}
                         <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="flex flex-col">
+                          <span className="text-sm text-foreground font-medium">
+                            {new Date(ticket.fecha_creacion).toLocaleDateString('es-AR')}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground tabular-nums">{ticket.hora} hs</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-2.5">
                         <span className="font-semibold text-sm text-foreground truncate">
                           {ticket.nombre} {ticket.apellido}
                         </span>
@@ -293,6 +325,47 @@ export default function TicketList() {
               )}
             </TableBody>
           </Table>
+        </div>
+
+        {/* Paginación */}
+        <div className="shrink-0 flex flex-col sm:flex-row items-center justify-between gap-2 px-4 py-2.5 border-t border-border bg-slate-50/60">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>Mostrar</span>
+            <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+              <SelectTrigger className="h-7 w-[70px] text-xs bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[10, 25, 50, 100].map((n) => (
+                  <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span>por página</span>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {total} registros — página {page} de {totalPages}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs bg-white"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              <ChevronLeft className="h-3.5 w-3.5 mr-0.5" /> Anterior
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs bg-white"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Siguiente <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>

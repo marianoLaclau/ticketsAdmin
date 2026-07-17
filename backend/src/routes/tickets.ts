@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, ticketsTable, seguimientosTable } from "@workspace/db";
-import { eq, and, gte, lte, like, or, lt, not, inArray, desc, count } from "drizzle-orm";
+import { eq, and, gte, lte, like, or, lt, not, inArray, asc, desc, count } from "drizzle-orm";
 import {
   ListTicketsQueryParams,
   GetTicketParams,
@@ -21,7 +21,7 @@ router.get("/tickets", async (req, res) => {
     res.status(400).json({ error: "Invalid query params" });
     return;
   }
-  const { estado, prioridad, fecha_desde, fecha_hasta, hora_desde, hora_hasta, empresa, motivo, search, vencidos, page = 1, limit = 20 } = parsed.data;
+  const { estado, prioridad, fecha_desde, fecha_hasta, hora_desde, hora_hasta, empresa, motivo, search, vencidos, order = "desc", page = 1, limit = 20 } = parsed.data;
 
   const conditions: ReturnType<typeof eq>[] = [];
 
@@ -64,8 +64,9 @@ router.get("/tickets", async (req, res) => {
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const offset = (page - 1) * limit;
 
+  const orderBy = order === "asc" ? asc(ticketsTable.fecha_creacion) : desc(ticketsTable.fecha_creacion);
   const [tickets, [{ total }]] = await Promise.all([
-    db.select().from(ticketsTable).where(where).orderBy(desc(ticketsTable.fecha_creacion)).limit(limit).offset(offset),
+    db.select().from(ticketsTable).where(where).orderBy(orderBy).limit(limit).offset(offset),
     db.select({ total: count() }).from(ticketsTable).where(where),
   ]);
 

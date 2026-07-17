@@ -131,8 +131,7 @@ export function Sidebar() {
             <UserCircle className="h-5 w-5 text-sidebar-foreground/70" />
           </div>
           <div className="overflow-hidden">
-            <p className="text-xs font-semibold text-sidebar-foreground truncate">GSB Quality Services</p>
-            <p className="text-[11px] text-sidebar-foreground/60 truncate">Quality Management</p>
+            <p className="text-xs font-semibold text-sidebar-foreground truncate">GSB IT - V0.1</p>
           </div>
         </div>
       </div>

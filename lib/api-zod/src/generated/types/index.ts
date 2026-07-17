@@ -17,6 +17,7 @@ export * from './estadoStat';
 export * from './getActividadRecienteParams';
 export * from './healthStatus';
 export * from './listTicketsEstado';
+export * from './listTicketsOrder';
 export * from './listTicketsParams';
 export * from './listTicketsPrioridad';
 export * from './motivoStat';

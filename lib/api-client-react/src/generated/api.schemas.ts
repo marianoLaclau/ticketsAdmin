@@ -277,6 +277,10 @@ empresa?: string;
 motivo?: string;
 search?: string;
 vencidos?: boolean;
+/**
+ * Orden por fecha y hora de creación del llamado
+ */
+order?: ListTicketsOrder;
 page?: number;
 limit?: number;
 };
@@ -300,6 +304,14 @@ export const ListTicketsPrioridad = {
   media: 'media',
   alta: 'alta',
   urgente: 'urgente',
+} as const;
+
+export type ListTicketsOrder = typeof ListTicketsOrder[keyof typeof ListTicketsOrder];
+
+
+export const ListTicketsOrder = {
+  asc: 'asc',
+  desc: 'desc',
 } as const;
 
 export type GetActividadRecienteParams = {

@@ -20,6 +20,7 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary List all tickets with optional filters
  */
+export const listTicketsQueryOrderDefault = `desc`;
 export const listTicketsQueryPageDefault = 1;
 export const listTicketsQueryLimitDefault = 20;
 
@@ -34,6 +35,7 @@ export const ListTicketsQueryParams = zod.object({
   "motivo": zod.coerce.string().optional(),
   "search": zod.coerce.string().optional(),
   "vencidos": zod.coerce.boolean().optional(),
+  "order": zod.enum(['asc', 'desc']).default(listTicketsQueryOrderDefault).describe('Orden por fecha y hora de creación del llamado'),
   "page": zod.coerce.number().default(listTicketsQueryPageDefault),
   "limit": zod.coerce.number().default(listTicketsQueryLimitDefault)
 })

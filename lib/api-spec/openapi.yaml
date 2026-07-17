@@ -86,6 +86,13 @@ paths:
           in: query
           schema:
             type: boolean
+        - name: order
+          in: query
+          description: Orden por fecha y hora de creación del llamado
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
         - name: page
           in: query
           schema:
