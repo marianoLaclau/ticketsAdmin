@@ -5,6 +5,112 @@
  * GSB Ticket Management System API
  * OpenAPI spec version: 0.1.0
  */
+export interface AdminRole {
+  id: number;
+  nombre: string;
+  /** @nullable */
+  descripcion: string | null;
+  activo: boolean;
+  fecha_creacion: string;
+  fecha_actualizacion: string;
+}
+
+export interface AdminRoleInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  nombre: string;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  descripcion?: string | null;
+  activo?: boolean;
+}
+
+export interface AdminRoleUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  nombre?: string;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  descripcion?: string | null;
+  activo?: boolean;
+}
+
+export interface AdminRoleListResponse {
+  roles: AdminRole[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface AdminUser {
+  id: number;
+  nombre: string;
+  /** @nullable */
+  apellido: string | null;
+  email: string;
+  role_id: number;
+  activo: boolean;
+  fecha_creacion: string;
+  fecha_actualizacion: string;
+}
+
+export interface AdminUserInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  nombre: string;
+  /**
+     * @maxLength 100
+     * @nullable
+     */
+  apellido?: string | null;
+  /**
+     * @maxLength 254
+     * @pattern ^[^@\s]+@[^@\s]+\.[^@\s]+$
+     */
+  email: string;
+  /** @minimum 1 */
+  role_id: number;
+  activo?: boolean;
+}
+
+export interface AdminUserUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  nombre?: string;
+  /**
+     * @maxLength 100
+     * @nullable
+     */
+  apellido?: string | null;
+  /**
+     * @maxLength 254
+     * @pattern ^[^@\s]+@[^@\s]+\.[^@\s]+$
+     */
+  email?: string;
+  /** @minimum 1 */
+  role_id?: number;
+  activo?: boolean;
+}
+
+export interface AdminUserListResponse {
+  users: AdminUser[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 export interface AdminImportInput {
   /** Contenido completo del archivo CSV (texto plano) */
   csv: string;
@@ -320,6 +426,37 @@ export const ListTicketsOrder = {
   asc: 'asc',
   desc: 'desc',
 } as const;
+
+export type ListAdminRolesParams = {
+search?: string;
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+};
+
+export type ListAdminUsersParams = {
+search?: string;
+/**
+ * @minimum 1
+ */
+role_id?: number;
+activo?: boolean;
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+};
 
 export type GetActividadRecienteParams = {
 limit?: number;

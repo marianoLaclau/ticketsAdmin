@@ -233,6 +233,239 @@ paths:
         "401":
           description: Clave de administración inválida
 
+  /admin/roles:
+    get:
+      operationId: listAdminRoles
+      tags: [admin]
+      summary: Listar roles
+      security:
+        - adminApiKey: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Lista paginada de roles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRoleListResponse"
+        "400":
+          description: Parametros de consulta invalidos
+        "401":
+          description: Clave de administracion invalida
+
+    post:
+      operationId: createAdminRole
+      tags: [admin]
+      summary: Crear un rol
+      security:
+        - adminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminRoleInput"
+      responses:
+        "201":
+          description: Rol creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRole"
+        "400":
+          description: Cuerpo invalido
+        "401":
+          description: Clave de administracion invalida
+        "409":
+          description: Ya existe un rol con ese nombre
+
+  /admin/roles/{id}:
+    patch:
+      operationId: updateAdminRole
+      tags: [admin]
+      summary: Actualizar un rol
+      security:
+        - adminApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminRoleUpdate"
+      responses:
+        "200":
+          description: Rol actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRole"
+        "400":
+          description: Id o cuerpo invalido
+        "401":
+          description: Clave de administracion invalida
+        "404":
+          description: Rol no encontrado
+        "409":
+          description: Ya existe un rol con ese nombre
+
+    delete:
+      operationId: deleteAdminRole
+      tags: [admin]
+      summary: Eliminar un rol sin usuarios asignados
+      security:
+        - adminApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "204":
+          description: Rol eliminado
+        "400":
+          description: Id invalido
+        "401":
+          description: Clave de administracion invalida
+        "404":
+          description: Rol no encontrado
+        "409":
+          description: El rol tiene usuarios asignados
+
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin]
+      summary: Listar usuarios
+      security:
+        - adminApiKey: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: role_id
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: activo
+          in: query
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Lista paginada de usuarios
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserListResponse"
+        "400":
+          description: Parametros de consulta invalidos
+        "401":
+          description: Clave de administracion invalida
+
+    post:
+      operationId: createAdminUser
+      tags: [admin]
+      summary: Crear un usuario
+      security:
+        - adminApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUserInput"
+      responses:
+        "201":
+          description: Usuario creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "400":
+          description: Cuerpo invalido o rol inexistente
+        "401":
+          description: Clave de administracion invalida
+        "409":
+          description: Ya existe un usuario con ese email
+
+  /admin/users/{id}:
+    patch:
+      operationId: updateAdminUser
+      tags: [admin]
+      summary: Actualizar o desactivar un usuario
+      description: Los usuarios se desactivan estableciendo activo en false; no se eliminan.
+      security:
+        - adminApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUserUpdate"
+      responses:
+        "200":
+          description: Usuario actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "400":
+          description: Id o cuerpo invalido
+        "401":
+          description: Clave de administracion invalida
+        "404":
+          description: Usuario o rol no encontrado
+        "409":
+          description: Ya existe un usuario con ese email
+
   /tickets/{id}:
     get:
       operationId: getTicket
@@ -413,6 +646,176 @@ components:
       name: x-admin-key
 
   schemas:
+    AdminRole:
+      type: object
+      required:
+        - id
+        - nombre
+        - descripcion
+        - activo
+        - fecha_creacion
+        - fecha_actualizacion
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        descripcion:
+          type: ["string", "null"]
+        activo:
+          type: boolean
+        fecha_creacion:
+          type: string
+          format: date-time
+        fecha_actualizacion:
+          type: string
+          format: date-time
+
+    AdminRoleInput:
+      type: object
+      required:
+        - nombre
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 100
+        descripcion:
+          type: ["string", "null"]
+          maxLength: 500
+        activo:
+          type: boolean
+          default: true
+
+    AdminRoleUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 100
+        descripcion:
+          type: ["string", "null"]
+          maxLength: 500
+        activo:
+          type: boolean
+
+    AdminRoleListResponse:
+      type: object
+      required:
+        - roles
+        - total
+        - page
+        - limit
+      properties:
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminRole"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    AdminUser:
+      type: object
+      required:
+        - id
+        - nombre
+        - apellido
+        - email
+        - role_id
+        - activo
+        - fecha_creacion
+        - fecha_actualizacion
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        apellido:
+          type: ["string", "null"]
+        email:
+          type: string
+        role_id:
+          type: integer
+        activo:
+          type: boolean
+        fecha_creacion:
+          type: string
+          format: date-time
+        fecha_actualizacion:
+          type: string
+          format: date-time
+
+    AdminUserInput:
+      type: object
+      required:
+        - nombre
+        - email
+        - role_id
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 100
+        apellido:
+          type: ["string", "null"]
+          maxLength: 100
+        email:
+          type: string
+          pattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+          maxLength: 254
+        role_id:
+          type: integer
+          minimum: 1
+        activo:
+          type: boolean
+          default: true
+
+    AdminUserUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 100
+        apellido:
+          type: ["string", "null"]
+          maxLength: 100
+        email:
+          type: string
+          pattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+          maxLength: 254
+        role_id:
+          type: integer
+          minimum: 1
+        activo:
+          type: boolean
+
+    AdminUserListResponse:
+      type: object
+      required:
+        - users
+        - total
+        - page
+        - limit
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUser"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
     AdminImportInput:
       type: object
       required:

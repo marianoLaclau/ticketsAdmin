@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   useListTickets,
   useCreateAdminTicket,
@@ -14,6 +14,8 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { adminErrorMessage, useAdminAccess } from '@/hooks/use-admin-access';
+import { AdminHeader } from '@/components/admin/AdminHeader';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -37,11 +39,9 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Database, Upload, AlertTriangle, Plus, Pencil, Trash2, Search,
-  ChevronLeft, ChevronRight, KeyRound, FileText, CheckCircle2,
+  ChevronLeft, ChevronRight, FileText, CheckCircle2,
 } from 'lucide-react';
 import { EstadoBadge, PrioridadBadge, formatDate } from '@/lib/utils-tickets';
-
-const PAGE_SIZE = 25;
 
 const CAMPOS_TEXTO: Array<{ campo: string; label: string; requerido?: boolean }> = [
   { campo: 'conversation_id', label: 'Conversation ID', requerido: true },
@@ -82,38 +82,38 @@ export default function Admin() {
   const queryClient = useQueryClient();
 
   // Clave de administración (solo necesaria si ADMIN_API_KEY está seteada en el servidor)
-  const [adminKey, setAdminKey] = useState(() => sessionStorage.getItem('admin-key') ?? '');
-  const guardarAdminKey = (v: string) => {
-    setAdminKey(v);
-    sessionStorage.setItem('admin-key', v);
-  };
-  const adminRequest = useMemo(
-    () => (adminKey ? { headers: { 'x-admin-key': adminKey } } : {}),
-    [adminKey],
-  );
+  const { adminKey, saveAdminKey, adminRequest } = useAdminAccess();
 
   const refrescarTodo = () => queryClient.invalidateQueries();
 
   const errorToast = (err: unknown) => {
-    const msg = err instanceof Error ? err.message : 'Error desconocido';
     toast({
       variant: 'destructive',
       title: 'Error',
-      description: msg.includes('401') ? 'Clave de administración inválida (completala arriba a la derecha)' : msg,
+      description: adminErrorMessage(err),
     });
   };
 
   // ---------- Registros (CRUD) ----------
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState('');
   const { data: listResponse, isLoading } = useListTickets({
     page,
-    limit: PAGE_SIZE,
+    limit: pageSize,
     ...(search ? { search } : {}),
   });
   const tickets = listResponse?.tickets ?? [];
   const total = listResponse?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize]);
+
+  useEffect(() => {
+    if (listResponse && page > totalPages) setPage(totalPages);
+  }, [listResponse, page, totalPages]);
 
   const createTicket = useCreateAdminTicket({ request: adminRequest });
   const updateTicket = useUpdateTicket();
@@ -261,28 +261,12 @@ export default function Admin() {
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto w-full space-y-4">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Database className="h-6 w-6 text-primary" />
-            Administración
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Gestión directa de la base de datos: registros, importación masiva y mantenimiento.
-          </p>
-        </div>
-        <div className="relative w-[280px]">
-          <KeyRound className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            type="password"
-            placeholder="Clave de administración (si aplica)"
-            className="pl-8 h-9 text-sm"
-            value={adminKey}
-            onChange={(e) => guardarAdminKey(e.target.value)}
-          />
-        </div>
-      </div>
+      <AdminHeader
+        title="Administración"
+        description="Gestión directa de la base de datos: registros, importación masiva y mantenimiento."
+        adminKey={adminKey}
+        onAdminKeyChange={saveAdminKey}
+      />
 
       <Tabs defaultValue="registros">
         <TabsList>
@@ -369,16 +353,30 @@ export default function Admin() {
               </Table>
             </div>
             {/* Paginación */}
-            <div className="flex items-center justify-between px-4 py-2.5 border-t bg-slate-50/50 text-sm">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-4 py-2.5 border-t bg-slate-50/50 text-sm">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>Mostrar</span>
+                <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
+                  <SelectTrigger className="h-7 w-[70px] text-xs bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[10, 25, 50, 100].map((size) => (
+                      <SelectItem key={size} value={String(size)}>{size}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span>por página</span>
+              </div>
               <span className="text-muted-foreground text-xs">
                 {total} registros — página {page} de {totalPages}
               </span>
-              <div className="flex gap-1">
-                <Button variant="outline" size="sm" className="h-7 px-2" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                  <ChevronLeft className="h-3.5 w-3.5" />
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" className="h-7 px-2 text-xs bg-white" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                  <ChevronLeft className="h-3.5 w-3.5 mr-0.5" /> Anterior
                 </Button>
-                <Button variant="outline" size="sm" className="h-7 px-2" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-                  <ChevronRight className="h-3.5 w-3.5" />
+                <Button variant="outline" size="sm" className="h-7 px-2 text-xs bg-white" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                  Siguiente <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
                 </Button>
               </div>
             </div>

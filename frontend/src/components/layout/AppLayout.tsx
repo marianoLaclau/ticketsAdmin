@@ -1,15 +1,55 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
 import {
   LayoutDashboard,
   Ticket,
   UserCircle,
   Settings,
+  ShieldCheck,
 } from 'lucide-react';
 import { useGetDashboardStats, getGetDashboardStatsQueryKey } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
 
 // @ts-ignore
 import gsbLogo from '@/assets/gsb-logo.jpg';
+
+/**
+ * Escucha los eventos del backend (SSE) y refresca los datos en el momento
+ * exacto en que entra un llamado nuevo — sin recargar la página ni depender
+ * del polling. Si la conexión se corta, el navegador la reintenta solo.
+ */
+function useEventosEnVivo() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const es = new EventSource('/api/events');
+    es.onmessage = (e) => {
+      let data: any;
+      try {
+        data = JSON.parse(e.data);
+      } catch {
+        return;
+      }
+      // Cualquier evento implica datos nuevos: refrescar listados y stats
+      queryClient.invalidateQueries();
+      if (data.tipo === 'ticket_creado') {
+        const contacto = `${data.nombre ?? ''} ${data.apellido ?? ''}`.trim();
+        toast({
+          title: '📞 Nuevo llamado',
+          description: [contacto || null, data.motivo || null].filter(Boolean).join(' — '),
+        });
+      } else if (data.tipo === 'tickets_importados') {
+        toast({
+          title: `📥 ${data.cantidad} llamados importados`,
+        });
+      }
+    };
+    return () => es.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
 
 export function Sidebar() {
   const [location] = useLocation();
@@ -21,6 +61,8 @@ export function Sidebar() {
   const nuevosSinAbrir =
     stats?.por_estado?.find((e) => e.estado === 'nuevo')?.cantidad ?? 0;
 
+  // Nota: /admin sigue visible por ahora (pedido explícito); cuando llegue el
+  // login con permisos, este link se va a mostrar solo a usuarios habilitados.
   const links = [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/tickets', label: 'Tickets', icon: Ticket },
@@ -65,6 +107,13 @@ export function Sidebar() {
                   <Icon className={`mr-3 h-[18px] w-[18px] flex-shrink-0 ${isActive ? 'text-sidebar-primary' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground'}`} />
                   {link.label}
                 </div>
+
+                {link.href === '/admin' && (
+                  <ShieldCheck
+                    className="h-4 w-4 flex-shrink-0 text-sidebar-foreground/60"
+                    aria-label="Acceso administrativo"
+                  />
+                )}
                 
                 {/* Notificaciones: nuevos sin abrir (ámbar) y vencidos (rojo) */}
                 {link.href === '/tickets' && (
@@ -140,6 +189,8 @@ export function Sidebar() {
 }
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
+  useEventosEnVivo();
+
   return (
     <div className="flex h-screen bg-background overflow-hidden font-sans">
       <Sidebar />

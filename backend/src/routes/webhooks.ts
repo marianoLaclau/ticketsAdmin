@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { IngestTicketBody } from "@workspace/api-zod";
 import { SLA_MS } from "@workspace/ingesta";
 import { requireWebhookKey } from "../lib/auth";
+import { broadcastEvent } from "../lib/events";
 
 const router = Router();
 
@@ -43,6 +44,14 @@ router.post("/webhooks/ticket", requireWebhookKey, async (req, res) => {
     fecha_limite: data.fecha_limite ? new Date(data.fecha_limite) : new Date(Date.now() + SLA_MS),
     progreso: data.progreso ?? 0,
   }).returning();
+
+  // Avisar en vivo a las pestañas abiertas que entró un llamado nuevo
+  broadcastEvent("ticket_creado", {
+    ticket_id: ticket.id,
+    nombre: ticket.nombre,
+    apellido: ticket.apellido,
+    motivo: ticket.motivo,
+  });
 
   res.status(201).json({ created: true, ticket });
 });

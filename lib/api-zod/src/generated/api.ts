@@ -251,6 +251,219 @@ export const TruncateTicketsResponse = zod.object({
 
 
 /**
+ * @summary Listar roles
+ */
+export const listAdminRolesQueryPageDefault = 1;
+
+export const listAdminRolesQueryLimitDefault = 20;
+export const listAdminRolesQueryLimitMax = 100;
+
+
+
+export const ListAdminRolesQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "page": zod.coerce.number().min(1).default(listAdminRolesQueryPageDefault),
+  "limit": zod.coerce.number().min(1).max(listAdminRolesQueryLimitMax).default(listAdminRolesQueryLimitDefault)
+})
+
+export const ListAdminRolesResponse = zod.object({
+  "roles": zod.array(zod.object({
+  "id": zod.number(),
+  "nombre": zod.string(),
+  "descripcion": zod.string().nullable(),
+  "activo": zod.boolean(),
+  "fecha_creacion": zod.coerce.date(),
+  "fecha_actualizacion": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Crear un rol
+ */
+export const createAdminRoleBodyNombreMax = 100;
+
+export const createAdminRoleBodyDescripcionMax = 500;
+
+export const createAdminRoleBodyActivoDefault = true;
+
+export const CreateAdminRoleBody = zod.object({
+  "nombre": zod.string().min(1).max(createAdminRoleBodyNombreMax),
+  "descripcion": zod.string().max(createAdminRoleBodyDescripcionMax).nullish(),
+  "activo": zod.boolean().default(createAdminRoleBodyActivoDefault)
+})
+
+export const CreateAdminRoleResponse = zod.object({
+  "id": zod.number(),
+  "nombre": zod.string(),
+  "descripcion": zod.string().nullable(),
+  "activo": zod.boolean(),
+  "fecha_creacion": zod.coerce.date(),
+  "fecha_actualizacion": zod.coerce.date()
+})
+
+
+/**
+ * @summary Actualizar un rol
+ */
+
+
+
+export const UpdateAdminRoleParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const updateAdminRoleBodyNombreMax = 100;
+
+export const updateAdminRoleBodyDescripcionMax = 500;
+
+
+
+export const UpdateAdminRoleBody = zod.object({
+  "nombre": zod.string().min(1).max(updateAdminRoleBodyNombreMax).optional(),
+  "descripcion": zod.string().max(updateAdminRoleBodyDescripcionMax).nullish(),
+  "activo": zod.boolean().optional()
+})
+
+export const UpdateAdminRoleResponse = zod.object({
+  "id": zod.number(),
+  "nombre": zod.string(),
+  "descripcion": zod.string().nullable(),
+  "activo": zod.boolean(),
+  "fecha_creacion": zod.coerce.date(),
+  "fecha_actualizacion": zod.coerce.date()
+})
+
+
+/**
+ * @summary Eliminar un rol sin usuarios asignados
+ */
+
+
+
+export const DeleteAdminRoleParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const DeleteAdminRoleResponse = zod.void()
+
+
+/**
+ * @summary Listar usuarios
+ */
+
+export const listAdminUsersQueryPageDefault = 1;
+
+export const listAdminUsersQueryLimitDefault = 20;
+export const listAdminUsersQueryLimitMax = 100;
+
+
+
+export const ListAdminUsersQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "role_id": zod.coerce.number().min(1).optional(),
+  "activo": zod.boolean().optional(),
+  "page": zod.coerce.number().min(1).default(listAdminUsersQueryPageDefault),
+  "limit": zod.coerce.number().min(1).max(listAdminUsersQueryLimitMax).default(listAdminUsersQueryLimitDefault)
+})
+
+export const ListAdminUsersResponse = zod.object({
+  "users": zod.array(zod.object({
+  "id": zod.number(),
+  "nombre": zod.string(),
+  "apellido": zod.string().nullable(),
+  "email": zod.string(),
+  "role_id": zod.number(),
+  "activo": zod.boolean(),
+  "fecha_creacion": zod.coerce.date(),
+  "fecha_actualizacion": zod.coerce.date()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Crear un usuario
+ */
+export const createAdminUserBodyNombreMax = 100;
+
+export const createAdminUserBodyApellidoMax = 100;
+
+export const createAdminUserBodyEmailMax = 254;
+
+
+export const createAdminUserBodyEmailRegExp = new RegExp('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$');
+
+export const createAdminUserBodyActivoDefault = true;
+
+export const CreateAdminUserBody = zod.object({
+  "nombre": zod.string().min(1).max(createAdminUserBodyNombreMax),
+  "apellido": zod.string().max(createAdminUserBodyApellidoMax).nullish(),
+  "email": zod.string().max(createAdminUserBodyEmailMax).regex(createAdminUserBodyEmailRegExp),
+  "role_id": zod.number().min(1),
+  "activo": zod.boolean().default(createAdminUserBodyActivoDefault)
+})
+
+export const CreateAdminUserResponse = zod.object({
+  "id": zod.number(),
+  "nombre": zod.string(),
+  "apellido": zod.string().nullable(),
+  "email": zod.string(),
+  "role_id": zod.number(),
+  "activo": zod.boolean(),
+  "fecha_creacion": zod.coerce.date(),
+  "fecha_actualizacion": zod.coerce.date()
+})
+
+
+/**
+ * Los usuarios se desactivan estableciendo activo en false; no se eliminan.
+ * @summary Actualizar o desactivar un usuario
+ */
+
+
+
+export const UpdateAdminUserParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const updateAdminUserBodyNombreMax = 100;
+
+export const updateAdminUserBodyApellidoMax = 100;
+
+export const updateAdminUserBodyEmailMax = 254;
+
+
+export const updateAdminUserBodyEmailRegExp = new RegExp('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$');
+
+
+
+export const UpdateAdminUserBody = zod.object({
+  "nombre": zod.string().min(1).max(updateAdminUserBodyNombreMax).optional(),
+  "apellido": zod.string().max(updateAdminUserBodyApellidoMax).nullish(),
+  "email": zod.string().max(updateAdminUserBodyEmailMax).regex(updateAdminUserBodyEmailRegExp).optional(),
+  "role_id": zod.number().min(1).optional(),
+  "activo": zod.boolean().optional()
+})
+
+export const UpdateAdminUserResponse = zod.object({
+  "id": zod.number(),
+  "nombre": zod.string(),
+  "apellido": zod.string().nullable(),
+  "email": zod.string(),
+  "role_id": zod.number(),
+  "activo": zod.boolean(),
+  "fecha_creacion": zod.coerce.date(),
+  "fecha_actualizacion": zod.coerce.date()
+})
+
+
+/**
  * @summary Get ticket details
  */
 export const GetTicketParams = zod.object({

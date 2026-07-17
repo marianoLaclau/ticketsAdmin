@@ -99,3 +99,95 @@ Archivos afectados: `backend/src/routes/tickets.ts` y `lib/api-spec/openapi.yaml
 ### Observación
 
 - Los 15 registros actuales tienen `hora` en formato `HH:MM`. El contrato todavía acepta strings libres; si en el futuro ingresan horas sin cero inicial o con otro formato, conviene validar y normalizar `hora` en OpenAPI, webhooks e importación.
+
+## 2026-07-17 — Admin: paginación y catálogo de roles y usuarios
+
+**Agente:** Codex
+**Contexto:** se amplió el área administrativa con paginación equivalente a la lista de tickets, acceso del sidebar identificado con un escudo y una pantalla persistente para gestionar roles y usuarios.
+
+### Interfaz administrativa
+
+- La tabla de registros de `/admin` ahora permite mostrar 10, 25, 50 o 100 filas, indica total y página actual, y ofrece navegación Anterior/Siguiente.
+- Los cambios de tamaño vuelven a la primera página y, después de borrar o filtrar registros, la página se ajusta únicamente cuando existe una respuesta real del servidor. Esto evita que una consulta en curso haga rebotar la navegación a la página 1.
+- Se extrajeron el ingreso de `ADMIN_API_KEY`, los mensajes de error y la navegación a componentes compartidos por las pantallas de administración.
+- El acceso «Administración» del sidebar general conserva la rueda de configuración a la izquierda y muestra el escudo solicitado en el extremo derecho del botón.
+- Dentro de Administración, el acceso principal conserva el nombre «Tickets» y su icono de ticket; el escudo se quitó de ese botón.
+- Se agregó `/admin/roles-usuarios`, con:
+  - listado paginado y filtros de usuarios;
+  - alta y edición de nombre, apellido, email, rol y estado;
+  - activación/desactivación sin borrado físico;
+  - alta, edición, activación/desactivación y borrado de roles;
+  - bloqueo del borrado de un rol mientras tenga usuarios asignados;
+  - selector de roles que distingue los inactivos y exige al menos un rol activo para crear usuarios.
+
+### Persistencia y API
+
+- Se agregaron las tablas SQLite `roles` y `usuarios` en `lib/db/src/schema/admin.ts`.
+- Los nombres de rol y emails son únicos; los emails se guardan en minúsculas y `usuarios.role_id` referencia a `roles.id` con borrado restringido.
+- Se generó la migración Drizzle `lib/db/drizzle/0001_sticky_ted_forrester.sql` y su snapshot para que el cambio también se aplique al iniciar el backend empaquetado o Docker.
+- Se incorporaron endpoints protegidos por el middleware administrativo existente:
+  - `GET/POST /api/admin/roles`;
+  - `PATCH/DELETE /api/admin/roles/:id`;
+  - `GET/POST /api/admin/users`;
+  - `PATCH /api/admin/users/:id`.
+- El contrato se agregó a OpenAPI y se regeneraron el cliente React Query y los validadores Zod.
+
+### Alcance de seguridad
+
+- Los registros de usuarios y roles son por ahora un **catálogo administrativo persistente**, no identidades autenticables.
+- No se agregaron contraseñas, login, sesiones ni autorización efectiva por rol. Asignar un rol todavía no habilita ni restringe pantallas.
+- `ADMIN_API_KEY` continúa siendo la única llave de las rutas `/api/admin/*` y sigue siendo opcional en desarrollo; si no está configurada, esas rutas quedan abiertas.
+- El CRUD general de tickets conserva el modelo actual sin autenticación. Antes de exponer el sistema a internet hace falta implementar autenticación y autorización completas.
+
+### Base local y recuperación
+
+- Antes de cambiar el schema se creó el backup WAL-safe `backups/pre-admin-roles-20260717T133213.db`.
+- El backup pasó `PRAGMA integrity_check` y quedó fuera de Git.
+- Se aplicó el schema a la base local con Drizzle; las tablas `roles` y `usuarios` quedaron disponibles y la integridad posterior resultó `ok`.
+
+### Validaciones ejecutadas
+
+- Codegen de OpenAPI, cliente React Query y Zod: correcto.
+- `pnpm.cmd run build`: correcto; incluye typecheck de librerías, backend, frontend y scripts, más los builds de backend y frontend.
+- Smoke HTTP sobre una base temporal:
+  - acceso sin llave: `401`;
+  - paginación inválida: `400`;
+  - nombres de rol y emails duplicados: `409`;
+  - email duplicado con diferencias de mayúsculas: `409`;
+  - 13 usuarios distribuidos correctamente en páginas de 10 y 3;
+  - filtro booleano inválido: `400`;
+  - borrado de rol asignado: `409`;
+  - desactivación y filtro por estado: correctos;
+  - reasignación y posterior borrado de un rol sin usuarios: `204`;
+  - búsqueda de roles y rol inexistente: resultados esperados.
+- El backend temporal, sus logs y la base temporal se eliminaron al terminar la prueba.
+- Persisten únicamente las advertencias no bloqueantes conocidas de Vite por sourcemaps y por el tamaño del bundle principal.
+
+### Archivos locales preservados
+
+- No se mezclaron los cambios SSE que continuaron desarrollándose en paralelo en `backend/src/lib/events.ts`, `backend/src/routes/events.ts`, `backend/src/routes/index.ts`, `backend/src/routes/webhooks.ts`, `frontend/nginx.conf` y `frontend/src/components/layout/AppLayout.tsx`.
+- El escudo se agregó como indicador secundario en el extremo derecho del link «Administración» del sidebar, preservando la rueda original, el resto de su comportamiento y los cambios SSE concurrentes.
+
+## 2026-07-17 — Actualización en vivo (SSE) al recibir llamados
+
+**Agente:** Claude
+**Contexto:** el usuario pidió que la app se actualice "solo cuando hay un nuevo llamado", sin recargar. Se completaron los archivos SSE que estaban en desarrollo y se integraron con el trabajo de roles/usuarios ya presente en el árbol.
+
+### Cambio realizado
+
+- `GET /api/events` (fuera del contrato OpenAPI a propósito: es un stream `text/event-stream` que Orval no puede modelar): mantiene la conexión abierta, manda `retry: 5000` para reconexión automática del navegador y un heartbeat cada 25 s para que los proxies no corten por inactividad.
+- Registro de clientes y difusión en `backend/src/lib/events.ts` (estado en memoria del proceso; si algún día se escala horizontalmente hace falta pub/sub externo).
+- Emisores: el webhook de n8n emite `ticket_creado` (con contacto y motivo), `/admin/import` emite `tickets_importados` (solo en corridas reales con insertados > 0) y `/admin/truncate` emite `datos_actualizados`.
+- Frontend: `useEventosEnVivo()` en `AppLayout` — una única conexión `EventSource` por pestaña; ante cualquier evento invalida todas las queries de React Query (refresca listado, dashboard y sidebar al instante) y muestra un toast con el contacto y el motivo del llamado nuevo. El polling de 30 s del sidebar se conserva como respaldo.
+- nginx (producción): location dedicado `/api/events` con `proxy_buffering off` y `proxy_read_timeout 1h` — sin esto nginx bufferea el stream y los eventos no llegan.
+
+### Decisiones de integración
+
+- Por pedido explícito del usuario, `/admin` vuelve a estar visible en el sidebar (revierte la decisión local anterior). Cuando exista login con permisos, el link se mostrará solo a usuarios habilitados. Se conservó el icono de escudo elegido por la intervención concurrente.
+- Los broadcasts se insertaron sobre la versión actual de `backend/src/routes/admin.ts` (la que incluye roles/usuarios), sin tocar esa lógica.
+
+### Validaciones ejecutadas
+
+- Typecheck completo del workspace: correcto (con el trabajo de roles/usuarios del árbol incluido).
+- Prueba en vivo contra el backend de desarrollo: con una conexión SSE abierta vía curl, un POST real al webhook entregó `{"tipo":"ticket_creado","ticket_id":24,...}` en el stream en el momento; el ticket de prueba se eliminó después.
+- Archivos afectados: `backend/src/lib/events.ts`, `backend/src/routes/events.ts`, `backend/src/routes/index.ts`, `backend/src/routes/webhooks.ts`, `backend/src/routes/admin.ts` (solo broadcasts), `frontend/src/components/layout/AppLayout.tsx`, `frontend/nginx.conf`, `docs/FLUJO.md`.

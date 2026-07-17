@@ -11,7 +11,7 @@ Sistema de gestión de tickets que se alimenta automáticamente de llamadas tele
 backend/    → API Express 5 (puerto 5000)
 frontend/   → React + Vite (puerto 3000, proxea /api al backend)
 lib/
-  db/               → schema Drizzle + cliente SQLite (source of truth del modelo) + migraciones (drizzle/)
+  db/               → schemas Drizzle de tickets, roles y usuarios + cliente SQLite + migraciones (drizzle/)
   ingesta/          → lógica compartida de parseo CSV/mapeo de columnas (la usan el CLI y /admin)
   api-spec/         → contrato OpenAPI (openapi.yaml) + config de Orval
   api-client-react/ → hooks React Query generados
@@ -41,7 +41,7 @@ Copiar `.env.example` a `.env` en la raíz:
 
 - `PORT` — puerto del backend (default 5000)
 - `WEBHOOK_API_KEY` — clave que n8n manda en el header `x-api-key` (requerida para el webhook)
-- `ADMIN_API_KEY` — clave del panel `/admin` (opcional; sin ella el panel queda abierto en red local)
+- `ADMIN_API_KEY` — única llave para las operaciones `/api/admin/*`, incluida la gestión de roles y usuarios (opcional en desarrollo; sin ella esos endpoints quedan abiertos). No es una contraseña de usuario ni crea una sesión.
 - `TICKETS_DB_PATH` — ruta del archivo SQLite (opcional, default `data/tickets.db`)
 - `TZ` — timezone del proceso backend (en Docker, default `America/Argentina/Buenos_Aires`); los filtros por día calendario usan esta zona
 
@@ -56,17 +56,18 @@ Copiar `.env.example` a `.env` en la raíz:
 
 - **Ingesta por webhook, no leyendo el Excel**: n8n hace POST a `/api/webhooks/ticket` con header `x-api-key`. El endpoint es idempotente por `conversation_id` (reintento ⇒ 200 con `created: false`); el Excel queda solo como respaldo/histórico.
 - **SQLite en lugar de Postgres** (migrado 2026-07): better-sqlite3 con WAL alcanza para el volumen de llamadas. Fechas como `integer { mode: "timestamp_ms" }`, estados/prioridades como `text { enum }`.
+- **Roles y usuarios como catálogo administrativo**: se guardan en SQLite y se gestionan desde `/admin/roles-usuarios`. Todavía no hay contraseñas, login, sesiones ni autorización efectiva por rol; `ADMIN_API_KEY` continúa siendo el único control de las operaciones administrativas.
 - Los tickets **no se crean a mano** en el flujo normal: la vía de alta es el webhook (o el importador). El alta manual existe solo dentro del panel `/admin` (`POST /api/admin/tickets`), pensado para corrección de datos.
-- El resto del CRUD no tiene auth: pensado para red local. Si se expone a internet, agregar autenticación antes.
+- El resto del CRUD no tiene auth: está pensado para red local. Antes de exponerlo a internet hay que implementar autenticación y autorización reales.
 - **Migraciones en Docker, `push` en desarrollo local**: en local se usa `drizzle-kit push` (rápido, sin archivos de migración) contra `data/tickets.db`. En Docker el volumen arranca vacío, así que el contenedor corre `dist/migrate.mjs` (aplica `lib/db/drizzle/*.sql` vía el migrator de drizzle-orm, idempotente) antes de levantar la API — ver [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Gotchas
 
 - En Windows, usar siempre pnpm; el preinstall usa Node (no `sh`).
 - `lib/db/drizzle.config.ts` normaliza la ruta del schema a barras `/` porque drizzle-kit usa globs que no toleran `\` de Windows.
-- No usar `sql\`...\`` crudo con objetos `Date` como parámetro: better-sqlite3 no bindea `Date`. Usar los operadores tipados de Drizzle (`lt`, `gte`, …).
+- No usar `sql\`...\``crudo con objetos`Date`como parámetro: better-sqlite3 no bindea`Date`. Usar los operadores tipados de Drizzle (`lt`, `gte`, …).
 - SQLite no tiene `ilike`; se usa `like` (case-insensitive para ASCII).
 - El `.env` de la raíz lo carga el backend (walk-up desde cwd); Vite no lo lee.
 - Con SQLite en modo WAL no hay que copiar solo `tickets.db` mientras la API está activa. Usar `pnpm run backup:db` o el procedimiento Docker de [docs/DEPLOY.md](docs/DEPLOY.md), que incluyen las páginas confirmadas del WAL y ejecutan `integrity_check`.
 - `pnpm --filter @workspace/backend deploy --prod` (usado en `Dockerfile.backend` para armar un `node_modules` de producción sin symlinks) necesita el flag `--legacy` en pnpm 11 con este workspace, si no tira `ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE`.
-- Si cambiás `lib/db/src/schema/tickets.ts`, generá la migración (`drizzle-kit generate`) y commiteala **antes** de mergear — si no, el próximo deploy en Docker no va a tener las tablas nuevas.
+- Si cambiás cualquier archivo de `lib/db/src/schema/`, generá la migración (`drizzle-kit generate`) y commiteala **antes** de mergear — si no, el próximo deploy en Docker no va a tener las tablas nuevas.
