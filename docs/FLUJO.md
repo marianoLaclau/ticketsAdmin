@@ -48,13 +48,57 @@ Agente de voz conversacional que atiende el teléfono. Al finalizar cada llamada
 ### n8n (externo)
 Automatizador. Recibe el JSON de ElevenLabs y:
 1. Agrega una fila al Excel de respaldo (`registrosTelefonicos`).
-2. Hace un **HTTP Request** al webhook de este sistema:
-   - **URL**: `http://<ip-del-servidor>:5000/api/webhooks/ticket`
-   - **Método**: POST
-   - **Header**: `x-api-key: <el valor de WEBHOOK_API_KEY del .env>`
-   - **Body** (JSON): campos mínimos `conversation_id`, `hora`, `nombre`, `apellido`, `motivo`; opcionales `telefono`, `dni`, `empresa`, `email`, `resumen`, `audio_url`, `notificado`, `prioridad`, `notas`.
+2. Hace un **HTTP Request** al webhook de este sistema.
 
 Si n8n reintenta un envío (timeout, error de red), no pasa nada: el webhook detecta el `conversation_id` repetido y responde 200 sin duplicar.
+
+#### Configuración del nodo HTTP Request en n8n
+
+n8n y este sistema están en la misma red interna, así que n8n le pega directo a la IP de la máquina donde corre el backend (`HOST_IP` en el `.env` — hoy `192.168.6.61`).
+
+| Campo | Valor |
+|---|---|
+| **Method** | `POST` |
+| **URL** | `http://{{ HOST_IP }}:5000/api/webhooks/ticket` (con los valores actuales: `http://192.168.6.61:5000/api/webhooks/ticket`) |
+| **Authentication** | None (la auth va por header, no por esta opción) |
+| **Send Headers** | activado |
+| **Header 1** | Name: `x-api-key` — Value: el valor de `WEBHOOK_API_KEY` del `.env` |
+| **Send Body** | activado |
+| **Body Content Type** | JSON |
+| **Response Format** | JSON |
+
+**Body** — mapear desde el JSON de ElevenLabs (obligatorios: `conversation_id`, `hora`, `nombre`, `apellido`, `motivo`):
+
+```json
+{
+  "conversation_id": "{{ $json.conversation_id }}",
+  "hora": "{{ $json.hora }}",
+  "nombre": "{{ $json.nombre }}",
+  "apellido": "{{ $json.apellido }}",
+  "telefono": "{{ $json.telefono }}",
+  "dni": "{{ $json.dni }}",
+  "empresa": "{{ $json.empresa }}",
+  "email": "{{ $json.email }}",
+  "motivo": "{{ $json.motivo }}",
+  "resumen": "{{ $json.resumen }}",
+  "audio_url": "{{ $json.audio_url }}",
+  "notas": "{{ $json.notas }}"
+}
+```
+
+No hace falta mandar `fecha_limite`: el webhook la preestablece sola a +48hs (ver sección de SLA más abajo). Los campos opcionales que no tengas simplemente se omiten del body.
+
+**Respuestas del webhook**:
+- `201` — ticket creado (primera vez que llega ese `conversation_id`).
+- `200` con `created: false` — el ticket ya existía (reintento de n8n); no se duplica.
+- `401` — la API key no coincide con `WEBHOOK_API_KEY`.
+- `400` — falta algún campo obligatorio o tiene un tipo inválido.
+
+**Firewall de Windows**: ya verificado — el puerto 5000 está abierto de entrada (regla existente que lo permite) y respondió correctamente desde la IP de red `192.168.6.61`. Si en algún momento se bloquea o se cambia de PC, se reabre así (PowerShell como administrador):
+
+```powershell
+New-NetFirewallRule -DisplayName "GSB Tickets API" -Direction Inbound -Protocol TCP -LocalPort 5000 -Action Allow
+```
 
 ### Backend — [backend/](../backend/)
 API REST en Express 5. Único componente que toca la base. Rutas:
@@ -155,6 +199,7 @@ Archivo `.env` en la raíz (plantilla: [.env.example](../.env.example)):
 | Variable | Para qué |
 |---|---|
 | `PORT` | Puerto del backend (default 5000). |
+| `HOST_IP` | IP de esta máquina en la red interna — la usa n8n para llegar al webhook. Actualizar acá cuando cambie la IP o se mude de servidor. |
 | `WEBHOOK_API_KEY` | La clave que n8n manda en `x-api-key`. Sin ella el webhook responde 503. |
 | `TICKETS_DB_PATH` | Ruta del archivo SQLite (opcional; default `data/tickets.db`). |
 
