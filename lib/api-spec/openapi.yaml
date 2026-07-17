@@ -82,6 +82,11 @@ paths:
           in: query
           schema:
             type: string
+        - name: motivo_categoria
+          in: query
+          description: Categoría normalizada derivada del motivo original
+          schema:
+            $ref: "#/components/schemas/MotivoCategoria"
         - name: search
           in: query
           schema:
@@ -519,6 +524,40 @@ paths:
         "409":
           description: Ya existe un usuario con ese email
 
+  /admin/users/{id}/password:
+    post:
+      operationId: resetAdminUserPassword
+      tags: [admin]
+      summary: Establecer o reestablecer la contraseña de un usuario
+      description: >
+        Asigna una contraseña nueva al usuario (hasheada con scrypt) y revoca
+        todas sus sesiones activas: si estaba logueado en algún navegador,
+        queda afuera y debe volver a entrar con la clave nueva.
+      security:
+        - adminApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUserPasswordInput"
+      responses:
+        "204":
+          description: Contraseña actualizada y sesiones revocadas
+        "400":
+          description: Id o cuerpo invalido
+        "401":
+          description: Clave de administracion invalida
+        "404":
+          description: Usuario no encontrado
+
   /tickets/{id}:
     get:
       operationId: getTicket
@@ -676,10 +715,10 @@ paths:
     get:
       operationId: getMotivoStats
       tags: [dashboard]
-      summary: Get ticket counts grouped by motivo
+      summary: Get ticket counts grouped by normalized contact category
       responses:
         "200":
-          description: Motivo statistics
+          description: Contact category statistics
           content:
             application/json:
               schema:
@@ -707,7 +746,7 @@ components:
       properties:
         usuario:
           type: string
-          description: Email (o nombre de usuario) con el que figura en el catálogo
+          description: Nombre de usuario asignado al crear la cuenta (no el email)
         password:
           type: string
 
@@ -811,6 +850,7 @@ components:
         - id
         - nombre
         - apellido
+        - username
         - email
         - role_id
         - activo
@@ -823,6 +863,9 @@ components:
           type: string
         apellido:
           type: ["string", "null"]
+        username:
+          type: ["string", "null"]
+          description: Identificador de login. Nullable solo por compatibilidad con filas muy viejas; el backend lo backfillea al arrancar.
         email:
           type: string
         role_id:
@@ -840,6 +883,8 @@ components:
       type: object
       required:
         - nombre
+        - username
+        - password
         - email
         - role_id
       properties:
@@ -850,6 +895,17 @@ components:
         apellido:
           type: ["string", "null"]
           maxLength: 100
+        username:
+          type: string
+          description: Identificador de login que se le entrega al usuario junto con la contraseña.
+          minLength: 3
+          maxLength: 60
+          pattern: '^\S+$'
+        password:
+          type: string
+          description: Contraseña inicial (se guarda hasheada). El SysAdmin la define y se la entrega al usuario.
+          minLength: 6
+          maxLength: 128
         email:
           type: string
           pattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
@@ -872,6 +928,11 @@ components:
         apellido:
           type: ["string", "null"]
           maxLength: 100
+        username:
+          type: string
+          minLength: 3
+          maxLength: 60
+          pattern: '^\S+$'
         email:
           type: string
           pattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
@@ -881,6 +942,17 @@ components:
           minimum: 1
         activo:
           type: boolean
+
+    AdminUserPasswordInput:
+      type: object
+      required:
+        - password
+      properties:
+        password:
+          type: string
+          minLength: 6
+          maxLength: 128
+          description: Contraseña nueva en texto plano (se guarda hasheada)
 
     AdminUserListResponse:
       type: object
@@ -1013,6 +1085,7 @@ components:
         - estado
         - prioridad
         - motivo
+        - motivo_categoria
         - fecha_creacion
         - notificado
       properties:
@@ -1036,6 +1109,8 @@ components:
           type: ["string", "null"]
         motivo:
           type: string
+        motivo_categoria:
+          $ref: "#/components/schemas/MotivoCategoria"
         resumen:
           type: ["string", "null"]
         notificado:
@@ -1046,8 +1121,12 @@ components:
         prioridad:
           type: string
           enum: [baja, media, alta, urgente]
+        asignado_usuario_id:
+          type: ["integer", "null"]
+          description: Identidad autoritativa del usuario asignado; la establece el backend al cambiar el estado
         asignado_a:
           type: ["string", "null"]
+          description: Nombre visible del responsable o valor histórico/importado
         audio_url:
           type: ["string", "null"]
         notas:
@@ -1137,6 +1216,7 @@ components:
           default: media
         asignado_a:
           type: string
+          description: Valor histórico o externo; las autoasignaciones internas se derivan de la sesión
         audio_url:
           type: string
         notas:
@@ -1179,8 +1259,6 @@ components:
         prioridad:
           type: string
           enum: [baja, media, alta, urgente]
-        asignado_a:
-          type: string
         audio_url:
           type: string
         notas:
@@ -1286,13 +1364,29 @@ components:
         cantidad:
           type: integer
 
+    MotivoCategoria:
+      type: string
+      enum:
+        - haberes_pagos
+        - recibos_documentacion
+        - vacaciones_licencias
+        - bajas_liquidacion
+        - empleo_postulaciones
+        - contacto_general
+        - reclamos
+        - sin_clasificar
+
     MotivoStat:
       type: object
       required:
+        - categoria
         - motivo
         - cantidad
       properties:
+        categoria:
+          $ref: "#/components/schemas/MotivoCategoria"
         motivo:
+          description: Etiqueta legible de la categoría
           type: string
         cantidad:
           type: integer

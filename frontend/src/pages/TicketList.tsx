@@ -23,6 +23,7 @@ import {
   ArrowUp, ArrowDown, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
+import { getMotivoCategoriaConfig, MOTIVO_CATEGORIA_OPTIONS } from '@/lib/motivos';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function TicketList() {
@@ -30,6 +31,7 @@ export default function TicketList() {
   const [search, setSearch] = useState('');
   const [estadoFilter, setEstadoFilter] = useState<string>('_all');
   const [prioridadFilter, setPrioridadFilter] = useState<string>('_all');
+  const [motivoCategoriaFilter, setMotivoCategoriaFilter] = useState<string>('_all');
   const [vencidosFilter, setVencidosFilter] = useState(false);
   
   // Date and Time filters
@@ -47,13 +49,14 @@ export default function TicketList() {
   // Al cambiar cualquier filtro u orden, volver a la primera página
   useEffect(() => {
     setPage(1);
-  }, [search, estadoFilter, prioridadFilter, vencidosFilter, fechaDesde, fechaHasta, horaDesde, horaHasta, empresa, order, pageSize]);
+  }, [search, estadoFilter, prioridadFilter, motivoCategoriaFilter, vencidosFilter, fechaDesde, fechaHasta, horaDesde, horaHasta, empresa, order, pageSize]);
 
   // Custom hook usage with active filters
   const params: any = { order, page, limit: pageSize };
   if (search) params.search = search;
   if (estadoFilter !== '_all') params.estado = estadoFilter as ListTicketsEstado;
   if (prioridadFilter !== '_all') params.prioridad = prioridadFilter as ListTicketsPrioridad;
+  if (motivoCategoriaFilter !== '_all') params.motivo_categoria = motivoCategoriaFilter;
   if (vencidosFilter) params.vencidos = true;
   if (fechaDesde) params.fecha_desde = fechaDesde;
   if (fechaHasta) params.fecha_hasta = fechaHasta;
@@ -66,12 +69,13 @@ export default function TicketList() {
   const total = listResponse?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  const hasFilters = search || estadoFilter !== '_all' || prioridadFilter !== '_all' || vencidosFilter || fechaDesde || fechaHasta || horaDesde || horaHasta || empresa;
+  const hasFilters = search || estadoFilter !== '_all' || prioridadFilter !== '_all' || motivoCategoriaFilter !== '_all' || vencidosFilter || fechaDesde || fechaHasta || horaDesde || horaHasta || empresa;
 
   const clearFilters = () => {
     setSearch('');
     setEstadoFilter('_all');
     setPrioridadFilter('_all');
+    setMotivoCategoriaFilter('_all');
     setVencidosFilter(false);
     setFechaDesde('');
     setFechaHasta('');
@@ -130,6 +134,20 @@ export default function TicketList() {
               <SelectItem value={TicketPrioridad.media}>Media</SelectItem>
               <SelectItem value={TicketPrioridad.alta}>Alta</SelectItem>
               <SelectItem value={TicketPrioridad.urgente}>Urgente</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={motivoCategoriaFilter} onValueChange={setMotivoCategoriaFilter}>
+            <SelectTrigger className="w-[190px] h-8 text-xs bg-slate-50 border-slate-200">
+              <SelectValue placeholder="Categoría" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_all">Todas las categorías</SelectItem>
+              {MOTIVO_CATEGORIA_OPTIONS.map((categoria) => (
+                <SelectItem key={categoria.value} value={categoria.value}>
+                  {categoria.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
@@ -219,8 +237,8 @@ export default function TicketList() {
                     {order === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />}
                   </button>
                 </TableHead>
-                <TableHead className="w-[200px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Contacto</TableHead>
-                <TableHead className="w-[160px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Empresa</TableHead>
+                <TableHead className="w-[220px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Contacto</TableHead>
+                <TableHead className="w-[190px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Categoría</TableHead>
                 <TableHead className="w-[250px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Motivo</TableHead>
                 <TableHead className="w-[120px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Estado</TableHead>
                 <TableHead className="w-[100px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Prioridad</TableHead>
@@ -233,8 +251,8 @@ export default function TicketList() {
                 Array.from({ length: 10 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell className="py-2.5"><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell className="py-2.5"><Skeleton className="h-4 w-32" /></TableCell>
-                    <TableCell className="py-2.5"><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell className="py-2.5 space-y-1"><Skeleton className="h-4 w-32" /><Skeleton className="h-3 w-24" /></TableCell>
+                    <TableCell className="py-2.5"><Skeleton className="h-5 w-32" /></TableCell>
                     <TableCell className="py-2.5"><Skeleton className="h-4 w-48" /></TableCell>
                     <TableCell className="py-2.5"><Skeleton className="h-4 w-20" /></TableCell>
                     <TableCell className="py-2.5"><Skeleton className="h-4 w-16" /></TableCell>
@@ -257,6 +275,8 @@ export default function TicketList() {
               ) : (
                 tickets.map((ticket: any) => {
                   const vencido = isVencido(ticket.fecha_limite, ticket.estado);
+                  const motivoCategoria = getMotivoCategoriaConfig(ticket.motivo_categoria);
+                  const empresaLabel = ticket.empresa?.trim() || 'Sin empresa asociada';
                   
                   return (
                     <TableRow 
@@ -276,19 +296,23 @@ export default function TicketList() {
                         </div>
                       </TableCell>
                       <TableCell className="py-2.5">
-                        <span className="font-semibold text-sm text-foreground truncate">
-                          {ticket.nombre} {ticket.apellido}
-                        </span>
+                        <div className="min-w-0">
+                          <span className="block truncate text-sm font-semibold text-foreground">
+                            {ticket.nombre} {ticket.apellido}
+                          </span>
+                          <span
+                            className="mt-0.5 flex items-center truncate text-[11px] text-slate-500"
+                            title={empresaLabel}
+                          >
+                            <Building className="mr-1 h-3 w-3 shrink-0 text-slate-400" />
+                            {empresaLabel}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell className="py-2.5">
-                        {ticket.empresa ? (
-                          <span className="text-sm text-slate-600 flex items-center truncate">
-                            <Building className="h-3.5 w-3.5 mr-1.5 shrink-0 text-slate-400" />
-                            {ticket.empresa}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300 text-sm">-</span>
-                        )}
+                        <span className={`inline-flex max-w-full items-center rounded border px-1.5 py-0.5 text-[10px] font-semibold ${motivoCategoria.badgeClass}`}>
+                          <span className="truncate">{motivoCategoria.label}</span>
+                        </span>
                       </TableCell>
                       <TableCell className="py-2.5">
                         <div className="text-sm text-foreground line-clamp-2 leading-snug" title={ticket.motivo}>

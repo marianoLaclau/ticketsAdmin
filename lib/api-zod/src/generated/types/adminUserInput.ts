@@ -18,6 +18,19 @@ export interface AdminUserInput {
      */
   apellido?: string | null;
   /**
+     * Identificador de login que se le entrega al usuario junto con la contraseña.
+     * @minLength 3
+     * @maxLength 60
+     * @pattern ^\S+$
+     */
+  username: string;
+  /**
+     * Contraseña inicial (se guarda hasheada). El SysAdmin la define y se la entrega al usuario.
+     * @minLength 6
+     * @maxLength 128
+     */
+  password: string;
+  /**
      * @maxLength 254
      * @pattern ^[^@\s]+@[^@\s]+\.[^@\s]+$
      */

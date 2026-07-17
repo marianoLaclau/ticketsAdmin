@@ -22,6 +22,27 @@
       "when": 1784309160870,
       "tag": "0002_last_white_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1784311866689,
+      "tag": "0003_faulty_zaran",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1784313056483,
+      "tag": "0004_flippant_sunfire",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1784313798649,
+      "tag": "0005_sturdy_night_nurse",
+      "breakpoints": true
     }
   ]
 }

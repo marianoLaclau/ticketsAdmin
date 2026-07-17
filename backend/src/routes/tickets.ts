@@ -11,6 +11,9 @@ import {
   CreateSeguimientoParams,
   CreateSeguimientoBody,
 } from "@workspace/api-zod";
+import { clasificarMotivo } from "@workspace/ingesta";
+import { puedeCerrarTickets, type SessionUser } from "../lib/auth";
+import { broadcastEvent } from "../lib/events";
 
 const router = Router();
 
@@ -53,7 +56,7 @@ router.get("/tickets", async (req, res) => {
     res.status(400).json({ error: "Invalid query params" });
     return;
   }
-  const { estado, prioridad, fecha_desde, fecha_hasta, hora_desde, hora_hasta, empresa, motivo, search, vencidos, order = "desc", page = 1, limit = 20 } = parsed.data;
+  const { estado, prioridad, fecha_desde, fecha_hasta, hora_desde, hora_hasta, empresa, motivo, motivo_categoria, search, vencidos, order = "desc", page = 1, limit = 20 } = parsed.data;
 
   if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1 || limit > 100) {
     res.status(400).json({ error: "Invalid pagination params" });
@@ -70,6 +73,7 @@ router.get("/tickets", async (req, res) => {
   if (hora_hasta) conditions.push(lte(ticketsTable.hora, hora_hasta));
   if (empresa) conditions.push(like(ticketsTable.empresa, `%${empresa}%`));
   if (motivo) conditions.push(like(ticketsTable.motivo, `%${motivo}%`));
+  if (motivo_categoria) conditions.push(eq(ticketsTable.motivo_categoria, motivo_categoria));
   if (search) {
     conditions.push(
       or(
@@ -147,7 +151,6 @@ router.patch("/tickets/:id", async (req, res) => {
   if (body.notificado !== undefined) updates.notificado = body.notificado;
   if (body.estado !== undefined) updates.estado = body.estado;
   if (body.prioridad !== undefined) updates.prioridad = body.prioridad;
-  if (body.asignado_a !== undefined) updates.asignado_a = body.asignado_a;
   if (body.audio_url !== undefined) updates.audio_url = body.audio_url;
   if (body.notas !== undefined) updates.notas = body.notas;
   if (body.progreso !== undefined) updates.progreso = body.progreso;
@@ -156,19 +159,71 @@ router.patch("/tickets/:id", async (req, res) => {
 
   if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No fields to update" }); return; }
 
+  // Una sola lectura alimenta la reclasificación, la detección de transición
+  // de estado y la fecha automática de resolución.
+  const [current] = await db
+    .select({
+      estado: ticketsTable.estado,
+      motivo: ticketsTable.motivo,
+      resumen: ticketsTable.resumen,
+      fecha_resolucion: ticketsTable.fecha_resolucion,
+    })
+    .from(ticketsTable)
+    .where(eq(ticketsTable.id, paramsParsed.data.id));
+  if (!current) { res.status(404).json({ error: "Ticket not found" }); return; }
+
+  // La categoría es siempre derivada. El motivo y el resumen originales se
+  // conservan tal como llegaron y solo se usan como entrada del clasificador.
+  if (body.motivo !== undefined || body.resumen !== undefined) {
+    updates.motivo_categoria = clasificarMotivo(
+      body.motivo ?? current.motivo,
+      body.resumen !== undefined ? body.resumen : current.resumen,
+    );
+  }
+
+  const authUser = res.locals.authUser as SessionUser | undefined;
+
+  // Cerrar tickets es exclusivo de Administrador/SysAdmin — el Operador no puede
+  if (updates.estado === "cerrado") {
+    if (!puedeCerrarTickets(authUser?.rol)) {
+      res.status(403).json({ error: "Solo un administrador puede cerrar tickets" });
+      return;
+    }
+  }
+
+  // Tomar un ticket ocurre al moverlo realmente de estado. Reenviar el mismo
+  // estado (o editar cualquier otro campo) conserva la asignación existente.
+  if (body.estado !== undefined && body.estado !== current.estado) {
+    if (!authUser) {
+      res.status(401).json({ error: "Sesión requerida" });
+      return;
+    }
+    updates.asignado_usuario_id = authUser.id;
+    updates.asignado_a = [authUser.nombre, authUser.apellido]
+      .filter(Boolean)
+      .join(" ");
+  }
+
   // Al pasar a resuelto/cerrado se registra la fecha de resolución automáticamente
   // (si no vino explícita y el ticket aún no la tenía)
   if (
     (updates.estado === "resuelto" || updates.estado === "cerrado") &&
     body.fecha_resolucion === undefined
   ) {
-    const [current] = await db.select({ fecha_resolucion: ticketsTable.fecha_resolucion }).from(ticketsTable).where(eq(ticketsTable.id, paramsParsed.data.id));
-    if (!current) { res.status(404).json({ error: "Ticket not found" }); return; }
     if (!current.fecha_resolucion) updates.fecha_resolucion = new Date();
   }
 
   const [updated] = await db.update(ticketsTable).set(updates).where(eq(ticketsTable.id, paramsParsed.data.id)).returning();
   if (!updated) { res.status(404).json({ error: "Ticket not found" }); return; }
+
+  // Refresca en vivo las demás sesiones: si otro operador cambia el estado,
+  // todos ven inmediatamente al nuevo responsable.
+  broadcastEvent("ticket_actualizado", {
+    ticket_id: updated.id,
+    estado: updated.estado,
+    asignado_usuario_id: updated.asignado_usuario_id,
+    asignado_a: updated.asignado_a,
+  });
 
   res.json(updated);
 });

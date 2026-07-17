@@ -8,6 +8,7 @@
 import type { ListTicketsEstado } from './listTicketsEstado';
 import type { ListTicketsOrder } from './listTicketsOrder';
 import type { ListTicketsPrioridad } from './listTicketsPrioridad';
+import type { MotivoCategoria } from './motivoCategoria';
 
 export type ListTicketsParams = {
 estado?: ListTicketsEstado;
@@ -18,6 +19,10 @@ hora_desde?: string;
 hora_hasta?: string;
 empresa?: string;
 motivo?: string;
+/**
+ * Categoría normalizada derivada del motivo original
+ */
+motivo_categoria?: MotivoCategoria;
 search?: string;
 vencidos?: boolean;
 /**

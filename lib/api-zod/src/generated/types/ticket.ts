@@ -5,6 +5,7 @@
  * GSB Ticket Management System API
  * OpenAPI spec version: 0.1.0
  */
+import type { MotivoCategoria } from './motivoCategoria';
 import type { TicketEstado } from './ticketEstado';
 import type { TicketPrioridad } from './ticketPrioridad';
 
@@ -23,12 +24,21 @@ export interface Ticket {
   /** @nullable */
   email?: string | null;
   motivo: string;
+  motivo_categoria: MotivoCategoria;
   /** @nullable */
   resumen?: string | null;
   notificado: boolean;
   estado: TicketEstado;
   prioridad: TicketPrioridad;
-  /** @nullable */
+  /**
+     * Identidad autoritativa del usuario asignado; la establece el backend al cambiar el estado
+     * @nullable
+     */
+  asignado_usuario_id?: number | null;
+  /**
+     * Nombre visible del responsable o valor histórico/importado
+     * @nullable
+     */
   asignado_a?: string | null;
   /** @nullable */
   audio_url?: string | null;

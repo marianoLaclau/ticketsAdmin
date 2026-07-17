@@ -21,7 +21,6 @@ export interface TicketUpdate {
   notificado?: boolean;
   estado?: TicketUpdateEstado;
   prioridad?: TicketUpdatePrioridad;
-  asignado_a?: string;
   audio_url?: string;
   notas?: string;
   fecha_limite?: Date;

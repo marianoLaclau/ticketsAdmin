@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Clock, PhoneIncoming, AlertCircle, CheckCircle2, Inbox, TrendingUp } from 'lucide-react';
 import { Link } from 'wouter';
 import { formatDate, PrioridadBadge } from '@/lib/utils-tickets';
+import { getMotivoCategoriaConfig } from '@/lib/motivos';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 // Estado colors — coherent with badge system
@@ -19,9 +20,6 @@ const ESTADO_COLOR: Record<string, { bar: string; label: string; text: string }>
   resuelto:   { bar: '#3d7532', label: 'Resuelto',   text: 'text-green-700' },
   cerrado:    { bar: '#1e293b', label: 'Cerrado',    text: 'text-slate-800' },
 };
-
-// Motivo bar colors — varied but controlled
-const MOTIVO_COLORS = ['#3b82f6','#3d7532','#f59e0b','#8b5cf6','#ef4444','#0891b2','#ec4899','#f97316'];
 
 // Prioridad bar colors
 const PRIORIDAD_COLOR: Record<string, string> = {
@@ -82,7 +80,23 @@ export default function Dashboard() {
   const activos        = enProceso + pendientes + nuevosSinRevisar;
 
   // Motivos
-  const motivosSorted = motivos ? [...motivos].sort((a: any, b: any) => b.cantidad - a.cantidad) : [];
+  const motivosSorted = (motivos ?? [])
+    .map((item) => {
+      // Compatibilidad temporal con respuestas anteriores que agrupaban por
+      // `motivo`. El contrato nuevo expone el código estable en `categoria`.
+      const stat = item as typeof item & {
+        categoria?: string;
+        motivo_categoria?: string;
+        motivo?: string;
+      };
+      const categoria = stat.categoria ?? stat.motivo_categoria ?? stat.motivo ?? 'sin_clasificar';
+      return {
+        categoria,
+        cantidad: stat.cantidad,
+        config: getMotivoCategoriaConfig(categoria),
+      };
+    })
+    .sort((a, b) => b.cantidad - a.cantidad);
   const maxMotivo = motivosSorted[0]?.cantidad || 1;
 
   // Prioridad — reshape for recharts
@@ -267,15 +281,15 @@ export default function Dashboard() {
                   <p className="text-sm text-slate-400">Sin datos</p>
                 ) : (
                   <div className="space-y-3">
-                    {motivosSorted.map((m: any, idx: number) => {
+                    {motivosSorted.map((m, idx) => {
                       const pct = (m.cantidad / maxMotivo) * 100;
-                      const color = MOTIVO_COLORS[idx % MOTIVO_COLORS.length];
+                      const color = m.config.color;
                       return (
-                        <div key={m.motivo} className="flex items-center gap-3">
+                        <div key={m.categoria} className="flex items-center gap-3">
                           <span className="text-[11px] font-bold text-muted-foreground w-4 text-right flex-shrink-0 tabular-nums">{idx + 1}</span>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs text-foreground font-medium truncate pr-2">{m.motivo}</span>
+                              <span className="text-xs text-foreground font-medium truncate pr-2" title={m.config.label}>{m.config.label}</span>
                               <span className="text-xs font-bold tabular-nums" style={{ color }}>{m.cantidad}</span>
                             </div>
                             <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">

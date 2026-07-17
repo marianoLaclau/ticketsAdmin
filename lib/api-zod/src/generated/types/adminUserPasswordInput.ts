@@ -6,8 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface LoginInput {
-  /** Nombre de usuario asignado al crear la cuenta (no el email) */
-  usuario: string;
+export interface AdminUserPasswordInput {
+  /**
+     * Contraseña nueva en texto plano (se guarda hasheada)
+     * @minLength 6
+     * @maxLength 128
+     */
   password: string;
 }

@@ -13,6 +13,7 @@ import { useGetMe, getGetMeQueryKey } from '@workspace/api-client-react';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Loader2 } from 'lucide-react';
+import { ROL_SYSADMIN } from '@/lib/roles';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,15 +23,28 @@ const queryClient = new QueryClient({
     },
   },
   queryCache: new QueryCache({
-    onError: (error) => {
+    onError: (error, query) => {
       // Si cualquier request devuelve 401 (sesión vencida o revocada),
       // se invalida /auth/me y el AuthGate manda de vuelta al login.
-      if ((error as { status?: number })?.status === 401) {
+      // IMPORTANTE: excluir a /auth/me de este handler — si su propio 401
+      // la invalida, se refetchea, vuelve a dar 401 y entra en loop infinito.
+      const esQueryDeSesion = query.queryKey[0] === getGetMeQueryKey()[0];
+      if (!esQueryDeSesion && (error as { status?: number })?.status === 401) {
         queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       }
     },
   }),
 });
+
+/**
+ * Las pantallas de administración existen únicamente para el rol SysAdmin.
+ * El backend valida lo mismo (403); esto evita renderizar la UI siquiera.
+ */
+function SoloSysAdmin({ children }: { children: React.ReactNode }) {
+  const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
+  if (me?.rol !== ROL_SYSADMIN) return <NotFound />;
+  return <>{children}</>;
+}
 
 /**
  * Candado de toda la aplicación: sin sesión válida no se renderiza NINGUNA
@@ -60,8 +74,12 @@ function Router() {
     <AppLayout>
       <Switch>
         <Route path="/" component={Dashboard} />
-        <Route path="/admin/roles-usuarios" component={AdminRolesUsers} />
-        <Route path="/admin" component={Admin} />
+        <Route path="/admin/roles-usuarios">
+          <SoloSysAdmin><AdminRolesUsers /></SoloSysAdmin>
+        </Route>
+        <Route path="/admin">
+          <SoloSysAdmin><Admin /></SoloSysAdmin>
+        </Route>
         <Route path="/tickets/:id" component={TicketDetail} />
         <Route path="/tickets" component={TicketList} />
         <Route component={NotFound} />

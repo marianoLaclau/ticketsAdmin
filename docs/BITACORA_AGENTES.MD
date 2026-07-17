@@ -260,3 +260,158 @@ Archivos afectados: `backend/src/routes/tickets.ts` y `lib/api-spec/openapi.yaml
 ### Nota operativa
 
 - Al deployar esto al servidor de testing, el seed crea `admin`/`admin` allá también: **entrar y cambiar la clave** (o crear usuarios propios) apenas se despliegue. n8n no requiere ningún cambio.
+
+## 2026-07-17 — Rol SysAdmin: acceso a administración restringido por rol
+
+**Agente:** Claude
+**Contexto:** el usuario definió que la cuenta semilla es suya, se llama SysAdmin (el "usuario Dios"), y que el botón/pestaña Administración solo debe verse y ser accesible para quienes tengan ese rol. También corrigió el proceso: no se pushea sin su OK explícito tras probar localmente.
+
+### Cambio realizado
+
+- **Fix previo (loop infinito)**: el handler global de 401 invalidaba `/auth/me` incluso cuando la que fallaba era `/auth/me` misma → refetch → 401 → loop (~3.900 requests) y pantalla en blanco. Ahora esa query queda excluida del handler.
+- **Seed renombrado**: rol `Administrador` → `SysAdmin` y usuario `admin` → `sysadmin` (nombre visible "SysAdmin"). La migración de nombres es idempotente y corre al arrancar el backend, así llega sola a las bases ya desplegadas. Login: **sysadmin / admin**.
+- **Backend**: middleware `requireSysAdmin` — `/api/admin/*` exige rol SysAdmin (403 sin él) además de la sesión y de `x-admin-key`. Tres candados: sesión + rol + clave.
+- **Frontend**: el link «Administración» del sidebar solo se renderiza para `me.rol === 'SysAdmin'`; las rutas `/admin` y `/admin/roles-usuarios` muestran NotFound para cualquier otro rol (guard `SoloSysAdmin`). Constante compartida en `frontend/src/lib/roles.ts`, espejo de `backend/src/lib/auth.ts`.
+
+### Validaciones ejecutadas
+
+- Typecheck completo: correcto.
+- E2E contra el backend de desarrollo y la base local:
+  - login viejo `admin`: 401 (renombrado); login `sysadmin`: 200 con rol SysAdmin;
+  - SysAdmin + x-admin-key sobre `/admin/roles`: 200;
+  - se creó un rol `Operador` y un usuario común; sin contraseña no puede loguearse (401); con contraseña accede a tickets (200);
+  - **el usuario común recibe 403 en `/api/admin/*` aunque presente la x-admin-key correcta** — la clave sola no alcanza, el rol manda;
+  - usuario y rol de prueba eliminados al final (base limpia: solo sysadmin/SysAdmin).
+
+### Pendiente conocido
+
+- Un SysAdmin podría renombrar o desactivar su propio rol desde el catálogo y perder acceso al panel; la fase de permisos con checkboxes debe contemplar esa protección.
+- Cambios sin commitear a la espera del OK del usuario tras la prueba local (nueva regla de trabajo).
+
+## 2026-07-17 — Roles Operador/Administrador, reset de contraseña y leyenda de la llave
+
+**Agente:** Claude
+**Contexto:** el usuario definió la jerarquía de roles y pidió: llavesita de reset de contraseña por usuario, rol Operador que no puede cerrar tickets (opción grisada con leyenda), rol Administrador (todo menos el panel admin), y una leyenda real sobre la llave de administración con indicador de estado.
+
+### Cambio realizado
+
+- **Roles base en el seed** (idempotente, corre en cada arranque): `Administrador` ("gestión completa de tickets, puede cerrarlos, sin panel de administración") y `Operador` ("gestión básica, no puede cerrar tickets"). Jerarquía: SysAdmin > Administrador > Operador.
+- **Cerrar tickets restringido**: `PATCH /api/tickets/:id` con `estado: "cerrado"` responde 403 salvo rol SysAdmin o Administrador (`puedeCerrarTickets` en `backend/src/lib/auth.ts`, espejo en `frontend/src/lib/roles.ts`). En el detalle del ticket, la opción "CERRADO" aparece deshabilitada para el resto con la leyenda "Solo puede ser cerrado por un administrador".
+- **Reset de contraseña**: nuevo endpoint `POST /admin/users/{id}/password` (contrato OpenAPI + codegen; mínimo 6 caracteres). Hashea con scrypt y **revoca todas las sesiones del usuario**. En la pantalla de roles y usuarios, cada fila tiene la llavesita ámbar que abre el diálogo (clave nueva + repetir, validación en vivo).
+- **Llave de administración**: leyenda real en el header del panel ("segunda verificación además de sesión y rol; queda guardada solo en esta pestaña") + indicador en vivo del estado — verde "Llave activa", rojo "Llave inválida" o "Falta la llave" — verificado con una consulta mínima a la API con la llave actual.
+
+### Validaciones ejecutadas
+
+- Typecheck completo: correcto.
+- E2E contra el backend de desarrollo:
+  - roles base presentes tras el arranque (Administrador, Operador, SysAdmin);
+  - reset de contraseña: 204; contraseña corta: 400;
+  - usuario Operador logueado: cerrar → 403, en_proceso → 200; SysAdmin: cerrar → 200;
+  - reset de contraseña con el usuario logueado: su sesión vieja pasó a 401 al instante;
+  - ticket usado en la prueba restaurado a su estado original y usuario de prueba eliminado (quedan solo sysadmin y los tres roles).
+
+### Pendiente
+
+- Cambios sin commitear a la espera del OK del usuario tras la prueba local.
+
+## 2026-07-17 — Clasificación automática de motivos sin alterar datos de n8n
+
+**Agente:** Codex
+**Contexto:** el Dashboard agrupaba literalmente cada redacción recibida en `motivo`, por lo que pequeñas variaciones generaban categorías distintas. El usuario aprobó normalizar la visualización con la condición explícita de no modificar ningún dato de origen.
+
+### Protección de los datos originales
+
+- `tickets.motivo` y `tickets.resumen` se conservan exactamente como llegaron. La clasificación trabaja sobre texto normalizado en memoria y escribe únicamente la nueva columna derivada `motivo_categoria`.
+- Antes del cambio se creó el backup WAL-safe `backups/pre-motivo-categorias-20260717-150952.db`; pasó `PRAGMA integrity_check` y permanece fuera de Git.
+- El backfill local comparó por SHA-256 los campos `id`, `motivo` y `resumen` antes y después: los 15 tickets conservaron el mismo hash (`9bcf05faff3fe83fbcb4e667bb45c84feb7782a5d8db4b2c6f5603c58447fd4c`).
+- Los textos ambiguos o desconocidos no se fuerzan a una categoría: quedan en `sin_clasificar`.
+
+### Taxonomía y reglas
+
+- Categorías estables: `haberes_pagos`, `recibos_documentacion`, `vacaciones_licencias`, `bajas_liquidacion`, `empleo_postulaciones`, `contacto_general`, `reclamos` y `sin_clasificar`.
+- El clasificador compartido elimina tildes, signos y diferencias de mayúsculas solo en una copia para comparar patrones. Primero evalúa `motivo`; consulta `resumen` únicamente si el motivo no coincide, evitando que un detalle secundario pise la intención explícita.
+- Se contemplaron redacciones reales de la base, incluida finalización del período de prueba, liquidación/entrega de uniforme, llamada perdida y el typo `incorporciones`.
+- Webhook n8n, alta manual, importación CSV/Excel y edición de motivo/resumen usan la misma función. El cliente no puede enviar ni sobrescribir directamente la categoría derivada.
+
+### Base, API e interfaz
+
+- Schema Drizzle y migración `0003_faulty_zaran.sql`: columna `motivo_categoria` no nula con fallback seguro y backfill determinista para bases ya existentes.
+- `GET /api/dashboard/motivos` agrupa por código estable y devuelve también su etiqueta legible; `GET /api/tickets` acepta el filtro exacto `motivo_categoria` sin reemplazar el filtro textual de `motivo`.
+- OpenAPI, validadores Zod y cliente React Query fueron regenerados con el nuevo campo y enum.
+- Dashboard usa etiquetas y colores fijos por categoría. El listado suma filtro y badge de categoría, pero mantiene visible debajo la frase original del contacto.
+
+### Validaciones ejecutadas
+
+- Codegen y typecheck completo del workspace: correctos.
+- La base local quedó íntegra y distribuida en las ocho categorías: bajas 3, empleo 3, sin clasificar 3, recibos 2 y una en cada categoría restante.
+- La migración se ejecutó además sobre una base temporal con 11 fixtures, incluyendo prioridad de motivo sobre resumen: categorías esperadas, campos originales idénticos e `integrity_check = ok`.
+- El archivo temporal de validación se eliminó al terminar. Los cambios permanecen sin commit ni push hasta indicación explícita del usuario.
+
+## 2026-07-17 — Footer del sidebar V0.2 y reinicio local
+
+**Agente:** Codex
+
+- Se conservó el nombre del usuario y el rol en líneas independientes dentro del bloque de sesión.
+- La marca se separó visualmente mediante una línea tenue y quedó al pie como `GSB IT - V0.2`, sin modificar autenticación, navegación, SSE ni logout.
+- Se reiniciaron backend y frontend para cargar el clasificador y la interfaz actuales. El backend quedó escuchando en `5000` y el frontend en `3000`, ambos con respuesta HTTP `200`; `/api/dashboard/motivos` respondió correctamente desde la sesión abierta.
+
+## 2026-07-17 — Categoría y empresa reorganizadas en el listado
+
+**Agente:** Codex
+
+- La columna visible `Empresa` fue reemplazada por `Categoría` y ahora contiene el badge cromático de la clasificación automática.
+- La columna `Motivo` volvió a mostrar únicamente el texto original recibido, sin ocultarlo ni reemplazarlo.
+- La empresa se movió debajo del nombre del contacto en tipografía secundaria; cuando no existe o solo contiene espacios se muestra `Sin empresa asociada`.
+- El dato y el filtro de empresa se conservaron. También se mantuvieron las ocho columnas, sus skeletons y el `colSpan` del estado vacío.
+
+## 2026-07-17 — Autoasignación por transición de estado
+
+**Agente:** Codex
+**Regla acordada:** una transición real de estado asigna el ticket al usuario autenticado que la ejecutó. La primera salida de `nuevo` lo toma y una transición posterior realizada por otra persona lo reasigna a esa última persona. Editar otros campos o reenviar el mismo estado conserva al responsable actual.
+
+### Implementación y compatibilidad
+
+- Antes del cambio se creó el backup WAL-safe `backups/pre-autoasignacion-20260717-154250.db`, verificado con `integrity_check = ok`.
+- Tras aplicar y verificar el esquema local se creó además `backups/post-autoasignacion-20260717-155422.db`, también íntegro.
+- La migración aditiva `0005_sturdy_night_nurse.sql` incorpora `tickets.asignado_usuario_id`, FK nullable a `usuarios.id` con `ON DELETE SET NULL`. No se intentó inferir responsables históricos por nombre.
+- `asignado_usuario_id` es la identidad autoritativa. `asignado_a` se conserva como nombre visible y como compatibilidad para valores históricos recibidos por webhook o importaciones.
+- `PATCH /api/tickets/:id` obtiene el usuario exclusivamente de `res.locals.authUser`; el cliente no puede enviar el ID ni falsificar la asignación mediante texto libre. En una transición se actualizan estado, ID y nombre dentro del mismo `UPDATE`.
+- Cambiar notas, prioridad o progreso sin una transición no modifica la asignación. Intentar cerrar sin rol Administrador/SysAdmin sigue devolviendo `403` antes de reasignar.
+- Cada actualización emite `ticket_actualizado` por SSE, por lo que las demás sesiones invalidan su caché y ven al responsable nuevo sin recargar manualmente.
+- El campo libre “Asignado a” se retiró de la edición administrativa normal. Webhook e importadores siguen aceptando el valor externo legado sin convertirlo automáticamente en un usuario.
+
+### Validaciones ejecutadas
+
+- Contrato OpenAPI y clientes Zod/React Query regenerados; typecheck completo correcto.
+- E2E sobre base temporal y backend aislado con dos operadores:
+  - Ana cambió `nuevo → en_proceso` y quedó asignada;
+  - Bruno editó prioridad reenviando `en_proceso` y la asignación siguió en Ana;
+  - Bruno cambió `en_proceso → pendiente` y recibió la asignación;
+  - Ana editó solo notas y la asignación permaneció en Bruno.
+- La cadena real de migraciones `0000` a `0005` se aplicó en otra base temporal. Al eliminar el usuario asignado, la FK pasó a `null`, el snapshot textual se conservó y `integrity_check` resultó `ok`.
+- Las bases, usuarios, sesiones y tickets temporales se eliminaron al finalizar. No se realizó commit ni push.
+
+## 2026-07-17 — Nombre de usuario y contraseña al crear usuarios
+
+**Agente:** Claude
+**Contexto:** el usuario pidió que al crear un usuario desde el panel se pueda definir directamente su nombre de usuario y contraseña (en vez de crear el usuario sin clave y usar por separado la llavesita de reset) — "nosotros gestionamos todo y le damos los datos para que se logueen".
+
+### Cambio realizado
+
+- **Schema**: nueva columna `usuarios.username` (text, unique, **nullable** — migración 0004, `ALTER TABLE ADD COLUMN` sin default para no romper la fila existente de sysadmin). El login pasa a validar contra `username`, no contra `email` (que queda como dato de contacto).
+- **Seed (`ensureAdminSeed`)**: además de lo que ya hacía, ahora (a) backfillea `username = email` para cualquier usuario existente con `username` nulo — corre en cada arranque, no-op una vez aplicado — y (b) setea `username: "sysadmin"` explícitamente en el alta/renombre del usuario semilla. Esto hizo que la cuenta sysadmin ya desplegada (creada antes de este cambio) recuperara el login solo, sin intervención manual.
+- **Contrato OpenAPI**: `AdminUserInput` (creación) ahora exige `username` y `password` (mínimo 6 caracteres) además de lo que ya pedía; `AdminUserUpdate` admite `username` opcional (sin `password` — cambiar la clave de un usuario existente sigue siendo exclusivo del endpoint de reset, que revoca sesiones). `AdminUser` expone `username`.
+- **Backend `POST/PATCH /admin/users`**: valida unicidad de `username` y `email` con chequeos proactivos antes del insert/update (para poder devolver un 409 específico por campo, ya que dos columnas UNIQUE no se pueden distinguir con un catch genérico); hashea la contraseña con `hashPassword()` al crear.
+- **Fix de seguridad encontrado de paso**: `GET/POST/PATCH /admin/users` devolvían la fila completa de Drizzle, **incluido `password_hash`**, en la respuesta HTTP. Antes era inofensivo (siempre `null`), pero con contraseñas reales esto exponía el hash al cliente. Se agregó `PUBLIC_USER_COLUMNS` (proyección explícita sin `password_hash`) y se aplicó a las tres rutas.
+- **Frontend** (`AdminRolesUsers.tsx`): el formulario de alta ahora pide nombre de usuario (siempre) y contraseña + repetir (solo al crear, con validación de mínimo 6 caracteres y coincidencia); al editar un usuario existente no se piden campos de contraseña — el cambio de clave sigue yendo por la llavesita de reset. La tabla ganó una columna "Nombre de usuario".
+
+### Validaciones ejecutadas
+
+- Typecheck completo del workspace: correcto.
+- **Se detectó y corrigió un error propio durante la verificación**: la primera corrida de pruebas E2E dio resultados inconsistentes (sin campo `username` en las respuestas, `password_hash: null` visible, login por username fallando) porque el backend de desarrollo seguía corriendo una build vieja de antes de estos cambios (`pnpm run dev` no tiene watch mode). Se detectó por la presencia de `password_hash` en la respuesta (imposible bajo el código nuevo), se mató el proceso viejo, se reconstruyó y se repitió la prueba completa contra el código real.
+- E2E contra el backend reconstruido (11 casos, todos correctos): alta con username+password sin `password_hash` en la respuesta; username duplicado → 409; email duplicado → 409; contraseña corta → 400; login por `username` → 200 con rol correcto; login por el email viejo → 401 (corte limpio); el usuario nuevo ve tickets pero no admin (403, la restricción por rol se mantiene); el listado de usuarios no expone `password_hash` en ningún registro; el backfill del seed dejó a `sysadmin` con `username: "sysadmin"` sin intervención manual.
+- Datos de prueba (usuario `jperez` y un registro accidental creado contra el backend viejo) eliminados al finalizar; la base quedó con un único usuario (`sysadmin`).
+
+### Pendiente
+
+- Cambios sin commitear a la espera del OK del usuario tras la prueba local.

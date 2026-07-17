@@ -6,6 +6,7 @@ import {
   seguimientosTable,
   rolesTable,
   usuariosTable,
+  sesionesTable,
 } from "@workspace/db";
 import { and, asc, count, eq, like, or, type SQL } from "drizzle-orm";
 import {
@@ -21,19 +22,25 @@ import {
   CreateAdminUserBody,
   UpdateAdminUserParams,
   UpdateAdminUserBody,
+  ResetAdminUserPasswordParams,
+  ResetAdminUserPasswordBody,
 } from "@workspace/api-zod";
 import {
   parseCsv,
   detectarColumnas,
   filaATicket,
+  clasificarMotivo,
   SLA_MS,
 } from "@workspace/ingesta";
-import { requireAdminKey } from "../lib/auth";
+import { requireAdminKey, requireSysAdmin } from "../lib/auth";
+import { hashPassword } from "../lib/passwords";
 import { broadcastEvent } from "../lib/events";
 
 const router = Router();
 
-router.use("/admin", requireAdminKey);
+// Doble llave sobre la sesión ya validada: primero el rol SysAdmin del
+// usuario logueado, después la clave de administración (x-admin-key).
+router.use("/admin", requireSysAdmin, requireAdminKey);
 
 const parseBooleanQueryParam = (value: unknown): unknown => {
   if (value === "true" || value === true) return true;
@@ -52,9 +59,24 @@ const normalizeOptionalText = (
 };
 
 const normalizeEmail = (value: string): string => value.trim().toLowerCase();
+const normalizeUsername = (value: string): string => value.trim().toLowerCase();
 
 const hasOwn = (value: object, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, key);
+
+// Nunca devolver password_hash en una respuesta HTTP — ni siquiera hasheada,
+// una contraseña no tiene por qué viajar de vuelta al cliente.
+const PUBLIC_USER_COLUMNS = {
+  id: usuariosTable.id,
+  nombre: usuariosTable.nombre,
+  apellido: usuariosTable.apellido,
+  username: usuariosTable.username,
+  email: usuariosTable.email,
+  role_id: usuariosTable.role_id,
+  activo: usuariosTable.activo,
+  fecha_creacion: usuariosTable.fecha_creacion,
+  fecha_actualizacion: usuariosTable.fecha_actualizacion,
+};
 
 const hasSqliteConstraint = (error: unknown, constraint: string): boolean => {
   let current: unknown = error;
@@ -101,6 +123,7 @@ router.post("/admin/tickets", async (req, res) => {
       empresa: data.empresa ?? null,
       email: data.email ?? null,
       motivo: data.motivo,
+      motivo_categoria: clasificarMotivo(data.motivo, data.resumen),
       resumen: data.resumen ?? null,
       notificado: data.notificado ?? false,
       estado:
@@ -337,7 +360,7 @@ router.get("/admin/users", async (req, res) => {
   const offset = (page - 1) * limit;
   const [users, [{ total }]] = await Promise.all([
     db
-      .select()
+      .select(PUBLIC_USER_COLUMNS)
       .from(usuariosTable)
       .where(where)
       .orderBy(
@@ -364,8 +387,9 @@ router.post("/admin/users", async (req, res) => {
 
   const nombre = normalizeRequiredText(parsed.data.nombre);
   const email = normalizeEmail(parsed.data.email);
-  if (!nombre || !email) {
-    res.status(400).json({ error: "Nombre y email son obligatorios" });
+  const username = normalizeUsername(parsed.data.username);
+  if (!nombre || !email || !username) {
+    res.status(400).json({ error: "Nombre, nombre de usuario y email son obligatorios" });
     return;
   }
 
@@ -378,21 +402,36 @@ router.post("/admin/users", async (req, res) => {
     return;
   }
 
+  // Chequeos proactivos: dos columnas UNIQUE (email, username) no permiten
+  // distinguir cuál fue con un catch genérico, así que se valida antes.
+  const [emailEnUso] = await db.select({ id: usuariosTable.id }).from(usuariosTable).where(eq(usuariosTable.email, email));
+  if (emailEnUso) {
+    res.status(409).json({ error: "Ya existe un usuario con ese email" });
+    return;
+  }
+  const [usernameEnUso] = await db.select({ id: usuariosTable.id }).from(usuariosTable).where(eq(usuariosTable.username, username));
+  if (usernameEnUso) {
+    res.status(409).json({ error: "Ya existe un usuario con ese nombre de usuario" });
+    return;
+  }
+
   try {
     const [user] = await db
       .insert(usuariosTable)
       .values({
         nombre,
         apellido: normalizeOptionalText(parsed.data.apellido),
+        username,
+        password_hash: hashPassword(parsed.data.password),
         email,
         role_id: parsed.data.role_id,
         activo: parsed.data.activo,
       })
-      .returning();
+      .returning(PUBLIC_USER_COLUMNS);
     res.status(201).json(user);
   } catch (error) {
     if (hasSqliteConstraint(error, "UNIQUE")) {
-      res.status(409).json({ error: "Ya existe un usuario con ese email" });
+      res.status(409).json({ error: "Ya existe un usuario con ese email o nombre de usuario" });
       return;
     }
     if (hasSqliteConstraint(error, "FOREIGNKEY")) {
@@ -452,6 +491,14 @@ router.patch("/admin/users/:id", async (req, res) => {
   }
   if (body.data.email !== undefined)
     updates.email = normalizeEmail(body.data.email);
+  if (body.data.username !== undefined) {
+    const username = normalizeUsername(body.data.username);
+    if (!username) {
+      res.status(400).json({ error: "El nombre de usuario es obligatorio" });
+      return;
+    }
+    updates.username = username;
+  }
   if (body.data.role_id !== undefined) updates.role_id = body.data.role_id;
   if (body.data.activo !== undefined) updates.activo = body.data.activo;
 
@@ -460,11 +507,11 @@ router.patch("/admin/users/:id", async (req, res) => {
       .update(usuariosTable)
       .set(updates)
       .where(eq(usuariosTable.id, params.data.id))
-      .returning();
+      .returning(PUBLIC_USER_COLUMNS);
     res.json(user);
   } catch (error) {
     if (hasSqliteConstraint(error, "UNIQUE")) {
-      res.status(409).json({ error: "Ya existe un usuario con ese email" });
+      res.status(409).json({ error: "Ya existe un usuario con ese email o nombre de usuario" });
       return;
     }
     if (hasSqliteConstraint(error, "FOREIGNKEY")) {
@@ -473,6 +520,34 @@ router.patch("/admin/users/:id", async (req, res) => {
     }
     throw error;
   }
+});
+
+// Establecer/reestablecer la contraseña de un usuario. Revoca todas sus
+// sesiones activas: si estaba logueado, queda afuera hasta usar la clave nueva.
+router.post("/admin/users/:id/password", async (req, res) => {
+  const params = ResetAdminUserPasswordParams.safeParse({ id: req.params.id });
+  const body = ResetAdminUserPasswordBody.safeParse(req.body);
+  if (!params.success || !Number.isInteger(params.data.id) || !body.success) {
+    res.status(400).json({ error: "Invalid id or body" });
+    return;
+  }
+
+  const [existing] = await db
+    .select({ id: usuariosTable.id })
+    .from(usuariosTable)
+    .where(eq(usuariosTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Usuario no encontrado" });
+    return;
+  }
+
+  await db
+    .update(usuariosTable)
+    .set({ password_hash: hashPassword(body.data.password), fecha_actualizacion: new Date() })
+    .where(eq(usuariosTable.id, params.data.id));
+  await db.delete(sesionesTable).where(eq(sesionesTable.usuario_id, params.data.id));
+
+  res.status(204).end();
 });
 
 // Importación masiva desde CSV (misma lógica que el importador CLI)

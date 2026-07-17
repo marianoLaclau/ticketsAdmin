@@ -1,3 +1,14 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="GSB">
+  <rect x="2" y="2" width="60" height="60" rx="13" fill="#ffffff" stroke="#4f753f" stroke-width="4"/>
+  <text
+    x="31"
+    y="40"
+    text-anchor="middle"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="25"
+    font-weight="800"
+    letter-spacing="-2"
+  >
+    <tspan fill="#4f753f">G</tspan><tspan fill="#77797c">SB</tspan>
+  </text>
 </svg>

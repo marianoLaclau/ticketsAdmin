@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useParams } from 'wouter';
-import { 
-  useGetTicket, 
-  useUpdateTicket, 
+import {
+  useGetTicket,
+  useUpdateTicket,
   useListSeguimientos,
   useCreateSeguimiento,
+  useGetMe,
+  getGetMeQueryKey,
   TicketEstado,
   TicketPrioridad
 } from '@workspace/api-client-react';
@@ -52,6 +54,7 @@ import {
 } from 'lucide-react';
 import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
 import { dateTimeLocalValueToIso, toDateTimeLocalValue } from '@/lib/datetime-local';
+import { puedeCerrarTickets } from '@/lib/roles';
 
 const PROGRESS_STEPS = [
   { estado: TicketEstado.nuevo, value: 0, label: 'Nuevo' },
@@ -82,6 +85,11 @@ export default function TicketDetail() {
 
   const updateTicket = useUpdateTicket();
   const createSeguimiento = useCreateSeguimiento();
+
+  // Cerrar tickets es exclusivo de Administrador/SysAdmin (el backend lo
+  // valida igual; acá se grisa la opción para el resto de los roles)
+  const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
+  const puedeCerrar = puedeCerrarTickets(me?.rol);
 
   // Edit states
   const [isEditing, setIsEditing] = useState(false);
@@ -290,10 +298,21 @@ export default function TicketDetail() {
                       </SelectTrigger>
                       <SelectContent>
                         {Object.values(TicketEstado).map((e: string) => (
-                          <SelectItem key={e} value={e}>{e.replace('_', ' ').toUpperCase()}</SelectItem>
+                          <SelectItem
+                            key={e}
+                            value={e}
+                            disabled={e === TicketEstado.cerrado && !puedeCerrar}
+                          >
+                            {e.replace('_', ' ').toUpperCase()}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {!puedeCerrar && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Solo puede ser cerrado por un administrador
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Prioridad</label>

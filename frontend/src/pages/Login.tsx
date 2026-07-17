@@ -43,7 +43,11 @@ export default function Login() {
     <div className="min-h-screen bg-sidebar flex items-center justify-center p-4">
       <Card className="w-full max-w-sm shadow-xl">
         <CardHeader className="items-center text-center space-y-3 pb-2">
-          <img src={gsbLogo} alt="GSB Logo" className="h-10 object-contain" />
+          <img
+            src={gsbLogo}
+            alt="GSB Quality Services"
+            className="h-36 w-36 object-contain"
+          />
           <div>
             <h1 className="text-lg font-bold tracking-tight">Sistema de Tickets</h1>
             <p className="text-sm text-muted-foreground">Iniciá sesión para continuar</p>

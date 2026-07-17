@@ -9,6 +9,10 @@
  * dependencias de base de datos ni de Node más allá de lo estándar.
  */
 
+import { clasificarMotivo, type MotivoCategoria } from "./motivos";
+
+export * from "./motivos";
+
 // SLA: 48 hs desde la recepción del llamado para resolverlo
 export const SLA_MS = 48 * 60 * 60 * 1000;
 
@@ -146,6 +150,7 @@ export interface TicketImportado {
   empresa: string | null;
   email: string | null;
   motivo: string;
+  motivo_categoria: MotivoCategoria;
   resumen: string | null;
   notificado: boolean;
   estado: (typeof ESTADOS_VALIDOS)[number];
@@ -182,6 +187,8 @@ export function filaATicket(record: Record<string, string | undefined>): TicketI
   }
 
   const limpio = (v: string | undefined) => (v ?? "").trim() || null;
+  const motivo = (record.motivo ?? "").trim() || "Sin especificar";
+  const resumen = limpio(record.resumen);
 
   return {
     conversation_id: conversationId,
@@ -192,8 +199,9 @@ export function filaATicket(record: Record<string, string | undefined>): TicketI
     dni: limpio(record.dni),
     empresa: limpio(record.empresa),
     email: limpio(record.email),
-    motivo: (record.motivo ?? "").trim() || "Sin especificar",
-    resumen: limpio(record.resumen),
+    motivo,
+    motivo_categoria: clasificarMotivo(motivo, resumen),
+    resumen,
     notificado: parseBoolean(record.notificado ?? ""),
     estado,
     prioridad,

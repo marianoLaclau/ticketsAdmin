@@ -32,6 +32,7 @@ import type {
   AdminUser,
   AdminUserInput,
   AdminUserListResponse,
+  AdminUserPasswordInput,
   AdminUserUpdate,
   AuthUser,
   DashboardStats,
@@ -1276,6 +1277,79 @@ export const useUpdateAdminUser = <TError = ErrorType<void>,
       return useMutation(getUpdateAdminUserMutationOptions(options));
     }
 
+export const getResetAdminUserPasswordUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/users/${id}/password`
+}
+
+/**
+ * Asigna una contraseña nueva al usuario (hasheada con scrypt) y revoca todas sus sesiones activas: si estaba logueado en algún navegador, queda afuera y debe volver a entrar con la clave nueva.
+ * @summary Establecer o reestablecer la contraseña de un usuario
+ */
+export const resetAdminUserPassword = async (id: number,
+    adminUserPasswordInput: AdminUserPasswordInput, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getResetAdminUserPasswordUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminUserPasswordInput)
+  }
+);}
+
+
+
+
+
+export const getResetAdminUserPasswordMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetAdminUserPassword>>, TError,{id: number;data: BodyType<AdminUserPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resetAdminUserPassword>>, TError,{id: number;data: BodyType<AdminUserPasswordInput>}, TContext> => {
+
+const mutationKey = ['resetAdminUserPassword'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetAdminUserPassword>>, {id: number;data: BodyType<AdminUserPasswordInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  resetAdminUserPassword(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetAdminUserPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof resetAdminUserPassword>>>
+    export type ResetAdminUserPasswordMutationBody = BodyType<AdminUserPasswordInput>
+    export type ResetAdminUserPasswordMutationError = ErrorType<void>
+
+    /**
+ * @summary Establecer o reestablecer la contraseña de un usuario
+ */
+export const useResetAdminUserPassword = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetAdminUserPassword>>, TError,{id: number;data: BodyType<AdminUserPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resetAdminUserPassword>>,
+        TError,
+        {id: number;data: BodyType<AdminUserPasswordInput>},
+        TContext
+      > => {
+      return useMutation(getResetAdminUserPasswordMutationOptions(options));
+    }
+
 export const getGetTicketUrl = (id: number,) => {
 
 
@@ -1892,7 +1966,7 @@ export const getGetMotivoStatsUrl = () => {
 }
 
 /**
- * @summary Get ticket counts grouped by motivo
+ * @summary Get ticket counts grouped by normalized contact category
  */
 export const getMotivoStats = async ( options?: RequestInit): Promise<MotivoStat[]> => {
 
@@ -1939,7 +2013,7 @@ export type GetMotivoStatsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Get ticket counts grouped by motivo
+ * @summary Get ticket counts grouped by normalized contact category
  */
 
 export function useGetMotivoStats<TData = Awaited<ReturnType<typeof getMotivoStats>>, TError = ErrorType<unknown>>(

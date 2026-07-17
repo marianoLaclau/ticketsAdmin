@@ -52,7 +52,6 @@ const CAMPOS_TEXTO: Array<{ campo: string; label: string; requerido?: boolean }>
   { campo: 'dni', label: 'DNI' },
   { campo: 'empresa', label: 'Empresa' },
   { campo: 'email', label: 'Email' },
-  { campo: 'asignado_a', label: 'Asignado a' },
   { campo: 'audio_url', label: 'URL del audio' },
 ];
 
@@ -70,7 +69,6 @@ function formVacio() {
     motivo: '',
     resumen: '',
     notas: '',
-    asignado_a: '',
     audio_url: '',
     estado: 'nuevo',
     prioridad: 'media',
@@ -144,7 +142,6 @@ export default function Admin() {
       motivo: t.motivo,
       resumen: t.resumen ?? '',
       notas: t.notas ?? '',
-      asignado_a: t.asignado_a ?? '',
       audio_url: t.audio_url ?? '',
       estado: t.estado,
       prioridad: t.prioridad,
@@ -164,7 +161,6 @@ export default function Admin() {
       motivo: form.motivo,
       resumen: form.resumen || undefined,
       notas: form.notas || undefined,
-      asignado_a: form.asignado_a || undefined,
       audio_url: form.audio_url || undefined,
       estado: form.estado as TicketEstado,
       prioridad: form.prioridad as TicketPrioridad,

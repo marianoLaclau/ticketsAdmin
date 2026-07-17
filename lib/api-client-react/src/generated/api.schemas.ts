@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 export interface LoginInput {
-  /** Email (o nombre de usuario) con el que figura en el catálogo */
+  /** Nombre de usuario asignado al crear la cuenta (no el email) */
   usuario: string;
   password: string;
 }
@@ -71,6 +71,11 @@ export interface AdminUser {
   nombre: string;
   /** @nullable */
   apellido: string | null;
+  /**
+     * Identificador de login. Nullable solo por compatibilidad con filas muy viejas; el backend lo backfillea al arrancar.
+     * @nullable
+     */
+  username: string | null;
   email: string;
   role_id: number;
   activo: boolean;
@@ -89,6 +94,19 @@ export interface AdminUserInput {
      * @nullable
      */
   apellido?: string | null;
+  /**
+     * Identificador de login que se le entrega al usuario junto con la contraseña.
+     * @minLength 3
+     * @maxLength 60
+     * @pattern ^\S+$
+     */
+  username: string;
+  /**
+     * Contraseña inicial (se guarda hasheada). El SysAdmin la define y se la entrega al usuario.
+     * @minLength 6
+     * @maxLength 128
+     */
+  password: string;
   /**
      * @maxLength 254
      * @pattern ^[^@\s]+@[^@\s]+\.[^@\s]+$
@@ -111,6 +129,12 @@ export interface AdminUserUpdate {
      */
   apellido?: string | null;
   /**
+     * @minLength 3
+     * @maxLength 60
+     * @pattern ^\S+$
+     */
+  username?: string;
+  /**
      * @maxLength 254
      * @pattern ^[^@\s]+@[^@\s]+\.[^@\s]+$
      */
@@ -118,6 +142,15 @@ export interface AdminUserUpdate {
   /** @minimum 1 */
   role_id?: number;
   activo?: boolean;
+}
+
+export interface AdminUserPasswordInput {
+  /**
+     * Contraseña nueva en texto plano (se guarda hasheada)
+     * @minLength 6
+     * @maxLength 128
+     */
+  password: string;
 }
 
 export interface AdminUserListResponse {
@@ -163,6 +196,20 @@ export interface AdminTruncateResult {
   seguimientos_eliminados: number;
 }
 
+export type MotivoCategoria = typeof MotivoCategoria[keyof typeof MotivoCategoria];
+
+
+export const MotivoCategoria = {
+  haberes_pagos: 'haberes_pagos',
+  recibos_documentacion: 'recibos_documentacion',
+  vacaciones_licencias: 'vacaciones_licencias',
+  bajas_liquidacion: 'bajas_liquidacion',
+  empleo_postulaciones: 'empleo_postulaciones',
+  contacto_general: 'contacto_general',
+  reclamos: 'reclamos',
+  sin_clasificar: 'sin_clasificar',
+} as const;
+
 export type TicketEstado = typeof TicketEstado[keyof typeof TicketEstado];
 
 
@@ -199,12 +246,21 @@ export interface Ticket {
   /** @nullable */
   email?: string | null;
   motivo: string;
+  motivo_categoria: MotivoCategoria;
   /** @nullable */
   resumen?: string | null;
   notificado: boolean;
   estado: TicketEstado;
   prioridad: TicketPrioridad;
-  /** @nullable */
+  /**
+     * Identidad autoritativa del usuario asignado; la establece el backend al cambiar el estado
+     * @nullable
+     */
+  asignado_usuario_id?: number | null;
+  /**
+     * Nombre visible del responsable o valor histórico/importado
+     * @nullable
+     */
   asignado_a?: string | null;
   /** @nullable */
   audio_url?: string | null;
@@ -290,6 +346,7 @@ export interface TicketInput {
   notificado?: boolean;
   estado?: TicketInputEstado;
   prioridad?: TicketInputPrioridad;
+  /** Valor histórico o externo; las autoasignaciones internas se derivan de la sesión */
   asignado_a?: string;
   audio_url?: string;
   notas?: string;
@@ -335,7 +392,6 @@ export interface TicketUpdate {
   notificado?: boolean;
   estado?: TicketUpdateEstado;
   prioridad?: TicketUpdatePrioridad;
-  asignado_a?: string;
   audio_url?: string;
   notas?: string;
   fecha_limite?: string;
@@ -376,6 +432,8 @@ export interface DashboardStats {
 }
 
 export interface MotivoStat {
+  categoria: MotivoCategoria;
+  /** Etiqueta legible de la categoría */
   motivo: string;
   cantidad: number;
 }
@@ -397,6 +455,10 @@ hora_desde?: string;
 hora_hasta?: string;
 empresa?: string;
 motivo?: string;
+/**
+ * Categoría normalizada derivada del motivo original
+ */
+motivo_categoria?: MotivoCategoria;
 search?: string;
 vencidos?: boolean;
 /**

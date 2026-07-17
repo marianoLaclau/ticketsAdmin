@@ -2,6 +2,10 @@ import { Router } from "express";
 import { db, ticketsTable, seguimientosTable } from "@workspace/db";
 import { eq, lt, not, inArray, gte, and, desc, asc } from "drizzle-orm";
 import { GetActividadRecienteQueryParams } from "@workspace/api-zod";
+import {
+  MOTIVO_CATEGORIA_LABELS,
+  type MotivoCategoria,
+} from "@workspace/ingesta";
 
 const router = Router();
 
@@ -94,17 +98,23 @@ router.get("/dashboard/tickets-vencidos", async (req, res) => {
   res.json(tickets);
 });
 
-// Motivo stats
+// Estadísticas por categoría derivada. El motivo original nunca se modifica.
 router.get("/dashboard/motivos", async (req, res) => {
   const tickets = await db.select().from(ticketsTable);
-  const motivoCounts: Record<string, number> = {};
+  const motivoCounts = new Map<MotivoCategoria, number>();
   for (const t of tickets) {
-    motivoCounts[t.motivo] = (motivoCounts[t.motivo] || 0) + 1;
+    motivoCounts.set(
+      t.motivo_categoria,
+      (motivoCounts.get(t.motivo_categoria) ?? 0) + 1,
+    );
   }
-  const result = Object.entries(motivoCounts)
-    .map(([motivo, cantidad]) => ({ motivo, cantidad }))
-    .sort((a, b) => b.cantidad - a.cantidad)
-    .slice(0, 10);
+  const result = [...motivoCounts.entries()]
+    .map(([categoria, cantidad]) => ({
+      categoria,
+      motivo: MOTIVO_CATEGORIA_LABELS[categoria],
+      cantidad,
+    }))
+    .sort((a, b) => b.cantidad - a.cantidad);
   res.json(result);
 });
 

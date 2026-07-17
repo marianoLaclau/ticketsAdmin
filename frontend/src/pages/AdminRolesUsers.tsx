@@ -8,6 +8,7 @@ import {
   useDeleteAdminRole,
   useListAdminRoles,
   useListAdminUsers,
+  useResetAdminUserPassword,
   useUpdateAdminRole,
   useUpdateAdminUser,
   type AdminRole,
@@ -21,6 +22,7 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
+  KeyRound,
   Loader2,
   Pencil,
   Plus,
@@ -66,6 +68,9 @@ import { formatDate } from '@/lib/utils-tickets';
 type UserFormState = {
   nombre: string;
   apellido: string;
+  username: string;
+  password: string;
+  passwordRepetida: string;
   email: string;
   roleId: string;
   activo: boolean;
@@ -80,6 +85,9 @@ type RoleFormState = {
 const emptyUserForm = (): UserFormState => ({
   nombre: '',
   apellido: '',
+  username: '',
+  password: '',
+  passwordRepetida: '',
   email: '',
   roleId: '',
   activo: true,
@@ -177,9 +185,39 @@ export default function AdminRolesUsers() {
 
   const createUser = useCreateAdminUser({ request: adminRequest });
   const updateUser = useUpdateAdminUser({ request: adminRequest });
+  const resetPassword = useResetAdminUserPassword({ request: adminRequest });
   const [userDialogOpen, setUserDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [userForm, setUserForm] = useState<UserFormState>(emptyUserForm);
+
+  // Reestablecer contraseña (la "llavesita" de cada usuario)
+  const [passwordUser, setPasswordUser] = useState<AdminUser | null>(null);
+  const [passwordNueva, setPasswordNueva] = useState('');
+  const [passwordRepetida, setPasswordRepetida] = useState('');
+
+  const openResetPassword = (user: AdminUser) => {
+    setPasswordNueva('');
+    setPasswordRepetida('');
+    setPasswordUser(user);
+  };
+
+  const savePassword = () => {
+    if (!passwordUser) return;
+    resetPassword.mutate(
+      { id: passwordUser.id, data: { password: passwordNueva } },
+      {
+        onSuccess: () => {
+          setPasswordUser(null);
+          toast({
+            variant: 'success',
+            title: 'Contraseña actualizada',
+            description: `${passwordUser.nombre} deberá ingresar con la clave nueva (sus sesiones fueron cerradas).`,
+          });
+        },
+        onError: showError('No se pudo actualizar la contraseña'),
+      },
+    );
+  };
 
   const openCreateUser = () => {
     setEditingUser(null);
@@ -195,6 +233,9 @@ export default function AdminRolesUsers() {
     setUserForm({
       nombre: user.nombre,
       apellido: user.apellido ?? '',
+      username: user.username ?? '',
+      password: '',
+      passwordRepetida: '',
       email: user.email,
       roleId: String(user.role_id),
       activo: user.activo,
@@ -205,23 +246,38 @@ export default function AdminRolesUsers() {
   const saveUser = () => {
     const nombre = userForm.nombre.trim();
     const email = userForm.email.trim().toLowerCase();
+    const username = userForm.username.trim().toLowerCase();
     const roleId = Number(userForm.roleId);
-    if (!nombre || !email || !Number.isInteger(roleId) || roleId < 1) {
+    if (!nombre || !email || !username || !Number.isInteger(roleId) || roleId < 1) {
       toast({
         variant: 'warning',
         title: 'Faltan datos obligatorios',
-        description: 'Completá nombre, email y rol antes de guardar.',
+        description: 'Completá nombre, nombre de usuario, email y rol antes de guardar.',
       });
       return;
     }
 
-    const data: AdminUserInput = {
-      nombre,
-      apellido: userForm.apellido.trim() || null,
-      email,
-      role_id: roleId,
-      activo: userForm.activo,
-    };
+    // La contraseña solo se pide al crear — para un usuario existente se
+    // cambia con la llavesita de reset (revoca sus sesiones activas).
+    if (!editingUser) {
+      if (userForm.password.length < 6) {
+        toast({
+          variant: 'warning',
+          title: 'Contraseña muy corta',
+          description: 'La contraseña inicial debe tener al menos 6 caracteres.',
+        });
+        return;
+      }
+      if (userForm.password !== userForm.passwordRepetida) {
+        toast({
+          variant: 'warning',
+          title: 'Las contraseñas no coinciden',
+          description: 'Revisá los dos campos de contraseña.',
+        });
+        return;
+      }
+    }
+
     const userName = `${nombre} ${userForm.apellido.trim()}`.trim();
     const roleName = roleById.get(roleId) ?? `Rol #${roleId}`;
     const onSuccess = () => {
@@ -230,16 +286,33 @@ export default function AdminRolesUsers() {
       toast({
         variant: 'success',
         title: editingUser ? 'Usuario actualizado' : 'Usuario creado',
-        description: `${userName} · ${email} · ${roleName}`,
+        description: `${userName} · ${username} · ${roleName}`,
       });
     };
 
     if (editingUser) {
+      const data: AdminUserUpdate = {
+        nombre,
+        apellido: userForm.apellido.trim() || null,
+        username,
+        email,
+        role_id: roleId,
+        activo: userForm.activo,
+      };
       updateUser.mutate(
-        { id: editingUser.id, data: data satisfies AdminUserUpdate },
+        { id: editingUser.id, data },
         { onSuccess, onError: showError('No se pudo actualizar el usuario') },
       );
     } else {
+      const data: AdminUserInput = {
+        nombre,
+        apellido: userForm.apellido.trim() || null,
+        username,
+        password: userForm.password,
+        email,
+        role_id: roleId,
+        activo: userForm.activo,
+      };
       createUser.mutate({ data }, { onSuccess, onError: showError('No se pudo crear el usuario') });
     }
   };
@@ -388,16 +461,6 @@ export default function AdminRolesUsers() {
         onAdminKeyChange={saveAdminKey}
       />
 
-      <Alert className="border-amber-200 bg-amber-50/70 text-amber-950">
-        <AlertTriangle className="h-4 w-4 text-amber-700" />
-        <AlertTitle>La llave de administración sigue siendo única</AlertTitle>
-        <AlertDescription className="text-amber-900/80">
-          Por ahora, <code className="font-semibold">ADMIN_API_KEY</code> continúa siendo la única credencial que
-          protege estas operaciones. Los usuarios y roles de esta pantalla se gestionan en la base, pero todavía no
-          autentican sesiones ni restringen pantallas.
-        </AlertDescription>
-      </Alert>
-
       <Tabs defaultValue="users" className="space-y-4">
         <TabsList>
           <TabsTrigger value="users" className="gap-1.5">
@@ -466,7 +529,8 @@ export default function AdminRolesUsers() {
                 <TableHeader className="bg-slate-50/80">
                   <TableRow>
                     <TableHead className="w-[70px] text-xs uppercase">ID</TableHead>
-                    <TableHead className="text-xs uppercase">Usuario</TableHead>
+                    <TableHead className="text-xs uppercase">Nombre</TableHead>
+                    <TableHead className="text-xs uppercase">Nombre de usuario</TableHead>
                     <TableHead className="text-xs uppercase">Email</TableHead>
                     <TableHead className="text-xs uppercase">Rol</TableHead>
                     <TableHead className="text-xs uppercase">Estado</TableHead>
@@ -478,7 +542,7 @@ export default function AdminRolesUsers() {
                   {usersQuery.isLoading ? (
                     Array.from({ length: 6 }).map((_, row) => (
                       <TableRow key={row}>
-                        {Array.from({ length: 7 }).map((__, cell) => (
+                        {Array.from({ length: 8 }).map((__, cell) => (
                           <TableCell key={cell}>
                             <Skeleton className="h-4 w-full" />
                           </TableCell>
@@ -487,13 +551,13 @@ export default function AdminRolesUsers() {
                     ))
                   ) : usersQuery.isError ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center text-sm text-destructive">
+                      <TableCell colSpan={8} className="h-32 text-center text-sm text-destructive">
                         {adminErrorMessage(usersQuery.error)}
                       </TableCell>
                     </TableRow>
                   ) : users.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={8} className="h-32 text-center text-sm text-muted-foreground">
                         No hay usuarios que coincidan con los filtros.
                       </TableCell>
                     </TableRow>
@@ -504,6 +568,7 @@ export default function AdminRolesUsers() {
                         <TableCell className="font-medium">
                           {user.nombre} {user.apellido ?? ''}
                         </TableCell>
+                        <TableCell className="font-mono text-xs text-slate-600">{user.username ?? '—'}</TableCell>
                         <TableCell className="text-muted-foreground">{user.email}</TableCell>
                         <TableCell>
                           <Badge variant="outline">{roleById.get(user.role_id) ?? `Rol #${user.role_id}`}</Badge>
@@ -531,6 +596,15 @@ export default function AdminRolesUsers() {
                               title="Editar usuario"
                             >
                               <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-amber-600 hover:text-amber-700"
+                              onClick={() => openResetPassword(user)}
+                              title="Reestablecer contraseña"
+                            >
+                              <KeyRound className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </TableCell>
@@ -751,6 +825,24 @@ export default function AdminRolesUsers() {
               </div>
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor="user-username">Nombre de usuario *</Label>
+              <Input
+                id="user-username"
+                value={userForm.username}
+                onChange={(event) =>
+                  setUserForm((form) => ({
+                    ...form,
+                    username: event.target.value,
+                  }))
+                }
+                maxLength={60}
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground">
+                Es lo que el usuario va a escribir para iniciar sesión — no tiene que ser el email.
+              </p>
+            </div>
+            <div className="space-y-1.5">
               <Label htmlFor="user-email">Email *</Label>
               <Input
                 id="user-email"
@@ -765,6 +857,49 @@ export default function AdminRolesUsers() {
                 maxLength={254}
               />
             </div>
+            {!editingUser && (
+              <div className="grid gap-2 sm:grid-cols-2 rounded-md border border-amber-200 bg-amber-50/50 p-3">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-amber-800">
+                    <KeyRound className="h-3.5 w-3.5" /> Credenciales iniciales — se las entregás vos al usuario
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="user-password">Contraseña *</Label>
+                  <Input
+                    id="user-password"
+                    type="password"
+                    value={userForm.password}
+                    onChange={(event) =>
+                      setUserForm((form) => ({
+                        ...form,
+                        password: event.target.value,
+                      }))
+                    }
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="user-password-repeat">Repetir contraseña *</Label>
+                  <Input
+                    id="user-password-repeat"
+                    type="password"
+                    value={userForm.passwordRepetida}
+                    onChange={(event) =>
+                      setUserForm((form) => ({
+                        ...form,
+                        passwordRepetida: event.target.value,
+                      }))
+                    }
+                    autoComplete="new-password"
+                  />
+                  {userForm.passwordRepetida.length > 0 && userForm.passwordRepetida !== userForm.password && (
+                    <p className="text-xs text-destructive">Las contraseñas no coinciden.</p>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground sm:col-span-2">Mínimo 6 caracteres.</p>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Rol *</Label>
               <Select value={userForm.roleId} onValueChange={(roleId) => setUserForm((form) => ({ ...form, roleId }))}>
@@ -891,6 +1026,65 @@ export default function AdminRolesUsers() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Reestablecer contraseña */}
+      <Dialog open={Boolean(passwordUser)} onOpenChange={(open) => !open && setPasswordUser(null)}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4 text-amber-600" />
+              Reestablecer contraseña
+            </DialogTitle>
+            <DialogDescription>
+              {passwordUser ? `${passwordUser.nombre} ${passwordUser.apellido ?? ''} (${passwordUser.email})` : ''}.
+              Al guardar, sus sesiones abiertas se cierran y deberá entrar con la clave nueva.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="password-nueva">Contraseña nueva</Label>
+              <Input
+                id="password-nueva"
+                type="password"
+                value={passwordNueva}
+                onChange={(event) => setPasswordNueva(event.target.value)}
+                autoComplete="new-password"
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">Mínimo 6 caracteres.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="password-repetida">Repetir contraseña</Label>
+              <Input
+                id="password-repetida"
+                type="password"
+                value={passwordRepetida}
+                onChange={(event) => setPasswordRepetida(event.target.value)}
+                autoComplete="new-password"
+              />
+              {passwordRepetida.length > 0 && passwordRepetida !== passwordNueva && (
+                <p className="text-xs text-destructive">Las contraseñas no coinciden.</p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPasswordUser(null)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={savePassword}
+              disabled={
+                resetPassword.isPending ||
+                passwordNueva.length < 6 ||
+                passwordNueva !== passwordRepetida
+              }
+            >
+              {resetPassword.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              Guardar contraseña
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

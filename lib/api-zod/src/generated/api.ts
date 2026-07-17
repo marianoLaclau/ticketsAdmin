@@ -37,6 +37,7 @@ export const ListTicketsQueryParams = zod.object({
   "hora_hasta": zod.coerce.string().optional(),
   "empresa": zod.coerce.string().optional(),
   "motivo": zod.coerce.string().optional(),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'sin_clasificar']).optional().describe('Categoría normalizada derivada del motivo original'),
   "search": zod.coerce.string().optional(),
   "vencidos": zod.boolean().optional(),
   "order": zod.enum(['asc', 'desc']).default(listTicketsQueryOrderDefault).describe('Orden compuesto por día de creación y, dentro de cada día, por hora del llamado'),
@@ -61,11 +62,13 @@ export const ListTicketsResponse = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
   "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']),
-  "asignado_a": zod.string().nullish(),
+  "asignado_usuario_id": zod.number().nullish().describe('Identidad autoritativa del usuario asignado; la establece el backend al cambiar el estado'),
+  "asignado_a": zod.string().nullish().describe('Nombre visible del responsable o valor histórico\/importado'),
   "audio_url": zod.string().nullish(),
   "notas": zod.string().nullish(),
   "fecha_creacion": zod.coerce.date(),
@@ -84,7 +87,7 @@ export const ListTicketsResponse = zod.object({
  * @summary Iniciar sesión
  */
 export const LoginBody = zod.object({
-  "usuario": zod.string().describe('Email (o nombre de usuario) con el que figura en el catálogo'),
+  "usuario": zod.string().describe('Nombre de usuario asignado al crear la cuenta (no el email)'),
   "password": zod.string()
 })
 
@@ -143,7 +146,7 @@ export const IngestTicketBody = zod.object({
   "notificado": zod.boolean().default(ingestTicketBodyNotificadoDefault),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']).default(ingestTicketBodyEstadoDefault),
   "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).default(ingestTicketBodyPrioridadDefault),
-  "asignado_a": zod.string().optional(),
+  "asignado_a": zod.string().optional().describe('Valor histórico o externo; las autoasignaciones internas se derivan de la sesión'),
   "audio_url": zod.string().optional(),
   "notas": zod.string().optional(),
   "fecha_limite": zod.coerce.date().optional(),
@@ -168,11 +171,13 @@ export const IngestTicketResponse = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
   "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']),
-  "asignado_a": zod.string().nullish(),
+  "asignado_usuario_id": zod.number().nullish().describe('Identidad autoritativa del usuario asignado; la establece el backend al cambiar el estado'),
+  "asignado_a": zod.string().nullish().describe('Nombre visible del responsable o valor histórico\/importado'),
   "audio_url": zod.string().nullish(),
   "notas": zod.string().nullish(),
   "fecha_creacion": zod.coerce.date(),
@@ -210,7 +215,7 @@ export const CreateAdminTicketBody = zod.object({
   "notificado": zod.boolean().default(createAdminTicketBodyNotificadoDefault),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']).default(createAdminTicketBodyEstadoDefault),
   "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).default(createAdminTicketBodyPrioridadDefault),
-  "asignado_a": zod.string().optional(),
+  "asignado_a": zod.string().optional().describe('Valor histórico o externo; las autoasignaciones internas se derivan de la sesión'),
   "audio_url": zod.string().optional(),
   "notas": zod.string().optional(),
   "fecha_limite": zod.coerce.date().optional(),
@@ -233,11 +238,13 @@ export const CreateAdminTicketResponse = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
   "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']),
-  "asignado_a": zod.string().nullish(),
+  "asignado_usuario_id": zod.number().nullish().describe('Identidad autoritativa del usuario asignado; la establece el backend al cambiar el estado'),
+  "asignado_a": zod.string().nullish().describe('Nombre visible del responsable o valor histórico\/importado'),
   "audio_url": zod.string().nullish(),
   "notas": zod.string().nullish(),
   "fecha_creacion": zod.coerce.date(),
@@ -412,6 +419,7 @@ export const ListAdminUsersResponse = zod.object({
   "id": zod.number(),
   "nombre": zod.string(),
   "apellido": zod.string().nullable(),
+  "username": zod.string().nullable().describe('Identificador de login. Nullable solo por compatibilidad con filas muy viejas; el backend lo backfillea al arrancar.'),
   "email": zod.string(),
   "role_id": zod.number(),
   "activo": zod.boolean(),
@@ -431,6 +439,14 @@ export const createAdminUserBodyNombreMax = 100;
 
 export const createAdminUserBodyApellidoMax = 100;
 
+export const createAdminUserBodyUsernameMin = 3;
+export const createAdminUserBodyUsernameMax = 60;
+
+
+export const createAdminUserBodyUsernameRegExp = new RegExp('^\\S+$');
+export const createAdminUserBodyPasswordMin = 6;
+export const createAdminUserBodyPasswordMax = 128;
+
 export const createAdminUserBodyEmailMax = 254;
 
 
@@ -441,6 +457,8 @@ export const createAdminUserBodyActivoDefault = true;
 export const CreateAdminUserBody = zod.object({
   "nombre": zod.string().min(1).max(createAdminUserBodyNombreMax),
   "apellido": zod.string().max(createAdminUserBodyApellidoMax).nullish(),
+  "username": zod.string().min(createAdminUserBodyUsernameMin).max(createAdminUserBodyUsernameMax).regex(createAdminUserBodyUsernameRegExp).describe('Identificador de login que se le entrega al usuario junto con la contraseña.'),
+  "password": zod.string().min(createAdminUserBodyPasswordMin).max(createAdminUserBodyPasswordMax).describe('Contraseña inicial (se guarda hasheada). El SysAdmin la define y se la entrega al usuario.'),
   "email": zod.string().max(createAdminUserBodyEmailMax).regex(createAdminUserBodyEmailRegExp),
   "role_id": zod.number().min(1),
   "activo": zod.boolean().default(createAdminUserBodyActivoDefault)
@@ -450,6 +468,7 @@ export const CreateAdminUserResponse = zod.object({
   "id": zod.number(),
   "nombre": zod.string(),
   "apellido": zod.string().nullable(),
+  "username": zod.string().nullable().describe('Identificador de login. Nullable solo por compatibilidad con filas muy viejas; el backend lo backfillea al arrancar.'),
   "email": zod.string(),
   "role_id": zod.number(),
   "activo": zod.boolean(),
@@ -473,6 +492,11 @@ export const updateAdminUserBodyNombreMax = 100;
 
 export const updateAdminUserBodyApellidoMax = 100;
 
+export const updateAdminUserBodyUsernameMin = 3;
+export const updateAdminUserBodyUsernameMax = 60;
+
+
+export const updateAdminUserBodyUsernameRegExp = new RegExp('^\\S+$');
 export const updateAdminUserBodyEmailMax = 254;
 
 
@@ -483,6 +507,7 @@ export const updateAdminUserBodyEmailRegExp = new RegExp('^[^@\\s]+@[^@\\s]+\\.[
 export const UpdateAdminUserBody = zod.object({
   "nombre": zod.string().min(1).max(updateAdminUserBodyNombreMax).optional(),
   "apellido": zod.string().max(updateAdminUserBodyApellidoMax).nullish(),
+  "username": zod.string().min(updateAdminUserBodyUsernameMin).max(updateAdminUserBodyUsernameMax).regex(updateAdminUserBodyUsernameRegExp).optional(),
   "email": zod.string().max(updateAdminUserBodyEmailMax).regex(updateAdminUserBodyEmailRegExp).optional(),
   "role_id": zod.number().min(1).optional(),
   "activo": zod.boolean().optional()
@@ -492,12 +517,36 @@ export const UpdateAdminUserResponse = zod.object({
   "id": zod.number(),
   "nombre": zod.string(),
   "apellido": zod.string().nullable(),
+  "username": zod.string().nullable().describe('Identificador de login. Nullable solo por compatibilidad con filas muy viejas; el backend lo backfillea al arrancar.'),
   "email": zod.string(),
   "role_id": zod.number(),
   "activo": zod.boolean(),
   "fecha_creacion": zod.coerce.date(),
   "fecha_actualizacion": zod.coerce.date()
 })
+
+
+/**
+ * Asigna una contraseña nueva al usuario (hasheada con scrypt) y revoca todas sus sesiones activas: si estaba logueado en algún navegador, queda afuera y debe volver a entrar con la clave nueva.
+ * @summary Establecer o reestablecer la contraseña de un usuario
+ */
+
+
+
+export const ResetAdminUserPasswordParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const resetAdminUserPasswordBodyPasswordMin = 6;
+export const resetAdminUserPasswordBodyPasswordMax = 128;
+
+
+
+export const ResetAdminUserPasswordBody = zod.object({
+  "password": zod.string().min(resetAdminUserPasswordBodyPasswordMin).max(resetAdminUserPasswordBodyPasswordMax).describe('Contraseña nueva en texto plano (se guarda hasheada)')
+})
+
+export const ResetAdminUserPasswordResponse = zod.void()
 
 
 /**
@@ -523,11 +572,13 @@ export const GetTicketResponse = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
   "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']),
-  "asignado_a": zod.string().nullish(),
+  "asignado_usuario_id": zod.number().nullish().describe('Identidad autoritativa del usuario asignado; la establece el backend al cambiar el estado'),
+  "asignado_a": zod.string().nullish().describe('Nombre visible del responsable o valor histórico\/importado'),
   "audio_url": zod.string().nullish(),
   "notas": zod.string().nullish(),
   "fecha_creacion": zod.coerce.date(),
@@ -572,7 +623,6 @@ export const UpdateTicketBody = zod.object({
   "notificado": zod.boolean().optional(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']).optional(),
   "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional(),
-  "asignado_a": zod.string().optional(),
   "audio_url": zod.string().optional(),
   "notas": zod.string().optional(),
   "fecha_limite": zod.coerce.date().optional(),
@@ -596,11 +646,13 @@ export const UpdateTicketResponse = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
   "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']),
-  "asignado_a": zod.string().nullish(),
+  "asignado_usuario_id": zod.number().nullish().describe('Identidad autoritativa del usuario asignado; la establece el backend al cambiar el estado'),
+  "asignado_a": zod.string().nullish().describe('Nombre visible del responsable o valor histórico\/importado'),
   "audio_url": zod.string().nullish(),
   "notas": zod.string().nullish(),
   "fecha_creacion": zod.coerce.date(),
@@ -722,11 +774,13 @@ export const GetTicketsVencidosResponseItem = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
   "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']),
-  "asignado_a": zod.string().nullish(),
+  "asignado_usuario_id": zod.number().nullish().describe('Identidad autoritativa del usuario asignado; la establece el backend al cambiar el estado'),
+  "asignado_a": zod.string().nullish().describe('Nombre visible del responsable o valor histórico\/importado'),
   "audio_url": zod.string().nullish(),
   "notas": zod.string().nullish(),
   "fecha_creacion": zod.coerce.date(),
@@ -738,10 +792,11 @@ export const GetTicketsVencidosResponse = zod.array(GetTicketsVencidosResponseIt
 
 
 /**
- * @summary Get ticket counts grouped by motivo
+ * @summary Get ticket counts grouped by normalized contact category
  */
 export const GetMotivoStatsResponseItem = zod.object({
-  "motivo": zod.string(),
+  "categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'sin_clasificar']),
+  "motivo": zod.string().describe('Etiqueta legible de la categoría'),
   "cantidad": zod.number()
 })
 export const GetMotivoStatsResponse = zod.array(GetMotivoStatsResponseItem)

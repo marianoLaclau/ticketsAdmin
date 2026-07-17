@@ -18,6 +18,12 @@ export interface AdminUserUpdate {
      */
   apellido?: string | null;
   /**
+     * @minLength 3
+     * @maxLength 60
+     * @pattern ^\S+$
+     */
+  username?: string;
+  /**
      * @maxLength 254
      * @pattern ^[^@\s]+@[^@\s]+\.[^@\s]+$
      */

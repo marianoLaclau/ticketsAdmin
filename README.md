@@ -1,26 +1,72 @@
 # GSB Tickets
 
-Sistema de gestión de tickets que se alimenta automáticamente de llamadas telefónicas: un agente de voz de ElevenLabs atiende la llamada y n8n envía el JSON resultante a la API de este sistema (y en paralelo a un Excel de respaldo). Los tickets no se crean a mano.
-
-📖 **Documentación completa del flujo**: [docs/FLUJO.md](docs/FLUJO.md)
-🚀 **Despliegue en el servidor de testing (Docker + CI/CD)**: [docs/DEPLOY.md](docs/DEPLOY.md)
-
-## Estructura
+Sistema de gestión de tickets que se alimenta **automáticamente** de llamadas telefónicas: un agente de voz de ElevenLabs atiende la llamada, n8n arma el JSON y se lo manda a este sistema. Los tickets no se crean a mano en el flujo normal — nacen solos con cada llamada.
 
 ```
-backend/    → API Express 5 (puerto 5000)
-frontend/   → React + Vite (puerto 3000, proxea /api al backend)
+Llamada telefónica → ElevenLabs (agente de voz) → n8n → POST /api/webhooks/ticket → SQLite → Dashboard / Tickets
+                                                              ↑
+                                                    también: importador CSV / panel admin
+```
+
+📖 **Flujo de negocio completo** (ElevenLabs → n8n → webhook → SLA): [docs/FLUJO.md](docs/FLUJO.md)
+🚀 **Despliegue en el servidor de testing** (Docker + CI/CD): [docs/DEPLOY.md](docs/DEPLOY.md)
+🛠️ **Backend en detalle** (API, auth, roles, base de datos, migraciones): [backend/README_BACKEND.md](backend/README_BACKEND.md)
+🎨 **Frontend en detalle** (páginas, routing, estado, componentes): [frontend/README_FRONTEND.md](frontend/README_FRONTEND.md)
+📓 **Bitácora de cambios técnicos**: [docs/BITACORA_AGENTES.MD](docs/BITACORA_AGENTES.MD)
+
+## Qué hace el sistema
+
+- **Ingesta automática**: cada llamada atendida por el agente de voz crea un ticket solo, vía webhook. Idempotente — un reintento de n8n no duplica nada.
+- **Gestión de tickets**: dashboard con KPIs y gráficos, listado con filtros (estado, prioridad, motivo, empresa, fechas, horas, texto libre) y orden/paginación, detalle con historial de seguimientos y reproductor de audio de la llamada.
+- **Categorización automática del motivo**: un clasificador basado en reglas agrupa el texto libre de `motivo`/`resumen` en categorías estables (haberes y pagos, recibos, vacaciones, bajas, empleo, reclamos, etc.) para poder filtrar y graficar sin que cada redacción de n8n sea una categoría nueva.
+- **Actualización en vivo**: la app mantiene una conexión de Server-Sent Events; cuando entra un llamado nuevo (o se importa un CSV), todas las pestañas abiertas se refrescan al instante y muestran una notificación — sin recargar la página.
+- **Login obligatorio con roles**: nadie ve ninguna pantalla ni puede pegarle a la API sin sesión iniciada. Tres roles con permisos distintos (ver sección Autenticación).
+- **Panel de administración** (solo rol SysAdmin): CRUD manual de tickets, importador de CSV con simulación previa, "zona peligrosa" para vaciar la base, y gestión de roles/usuarios con reset de contraseña.
+- **Importador del histórico**: script CLI que carga de una vez un Excel/CSV viejo con el mismo motor de parseo que usa el panel web.
+- **Backup online de SQLite**: copia consistente con el WAL, verificada con `integrity_check`, sin sobrescribir destinos.
+
+## Autenticación y roles
+
+Todo el sistema exige sesión iniciada. Las únicas rutas públicas son `GET /api/healthz`, `POST /api/webhooks/ticket` (autenticado con su propia API key, para n8n) y `POST /api/auth/login`. Cualquier otra URL del frontend, sin sesión, muestra el login.
+
+| Rol | Puede |
+|---|---|
+| **SysAdmin** | Todo, incluido el panel de Administración (`/admin`, `/admin/roles-usuarios`) |
+| **Administrador** | Gestión completa de tickets — incluido pasarlos a **Cerrado** — pero sin acceso al panel de administración |
+| **Operador** | Gestión básica de tickets; **no puede cerrarlos** (la opción queda deshabilitada en la UI y el backend la rechaza igual) |
+
+Detalle completo (sesiones, hash de contraseñas, seed inicial, doble verificación del panel admin) en [backend/README_BACKEND.md](backend/README_BACKEND.md#autenticación-y-autorización).
+
+## Estructura del repo
+
+```
+backend/    → API Express 5 (puerto 5000) — ver backend/README_BACKEND.md
+frontend/   → React + Vite (puerto 3000, proxea /api al backend) — ver frontend/README_FRONTEND.md
 lib/
-  db/               → schemas Drizzle de tickets, roles y usuarios + cliente SQLite + migraciones (drizzle/)
-  ingesta/          → lógica compartida de parseo CSV/mapeo de columnas (la usan el CLI y /admin)
+  db/               → schemas Drizzle (tickets, seguimientos, roles, usuarios, sesiones) + cliente SQLite + migraciones (drizzle/) + backup
+  ingesta/          → lógica compartida de parseo CSV, clasificación de motivo y SLA (la usan el CLI y /admin)
   api-spec/         → contrato OpenAPI (openapi.yaml) + config de Orval
   api-client-react/ → hooks React Query generados
   api-zod/          → schemas Zod generados
-scripts/    → utilidades (importador histórico y backup SQLite online)
+scripts/    → utilidades CLI (importador histórico, backup SQLite)
 data/       → base SQLite (gitignoreado, solo en desarrollo local)
+docs/       → FLUJO.md, DEPLOY.md, BITACORA_AGENTES.MD
 Dockerfile.backend, Dockerfile.frontend, docker-compose.yml → despliegue en contenedores
 .github/workflows/deploy.yml → CI/CD: build + redeploy en cada push a main (self-hosted runner)
 ```
+
+## Quickstart (desarrollo local)
+
+```bash
+pnpm install
+cp .env.example .env        # completar WEBHOOK_API_KEY como mínimo
+pnpm --filter @workspace/db run push   # crea/actualiza el schema en data/tickets.db
+
+pnpm --filter @workspace/backend run dev    # API en :5000
+pnpm --filter @workspace/frontend run dev   # UI en :3000
+```
+
+Abrir http://localhost:3000 — el primer arranque del backend crea el usuario semilla **`sysadmin` / clave `admin`** (cambiarla apenas se pueda, desde Administración → Roles y usuarios → llavesita de reset).
 
 ## Comandos
 
@@ -31,7 +77,7 @@ Dockerfile.backend, Dockerfile.frontend, docker-compose.yml → despliegue en co
 - `pnpm --filter @workspace/api-spec run codegen` — regenera hooks y schemas Zod desde el spec OpenAPI
 - `pnpm --filter @workspace/db run push` — aplica cambios de schema a la base SQLite (dev only)
 - `pnpm --filter @workspace/scripts run import-excel -- <archivo.xlsx|csv> [--dry-run] [--sheet <nombre>]` — importa el histórico de llamadas (idempotente por conversation_id)
-- `pnpm run backup:db -- --output ./backups/tickets-AAAA-MM-DD.db` — crea un backup SQLite consistente con WAL, verifica su integridad y no sobrescribe archivos
+- `pnpm run backup:db -- --output ./backups/tickets-AAAA-MM-DD.db` — backup SQLite consistente con WAL, verifica integridad y no sobrescribe archivos
 - `pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts` — genera el SQL de migración tras cambiar el schema (commitear el resultado)
 - `WEBHOOK_API_KEY=... docker compose up -d --build` — levanta el stack completo en contenedores (ver [docs/DEPLOY.md](docs/DEPLOY.md))
 
@@ -39,35 +85,42 @@ Dockerfile.backend, Dockerfile.frontend, docker-compose.yml → despliegue en co
 
 Copiar `.env.example` a `.env` en la raíz:
 
-- `PORT` — puerto del backend (default 5000)
-- `WEBHOOK_API_KEY` — clave que n8n manda en el header `x-api-key` (requerida para el webhook)
-- `ADMIN_API_KEY` — única llave para las operaciones `/api/admin/*`, incluida la gestión de roles y usuarios (opcional en desarrollo; sin ella esos endpoints quedan abiertos). No es una contraseña de usuario ni crea una sesión.
-- `TICKETS_DB_PATH` — ruta del archivo SQLite (opcional, default `data/tickets.db`)
-- `TZ` — timezone del proceso backend (en Docker, default `America/Argentina/Buenos_Aires`); los filtros por día calendario usan esta zona
+| Variable | Para qué |
+|---|---|
+| `PORT` | Puerto del backend (default 5000) |
+| `HOST_IP` | IP de esta máquina en la red interna — la usa n8n para llegar al webhook (solo referencia, no la lee el código) |
+| `WEBHOOK_API_KEY` | Clave que n8n manda en `x-api-key` al crear tickets (requerida para el webhook) |
+| `ADMIN_API_KEY` | Segunda llave de las operaciones `/api/admin/*` (opcional en desarrollo; sin ella esas rutas solo dependen de la sesión + rol SysAdmin) |
+| `TICKETS_DB_PATH` | Ruta del archivo SQLite (opcional, default `data/tickets.db`) |
+| `TZ` | Timezone del proceso backend — en Docker por default `America/Argentina/Buenos_Aires`; los filtros por día calendario usan esta zona |
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5 · DB: SQLite (better-sqlite3) + Drizzle ORM
-- Validación: Zod (`zod/v4`), `drizzle-zod` · Codegen: Orval desde OpenAPI
-- Build backend: esbuild (bundle ESM; better-sqlite3 queda external y debe ser dependencia directa del backend)
+- **Backend**: Express 5 · SQLite (better-sqlite3) + Drizzle ORM · Zod (`zod/v4`) · scrypt para contraseñas · SSE nativo
+- **Frontend**: React 19 + Vite 7 · wouter (routing) · TanStack Query 5 · Tailwind 4 + shadcn/ui (Radix) · Recharts
+- **Codegen**: Orval genera hooks de React Query + validadores Zod desde un único contrato OpenAPI
+- **Build backend**: esbuild (bundle ESM; better-sqlite3 queda externo — ver Dockerfile.backend)
 
 ## Decisiones de arquitectura
 
-- **Ingesta por webhook, no leyendo el Excel**: n8n hace POST a `/api/webhooks/ticket` con header `x-api-key`. El endpoint es idempotente por `conversation_id` (reintento ⇒ 200 con `created: false`); el Excel queda solo como respaldo/histórico.
-- **SQLite en lugar de Postgres** (migrado 2026-07): better-sqlite3 con WAL alcanza para el volumen de llamadas. Fechas como `integer { mode: "timestamp_ms" }`, estados/prioridades como `text { enum }`.
-- **Roles y usuarios como catálogo administrativo**: se guardan en SQLite y se gestionan desde `/admin/roles-usuarios`. Todavía no hay contraseñas, login, sesiones ni autorización efectiva por rol; `ADMIN_API_KEY` continúa siendo el único control de las operaciones administrativas.
+- **Ingesta por webhook, no leyendo el Excel**: n8n hace POST a `/api/webhooks/ticket` con header `x-api-key`. Idempotente por `conversation_id` (reintento ⇒ 200 con `created: false`); el Excel de n8n queda solo como respaldo/histórico.
+- **Contract-first**: todo el contrato vive en `lib/api-spec/openapi.yaml`. Se edita el yaml, se corre `codegen`, y los dos lados (frontend y backend) quedan sincronizados por construcción.
+- **SQLite en lugar de Postgres** (migrado 2026-07): better-sqlite3 con WAL alcanza para el volumen de llamadas, sin servidor de base de datos que administrar.
+- **Login real con roles**, no solo una API key: sesiones en cookie `httpOnly` respaldadas en tabla, contraseñas con scrypt, y un candado global (`requireSession`) que protege toda la API salvo el webhook y el propio login.
+- **`ADMIN_API_KEY` es una segunda verificación, no la única**: las rutas `/admin/*` exigen sesión + rol SysAdmin + (opcionalmente) esta clave. Es defensa en profundidad para el panel más peligroso (incluye el truncate).
+- **Motivo original inmutable, categoría derivada**: `ticket.motivo` nunca se reescribe; `ticket.motivo_categoria` se recalcula con un clasificador de reglas cada vez que `motivo` o `resumen` cambian, y es lo que se usa para filtrar/graficar.
 - Los tickets **no se crean a mano** en el flujo normal: la vía de alta es el webhook (o el importador). El alta manual existe solo dentro del panel `/admin` (`POST /api/admin/tickets`), pensado para corrección de datos.
-- El resto del CRUD no tiene auth: está pensado para red local. Antes de exponerlo a internet hay que implementar autenticación y autorización reales.
-- **Migraciones en Docker, `push` en desarrollo local**: en local se usa `drizzle-kit push` (rápido, sin archivos de migración) contra `data/tickets.db`. En Docker el volumen arranca vacío, así que el contenedor corre `dist/migrate.mjs` (aplica `lib/db/drizzle/*.sql` vía el migrator de drizzle-orm, idempotente) antes de levantar la API — ver [docs/DEPLOY.md](docs/DEPLOY.md).
+- **Migraciones en Docker, `push` en desarrollo local**: en local se usa `drizzle-kit push` (rápido, sin archivos de migración) contra `data/tickets.db`. En Docker el volumen arranca vacío, así que el contenedor corre `dist/migrate.mjs` (aplica `lib/db/drizzle/*.sql`, idempotente) antes de levantar la API.
 
 ## Gotchas
 
 - En Windows, usar siempre pnpm; el preinstall usa Node (no `sh`).
 - `lib/db/drizzle.config.ts` normaliza la ruta del schema a barras `/` porque drizzle-kit usa globs que no toleran `\` de Windows.
-- No usar `sql\`...\``crudo con objetos`Date`como parámetro: better-sqlite3 no bindea`Date`. Usar los operadores tipados de Drizzle (`lt`, `gte`, …).
+- No usar `sql\`...\`` crudo con objetos `Date` como parámetro: better-sqlite3 no bindea `Date`. Usar los operadores tipados de Drizzle (`lt`, `gte`, …).
 - SQLite no tiene `ilike`; se usa `like` (case-insensitive para ASCII).
 - El `.env` de la raíz lo carga el backend (walk-up desde cwd); Vite no lo lee.
-- Con SQLite en modo WAL no hay que copiar solo `tickets.db` mientras la API está activa. Usar `pnpm run backup:db` o el procedimiento Docker de [docs/DEPLOY.md](docs/DEPLOY.md), que incluyen las páginas confirmadas del WAL y ejecutan `integrity_check`.
-- `pnpm --filter @workspace/backend deploy --prod` (usado en `Dockerfile.backend` para armar un `node_modules` de producción sin symlinks) necesita el flag `--legacy` en pnpm 11 con este workspace, si no tira `ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE`.
+- Con SQLite en modo WAL no hay que copiar solo `tickets.db` mientras la API está activa — usar `pnpm run backup:db` o el procedimiento Docker de [docs/DEPLOY.md](docs/DEPLOY.md).
+- `pnpm --filter @workspace/backend deploy --prod` (usado en `Dockerfile.backend`) necesita el flag `--legacy` en pnpm 11 con este workspace, si no tira `ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE`.
 - Si cambiás cualquier archivo de `lib/db/src/schema/`, generá la migración (`drizzle-kit generate`) y commiteala **antes** de mergear — si no, el próximo deploy en Docker no va a tener las tablas nuevas.
+- El handler global de 401 del frontend (`QueryCache.onError` en `App.tsx`) excluye explícitamente a `/auth/me` — si no, un 401 de esa misma query se auto-invalida y entra en loop infinito (bug real, ya corregido).

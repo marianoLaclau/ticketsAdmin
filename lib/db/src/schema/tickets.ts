@@ -1,12 +1,24 @@
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usuariosTable } from "./admin";
 
 export const ESTADOS = ["nuevo", "en_proceso", "pendiente", "resuelto", "cerrado"] as const;
 export const PRIORIDADES = ["baja", "media", "alta", "urgente"] as const;
+export const MOTIVO_CATEGORIAS = [
+  "haberes_pagos",
+  "recibos_documentacion",
+  "vacaciones_licencias",
+  "bajas_liquidacion",
+  "empleo_postulaciones",
+  "contacto_general",
+  "reclamos",
+  "sin_clasificar",
+] as const;
 
 export type Estado = (typeof ESTADOS)[number];
 export type Prioridad = (typeof PRIORIDADES)[number];
+export type MotivoCategoria = (typeof MOTIVO_CATEGORIAS)[number];
 
 export const ticketsTable = sqliteTable("tickets", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -19,10 +31,19 @@ export const ticketsTable = sqliteTable("tickets", {
   empresa: text("empresa"),
   email: text("email"),
   motivo: text("motivo").notNull(),
+  motivo_categoria: text("motivo_categoria", { enum: MOTIVO_CATEGORIAS })
+    .notNull()
+    .default("sin_clasificar"),
   resumen: text("resumen"),
   notificado: integer("notificado", { mode: "boolean" }).notNull().default(false),
   estado: text("estado", { enum: ESTADOS }).notNull().default("nuevo"),
   prioridad: text("prioridad", { enum: PRIORIDADES }).notNull().default("media"),
+  asignado_usuario_id: integer("asignado_usuario_id").references(
+    () => usuariosTable.id,
+    { onDelete: "set null" },
+  ),
+  // Snapshot legible y compatibilidad con asignaciones históricas/importadas.
+  // La identidad real de una autoasignación está en asignado_usuario_id.
   asignado_a: text("asignado_a"),
   audio_url: text("audio_url"),
   notas: text("notas"),

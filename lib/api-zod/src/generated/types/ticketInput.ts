@@ -22,6 +22,7 @@ export interface TicketInput {
   notificado?: boolean;
   estado?: TicketInputEstado;
   prioridad?: TicketInputPrioridad;
+  /** Valor histórico o externo; las autoasignaciones internas se derivan de la sesión */
   asignado_a?: string;
   audio_url?: string;
   notas?: string;

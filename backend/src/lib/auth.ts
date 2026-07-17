@@ -32,6 +32,19 @@ export function requireWebhookKey(req: Request, res: Response, next: NextFunctio
 export const SESSION_COOKIE = "gsb_session";
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 días
 
+// Roles del sistema. Cuando llegue el sistema de permisos con checkboxes,
+// estas verificaciones pasarán a ser por permiso y no por nombre de rol.
+// - SysAdmin: usuario Dios — todo, incluido el panel de administración.
+// - Administrador: todo sobre tickets (incluye cerrarlos), sin panel admin.
+// - Operador: gestión básica — no puede cerrar tickets.
+export const ROL_SYSADMIN = "SysAdmin";
+export const ROL_ADMINISTRADOR = "Administrador";
+export const ROL_OPERADOR = "Operador";
+
+export function puedeCerrarTickets(rol: string | undefined): boolean {
+  return rol === ROL_SYSADMIN || rol === ROL_ADMINISTRADOR;
+}
+
 export interface SessionUser {
   id: number;
   nombre: string;
@@ -90,6 +103,17 @@ export async function requireSession(req: Request, res: Response, next: NextFunc
 // Limpieza perezosa de sesiones vencidas (se invoca en cada login)
 export async function purgeExpiredSessions(): Promise<void> {
   await db.delete(sesionesTable).where(lt(sesionesTable.fecha_expiracion, new Date()));
+}
+
+// Solo usuarios con el rol SysAdmin pueden operar el panel de administración.
+// Corre después de requireSession, así que res.locals.authUser ya está.
+export function requireSysAdmin(_req: Request, res: Response, next: NextFunction) {
+  const user = res.locals.authUser as SessionUser | undefined;
+  if (!user || user.rol !== ROL_SYSADMIN) {
+    res.status(403).json({ error: "Requiere rol SysAdmin" });
+    return;
+  }
+  next();
 }
 
 // Admin: la clave es OPCIONAL — si ADMIN_API_KEY no está seteada, el panel

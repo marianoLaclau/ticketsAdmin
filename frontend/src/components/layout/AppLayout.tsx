@@ -17,6 +17,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { LogOut } from 'lucide-react';
+import { ROL_SYSADMIN } from '@/lib/roles';
 
 // @ts-ignore
 import gsbLogo from '@/assets/gsb-logo.jpg';
@@ -88,25 +89,27 @@ export function Sidebar() {
   const nuevosSinAbrir =
     stats?.por_estado?.find((e) => e.estado === 'nuevo')?.cantidad ?? 0;
 
-  // Nota: /admin sigue visible por ahora (pedido explícito); cuando llegue el
-  // login con permisos, este link se va a mostrar solo a usuarios habilitados.
+  // El acceso a Administración solo existe para el rol SysAdmin (el backend
+  // lo valida igual; esto es para que los demás ni siquiera lo vean).
+  const esSysAdmin = me?.rol === ROL_SYSADMIN;
   const links = [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/tickets', label: 'Tickets', icon: Ticket },
-    { href: '/admin', label: 'Administración', icon: Settings },
+    ...(esSysAdmin ? [{ href: '/admin', label: 'Administración', icon: Settings }] : []),
   ];
 
   return (
     <div className="w-[240px] bg-sidebar text-sidebar-foreground flex flex-col h-screen flex-shrink-0 border-r border-sidebar-border">
       {/* Top Section - Logo */}
-      <div className="h-20 flex items-center px-6 border-b border-sidebar-border/50 flex-shrink-0 flex-col justify-center items-start pt-2">
-        <img 
-          src={gsbLogo} 
-          alt="GSB Logo" 
-          className="h-8 object-contain" 
-          style={{ filter: 'brightness(0) invert(1)' }} 
-        />
-        <div className="mt-1 text-[9px] uppercase tracking-widest text-sidebar-foreground/60 font-semibold">
+      <div className="flex h-36 flex-shrink-0 flex-col items-center justify-center border-b border-sidebar-border/50 px-4 py-3">
+        <div className="rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-black/5">
+          <img
+            src={gsbLogo}
+            alt="GSB Quality Services"
+            className="h-24 w-24 object-contain"
+          />
+        </div>
+        <div className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-sidebar-foreground/60">
           Sistema de Tickets
         </div>
       </div>
@@ -211,7 +214,7 @@ export function Sidebar() {
               {me ? [me.nombre, me.apellido].filter(Boolean).join(' ') : '...'}
             </p>
             <p className="text-[10px] text-sidebar-foreground/60 truncate">
-              {me?.rol ?? ''} · GSB IT - V0.1
+              {me?.rol ?? ''}
             </p>
           </div>
           <button
@@ -222,6 +225,11 @@ export function Sidebar() {
           >
             <LogOut className="h-4 w-4" />
           </button>
+        </div>
+        <div className="mt-3 border-t border-sidebar-border/50 pt-2 text-center">
+          <p className="text-[9px] font-medium uppercase tracking-[0.18em] text-sidebar-foreground/40">
+            GSB IT - V0.2
+          </p>
         </div>
       </div>
     </div>

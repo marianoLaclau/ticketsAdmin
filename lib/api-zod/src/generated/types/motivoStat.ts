@@ -5,8 +5,11 @@
  * GSB Ticket Management System API
  * OpenAPI spec version: 0.1.0
  */
+import type { MotivoCategoria } from './motivoCategoria';
 
 export interface MotivoStat {
+  categoria: MotivoCategoria;
+  /** Etiqueta legible de la categoría */
   motivo: string;
   cantidad: number;
 }

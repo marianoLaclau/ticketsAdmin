@@ -39,7 +39,7 @@ router.post("/auth/login", async (req, res) => {
     })
     .from(usuariosTable)
     .innerJoin(rolesTable, eq(usuariosTable.role_id, rolesTable.id))
-    .where(eq(usuariosTable.email, usuarioNormalizado));
+    .where(eq(usuariosTable.username, usuarioNormalizado));
 
   // Mensaje genérico a propósito: no revelar si el usuario existe o no
   if (!user || !user.activo || !verifyPassword(parsed.data.password, user.password_hash)) {

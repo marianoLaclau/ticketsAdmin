@@ -113,7 +113,7 @@ API REST en Express 5. Único componente que toca la base. Rutas:
 | `POST /api/webhooks/ticket`              | **Ingesta**: crea el ticket de una llamada. Única ruta con API key. Idempotente. Si no viene `fecha_limite`, se preestablece a **+48 hs** (SLA). |
 | `GET /api/tickets`                       | Listado con filtros (estado, prioridad, fechas, horas, empresa, búsqueda libre, vencidos) y paginación.                                          |
 | `GET /api/tickets/:id`                   | Detalle + historial de seguimientos.                                                                                                             |
-| `PATCH /api/tickets/:id`                 | Editar (estado, prioridad, progreso, notas, fecha límite, asignación…).                                                                          |
+| `PATCH /api/tickets/:id`                 | Editar estado, prioridad, progreso, notas o fecha límite. Una transición real de estado autoasigna al usuario de la sesión.                     |
 | `DELETE /api/tickets/:id`                | Eliminar.                                                                                                                                        |
 | `GET/POST /api/tickets/:id/seguimientos` | Historial: notas con autor y cambios de estado.                                                                                                  |
 | `GET /api/dashboard/stats`               | Totales por estado/prioridad, vencidos, resueltos hoy, nuevos hoy, tiempo promedio de resolución.                                                |
@@ -181,7 +181,8 @@ Si se cambia la API: primero se edita el yaml, se corre codegen, y después se i
 | `notificado`                          | booleano               | Si ya se avisó al área correspondiente.                                                                                                                                   |
 | `estado`                              | enum                   | `nuevo` → `en_proceso` → `pendiente` → `resuelto` → `cerrado`                                                                                                             |
 | `prioridad`                           | enum                   | `baja` / `media` / `alta` / `urgente`                                                                                                                                     |
-| `asignado_a`                          | texto, opcional        | Quién lo tiene a cargo.                                                                                                                                                   |
+| `asignado_usuario_id`                 | referencia opcional   | Usuario asignado de forma autoritativa. Se actualiza desde la sesión cuando cambia realmente el estado; al borrar el usuario queda `null`.                               |
+| `asignado_a`                          | texto, opcional        | Nombre visible del responsable y compatibilidad con valores históricos/importados. No se acepta como identidad enviada en una edición normal.                           |
 | `notas`                               | texto, opcional        | Notas internas de gestión.                                                                                                                                                |
 | `progreso`                            | entero 0-100           | Barra de avance.                                                                                                                                                          |
 | `fecha_creacion`                      | timestamp (ms)         | Cuándo entró la llamada.                                                                                                                                                  |
@@ -189,6 +190,8 @@ Si se cambia la API: primero se edita el yaml, se corre codegen, y después se i
 | `fecha_resolucion`                    | timestamp, opcional    | **Se registra sola** la primera vez que el ticket pasa a `resuelto` o `cerrado`. Alimenta "resueltos hoy" y el tiempo promedio de resolución del dashboard.               |
 
 Las fechas se guardan como enteros (milisegundos Unix); Drizzle convierte a `Date` automáticamente. Los enums son `text` con restricción (SQLite no tiene enums nativos).
+
+**Autoasignación:** el primer cambio de `nuevo` a cualquier otro estado asigna el ticket al usuario autenticado. Cada transición posterior de estado lo reasigna al último usuario que la realizó. Editar notas, prioridad o progreso sin cambiar el estado conserva al responsable actual. El backend deriva siempre la identidad de la cookie de sesión; el cliente no puede elegir ni falsificar el usuario asignado.
 
 ### Tabla `seguimientos` — historial de cada ticket
 

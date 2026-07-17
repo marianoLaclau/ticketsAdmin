@@ -17,6 +17,10 @@ export const usuariosTable = sqliteTable("usuarios", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   nombre: text("nombre").notNull(),
   apellido: text("apellido"),
+  // Identificador de login (distinto del email). Nullable solo para no
+  // romper filas creadas antes de este campo — el seed las backfillea con
+  // el email al arrancar, así que en la práctica siempre queda seteado.
+  username: text("username").unique(),
   email: text("email").notNull().unique(),
   // Hash scrypt con formato "scrypt:<salt>:<hash>". Nullable: un usuario del
   // catálogo sin contraseña asignada todavía no puede iniciar sesión.

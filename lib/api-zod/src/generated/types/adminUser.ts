@@ -11,6 +11,11 @@ export interface AdminUser {
   nombre: string;
   /** @nullable */
   apellido: string | null;
+  /**
+     * Identificador de login. Nullable solo por compatibilidad con filas muy viejas; el backend lo backfillea al arrancar.
+     * @nullable
+     */
+  username: string | null;
   email: string;
   role_id: number;
   activo: boolean;

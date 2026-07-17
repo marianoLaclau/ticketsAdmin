@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, ticketsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { IngestTicketBody } from "@workspace/api-zod";
-import { SLA_MS } from "@workspace/ingesta";
+import { clasificarMotivo, SLA_MS } from "@workspace/ingesta";
 import { requireWebhookKey } from "../lib/auth";
 import { broadcastEvent } from "../lib/events";
 
@@ -34,6 +34,7 @@ router.post("/webhooks/ticket", requireWebhookKey, async (req, res) => {
     empresa: data.empresa ?? null,
     email: data.email ?? null,
     motivo: data.motivo,
+    motivo_categoria: clasificarMotivo(data.motivo, data.resumen),
     resumen: data.resumen ?? null,
     notificado: data.notificado ?? false,
     estado: (data.estado as "nuevo" | "en_proceso" | "pendiente" | "resuelto" | "cerrado") ?? "nuevo",
