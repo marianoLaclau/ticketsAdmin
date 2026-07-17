@@ -58,7 +58,7 @@ export default defineConfig({
       override: {
         zod: {
           coerce: {
-            query: ['boolean', 'number', 'string'],
+            query: ['date', 'number', 'string'],
             param: ['boolean', 'number', 'string'],
             body: ['bigint', 'date'],
             response: ['bigint', 'date'],

@@ -22,22 +22,26 @@ export const HealthCheckResponse = zod.object({
  */
 export const listTicketsQueryOrderDefault = `desc`;
 export const listTicketsQueryPageDefault = 1;
+
 export const listTicketsQueryLimitDefault = 20;
+export const listTicketsQueryLimitMax = 100;
+
+
 
 export const ListTicketsQueryParams = zod.object({
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']).optional(),
   "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional(),
-  "fecha_desde": zod.date().optional(),
-  "fecha_hasta": zod.date().optional(),
+  "fecha_desde": zod.coerce.date().optional(),
+  "fecha_hasta": zod.coerce.date().optional(),
   "hora_desde": zod.coerce.string().optional(),
   "hora_hasta": zod.coerce.string().optional(),
   "empresa": zod.coerce.string().optional(),
   "motivo": zod.coerce.string().optional(),
   "search": zod.coerce.string().optional(),
-  "vencidos": zod.coerce.boolean().optional(),
-  "order": zod.enum(['asc', 'desc']).default(listTicketsQueryOrderDefault).describe('Orden por fecha y hora de creación del llamado'),
-  "page": zod.coerce.number().default(listTicketsQueryPageDefault),
-  "limit": zod.coerce.number().default(listTicketsQueryLimitDefault)
+  "vencidos": zod.boolean().optional(),
+  "order": zod.enum(['asc', 'desc']).default(listTicketsQueryOrderDefault).describe('Orden compuesto por día de creación y, dentro de cada día, por hora del llamado'),
+  "page": zod.coerce.number().min(1).default(listTicketsQueryPageDefault),
+  "limit": zod.coerce.number().min(1).max(listTicketsQueryLimitMax).default(listTicketsQueryLimitDefault)
 })
 
 export const listTicketsResponseTicketsItemProgresoMin = 0;

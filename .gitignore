@@ -46,4 +46,5 @@ Thumbs.db
 
 # Local SQLite database and secrets
 /data/
+/backups/
 .env

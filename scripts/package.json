@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "backup-db": "tsx ./src/backup-db.ts",
     "import-excel": "tsx ./src/import-excel.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

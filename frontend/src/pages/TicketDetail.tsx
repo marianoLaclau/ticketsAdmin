@@ -51,6 +51,7 @@ import {
   Headphones
 } from 'lucide-react';
 import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
+import { dateTimeLocalValueToIso, toDateTimeLocalValue } from '@/lib/datetime-local';
 
 const PROGRESS_STEPS = [
   { estado: TicketEstado.nuevo, value: 0, label: 'Nuevo' },
@@ -92,12 +93,23 @@ export default function TicketDetail() {
         prioridad: ticket.prioridad,
         progreso: ticket.progreso || 0,
         notas: ticket.notas || '',
-        fecha_limite: ticket.fecha_limite ? new Date(ticket.fecha_limite).toISOString().slice(0, 16) : '',
+        fecha_limite: toDateTimeLocalValue(ticket.fecha_limite),
       });
     }
   }, [ticket, isEditing]);
 
   const handleUpdateTicket = () => {
+    const originalFechaLimite = toDateTimeLocalValue(ticket?.fecha_limite);
+
+    if (originalFechaLimite && !editData.fecha_limite) {
+      toast({
+        variant: 'destructive',
+        title: 'Fecha límite requerida',
+        description: 'La API actual no permite eliminar la fecha límite.',
+      });
+      return;
+    }
+
     const estadoStep = PROGRESS_STEPS.find(s => s.estado === editData.estado);
     const updatedData: any = {
       estado: editData.estado,
@@ -105,9 +117,19 @@ export default function TicketDetail() {
       notas: editData.notas,
       progreso: estadoStep && ticket?.estado !== editData.estado ? estadoStep.value : editData.progreso,
     };
-    // El backend rechaza fecha_limite vacía: solo se manda si hay valor
-    if (editData.fecha_limite) {
-      updatedData.fecha_limite = new Date(editData.fecha_limite).toISOString();
+    // Si el usuario no modificó el control, se omite el campo para conservar
+    // también los segundos y milisegundos que datetime-local no muestra.
+    if (editData.fecha_limite && editData.fecha_limite !== originalFechaLimite) {
+      const fechaLimiteIso = dateTimeLocalValueToIso(editData.fecha_limite);
+      if (!fechaLimiteIso) {
+        toast({
+          variant: 'destructive',
+          title: 'Fecha límite inválida',
+          description: 'Revisa la fecha y hora antes de guardar.',
+        });
+        return;
+      }
+      updatedData.fecha_limite = fechaLimiteIso;
     }
 
     updateTicket.mutate(

@@ -5,6 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./backup": "./src/backup.ts",
+    "./db-path": "./src/db-path.ts",
     "./schema": "./src/schema/index.ts"
   },
   "scripts": {

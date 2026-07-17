@@ -6,6 +6,7 @@
 .claude
 .agents
 data
+backups
 .env
 .env.example
 *.md

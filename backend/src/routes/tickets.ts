@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, ticketsTable, seguimientosTable } from "@workspace/db";
-import { eq, and, gte, lte, like, or, lt, not, inArray, asc, desc, count } from "drizzle-orm";
+import { eq, and, gte, lte, like, or, lt, not, inArray, asc, desc, count, sql } from "drizzle-orm";
 import {
   ListTicketsQueryParams,
   GetTicketParams,
@@ -14,25 +14,58 @@ import {
 
 const router = Router();
 
+const parseBooleanQueryParam = (value: unknown): unknown => {
+  if (value === "true" || value === true) return true;
+  if (value === "false" || value === false) return false;
+  return value;
+};
+
+const parseLocalDateQueryParam = (value: unknown, endOfDay = false): unknown => {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") return new Date(Number.NaN);
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return new Date(Number.NaN);
+
+  const year = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  const date = new Date(0);
+  date.setHours(endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
+  date.setFullYear(year, month, day);
+
+  if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) {
+    return new Date(Number.NaN);
+  }
+
+  return date;
+};
+
 // List tickets with filters
 router.get("/tickets", async (req, res) => {
-  const parsed = ListTicketsQueryParams.safeParse(req.query);
+  const parsed = ListTicketsQueryParams.safeParse({
+    ...req.query,
+    fecha_desde: parseLocalDateQueryParam(req.query.fecha_desde),
+    fecha_hasta: parseLocalDateQueryParam(req.query.fecha_hasta, true),
+    vencidos: parseBooleanQueryParam(req.query.vencidos),
+  });
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid query params" });
     return;
   }
   const { estado, prioridad, fecha_desde, fecha_hasta, hora_desde, hora_hasta, empresa, motivo, search, vencidos, order = "desc", page = 1, limit = 20 } = parsed.data;
 
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1 || limit > 100) {
+    res.status(400).json({ error: "Invalid pagination params" });
+    return;
+  }
+
   const conditions: ReturnType<typeof eq>[] = [];
 
   if (estado) conditions.push(eq(ticketsTable.estado, estado as "nuevo" | "en_proceso" | "pendiente" | "resuelto" | "cerrado"));
   if (prioridad) conditions.push(eq(ticketsTable.prioridad, prioridad as "baja" | "media" | "alta" | "urgente"));
-  if (fecha_desde) conditions.push(gte(ticketsTable.fecha_creacion, new Date(fecha_desde)));
-  if (fecha_hasta) {
-    const end = new Date(fecha_hasta);
-    end.setHours(23, 59, 59, 999);
-    conditions.push(lte(ticketsTable.fecha_creacion, end));
-  }
+  if (fecha_desde) conditions.push(gte(ticketsTable.fecha_creacion, fecha_desde));
+  if (fecha_hasta) conditions.push(lte(ticketsTable.fecha_creacion, fecha_hasta));
   if (hora_desde) conditions.push(gte(ticketsTable.hora, hora_desde));
   if (hora_hasta) conditions.push(lte(ticketsTable.hora, hora_hasta));
   if (empresa) conditions.push(like(ticketsTable.empresa, `%${empresa}%`));
@@ -64,9 +97,15 @@ router.get("/tickets", async (req, res) => {
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const offset = (page - 1) * limit;
 
-  const orderBy = order === "asc" ? asc(ticketsTable.fecha_creacion) : desc(ticketsTable.fecha_creacion);
+  const sort = order === "asc" ? asc : desc;
+  const creationDay = sql<string>`date(${ticketsTable.fecha_creacion} / 1000, 'unixepoch', 'localtime')`;
   const [tickets, [{ total }]] = await Promise.all([
-    db.select().from(ticketsTable).where(where).orderBy(orderBy).limit(limit).offset(offset),
+    db.select()
+      .from(ticketsTable)
+      .where(where)
+      .orderBy(sort(creationDay), sort(ticketsTable.hora), sort(ticketsTable.id))
+      .limit(limit)
+      .offset(offset),
     db.select({ total: count() }).from(ticketsTable).where(where),
   ]);
 

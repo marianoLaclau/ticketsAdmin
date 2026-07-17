@@ -88,7 +88,7 @@ paths:
             type: boolean
         - name: order
           in: query
-          description: Orden por fecha y hora de creación del llamado
+          description: Orden compuesto por día de creación y, dentro de cada día, por hora del llamado
           schema:
             type: string
             enum: [asc, desc]
@@ -97,11 +97,14 @@ paths:
           in: query
           schema:
             type: integer
+            minimum: 1
             default: 1
         - name: limit
           in: query
           schema:
             type: integer
+            minimum: 1
+            maximum: 100
             default: 20
       responses:
         "200":

@@ -21,9 +21,16 @@ motivo?: string;
 search?: string;
 vencidos?: boolean;
 /**
- * Orden por fecha y hora de creación del llamado
+ * Orden compuesto por día de creación y, dentro de cada día, por hora del llamado
  */
 order?: ListTicketsOrder;
+/**
+ * @minimum 1
+ */
 page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
 limit?: number;
 };

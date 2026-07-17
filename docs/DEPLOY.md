@@ -37,7 +37,8 @@ Self-hosted runner (corriendo EN el servidor de testing)
 - **`:3000`** — el frontend, para que los operadores gestionen los tickets.
 - El volumen nombrado `tickets_data` persiste el archivo SQLite entre reconstrucciones/reinicios de contenedores — **no se pierde al redeployar**.
 - Las migraciones de la base (`lib/db/drizzle/*.sql`) se aplican solas al arrancar el contenedor del backend (ver `backend/src/migrate.ts`), antes de levantar la API. Es idempotente: en cada arranque solo aplica lo que falte.
-- `docker-compose.yml` no fija un nombre de proyecto explícito, así que Compose usa el nombre del directorio (`ticketsAdmin`) para namespacear contenedores/red/volumen — no debería chocar con los otros proyectos del servidor mientras cada uno viva en su propio directorio.
+- `docker-compose.yml` fija el nombre de proyecto `ticketsadmin`, de modo que contenedores, red y volumen conservan el mismo namespace aunque el workflow y un operador ejecuten Compose desde checkouts distintos.
+- El backend corre con `TZ=America/Argentina/Buenos_Aires` por defecto (configurable con `TZ`). Los filtros por día calendario usan el timezone local del proceso, igual que en desarrollo.
 
 ## 1. Preparar el servidor
 
@@ -61,16 +62,23 @@ sudo ufw status
 
 (Si el servidor no usa `ufw` sino `iptables`/`firewalld`/reglas del proveedor cloud, adaptar según corresponda.)
 
-### 1.2. Clonar el repo
+### 1.2. Checkout del runner y checkout operativo
 
-Usar un directorio propio, separado de los otros proyectos:
+El deploy **no corre desde `/opt/ticketsAdmin`**: `actions/checkout` crea y actualiza automáticamente `GITHUB_WORKSPACE`, normalmente en una ruta similar a:
+
+```
+~/actions-runner-ticketsAdmin/_work/ticketsAdmin/ticketsAdmin
+```
+
+No hace falta clonar el repositorio para que funcione CI/CD. Si se quiere una ruta estable para tareas manuales, se puede mantener además un checkout operativo:
 
 ```bash
 sudo mkdir -p /opt/ticketsAdmin
 sudo chown $USER:$USER /opt/ticketsAdmin
 git clone https://github.com/marianoLaclau/ticketsAdmin.git /opt/ticketsAdmin
-cd /opt/ticketsAdmin
 ```
+
+Ese checkout es solo para operación manual y debe actualizarse antes de usar código o configuración nuevos. El nombre fijo `ticketsadmin` de Compose hace que ambos checkouts apunten al mismo proyecto desplegado.
 
 ## 2. Registrar un runner para este repo
 
@@ -113,6 +121,20 @@ El workflow necesita `WEBHOOK_API_KEY` para levantar el backend. Se guarda como 
    - Name: `WEBHOOK_API_KEY`
    - Value: la clave generada
 
+GitHub inyecta ese secreto solo durante el job. Para ejecutar manualmente comandos que crean o recrean servicios (`up`, `create`, un `run` normal), guardar las variables en un archivo fuera del repo y con permisos restringidos, por ejemplo `/etc/ticketsadmin/compose.env`, y usar:
+
+```bash
+docker compose --env-file /etc/ticketsadmin/compose.env up -d
+```
+
+El archivo debe definir `WEBHOOK_API_KEY`, y puede definir `ADMIN_API_KEY` y `TZ`; no se commitea. Para comandos que solo inspeccionan o actúan sobre contenedores existentes (`ps`, `logs`, `exec`, `cp`), Compose igualmente exige interpolar la variable, pero se puede usar un placeholder porque no cambia el entorno del contenedor ya creado:
+
+```bash
+WEBHOOK_API_KEY=not-used-for-readonly-command docker compose ps
+```
+
+No usar ese placeholder con `up`, `create` ni para iniciar la API.
+
 ## 4. Primer despliegue
 
 Con el runner instalado y el secreto configurado, cualquier push a `main` dispara el deploy. Para forzar el primero sin esperar un push:
@@ -126,7 +148,7 @@ Seguir el progreso en la pestaña **Actions** del repo. Al terminar:
 # desde el servidor, para confirmar que quedó arriba
 curl http://localhost:5000/api/healthz
 curl http://localhost:3000/
-docker compose ps
+WEBHOOK_API_KEY=not-used-for-readonly-command docker compose ps
 ```
 
 ## 5. Actualizar la configuración de n8n
@@ -142,12 +164,21 @@ con el mismo header `x-api-key` (el valor cargado como secreto `WEBHOOK_API_KEY`
 ## Operación del día a día
 
 - **Cada push a `main` redeploya solo.** No hace falta tocar el servidor a mano.
-- **Ver logs**: `docker compose logs -f backend` (o `frontend`) desde `/opt/ticketsAdmin`.
-- **Ver estado**: `docker compose ps`
-- **Backup de la base**: el archivo vive dentro del volumen `tickets_data`. Para copiarlo afuera:
+- **Cada comando Compose** se ejecuta desde un checkout actual del repo (el workspace del runner o `/opt/ticketsAdmin` actualizado). El proyecto se llama siempre `ticketsadmin`.
+- **Ver logs**: `WEBHOOK_API_KEY=not-used-for-readonly-command docker compose logs -f backend` (o `frontend`).
+- **Ver estado**: `WEBHOOK_API_KEY=not-used-for-readonly-command docker compose ps`
+- **Backup de la base**: no usar `cat`, `cp` ni copiar solamente `/data/tickets.db`; SQLite está en WAL y eso puede omitir transacciones confirmadas. La imagen del backend incluye un CLI que usa la API online de SQLite y publica la copia solo después de `PRAGMA integrity_check`. Para guardar el backup fuera del volumen Docker:
   ```bash
-  docker compose exec backend sh -c "cat /data/tickets.db" > backup-$(date +%F).db
+  mkdir -p "$HOME/backups/ticketsadmin"
+  BACKUP_NAME="tickets-$(date -u +%Y%m%dT%H%M%SZ).db"
+  WEBHOOK_API_KEY=not-used-by-backup docker compose exec -T backend \
+    node dist/backup-db.mjs --output "/tmp/$BACKUP_NAME"
+  WEBHOOK_API_KEY=not-used-by-backup docker compose cp \
+    "backend:/tmp/$BACKUP_NAME" "$HOME/backups/ticketsadmin/$BACKUP_NAME"
+  WEBHOOK_API_KEY=not-used-by-backup docker compose exec -T backend \
+    rm -f "/tmp/$BACKUP_NAME"
   ```
+  El placeholder solo satisface la interpolación de Compose: `exec` usa el entorno real del backend que ya está corriendo y no lo modifica. El destino es obligatorio y nunca se sobrescribe; una ejecución exitosa informa `Integridad: ok`. El `cp` extrae la copia ya verificada y el último comando elimina el temporal del contenedor. Copiar luego el archivo a almacenamiento externo según la política de retención.
 - **Cambios de schema**: si se modifica `lib/db/src/schema/tickets.ts`, hay que generar la migración ANTES de mergear a main:
   ```bash
   pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts

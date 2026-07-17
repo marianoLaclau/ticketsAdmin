@@ -1,3 +1,5 @@
+name: ticketsadmin
+
 services:
   backend:
     build:
@@ -12,6 +14,7 @@ services:
       # Opcional: si está vacía, el panel /admin queda abierto (red local)
       ADMIN_API_KEY: ${ADMIN_API_KEY:-}
       TICKETS_DB_PATH: /data/tickets.db
+      TZ: ${TZ:-America/Argentina/Buenos_Aires}
     volumes:
       - tickets_data:/data
     healthcheck:
