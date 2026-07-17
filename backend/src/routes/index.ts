@@ -5,14 +5,21 @@ import dashboardRouter from "./dashboard";
 import webhooksRouter from "./webhooks";
 import adminRouter from "./admin";
 import eventsRouter from "./events";
+import authRouter from "./auth";
+import { requireSession } from "../lib/auth";
 
 const router: IRouter = Router();
 
-router.use(healthRouter);
+// Rutas públicas o con clave propia
+router.use(healthRouter);      // healthz: chequeo de vida
+router.use(webhooksRouter);    // n8n: autenticado por x-api-key
+router.use(authRouter);        // login / logout / me
+
+// Candado global: TODO lo que sigue exige sesión iniciada
+router.use(requireSession);
 router.use(ticketsRouter);
 router.use(dashboardRouter);
-router.use(webhooksRouter);
-router.use(adminRouter);
+router.use(adminRouter);       // además exige x-admin-key (doble verificación)
 router.use(eventsRouter);
 
 export default router;

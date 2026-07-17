@@ -7,9 +7,16 @@ import {
   Settings,
   ShieldCheck,
 } from 'lucide-react';
-import { useGetDashboardStats, getGetDashboardStatsQueryKey } from '@workspace/api-client-react';
+import {
+  useGetDashboardStats,
+  getGetDashboardStatsQueryKey,
+  useGetMe,
+  getGetMeQueryKey,
+  useLogout,
+} from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { LogOut } from 'lucide-react';
 
 // @ts-ignore
 import gsbLogo from '@/assets/gsb-logo.jpg';
@@ -37,12 +44,17 @@ function useEventosEnVivo() {
       if (data.tipo === 'ticket_creado') {
         const contacto = `${data.nombre ?? ''} ${data.apellido ?? ''}`.trim();
         toast({
-          title: '📞 Nuevo llamado',
+          dedupeKey: data.ticket_id ? `ticket-created:${data.ticket_id}` : undefined,
+          variant: 'info',
+          title: 'Nuevo llamado recibido',
           description: [contacto || null, data.motivo || null].filter(Boolean).join(' — '),
         });
       } else if (data.tipo === 'tickets_importados') {
         toast({
-          title: `📥 ${data.cantidad} llamados importados`,
+          dedupeKey: `tickets-imported:${data.cantidad}`,
+          variant: 'info',
+          title: 'Importación disponible',
+          description: `${data.cantidad} ${data.cantidad === 1 ? 'llamado nuevo' : 'llamados nuevos'} en el listado.`,
         });
       }
     };
@@ -53,10 +65,25 @@ function useEventosEnVivo() {
 
 export function Sidebar() {
   const [location] = useLocation();
+  const queryClient = useQueryClient();
   // Refresco periódico para que el badge de nuevos funcione como notificación
   const { data: stats } = useGetDashboardStats({
     query: { queryKey: getGetDashboardStatsQueryKey(), refetchInterval: 30_000 },
   });
+  const { data: me } = useGetMe({
+    query: { queryKey: getGetMeQueryKey() },
+  });
+  const logout = useLogout();
+
+  const handleLogout = () => {
+    logout.mutate(undefined as never, {
+      onSettled: () => {
+        // Limpiar todo el caché: el AuthGate vuelve a /auth/me → login
+        queryClient.clear();
+        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      },
+    });
+  };
 
   const nuevosSinAbrir =
     stats?.por_estado?.find((e) => e.estado === 'nuevo')?.cantidad ?? 0;
@@ -173,15 +200,28 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Footer */}
+      {/* Footer: usuario logueado + salir */}
       <div className="p-4 border-t border-sidebar-border/50 bg-sidebar-accent/20 flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-full bg-sidebar-border flex items-center justify-center flex-shrink-0">
             <UserCircle className="h-5 w-5 text-sidebar-foreground/70" />
           </div>
-          <div className="overflow-hidden">
-            <p className="text-xs font-semibold text-sidebar-foreground truncate">GSB IT - V0.1</p>
+          <div className="overflow-hidden flex-1">
+            <p className="text-xs font-semibold text-sidebar-foreground truncate">
+              {me ? [me.nombre, me.apellido].filter(Boolean).join(' ') : '...'}
+            </p>
+            <p className="text-[10px] text-sidebar-foreground/60 truncate">
+              {me?.rol ?? ''} · GSB IT - V0.1
+            </p>
           </div>
+          <button
+            onClick={handleLogout}
+            title="Cerrar sesión"
+            className="h-8 w-8 rounded-md flex items-center justify-center text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-colors shrink-0"
+            data-testid="logout-button"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </div>

@@ -266,8 +266,10 @@ Esto es para **desarrollo local**. El servidor de testing corre los mismos dos s
 
 ## 6. Seguridad — estado actual
 
-- El **webhook** exige API key (comparación en tiempo constante) y es la puerta automática de ingesta desde n8n.
-- Las operaciones de administración usan `ADMIN_API_KEY`, guardada por comodidad en `sessionStorage` del navegador. Si esa variable no está configurada, `/api/admin/*` queda abierto.
-- La gestión de usuarios y roles ya persiste un catálogo, pero **no implementa autenticación ni autorización**: no hay contraseñas, login, sesiones ni permisos efectivos. Crear un usuario o asignarle un rol no habilita acceso.
-- El **resto del CRUD no tiene autenticación** y está pensado para la red local. Antes de exponer el sistema a internet hay que implementar login seguro, sesión o token, autorización por rol y protección de las rutas de tickets y dashboard.
+- **Login obligatorio en toda la aplicación**: sin sesión iniciada no se ve ninguna pantalla (cualquier URL muestra el login) ni se puede consumir ningún endpoint de la API — responden 401. Únicas excepciones: `GET /api/healthz` (chequeo de vida), `POST /api/webhooks/ticket` (n8n, autenticado con su propia `x-api-key`) y `POST /api/auth/login`.
+- **Sesiones**: cookie `httpOnly` + `SameSite=Lax` respaldada en la tabla `sesiones` (revocables, sobreviven reinicios del backend), expiración a los 7 días. Contraseñas hasheadas con scrypt (módulo nativo de Node, sin dependencias extra).
+- **Usuario semilla**: en el primer arranque (si ningún usuario tiene contraseña asignada) se crea el rol `Administrador` y el usuario **`admin` / clave `admin`** — **cambiar esa clave apenas se pueda**. El seed no revive al admin si después lo reemplazan por cuentas propias con contraseña.
+- **Doble verificación en administración**: los endpoints `/api/admin/*` exigen sesión **y además** el header `x-admin-key` (`ADMIN_API_KEY`, guardada por comodidad en `sessionStorage` del navegador). Dos llaves distintas para las operaciones peligrosas.
+- **Seguimientos auditables**: el campo `autor` lo asigna el backend con el usuario de la sesión — lo que mande el cliente se ignora.
+- **Pendiente (próxima fase)**: permisos por rol con checkboxes — el botón y la ruta `/admin` visibles solo para usuarios con ese permiso, validado en el backend, no solo ocultado en la UI.
 - Si n8n corre en la nube, necesita poder llegar a esta máquina: túnel (Cloudflare Tunnel / ngrok) o IP pública con firewall.

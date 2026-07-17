@@ -203,12 +203,18 @@ router.post("/tickets/:id/seguimientos", async (req, res) => {
   if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
 
   const body = bodyParsed.data;
+
+  // El autor sale SIEMPRE de la sesión del usuario logueado — se ignora lo
+  // que mande el cliente para que el historial no sea falsificable.
+  const authUser = res.locals.authUser as { nombre: string; apellido: string | null } | undefined;
+  const autor = authUser ? [authUser.nombre, authUser.apellido].filter(Boolean).join(" ") : null;
+
   const [seg] = await db.insert(seguimientosTable).values({
     ticket_id: paramsParsed.data.id,
     nota: body.nota,
     estado_anterior: body.estado_anterior ?? null,
     estado_nuevo: body.estado_nuevo ?? null,
-    autor: body.autor ?? null,
+    autor,
   }).returning();
 
   res.status(201).json(seg);

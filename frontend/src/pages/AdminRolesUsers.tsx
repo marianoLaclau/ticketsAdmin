@@ -106,10 +106,10 @@ export default function AdminRolesUsers() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const showError = (error: unknown) => {
+  const showError = (title: string) => (error: unknown) => {
     toast({
       variant: 'destructive',
-      title: 'No se pudo completar la operación',
+      title,
       description: adminErrorMessage(error),
     });
   };
@@ -208,7 +208,7 @@ export default function AdminRolesUsers() {
     const roleId = Number(userForm.roleId);
     if (!nombre || !email || !Number.isInteger(roleId) || roleId < 1) {
       toast({
-        variant: 'destructive',
+        variant: 'warning',
         title: 'Faltan datos obligatorios',
         description: 'Completá nombre, email y rol antes de guardar.',
       });
@@ -222,19 +222,25 @@ export default function AdminRolesUsers() {
       role_id: roleId,
       activo: userForm.activo,
     };
+    const userName = `${nombre} ${userForm.apellido.trim()}`.trim();
+    const roleName = roleById.get(roleId) ?? `Rol #${roleId}`;
     const onSuccess = () => {
       setUserDialogOpen(false);
       void refreshUsers();
-      toast({ title: editingUser ? 'Usuario actualizado' : 'Usuario creado' });
+      toast({
+        variant: 'success',
+        title: editingUser ? 'Usuario actualizado' : 'Usuario creado',
+        description: `${userName} · ${email} · ${roleName}`,
+      });
     };
 
     if (editingUser) {
       updateUser.mutate(
         { id: editingUser.id, data: data satisfies AdminUserUpdate },
-        { onSuccess, onError: showError },
+        { onSuccess, onError: showError('No se pudo actualizar el usuario') },
       );
     } else {
-      createUser.mutate({ data }, { onSuccess, onError: showError });
+      createUser.mutate({ data }, { onSuccess, onError: showError('No se pudo crear el usuario') });
     }
   };
 
@@ -245,10 +251,12 @@ export default function AdminRolesUsers() {
         onSuccess: () => {
           void refreshUsers();
           toast({
+            variant: user.activo ? 'warning' : 'success',
             title: user.activo ? 'Usuario desactivado' : 'Usuario activado',
+            description: `${user.nombre} ${user.apellido ?? ''}`.trim() + ` · ${user.email}`,
           });
         },
-        onError: showError,
+        onError: showError(user.activo ? 'No se pudo desactivar el usuario' : 'No se pudo activar el usuario'),
       },
     );
   };
@@ -298,7 +306,7 @@ export default function AdminRolesUsers() {
     const nombre = roleForm.nombre.trim();
     if (!nombre) {
       toast({
-        variant: 'destructive',
+        variant: 'warning',
         title: 'Falta el nombre del rol',
         description: 'Ingresá un nombre antes de guardar.',
       });
@@ -314,16 +322,20 @@ export default function AdminRolesUsers() {
       setRoleDialogOpen(false);
       void refreshRoles();
       void refreshUsers();
-      toast({ title: editingRole ? 'Rol actualizado' : 'Rol creado' });
+      toast({
+        variant: 'success',
+        title: editingRole ? 'Rol actualizado' : 'Rol creado',
+        description: nombre,
+      });
     };
 
     if (editingRole) {
       updateRole.mutate(
         { id: editingRole.id, data: data satisfies AdminRoleUpdate },
-        { onSuccess, onError: showError },
+        { onSuccess, onError: showError('No se pudo actualizar el rol') },
       );
     } else {
-      createRole.mutate({ data }, { onSuccess, onError: showError });
+      createRole.mutate({ data }, { onSuccess, onError: showError('No se pudo crear el rol') });
     }
   };
 
@@ -334,9 +346,13 @@ export default function AdminRolesUsers() {
         onSuccess: () => {
           void refreshRoles();
           void refreshUsers();
-          toast({ title: role.activo ? 'Rol desactivado' : 'Rol activado' });
+          toast({
+            variant: role.activo ? 'warning' : 'success',
+            title: role.activo ? 'Rol desactivado' : 'Rol activado',
+            description: role.nombre,
+          });
         },
-        onError: showError,
+        onError: showError(role.activo ? 'No se pudo desactivar el rol' : 'No se pudo activar el rol'),
       },
     );
   };
@@ -349,9 +365,13 @@ export default function AdminRolesUsers() {
         onSuccess: () => {
           setRoleToDelete(null);
           void refreshRoles();
-          toast({ title: 'Rol eliminado' });
+          toast({
+            variant: 'success',
+            title: 'Rol eliminado',
+            description: roleToDelete.nombre,
+          });
         },
-        onError: showError,
+        onError: showError('No se pudo eliminar el rol'),
       },
     );
   };

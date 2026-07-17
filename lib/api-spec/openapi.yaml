@@ -20,6 +20,10 @@ tags:
     description: Ingesta automática de llamadas (n8n)
   - name: admin
     description: Gestión de la base de datos (CRUD manual, importación masiva, truncate)
+  - name: auth
+    description: >
+      Autenticación por sesión. El login setea una cookie httpOnly; toda la API
+      (salvo healthz, el webhook de n8n y el propio login) exige esa sesión.
 
 paths:
   /healthz:
@@ -113,6 +117,55 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TicketListResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Iniciar sesión
+      description: >
+        Valida usuario y contraseña. Si son correctos setea la cookie de sesión
+        (httpOnly) y devuelve los datos del usuario.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Sesión iniciada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Credenciales inválidas o usuario inactivo
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Cerrar sesión
+      description: Revoca la sesión actual y limpia la cookie.
+      responses:
+        "204":
+          description: Sesión cerrada
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Usuario de la sesión actual
+      responses:
+        "200":
+          description: Usuario autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Sin sesión válida
 
   /webhooks/ticket:
     post:
@@ -646,6 +699,38 @@ components:
       name: x-admin-key
 
   schemas:
+    LoginInput:
+      type: object
+      required:
+        - usuario
+        - password
+      properties:
+        usuario:
+          type: string
+          description: Email (o nombre de usuario) con el que figura en el catálogo
+        password:
+          type: string
+
+    AuthUser:
+      type: object
+      required:
+        - id
+        - nombre
+        - email
+        - rol
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        apellido:
+          type: ["string", "null"]
+        email:
+          type: string
+        rol:
+          type: string
+          description: Nombre del rol asignado
+
     AdminRole:
       type: object
       required:

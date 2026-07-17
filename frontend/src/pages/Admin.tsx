@@ -86,10 +86,10 @@ export default function Admin() {
 
   const refrescarTodo = () => queryClient.invalidateQueries();
 
-  const errorToast = (err: unknown) => {
+  const errorToast = (title: string) => (err: unknown) => {
     toast({
       variant: 'destructive',
-      title: 'Error',
+      title,
       description: adminErrorMessage(err),
     });
   };
@@ -169,20 +169,26 @@ export default function Admin() {
       estado: form.estado as TicketEstado,
       prioridad: form.prioridad as TicketPrioridad,
     };
-    const onOk = (titulo: string) => () => {
+    const contacto = `${form.nombre} ${form.apellido}`.trim();
+    const onOk = (titulo: string, dedupeCreated = false) => (savedTicket: Ticket) => {
       setDialogAbierto(false);
       refrescarTodo();
-      toast({ title: titulo });
+      toast({
+        dedupeKey: dedupeCreated ? `ticket-created:${savedTicket.id}` : undefined,
+        variant: 'success',
+        title: titulo,
+        description: contacto || form.conversation_id,
+      });
     };
     if (editandoId === null) {
       createTicket.mutate(
         { data: { ...comunes, conversation_id: form.conversation_id } as any },
-        { onSuccess: onOk('Registro creado'), onError: errorToast },
+        { onSuccess: onOk('Ticket creado', true), onError: errorToast('No se pudo crear el ticket') },
       );
     } else {
       updateTicket.mutate(
         { id: editandoId, data: comunes as any },
-        { onSuccess: onOk('Registro actualizado'), onError: errorToast },
+        { onSuccess: onOk('Ticket actualizado'), onError: errorToast('No se pudo actualizar el ticket') },
       );
     }
   };
@@ -195,9 +201,13 @@ export default function Admin() {
         onSuccess: () => {
           setAEliminar(null);
           refrescarTodo();
-          toast({ title: 'Registro eliminado' });
+          toast({
+            variant: 'success',
+            title: 'Ticket eliminado',
+            description: `${aEliminar.nombre} ${aEliminar.apellido}`.trim() || aEliminar.conversation_id,
+          });
         },
-        onError: errorToast,
+        onError: errorToast('No se pudo eliminar el ticket'),
       },
     );
   };
@@ -218,7 +228,7 @@ export default function Admin() {
     // Simulación automática al elegir el archivo
     importCsv.mutate(
       { data: { csv: texto, dry_run: true } },
-      { onSuccess: setResultadoImport, onError: errorToast },
+      { onSuccess: setResultadoImport, onError: errorToast('No se pudo analizar el archivo') },
     );
     e.target.value = '';
   };
@@ -230,9 +240,14 @@ export default function Admin() {
         onSuccess: (r) => {
           setResultadoImport(r);
           refrescarTodo();
-          toast({ title: `Importación terminada: ${r.insertados} registros nuevos` });
+          toast({
+            dedupeKey: `tickets-imported:${r.insertados}`,
+            variant: 'success',
+            title: 'Importación completada',
+            description: `${r.insertados} nuevos · ${r.ya_existentes} ya existentes · ${r.invalidos} inválidos`,
+          });
         },
-        onError: errorToast,
+        onError: errorToast('No se pudo importar el archivo'),
       },
     );
   };
@@ -250,11 +265,12 @@ export default function Admin() {
           setConfirmTexto('');
           refrescarTodo();
           toast({
-            title: 'Base vaciada',
+            variant: 'warning',
+            title: 'Base de tickets vaciada',
             description: `${r.tickets_eliminados} tickets y ${r.seguimientos_eliminados} seguimientos eliminados.`,
           });
         },
-        onError: errorToast,
+        onError: errorToast('No se pudo vaciar la base'),
       },
     );
   };

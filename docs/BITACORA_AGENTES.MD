@@ -191,3 +191,72 @@ Archivos afectados: `backend/src/routes/tickets.ts` y `lib/api-spec/openapi.yaml
 - Typecheck completo del workspace: correcto (con el trabajo de roles/usuarios del árbol incluido).
 - Prueba en vivo contra el backend de desarrollo: con una conexión SSE abierta vía curl, un POST real al webhook entregó `{"tipo":"ticket_creado","ticket_id":24,...}` en el stream en el momento; el ticket de prueba se eliminó después.
 - Archivos afectados: `backend/src/lib/events.ts`, `backend/src/routes/events.ts`, `backend/src/routes/index.ts`, `backend/src/routes/webhooks.ts`, `backend/src/routes/admin.ts` (solo broadcasts), `frontend/src/components/layout/AppLayout.tsx`, `frontend/nginx.conf`, `docs/FLUJO.md`.
+
+## 2026-07-17 — Toasts semánticos y mensajes de acciones
+
+**Agente:** Codex
+**Contexto:** mientras el login se desarrolla en paralelo, se mejoró el sistema existente de notificaciones Radix sin cambiar el flujo de autenticación ni migrar al componente Sonner que permanece sin uso.
+
+### Sistema visual
+
+- Se incorporaron variantes `success`, `info`, `warning` y `destructive`, además del estilo neutro existente.
+- Cada variante muestra un icono Lucide y colores semánticos suaves: verde para éxitos, azul para información/SSE, ámbar para advertencias y rojo para errores.
+- El diseño ahora usa una tarjeta más compacta, borde, sombra, mejor jerarquía entre título y descripción y botón de cierre visible con etiqueta accesible.
+- Las duraciones dependen de la severidad: los éxitos desaparecen antes y los errores permanecen más tiempo para poder leerlos.
+- Se permiten hasta tres avisos simultáneos y las notificaciones cerradas se retiran del estado al terminar la animación, en lugar de conservarse durante más de 16 minutos.
+
+### Mensajes y comportamiento
+
+- Admin informa qué ticket se creó, actualizó o eliminó; la importación detalla nuevos, existentes e inválidos; el vaciado muestra sus conteos con tono de advertencia.
+- Roles y usuarios identifica la persona, email o rol afectado al crear, editar, activar, desactivar o eliminar.
+- El detalle del ticket muestra su número y estado al actualizar, conserva el texto del seguimiento agregado y presenta el error real devuelto por la API cuando está disponible.
+- Las validaciones locales de formularios y fechas usan advertencias, reservando el rojo para fallos reales de la operación.
+- Los eventos SSE de llamados e importaciones usan el tono informativo y se deduplican con el éxito local correspondiente para evitar dos avisos por una misma acción.
+
+### Convivencia con login y validación
+
+- No se editaron los archivos de backend, contratos, migraciones ni código generado que estaban siendo modificados por el trabajo paralelo de login.
+- Los únicos puntos compartidos fueron los llamados a `toast` ya existentes en `AppLayout.tsx` y `TicketDetail.tsx`; se conservaron los cambios de sesión presentes.
+- Typecheck del frontend: correcto.
+- Build de producción del frontend: correcto. Continúan únicamente las advertencias conocidas por sourcemaps y tamaño del bundle.
+
+## 2026-07-17 — Login obligatorio, sesiones y bloqueo total de la API
+
+**Agente:** Claude
+**Contexto:** fases 1 y 2 del plan de autenticación definido por el usuario: credenciales + sesiones + bloqueo de todas las URLs. Los permisos por rol con checkboxes quedan para la fase siguiente.
+
+### Cambio realizado
+
+- **Schema (migración 0002)**: columna `usuarios.password_hash` (nullable: un usuario del catálogo sin contraseña no puede loguearse) y tabla `sesiones` (token PK, usuario_id con borrado en cascada, expiración). Aplicada a la base local con push; en Docker la aplica el migrador al arrancar.
+- **Contraseñas**: scrypt del módulo `crypto` de Node (formato `scrypt:<salt>:<hash>`, comparación en tiempo constante). Sin dependencias nativas nuevas — el build de Docker no cambia.
+- **Contrato OpenAPI**: `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` (schemas `LoginInput` y `AuthUser`) + codegen de cliente React Query y Zod.
+- **Backend**:
+  - `requireSession` como candado global en `routes/index.ts`: TODA la API exige sesión salvo `healthz`, el webhook de n8n (clave propia) y el login. Incluye `/api/events` (SSE) y `/api/admin/*`.
+  - Sesiones en cookie `gsb_session` (`httpOnly`, `SameSite=Lax`, 7 días) respaldadas en la tabla, con purga perezosa de vencidas en cada login. Logout revoca la fila y limpia la cookie.
+  - Un usuario desactivado en el catálogo pierde acceso aunque su sesión siga viva.
+  - `/api/admin/*` mantiene además `x-admin-key` → **doble verificación** (`ADMIN_API_KEY` ya configurada en `.env`).
+  - **Seed idempotente** al arrancar: solo si ningún usuario tiene contraseña, crea el rol `Administrador` y el usuario `admin`/`admin` (con warning en el log para cambiar la clave). No revive al admin si ya existen cuentas con contraseña — y evita el lockout total.
+  - **Seguimientos**: `autor` sale siempre de la sesión; el valor del cliente se ignora (el historial deja de ser falsificable). Se quitó el `'Usuario Actual'` hardcodeado del frontend.
+- **Frontend**:
+  - `AuthGate` en `App.tsx`: sin sesión, cualquier URL renderiza únicamente la pantalla de login (la URL se conserva: tras loguearse el usuario cae donde quería ir). Mientras verifica sesión muestra un spinner.
+  - Pantalla `Login.tsx` con manejo de errores 401 vs. red.
+  - Ante cualquier respuesta 401 de la API (sesión vencida/revocada), un `QueryCache.onError` invalida `/auth/me` y el gate devuelve al login.
+  - Footer del sidebar: usuario logueado + rol + botón de cerrar sesión (limpia todo el caché de queries).
+  - El stream SSE queda detrás del gate: solo conecta con sesión iniciada.
+
+### Validaciones ejecutadas
+
+- Typecheck completo del workspace: correcto.
+- Batería E2E contra el backend de desarrollo y la base local (12 casos, todos correctos):
+  - `healthz` público: 200; `/api/tickets` y `/api/events` sin sesión: 401;
+  - webhook n8n sin sesión pero con su `x-api-key`: 201 — **la ingesta automática no se ve afectada por el login**;
+  - login con clave incorrecta: 401 (mensaje genérico); login `admin`/`admin`: 200 + cookie; `/auth/me`: datos correctos con rol `Administrador`;
+  - con sesión: tickets 200; seguimiento creado con `autor: "Admin"` pese a que el cliente mandó un autor falsificado;
+  - `/api/admin/roles` con sesión pero sin `x-admin-key`: 401; con ambas llaves: 200 (doble verificación);
+  - logout: 204 y el mismo cookie jar pasa a recibir 401.
+  - El ticket de prueba creado por el webhook se eliminó al final.
+- Frontend respondiendo 200 con el gate activo.
+
+### Nota operativa
+
+- Al deployar esto al servidor de testing, el seed crea `admin`/`admin` allá también: **entrar y cambiar la clave** (o crear usuarios propios) apenas se despliegue. n8n no requiere ningún cambio.

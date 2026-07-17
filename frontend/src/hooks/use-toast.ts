@@ -1,14 +1,15 @@
 import * as React from 'react';
 import type { ToastActionElement, ToastProps } from '@/components/ui/toast';
 
-const TOAST_LIMIT = 1;
-const TOAST_REMOVE_DELAY = 1000000;
+const TOAST_LIMIT = 3;
+const TOAST_REMOVE_DELAY = 1000;
 
 type ToasterToast = ToastProps & {
   id: string;
   title?: React.ReactNode;
   description?: React.ReactNode;
   action?: ToastActionElement;
+  dedupeKey?: string;
 };
 
 const actionTypes = {
@@ -136,6 +137,29 @@ function dispatch(action: Action) {
 type Toast = Omit<ToasterToast, 'id'>;
 
 function toast({ ...props }: Toast) {
+  const existingToast = props.dedupeKey
+    ? memoryState.toasts.find((item) => item.dedupeKey === props.dedupeKey && item.open !== false)
+    : undefined;
+  if (existingToast) {
+    dispatch({
+      type: 'UPDATE_TOAST',
+      toast: {
+        ...props,
+        id: existingToast.id,
+        open: true,
+      },
+    });
+    return {
+      id: existingToast.id,
+      dismiss: () => dispatch({ type: 'DISMISS_TOAST', toastId: existingToast.id }),
+      update: (nextProps: ToasterToast) =>
+        dispatch({
+          type: 'UPDATE_TOAST',
+          toast: { ...nextProps, id: existingToast.id },
+        }),
+    };
+  }
+
   const id = genId();
 
   const update = (props: ToasterToast) =>
@@ -175,7 +199,7 @@ function useToast() {
         listeners.splice(index, 1);
       }
     };
-  }, [state]);
+  }, []);
 
   return {
     ...state,

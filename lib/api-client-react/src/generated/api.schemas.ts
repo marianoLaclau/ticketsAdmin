@@ -5,6 +5,22 @@
  * GSB Ticket Management System API
  * OpenAPI spec version: 0.1.0
  */
+export interface LoginInput {
+  /** Email (o nombre de usuario) con el que figura en el catálogo */
+  usuario: string;
+  password: string;
+}
+
+export interface AuthUser {
+  id: number;
+  nombre: string;
+  /** @nullable */
+  apellido?: string | null;
+  email: string;
+  /** Nombre del rol asignado */
+  rol: string;
+}
+
 export interface AdminRole {
   id: number;
   nombre: string;

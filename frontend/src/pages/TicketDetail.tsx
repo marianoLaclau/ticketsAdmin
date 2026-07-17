@@ -61,6 +61,10 @@ const PROGRESS_STEPS = [
   { estado: TicketEstado.cerrado, value: 100, label: 'Cerrado' },
 ];
 
+function errorDescription(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message.trim() ? error.message : fallback;
+}
+
 export default function TicketDetail() {
   const { id } = useParams<{ id: string }>();
   const ticketId = parseInt(id || '0', 10);
@@ -103,7 +107,7 @@ export default function TicketDetail() {
 
     if (originalFechaLimite && !editData.fecha_limite) {
       toast({
-        variant: 'destructive',
+        variant: 'warning',
         title: 'Fecha límite requerida',
         description: 'La API actual no permite eliminar la fecha límite.',
       });
@@ -123,7 +127,7 @@ export default function TicketDetail() {
       const fechaLimiteIso = dateTimeLocalValueToIso(editData.fecha_limite);
       if (!fechaLimiteIso) {
         toast({
-          variant: 'destructive',
+          variant: 'warning',
           title: 'Fecha límite inválida',
           description: 'Revisa la fecha y hora antes de guardar.',
         });
@@ -138,36 +142,54 @@ export default function TicketDetail() {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ['/api/tickets', ticketId] });
           setIsEditing(false);
-          toast({ title: 'Ticket actualizado' });
+          const estadoLabel = PROGRESS_STEPS.find((step) => step.estado === editData.estado)?.label;
+          toast({
+            variant: 'success',
+            title: 'Ticket actualizado',
+            description: `Ticket #${ticketId}${estadoLabel ? ` · Estado: ${estadoLabel}` : ''}`,
+          });
         },
-        onError: () => {
-          toast({ variant: 'destructive', title: 'Error', description: 'No se pudo actualizar' });
+        onError: (error) => {
+          toast({
+            variant: 'destructive',
+            title: `No se pudo actualizar el ticket #${ticketId}`,
+            description: errorDescription(error, 'Reintentá la operación.'),
+          });
         }
       }
     );
   };
 
   const handleAddSeguimiento = () => {
-    if (!newSeguimiento.trim()) return;
+    const seguimiento = newSeguimiento.trim();
+    if (!seguimiento) return;
     
     createSeguimiento.mutate(
-      { 
-        id: ticketId, 
-        data: { 
-          nota: newSeguimiento,
+      {
+        id: ticketId,
+        data: {
+          nota: seguimiento,
           estado_anterior: ticket?.estado,
           estado_nuevo: ticket?.estado, // unless they change it, but we keep simple here
-          autor: 'Usuario Actual' // In a real app, from auth
-        } 
+          // autor: lo asigna el backend con el usuario de la sesión
+        }
       },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ['/api/tickets', ticketId, 'seguimientos'] });
           setNewSeguimiento('');
-          toast({ title: 'Seguimiento agregado' });
+          toast({
+            variant: 'success',
+            title: 'Seguimiento agregado',
+            description: seguimiento.length > 90 ? `${seguimiento.slice(0, 90)}…` : seguimiento,
+          });
         },
-        onError: () => {
-          toast({ variant: 'destructive', title: 'Error', description: 'No se pudo agregar' });
+        onError: (error) => {
+          toast({
+            variant: 'destructive',
+            title: 'No se pudo agregar el seguimiento',
+            description: errorDescription(error, 'Reintentá la operación.'),
+          });
         }
       }
     );

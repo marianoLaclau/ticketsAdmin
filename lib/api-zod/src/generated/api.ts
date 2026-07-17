@@ -80,6 +80,43 @@ export const ListTicketsResponse = zod.object({
 
 
 /**
+ * Valida usuario y contraseña. Si son correctos setea la cookie de sesión (httpOnly) y devuelve los datos del usuario.
+ * @summary Iniciar sesión
+ */
+export const LoginBody = zod.object({
+  "usuario": zod.string().describe('Email (o nombre de usuario) con el que figura en el catálogo'),
+  "password": zod.string()
+})
+
+export const LoginResponse = zod.object({
+  "id": zod.number(),
+  "nombre": zod.string(),
+  "apellido": zod.string().nullish(),
+  "email": zod.string(),
+  "rol": zod.string().describe('Nombre del rol asignado')
+})
+
+
+/**
+ * Revoca la sesión actual y limpia la cookie.
+ * @summary Cerrar sesión
+ */
+export const LogoutResponse = zod.void()
+
+
+/**
+ * @summary Usuario de la sesión actual
+ */
+export const GetMeResponse = zod.object({
+  "id": zod.number(),
+  "nombre": zod.string(),
+  "apellido": zod.string().nullish(),
+  "email": zod.string(),
+  "rol": zod.string().describe('Nombre del rol asignado')
+})
+
+
+/**
  * Recibe el JSON que arma ElevenLabs al finalizar una llamada. Requiere el header x-api-key. Idempotente por conversation_id: si el ticket ya existe devuelve 200 con created=false.
  * @summary Ingesta de una llamada desde n8n
  */
