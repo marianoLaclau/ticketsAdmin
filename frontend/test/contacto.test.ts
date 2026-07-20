@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   getContactDisplayEmail,
   getContactDisplayName,
+  getContactDisplayPhone,
   SIN_NOMBRE_PROPORCIONADO,
 } from '../src/lib/contacto.ts';
 
@@ -21,4 +22,10 @@ test('normaliza el email solo para su presentación', () => {
   assert.equal(getContactDisplayEmail(' persona@empresa.com '), 'persona@empresa.com');
   assert.equal(getContactDisplayEmail('   '), null);
   assert.equal(getContactDisplayEmail(null), null);
+});
+
+test('normaliza el teléfono solo para su presentación', () => {
+  assert.equal(getContactDisplayPhone(' 1169360818 '), '1169360818');
+  assert.equal(getContactDisplayPhone('   '), null);
+  assert.equal(getContactDisplayPhone(undefined), null);
 });

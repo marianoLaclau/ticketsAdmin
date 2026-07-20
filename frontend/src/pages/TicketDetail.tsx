@@ -52,7 +52,7 @@ import {
   Headphones
 } from 'lucide-react';
 import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
-import { getContactDisplayEmail, getContactDisplayName } from '@/lib/contacto';
+import { getContactDisplayEmail, getContactDisplayName, getContactDisplayPhone } from '@/lib/contacto';
 import { dateTimeLocalValueToIso, toDateTimeLocalValue } from '@/lib/datetime-local';
 import { puedeCerrarTickets } from '@/lib/roles';
 import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
@@ -250,6 +250,7 @@ export default function TicketDetail() {
 
   const vencido = isVencido(ticket.fecha_limite, ticket.estado);
   const contactoLabel = getContactDisplayName(ticket);
+  const telefonoLabel = getContactDisplayPhone(ticket.telefono);
   const emailLabel = getContactDisplayEmail(ticket.email);
 
   return (
@@ -594,22 +595,24 @@ export default function TicketDetail() {
                 </div>
               )}
 
-              <div className="pt-2 mt-2 border-t border-slate-100">
-                {ticket.telefono && (
-                  <div className="flex items-center gap-3 py-2 text-sm">
-                    <div className="h-8 w-8 rounded bg-slate-50 flex items-center justify-center shrink-0">
-                      <Phone className="h-4 w-4 text-slate-500" />
-                    </div>
-                    <span className="text-slate-700">{ticket.telefono}</span>
+              <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">
+                <div className="flex min-h-10 items-center gap-3 py-1 text-sm">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-slate-50">
+                    <Phone className="h-4 w-4 text-slate-500" />
                   </div>
-                )}
-                
-                <div className="flex items-center gap-3 py-2 text-sm">
-                  <div className="h-8 w-8 rounded bg-slate-50 flex items-center justify-center shrink-0">
+                  {telefonoLabel ? (
+                    <span className="break-all text-slate-700">{telefonoLabel}</span>
+                  ) : (
+                    <span className="italic text-slate-500">Teléfono no proporcionado</span>
+                  )}
+                </div>
+
+                <div className="flex min-h-10 items-center gap-3 py-1 text-sm">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-slate-50">
                     <Mail className="h-4 w-4 text-slate-500" />
                   </div>
                   {emailLabel ? (
-                    <span className="text-slate-700 break-all">{emailLabel}</span>
+                    <span className="break-all text-slate-700">{emailLabel}</span>
                   ) : (
                     <span className="italic text-slate-500">Email no proporcionado</span>
                   )}

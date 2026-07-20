@@ -23,3 +23,8 @@ export function getContactDisplayName(contacto?: Contacto | null): string {
 export function getContactDisplayEmail(email?: string | null): string | null {
   return email?.trim() || null;
 }
+
+/** Devuelve un teléfono listo para mostrar, o null si llegó vacío/solo con espacios. */
+export function getContactDisplayPhone(telefono?: string | null): string | null {
+  return telefono?.trim() || null;
+}

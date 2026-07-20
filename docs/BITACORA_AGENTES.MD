@@ -2,6 +2,28 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-07-20 — Teléfono y email fijos en la ficha del ticket
+
+**Agente:** Codex
+**Contexto:** se pidió que Datos del Contacto mantenga una estructura estable aunque el llamante no haya proporcionado vías de contacto.
+
+### Cambio realizado
+
+- Las filas de teléfono y email se renderizan siempre, con la misma altura, iconografía y espaciado.
+- Cuando existe el dato se muestra limpio de espacios externos; cuando falta se informa `Teléfono no proporcionado` o `Email no proporcionado`.
+- Nombre conserva `Sin nombre proporcionado`; empresa y DNI continúan siendo datos opcionales y solo se muestran cuando existen.
+- No se reescribieron valores de la base: los fallbacks son exclusivamente de presentación.
+
+Archivos principales: `frontend/src/pages/TicketDetail.tsx`, `frontend/src/lib/contacto.ts` y `frontend/test/contacto.test.ts`.
+
+### Validaciones ejecutadas
+
+- Tests del helper de contacto: 4/4 correctos.
+- Typecheck del frontend: correcto.
+- Build de producción del frontend: correcto; solo permanecen las advertencias conocidas de sourcemaps y tamaño del bundle.
+- Smoke sobre el módulo servido por Vite: HTTP `200`, ambos mensajes de fallback presentes y teléfono sin renderizado condicional.
+- `git diff --check`: sin errores de whitespace.
+
 ## 2026-07-20 — Email exclusivo del detalle del ticket
 
 **Agente:** Codex
