@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Clock, PhoneIncoming, AlertCircle, CheckCircle2, Inbox, TrendingUp } from 'lucide-react';
 import { Link } from 'wouter';
 import { formatDate, PrioridadBadge } from '@/lib/utils-tickets';
+import { getContactDisplayName, SIN_NOMBRE_PROPORCIONADO } from '@/lib/contacto';
 import { getMotivoCategoriaConfig } from '@/lib/motivos';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
@@ -425,7 +426,7 @@ export default function Dashboard() {
                       return (
                         <tr key={ticket.id} className="hover:bg-red-50/30 cursor-pointer transition-colors" onClick={() => window.location.href = `/tickets/${ticket.id}`}>
                           <td className="px-5 py-2.5">
-                            <p className="font-medium text-foreground text-sm">{ticket.nombre} {ticket.apellido}</p>
+                            <p className="font-medium text-foreground text-sm">{getContactDisplayName(ticket)}</p>
                             {ticket.empresa && <p className="text-[11px] text-slate-400">{ticket.empresa}</p>}
                           </td>
                           <td className="px-5 py-2.5 text-slate-600 text-sm truncate max-w-[180px]" title={ticket.motivo}>{ticket.motivo}</td>
@@ -475,7 +476,7 @@ export default function Dashboard() {
                         <div className={`absolute left-0.5 top-1 h-3 w-3 rounded-full border-2 border-white shadow-sm ${isNew ? 'bg-amber-400' : 'bg-blue-400'}`} />
                         <div>
                           <Link href={`/tickets/${a.ticket_id}`} className="text-xs font-semibold text-foreground hover:text-primary transition-colors">
-                            {a.nombre_contacto?.trim() || 'Llamado sin identificar'}
+                            {a.nombre_contacto?.trim() || SIN_NOMBRE_PROPORCIONADO}
                           </Link>
                           <p className="text-[12px] text-slate-500 mt-0.5 leading-snug">{a.descripcion}</p>
                           <div className="flex items-center gap-1.5 mt-1">

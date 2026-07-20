@@ -18,6 +18,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { LogOut } from 'lucide-react';
 import { ROL_SYSADMIN } from '@/lib/roles';
+import { getContactDisplayName } from '@/lib/contacto';
 
 // @ts-ignore
 import gsbLogo from '@/assets/gsb-logo.jpg';
@@ -43,12 +44,12 @@ function useEventosEnVivo() {
       // Cualquier evento implica datos nuevos: refrescar listados y stats
       queryClient.invalidateQueries();
       if (data.tipo === 'ticket_creado') {
-        const contacto = `${data.nombre ?? ''} ${data.apellido ?? ''}`.trim();
+        const contacto = getContactDisplayName(data);
         toast({
           dedupeKey: data.ticket_id ? `ticket-created:${data.ticket_id}` : undefined,
           variant: 'info',
           title: 'Nuevo llamado recibido',
-          description: [contacto || null, data.motivo || null].filter(Boolean).join(' — '),
+          description: [contacto, data.motivo || null].filter(Boolean).join(' — '),
         });
       } else if (data.tipo === 'tickets_importados') {
         toast({

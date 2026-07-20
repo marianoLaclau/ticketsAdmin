@@ -2,6 +2,29 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-07-20 — Email y nombre visible en Tickets
+
+**Agente:** Codex
+**Contexto:** se reportó que el listado de Tickets no mostraba el email aun cuando el llamante lo había proporcionado, y se pidió una leyenda clara para contactos sin nombre.
+
+### Diagnóstico y cambio
+
+- El email no se perdía: webhook, SQLite, contrato OpenAPI y `GET /tickets` ya lo transportaban correctamente. La base local confirmó 5 tickets con email válido sobre 12 registros; la columna Contacto de `TicketList.tsx` simplemente no renderizaba el campo.
+- La columna Contacto ahora muestra nombre, email —solo si contiene texto— y empresa. Los valores se recortan únicamente para presentación; no se reescriben los datos originales.
+- Se agregó `getContactDisplayName`, usado en listado, detalle, tickets vencidos del Dashboard, actividad reciente, notificaciones SSE y CRUD administrativo. Cuando nombre y apellido están vacíos muestra `Sin nombre proporcionado`; también unifica visualmente el marcador histórico `Sin nombre`.
+- Se agregó `getContactDisplayEmail` para evitar renderizar emails vacíos o compuestos solo por espacios.
+- La base local contenía 1 contacto sin nombre completo y 2 marcadores históricos `Sin nombre`; no se ejecutó ningún backfill ni se modificó ninguna fila.
+
+Archivos principales: `frontend/src/lib/contacto.ts`, `frontend/src/pages/TicketList.tsx`, `frontend/src/pages/TicketDetail.tsx`, `frontend/src/pages/Dashboard.tsx`, `frontend/src/pages/Admin.tsx` y `frontend/src/components/layout/AppLayout.tsx`.
+
+### Validaciones ejecutadas
+
+- Tests unitarios del helper de presentación: 3/3 correctos.
+- Typecheck del frontend: correcto.
+- Build de producción del frontend: correcto; permanecen únicamente las advertencias conocidas de sourcemaps y tamaño del bundle.
+- Smoke HTTP local: frontend `:3000/` y backend `:5000/api/healthz` respondieron `200`.
+- `git diff --check`: sin errores de whitespace.
+
 ## 2026-07-17 — Filtros, fechas/timezone y backup SQLite
 
 **Agente:** Codex

@@ -43,6 +43,7 @@ import {
   ChevronLeft, ChevronRight, FileText, CheckCircle2,
 } from 'lucide-react';
 import { EstadoBadge, PrioridadBadge, formatDate } from '@/lib/utils-tickets';
+import { getContactDisplayName } from '@/lib/contacto';
 
 const CAMPOS_TEXTO: Array<{ campo: string; label: string; requerido?: boolean }> = [
   { campo: 'conversation_id', label: 'Conversation ID', requerido: true },
@@ -167,7 +168,7 @@ export default function Admin() {
       estado: form.estado as TicketEstado,
       prioridad: form.prioridad as TicketPrioridad,
     };
-    const contacto = `${form.nombre} ${form.apellido}`.trim();
+    const contacto = getContactDisplayName(form);
     const onOk = (titulo: string, dedupeCreated = false) => (savedTicket: Ticket) => {
       setDialogAbierto(false);
       refrescarTodo();
@@ -175,7 +176,7 @@ export default function Admin() {
         dedupeKey: dedupeCreated ? `ticket-created:${savedTicket.id}` : undefined,
         variant: 'success',
         title: titulo,
-        description: contacto || form.conversation_id,
+        description: contacto,
       });
     };
     if (editandoId === null) {
@@ -202,7 +203,7 @@ export default function Admin() {
           toast({
             variant: 'success',
             title: 'Ticket eliminado',
-            description: `${aEliminar.nombre} ${aEliminar.apellido}`.trim() || aEliminar.conversation_id,
+            description: getContactDisplayName(aEliminar),
           });
         },
         onError: errorToast('No se pudo eliminar el ticket'),
@@ -357,7 +358,7 @@ export default function Admin() {
                             {t.conversation_id.length > 24 ? `${t.conversation_id.slice(0, 24)}…` : t.conversation_id}
                           </span>
                         </TableCell>
-                        <TableCell className="font-medium">{t.nombre} {t.apellido}</TableCell>
+                        <TableCell className="font-medium">{getContactDisplayName(t)}</TableCell>
                         <TableCell className="text-muted-foreground">{t.empresa || '-'}</TableCell>
                         <TableCell><EstadoBadge estado={t.estado} /></TableCell>
                         <TableCell><PrioridadBadge prioridad={t.prioridad} /></TableCell>
@@ -631,7 +632,7 @@ export default function Admin() {
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar este registro?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se va a eliminar el registro de <strong>{aEliminar?.nombre} {aEliminar?.apellido}</strong>
+              Se va a eliminar el registro de <strong>{getContactDisplayName(aEliminar)}</strong>
               {' '}({aEliminar?.motivo}) junto con todos sus seguimientos. No se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>

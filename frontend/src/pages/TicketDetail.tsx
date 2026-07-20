@@ -52,6 +52,7 @@ import {
   Headphones
 } from 'lucide-react';
 import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
+import { getContactDisplayEmail, getContactDisplayName } from '@/lib/contacto';
 import { dateTimeLocalValueToIso, toDateTimeLocalValue } from '@/lib/datetime-local';
 import { puedeCerrarTickets } from '@/lib/roles';
 import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
@@ -248,6 +249,8 @@ export default function TicketDetail() {
   }
 
   const vencido = isVencido(ticket.fecha_limite, ticket.estado);
+  const contactoLabel = getContactDisplayName(ticket);
+  const emailLabel = getContactDisplayEmail(ticket.email);
 
   return (
     <div className="p-8 max-w-6xl mx-auto w-full space-y-6 pb-24">
@@ -571,7 +574,7 @@ export default function TicketDetail() {
             <CardContent className="pt-4 space-y-4">
               <div>
                 <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Nombre Completo</h4>
-                <p className="font-medium text-slate-900">{ticket.nombre} {ticket.apellido}</p>
+                <p className="font-medium text-slate-900">{contactoLabel}</p>
               </div>
               
               {ticket.empresa && (
@@ -601,12 +604,12 @@ export default function TicketDetail() {
                   </div>
                 )}
                 
-                {ticket.email && (
+                {emailLabel && (
                   <div className="flex items-center gap-3 py-2 text-sm">
                     <div className="h-8 w-8 rounded bg-slate-50 flex items-center justify-center shrink-0">
                       <Mail className="h-4 w-4 text-slate-500" />
                     </div>
-                    <span className="text-slate-700 break-all">{ticket.email}</span>
+                    <span className="text-slate-700 break-all">{emailLabel}</span>
                   </div>
                 )}
               </div>

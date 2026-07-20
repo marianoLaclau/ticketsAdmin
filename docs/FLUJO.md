@@ -139,7 +139,7 @@ Cada request: se loguea (pino) → se valida con Zod → se consulta/escribe con
 React + Vite. Pantallas principales:
 
 - **Dashboard** (`/dashboard`): KPIs (sin revisar, en proceso, vencidos, resueltos hoy), distribución por estado, rendimiento, motivos de contacto, prioridades, tickets vencidos y actividad reciente.
-- **Listado** (`/tickets`): tabla con contacto, empresa, motivo, estado, prioridad, progreso y fecha límite. Filtros combinables.
+- **Listado** (`/tickets`): tabla con contacto, email cuando fue proporcionado, empresa, motivo, estado, prioridad, progreso y fecha límite. Si nombre y apellido están vacíos se muestra `Sin nombre proporcionado` como fallback visual, conservando intacto el dato recibido. Filtros combinables.
 - **Detalle** (`/tickets/:id`): resumen de la llamada, reproductor de la grabación, datos del contacto, tiempos, edición de estado/prioridad/progreso y el historial de seguimientos.
 
 **Actualización en vivo**: la app mantiene abierta una conexión SSE (`/api/events`). Cuando entra un llamado nuevo por el webhook (o se importan registros), **todas las pestañas abiertas se refrescan al instante** y muestran una notificación con el contacto y el motivo — sin recargar la página. El refresco periódico de 30s del sidebar queda como respaldo por si la conexión de eventos se corta.
