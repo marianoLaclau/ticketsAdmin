@@ -19,12 +19,12 @@ import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import {
-  Search, Filter, Building, Mail, AlertCircle,
+  Search, Filter, Building, AlertCircle,
   ArrowUp, ArrowDown, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
 import { getMotivoCategoriaConfig, MOTIVO_CATEGORIA_OPTIONS } from '@/lib/motivos';
-import { getContactDisplayEmail, getContactDisplayName } from '@/lib/contacto';
+import { getContactDisplayName } from '@/lib/contacto';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
 
@@ -258,7 +258,7 @@ export default function TicketList() {
                     {order === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />}
                   </button>
                 </TableHead>
-                <TableHead className="w-[260px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Contacto</TableHead>
+                <TableHead className="w-[220px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Contacto</TableHead>
                 <TableHead className="w-[190px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Categoría</TableHead>
                 <TableHead className="w-[250px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Motivo</TableHead>
                 <TableHead className="w-[120px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Estado</TableHead>
@@ -272,7 +272,7 @@ export default function TicketList() {
                 Array.from({ length: 10 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell className="py-2.5"><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell className="py-2.5 space-y-1"><Skeleton className="h-4 w-32" /><Skeleton className="h-3 w-40" /><Skeleton className="h-3 w-24" /></TableCell>
+                    <TableCell className="py-2.5 space-y-1"><Skeleton className="h-4 w-32" /><Skeleton className="h-3 w-24" /></TableCell>
                     <TableCell className="py-2.5"><Skeleton className="h-5 w-32" /></TableCell>
                     <TableCell className="py-2.5"><Skeleton className="h-4 w-48" /></TableCell>
                     <TableCell className="py-2.5"><Skeleton className="h-4 w-20" /></TableCell>
@@ -298,7 +298,6 @@ export default function TicketList() {
                   const vencido = isVencido(ticket.fecha_limite, ticket.estado);
                   const motivoCategoria = getMotivoCategoriaConfig(ticket.motivo_categoria);
                   const contactoLabel = getContactDisplayName(ticket);
-                  const emailLabel = getContactDisplayEmail(ticket.email);
                   const empresaLabel = ticket.empresa?.trim() || 'Sin empresa asociada';
                   
                   return (
@@ -323,15 +322,6 @@ export default function TicketList() {
                           <span className="block truncate text-sm font-semibold text-foreground" title={contactoLabel}>
                             {contactoLabel}
                           </span>
-                          {emailLabel && (
-                            <span
-                              className="mt-0.5 flex min-w-0 items-center text-[11px] text-slate-500"
-                              title={emailLabel}
-                            >
-                              <Mail className="mr-1 h-3 w-3 shrink-0 text-slate-400" />
-                              <span className="truncate">{emailLabel}</span>
-                            </span>
-                          )}
                           <span
                             className="mt-0.5 flex min-w-0 items-center text-[11px] text-slate-500"
                             title={empresaLabel}

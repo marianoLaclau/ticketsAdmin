@@ -2,6 +2,27 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-07-20 — Email exclusivo del detalle del ticket
+
+**Agente:** Codex
+**Contexto:** se ajustó la ubicación del email para mantener compacto el listado general y concentrar todos los datos del llamante en la ficha individual.
+
+### Cambio realizado
+
+- El email se retiró de la columna Contacto de `/tickets`; allí permanecen nombre y empresa.
+- La sección Datos del Contacto de `/tickets/:id` ahora renderiza siempre la fila de email.
+- Si existe una dirección se muestra completa; si el dato es nulo, vacío o contiene solo espacios se informa `Email no proporcionado`.
+- Se mantiene el fallback `Sin nombre proporcionado` y no se modifica ningún dato persistido.
+
+Archivos principales: `frontend/src/pages/TicketList.tsx`, `frontend/src/pages/TicketDetail.tsx`, `frontend/README_FRONTEND.md` y `docs/FLUJO.md`.
+
+### Validaciones ejecutadas
+
+- Tests del helper de contacto: 3/3 correctos.
+- Typecheck del frontend: correcto.
+- Build de producción del frontend: correcto; solo permanecen las advertencias conocidas de sourcemaps y tamaño del bundle.
+- `git diff --check`: sin errores de whitespace.
+
 ## 2026-07-20 — Email y nombre visible en Tickets
 
 **Agente:** Codex

@@ -604,14 +604,16 @@ export default function TicketDetail() {
                   </div>
                 )}
                 
-                {emailLabel && (
-                  <div className="flex items-center gap-3 py-2 text-sm">
-                    <div className="h-8 w-8 rounded bg-slate-50 flex items-center justify-center shrink-0">
-                      <Mail className="h-4 w-4 text-slate-500" />
-                    </div>
-                    <span className="text-slate-700 break-all">{emailLabel}</span>
+                <div className="flex items-center gap-3 py-2 text-sm">
+                  <div className="h-8 w-8 rounded bg-slate-50 flex items-center justify-center shrink-0">
+                    <Mail className="h-4 w-4 text-slate-500" />
                   </div>
-                )}
+                  {emailLabel ? (
+                    <span className="text-slate-700 break-all">{emailLabel}</span>
+                  ) : (
+                    <span className="italic text-slate-500">Email no proporcionado</span>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
