@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   db,
+  esTicketVacio,
   sqlite,
   ticketsTable,
   seguimientosTable,
@@ -29,8 +30,8 @@ import {
   parseCsv,
   detectarColumnas,
   filaATicket,
+  calcularFechaLimiteSla,
   clasificarMotivo,
-  SLA_MS,
 } from "@workspace/ingesta";
 import { requireAdminKey, requireSysAdmin } from "../lib/auth";
 import { hashPassword } from "../lib/passwords";
@@ -111,6 +112,7 @@ router.post("/admin/tickets", async (req, res) => {
     return;
   }
 
+  const fechaCreacion = new Date();
   const [ticket] = await db
     .insert(ticketsTable)
     .values({
@@ -135,19 +137,24 @@ router.post("/admin/tickets", async (req, res) => {
       asignado_a: data.asignado_a ?? null,
       audio_url: data.audio_url ?? null,
       notas: data.notas ?? null,
+      fecha_creacion: fechaCreacion,
       fecha_limite: data.fecha_limite
         ? new Date(data.fecha_limite)
-        : new Date(Date.now() + SLA_MS),
+        : calcularFechaLimiteSla(fechaCreacion),
       progreso: data.progreso ?? 0,
     })
     .returning();
 
-  broadcastEvent("ticket_creado", {
-    ticket_id: ticket.id,
-    nombre: ticket.nombre,
-    apellido: ticket.apellido,
-    motivo: ticket.motivo,
-  });
+  if (esTicketVacio(ticket)) {
+    broadcastEvent("datos_actualizados");
+  } else {
+    broadcastEvent("ticket_creado", {
+      ticket_id: ticket.id,
+      nombre: ticket.nombre,
+      apellido: ticket.apellido,
+      motivo: ticket.motivo,
+    });
+  }
 
   res.status(201).json(ticket);
 });
@@ -587,6 +594,7 @@ router.post("/admin/import", async (req, res) => {
   );
 
   let insertados = 0;
+  let insertadosVisibles = 0;
   let yaExistentes = 0;
   let invalidos = 0;
   const advertencias: string[] = [];
@@ -599,7 +607,9 @@ router.post("/admin/import", async (req, res) => {
 
     const values = filaATicket(record);
     if (!values) {
-      advertencias.push(`Fila ${i + 2}: sin conversation_id, salteada`);
+      advertencias.push(
+        `Fila ${i + 2}: sin conversation_id o con fecha/hora inválida, salteada`,
+      );
       invalidos++;
       continue;
     }
@@ -612,11 +622,19 @@ router.post("/admin/import", async (req, res) => {
     if (!dryRun) {
       await db.insert(ticketsTable).values(values);
     }
+    if (!esTicketVacio(values)) insertadosVisibles++;
     insertados++;
   }
 
   if (!dryRun && insertados > 0) {
-    broadcastEvent("tickets_importados", { cantidad: insertados });
+    if (insertadosVisibles > 0) {
+      broadcastEvent("tickets_importados", {
+        cantidad: insertadosVisibles,
+        cantidad_total: insertados,
+      });
+    } else {
+      broadcastEvent("datos_actualizados");
+    }
   }
 
   res.json({

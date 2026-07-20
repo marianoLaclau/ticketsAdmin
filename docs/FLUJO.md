@@ -89,7 +89,7 @@ n8n y este sistema están en la misma red interna, así que n8n le pega directo 
 }
 ```
 
-No hace falta mandar `fecha_limite`: el webhook la preestablece sola a +48hs (ver sección de SLA más abajo). Los campos opcionales que no tengas simplemente se omiten del body.
+No hace falta mandar `fecha_limite`: el webhook la preestablece solo a **48 horas hábiles**, pausando el reloj durante sábado y domingo (ver sección de SLA más abajo). Los campos opcionales que no tengas simplemente se omiten del body.
 
 **Respuestas del webhook**:
 
@@ -110,8 +110,8 @@ API REST en Express 5. Único componente que toca la base. Rutas:
 
 | Ruta                                     | Qué hace                                                                                                                                         |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `POST /api/webhooks/ticket`              | **Ingesta**: crea el ticket de una llamada. Única ruta con API key. Idempotente. Si no viene `fecha_limite`, se preestablece a **+48 hs** (SLA). |
-| `GET /api/tickets`                       | Listado con filtros (estado, prioridad, fechas, horas, empresa, búsqueda libre, vencidos) y paginación.                                          |
+| `POST /api/webhooks/ticket`              | **Ingesta**: crea el ticket de una llamada. Única ruta con API key. Idempotente. Si no viene `fecha_limite`, se preestablece a **48 horas hábiles de lunes a viernes** (SLA). |
+| `GET /api/tickets`                       | Listado operativo con filtros y paginación. Omite registros en cuarentena; `incluir_vacios=true` permite incluirlos solo con sesión SysAdmin y `x-admin-key`. |
 | `GET /api/tickets/:id`                   | Detalle + historial de seguimientos.                                                                                                             |
 | `PATCH /api/tickets/:id`                 | Editar estado, prioridad, progreso, notas o fecha límite. Una transición real de estado autoasigna al usuario de la sesión; los campos administrativos exigen SysAdmin + `x-admin-key`. |
 | `DELETE /api/tickets/:id`                | Eliminar; exige sesión SysAdmin + `x-admin-key`.                                                                                                  |
@@ -134,6 +134,29 @@ Las rutas `admin`, el borrado y la edición administrativa de tickets exigen ses
 
 Cada request: se loguea (pino) → se valida con Zod → se consulta/escribe con Drizzle → responde JSON.
 
+#### Cuarentena administrativa de registros vacíos
+
+El ingreso no descarta llamadas: aun cuando n8n o un importador entregue un registro sin datos útiles, la fila se conserva intacta en SQLite para auditoría y corrección. No se borra, no se reescribe y no se altera el payload original.
+
+Un ticket entra en cuarentena únicamente cuando **todas** estas condiciones se cumplen al mismo tiempo (AND):
+
+- `nombre` está vacío o contiene uno de los marcadores históricos `Sin nombre` / `Sin nombre proporcionado`;
+- `apellido`, `telefono`, `dni`, `empresa`, `email`, `resumen` y `notas` están vacíos;
+- `motivo` está vacío o contiene el marcador `Sin especificar`;
+- conserva `estado = nuevo`, `prioridad = media`, `progreso = 0`, `notificado = false`, no tiene asignación ni seguimientos.
+
+No participan de la decisión `id`, `conversation_id`, `hora`, las fechas, `motivo_categoria` ni `audio_url`: son identificadores, datos técnicos o valores generados automáticamente y, por sí solos, no convierten el registro en un ticket operativo.
+
+La cuarentena se aplica de forma derivada en cada consulta. Por eso, un registro que ya tenga seguimientos no se oculta; y si un SysAdmin completa un dato o cambia alguno de los valores operativos anteriores, vuelve automáticamente a Tickets y al Dashboard. No necesita un proceso de recuperación ni un backfill.
+
+Mientras permanece vacío queda fuera de:
+
+- el listado `/tickets`, la ficha individual y sus seguimientos;
+- KPIs, badges, actividad reciente, motivos y vencidos del Dashboard;
+- los toasts de nuevos tickets e importaciones.
+
+Sigue visible en la tabla de Administración mediante `GET /api/tickets?incluir_vacios=true`. Ese parámetro no es un bypass público: exige sesión con rol SysAdmin y la segunda credencial `ADMIN_API_KEY` enviada en `x-admin-key`.
+
 ### Frontend — [frontend/](../frontend/)
 
 React + Vite. Pantallas principales:
@@ -142,11 +165,11 @@ React + Vite. Pantallas principales:
 - **Listado** (`/tickets`): tabla con contacto, empresa, motivo, estado, prioridad, progreso y fecha límite. Si nombre y apellido están vacíos se muestra `Sin nombre proporcionado` como fallback visual, conservando intacto el dato recibido. Filtros combinables.
 - **Detalle** (`/tickets/:id`): resumen de la llamada, reproductor de la grabación, datos del contacto, tiempos, edición de estado/prioridad/progreso y el historial de seguimientos. Teléfono y email son filas fijas de esta ficha: cuando un valor no fue indicado se muestra `Teléfono no proporcionado` o `Email no proporcionado`.
 
-**Actualización en vivo**: la app mantiene abierta una conexión SSE (`/api/events`). Cuando entra un llamado nuevo por el webhook (o se importan registros), **todas las pestañas abiertas se refrescan al instante** y muestran una notificación con el contacto y el motivo — sin recargar la página. El refresco periódico de 30s del sidebar queda como respaldo por si la conexión de eventos se corta.
+**Actualización en vivo**: la app mantiene abierta una conexión SSE (`/api/events`). Cuando entra un llamado operativo nuevo por el webhook (o se importan registros operativos), **todas las pestañas abiertas se refrescan al instante** y muestran una notificación con el contacto y el motivo — sin recargar la página. Los registros vacíos en cuarentena no generan toast, aunque Administración puede refrescar sus datos. El refresco periódico de 30s del sidebar queda como respaldo por si la conexión de eventos se corta.
 
 **Notificaciones del sidebar**: junto a "Tickets" hay dos numeritos — **ámbar** = tickets en estado `nuevo` (sin abrir), **rojo** = tickets vencidos.
 
-- **Administración** (`/admin`): conserva la rueda de configuración a la izquierda y muestra un escudo administrativo en el extremo derecho del botón del sidebar; dentro del panel, la sección **Tickets** conserva la tabla CRUD con paginación configurable 10/25/50/100, el importador CSV y la zona peligrosa. Sus mutaciones envían la segunda credencial `x-admin-key`.
+- **Administración** (`/admin`): conserva la rueda de configuración a la izquierda y muestra un escudo administrativo en el extremo derecho del botón del sidebar; dentro del panel, la sección **Tickets** conserva la tabla CRUD con paginación configurable 10/25/50/100, incluye los registros vacíos en cuarentena mediante `incluir_vacios=true`, y ofrece el importador CSV y la zona peligrosa. La lectura inclusiva y sus mutaciones envían la segunda credencial `x-admin-key`.
 - **Roles y usuarios** (`/admin/roles-usuarios`): altas y edición de perfiles, asignación de rol, filtros, activación/desactivación y gestión del catálogo de roles. Comparte con Tickets la clave `ADMIN_API_KEY`, enmascarada y persistida en el navegador por ID de SysAdmin. Los campos de contraseña también permanecen ocultos y ofrecen un botón de ojo.
 - **Errores y sesión**: el login no tiene una ruta `/login`; vive en `/` cuando no hay sesión, mientras que una sesión válida que entra a la raíz se redirige a `/dashboard`. Un `401` vuelve a la raíz, un `403` muestra acceso denegado, un `404` identifica páginas o tickets inexistentes y los fallos `5xx`/conexión ofrecen reintentar. Todas las pantallas de error incluyen **Volver al inicio**.
 
@@ -187,11 +210,27 @@ Si se cambia la API: primero se edita el yaml, se corre codegen, y después se i
 | `asignado_a`                          | texto, opcional        | Nombre visible del responsable y compatibilidad con valores históricos/importados. No se acepta como identidad enviada en una edición normal.                           |
 | `notas`                               | texto, opcional        | Notas internas de gestión.                                                                                                                                                |
 | `progreso`                            | entero 0-100           | Barra de avance.                                                                                                                                                          |
-| `fecha_creacion`                      | timestamp (ms)         | Cuándo entró la llamada.                                                                                                                                                  |
-| `fecha_limite`                        | timestamp              | **SLA: se preestablece a 48 hs de recibido el llamado** (webhook e importador). Editable desde el detalle del ticket. Si pasa sin resolverse, el ticket figura "vencido". |
+| `fecha_creacion`                      | timestamp (ms)         | Cuándo se creó el ticket: instante de recepción para webhook/alta manual y fecha/hora histórica de la fila para importaciones.                                             |
+| `fecha_limite`                        | timestamp              | **SLA: 48 horas hábiles desde `fecha_creacion`**. Lunes a viernes cuentan las 24 h; sábado y domingo pausan el reloj. Es editable y una fecha explícita se respeta.          |
 | `fecha_resolucion`                    | timestamp, opcional    | **Se registra sola** la primera vez que el ticket pasa a `resuelto` o `cerrado`. Alimenta "resueltos hoy" y el tiempo promedio de resolución del dashboard.               |
 
 Las fechas se guardan como enteros (milisegundos Unix); Drizzle convierte a `Date` automáticamente. Los enums son `text` con restricción (SQLite no tiene enums nativos).
+
+### SLA de 48 horas hábiles
+
+El cálculo usa siempre la zona `America/Argentina/Buenos_Aires` y una única función compartida por el webhook, el alta manual y los importadores CSV/Excel:
+
+- lunes a viernes cuentan las 24 horas del día;
+- sábado y domingo no consumen plazo;
+- por ahora los feriados sí cuentan como hábiles;
+- lunes 10:00 → miércoles 10:00;
+- jueves 10:00 → lunes 10:00;
+- viernes 10:00 → martes 10:00;
+- si un registro ingresa durante el fin de semana, el conteo comienza el lunes a las 00:00.
+
+Para webhook y alta manual, `fecha_creacion` es el instante en que el backend recibe y crea el ticket. Para una importación histórica se usa la fecha y hora de la fila: si vienen en columnas separadas, se combinan antes de calcular el vencimiento y la columna `hora` tiene precedencia sobre una hora embebida. Las fechas de Excel se reinterpretan como hora civil de Buenos Aires porque el formato no guarda zona horaria.
+
+Una `fecha_limite` explícita enviada por n8n/Admin o editada posteriormente se conserva: la regla solo completa el vencimiento cuando ese dato se omite. Tampoco se recalculan automáticamente los tickets existentes, porque la base no distingue con certeza un vencimiento histórico automático de uno ajustado por una persona.
 
 **Autoasignación:** el primer cambio de `nuevo` a cualquier otro estado asigna el ticket al usuario autenticado. Cada transición posterior de estado lo reasigna al último usuario que la realizó. Editar notas, prioridad o progreso sin cambiar el estado conserva al responsable actual. El backend deriva siempre la identidad de la cookie de sesión; el cliente no puede elegir ni falsificar el usuario asignado.
 
@@ -243,8 +282,10 @@ pnpm --filter @workspace/scripts run import-excel -- "ruta\archivo.csv"         
 - Acepta `.xlsx` y `.csv` (detecta el delimitador `;` o `,` solo).
 - Reconoce los encabezados del export de n8n (`id`, `fecha_hora`, `Observaciones`, `audio`, `VERDADERO/FALSO`…) y variantes con acentos. El mapeo está en `HEADER_ALIASES` dentro del script.
 - **Idempotente**: las filas cuyo `conversation_id` ya está en la base se saltean. Se puede correr mil veces.
-- Deriva la hora del ticket del campo `fecha_hora` (`"16/07/2026 - 11:34hs"`).
-- Preestablece `fecha_limite` a +48 hs de la fecha del llamado (el mismo SLA que el webhook).
+- Acepta fecha y hora combinadas (`"16/07/2026 - 11:34hs"`) o en columnas separadas; ambas forman un único `fecha_creacion` en la zona de Buenos Aires. Si ambas fuentes incluyen hora, tiene precedencia la columna `hora`.
+- Admite fecha local `dd/mm/aaaa`, ISO local y un ISO con zona explícita; rechaza filas con fechas u horas imposibles en vez de normalizarlas silenciosamente.
+- Las celdas de fecha/hora de Excel conservan sus componentes de reloj sin el corrimiento UTC propio de JavaScript.
+- Preestablece `fecha_limite` a 48 horas hábiles desde `fecha_creacion` (el mismo SLA que el webhook), sin consumir plazo durante sábado ni domingo.
 
 ## 5. Configuración y operación
 

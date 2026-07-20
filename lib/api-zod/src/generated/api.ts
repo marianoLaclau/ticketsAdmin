@@ -20,6 +20,7 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary List all tickets with optional filters
  */
+export const listTicketsQueryIncluirVaciosDefault = false;
 export const listTicketsQueryOrderDefault = `desc`;
 export const listTicketsQueryPageDefault = 1;
 
@@ -40,6 +41,7 @@ export const ListTicketsQueryParams = zod.object({
   "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']).optional().describe('Categoría normalizada derivada del motivo original'),
   "search": zod.coerce.string().optional(),
   "vencidos": zod.boolean().optional(),
+  "incluir_vacios": zod.boolean().default(listTicketsQueryIncluirVaciosDefault).describe('Incluye registros en cuarentena sin datos útiles. Requiere sesión SysAdmin y el header x-admin-key; el listado operativo los excluye.\n'),
   "order": zod.enum(['asc', 'desc']).default(listTicketsQueryOrderDefault).describe('Orden compuesto por día de creación y, dentro de cada día, por hora del llamado'),
   "page": zod.coerce.number().min(1).default(listTicketsQueryPageDefault),
   "limit": zod.coerce.number().min(1).max(listTicketsQueryLimitMax).default(listTicketsQueryLimitDefault)
@@ -72,7 +74,7 @@ export const ListTicketsResponse = zod.object({
   "audio_url": zod.string().nullish(),
   "notas": zod.string().nullish(),
   "fecha_creacion": zod.coerce.date(),
-  "fecha_limite": zod.coerce.date().nullish(),
+  "fecha_limite": zod.coerce.date().nullish().describe('Vencimiento; el default automático suma 48 horas hábiles de lunes a viernes'),
   "fecha_resolucion": zod.coerce.date().nullish(),
   "progreso": zod.number().min(listTicketsResponseTicketsItemProgresoMin).max(listTicketsResponseTicketsItemProgresoMax).optional()
 })),
@@ -149,7 +151,7 @@ export const IngestTicketBody = zod.object({
   "asignado_a": zod.string().optional().describe('Valor histórico o externo; las autoasignaciones internas se derivan de la sesión'),
   "audio_url": zod.string().optional(),
   "notas": zod.string().optional(),
-  "fecha_limite": zod.coerce.date().optional(),
+  "fecha_limite": zod.coerce.date().optional().describe('Fecha explícita opcional; si se omite, el backend calcula 48 horas hábiles de lunes a viernes'),
   "progreso": zod.number().min(ingestTicketBodyProgresoMin).max(ingestTicketBodyProgresoMax).default(ingestTicketBodyProgresoDefault)
 })
 
@@ -181,7 +183,7 @@ export const IngestTicketResponse = zod.object({
   "audio_url": zod.string().nullish(),
   "notas": zod.string().nullish(),
   "fecha_creacion": zod.coerce.date(),
-  "fecha_limite": zod.coerce.date().nullish(),
+  "fecha_limite": zod.coerce.date().nullish().describe('Vencimiento; el default automático suma 48 horas hábiles de lunes a viernes'),
   "fecha_resolucion": zod.coerce.date().nullish(),
   "progreso": zod.number().min(ingestTicketResponseTicketProgresoMin).max(ingestTicketResponseTicketProgresoMax).optional()
 })
@@ -218,7 +220,7 @@ export const CreateAdminTicketBody = zod.object({
   "asignado_a": zod.string().optional().describe('Valor histórico o externo; las autoasignaciones internas se derivan de la sesión'),
   "audio_url": zod.string().optional(),
   "notas": zod.string().optional(),
-  "fecha_limite": zod.coerce.date().optional(),
+  "fecha_limite": zod.coerce.date().optional().describe('Fecha explícita opcional; si se omite, el backend calcula 48 horas hábiles de lunes a viernes'),
   "progreso": zod.number().min(createAdminTicketBodyProgresoMin).max(createAdminTicketBodyProgresoMax).default(createAdminTicketBodyProgresoDefault)
 })
 
@@ -248,7 +250,7 @@ export const CreateAdminTicketResponse = zod.object({
   "audio_url": zod.string().nullish(),
   "notas": zod.string().nullish(),
   "fecha_creacion": zod.coerce.date(),
-  "fecha_limite": zod.coerce.date().nullish(),
+  "fecha_limite": zod.coerce.date().nullish().describe('Vencimiento; el default automático suma 48 horas hábiles de lunes a viernes'),
   "fecha_resolucion": zod.coerce.date().nullish(),
   "progreso": zod.number().min(createAdminTicketResponseProgresoMin).max(createAdminTicketResponseProgresoMax).optional()
 })
@@ -582,7 +584,7 @@ export const GetTicketResponse = zod.object({
   "audio_url": zod.string().nullish(),
   "notas": zod.string().nullish(),
   "fecha_creacion": zod.coerce.date(),
-  "fecha_limite": zod.coerce.date().nullish(),
+  "fecha_limite": zod.coerce.date().nullish().describe('Vencimiento; el default automático suma 48 horas hábiles de lunes a viernes'),
   "fecha_resolucion": zod.coerce.date().nullish(),
   "progreso": zod.number().min(getTicketResponseOneProgresoMin).max(getTicketResponseOneProgresoMax).optional()
 }).and(zod.object({
@@ -629,7 +631,7 @@ export const UpdateTicketBody = zod.object({
   "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional(),
   "audio_url": zod.string().optional(),
   "notas": zod.string().optional(),
-  "fecha_limite": zod.coerce.date().optional(),
+  "fecha_limite": zod.coerce.date().optional().describe('Ajuste manual explícito del vencimiento'),
   "fecha_resolucion": zod.coerce.date().optional(),
   "progreso": zod.number().min(updateTicketBodyProgresoMin).max(updateTicketBodyProgresoMax).optional()
 })
@@ -660,7 +662,7 @@ export const UpdateTicketResponse = zod.object({
   "audio_url": zod.string().nullish(),
   "notas": zod.string().nullish(),
   "fecha_creacion": zod.coerce.date(),
-  "fecha_limite": zod.coerce.date().nullish(),
+  "fecha_limite": zod.coerce.date().nullish().describe('Vencimiento; el default automático suma 48 horas hábiles de lunes a viernes'),
   "fecha_resolucion": zod.coerce.date().nullish(),
   "progreso": zod.number().min(updateTicketResponseProgresoMin).max(updateTicketResponseProgresoMax).optional()
 })
@@ -789,7 +791,7 @@ export const GetTicketsVencidosResponseItem = zod.object({
   "audio_url": zod.string().nullish(),
   "notas": zod.string().nullish(),
   "fecha_creacion": zod.coerce.date(),
-  "fecha_limite": zod.coerce.date().nullish(),
+  "fecha_limite": zod.coerce.date().nullish().describe('Vencimiento; el default automático suma 48 horas hábiles de lunes a viernes'),
   "fecha_resolucion": zod.coerce.date().nullish(),
   "progreso": zod.number().min(getTicketsVencidosResponseProgresoMin).max(getTicketsVencidosResponseProgresoMax).optional()
 })

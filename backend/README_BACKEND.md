@@ -96,7 +96,7 @@ Todas bajo el prefijo `/api`. ✅ = requiere sesión (candado global). 🔑 = ad
 | Método y ruta | Qué hace | Acceso |
 |---|---|---|
 | `GET /healthz` | Chequeo de vida | público |
-| `POST /webhooks/ticket` | Ingesta de una llamada desde n8n. Idempotente por `conversation_id`: si ya existe, `200 { created: false, ticket }`; si no, `201 { created: true, ticket }`. Si no viene `fecha_limite`, se preestablece a **+48 hs** (SLA). Emite el evento SSE `ticket_creado`. | `x-api-key: WEBHOOK_API_KEY` |
+| `POST /webhooks/ticket` | Ingesta de una llamada desde n8n. Idempotente por `conversation_id`: si ya existe, `200 { created: false, ticket }`; si no, `201 { created: true, ticket }`. Si no viene `fecha_limite`, se preestablece a **48 horas hábiles de lunes a viernes**. Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío. | `x-api-key: WEBHOOK_API_KEY` |
 | `POST /auth/login` | Body `{ usuario, password }` (`usuario` = el `username` asignado al crear la cuenta, no el email; se normaliza a minúsculas). Devuelve `AuthUser` y setea la cookie `gsb_session`. Mensaje de error genérico a propósito (no revela si el usuario existe). | público |
 | `POST /auth/logout` | Revoca la sesión actual (borra la fila) y limpia la cookie. `204`. | ✅ (no falla si no hay cookie) |
 | `GET /auth/me` | Devuelve el `AuthUser` de la sesión activa, o `401`. | ✅ |
@@ -110,7 +110,7 @@ Todas bajo el prefijo `/api`. ✅ = requiere sesión (candado global). 🔑 = ad
 | `GET /dashboard/actividad-reciente` | Mezcla de tickets creados + seguimientos agregados, ordenados por fecha, `limit` configurable. | ✅ |
 | `GET /dashboard/tickets-vencidos` | Los que pasaron `fecha_limite` sin llegar a `resuelto`/`cerrado`, hasta 20. | ✅ |
 | `GET /dashboard/motivos` | Conteo por `motivo_categoria` (no por texto libre), con su label, ordenado descendente. | ✅ |
-| `POST /admin/tickets` | Alta manual (`409` si el `conversation_id` ya existe). Emite `ticket_creado`. | ✅🔑🗝️ |
+| `POST /admin/tickets` | Alta manual (`409` si el `conversation_id` ya existe). Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío. | ✅🔑🗝️ |
 | `GET /admin/roles` | Listado paginado de roles, con `search` sobre nombre/descripción. | ✅🔑🗝️ |
 | `POST /admin/roles` | Crea un rol (`409` si el nombre ya existe). | ✅🔑🗝️ |
 | `PATCH /admin/roles/:id` | Edita nombre/descripción/activo. | ✅🔑🗝️ |
@@ -196,8 +196,8 @@ SQLite vía `better-sqlite3`, modo WAL, `foreign_keys = ON`. Definido en `lib/db
 | `prioridad` | text enum: `baja` \| `media` \| `alta` \| `urgente`, default `media` | |
 | `asignado_a`, `audio_url`, `notas` | text, nullable | |
 | `progreso` | integer, default `0` | 0–100 |
-| `fecha_creacion` | integer (timestamp ms) | Default: ahora |
-| `fecha_limite` | integer (timestamp ms), nullable | SLA de 48 hs si no viene explícita (webhook/import) |
+| `fecha_creacion` | integer (timestamp ms) | Default: ahora; los importadores históricos usan la fecha/hora válida de la fila |
+| `fecha_limite` | integer (timestamp ms), nullable | SLA de 48 horas hábiles desde `fecha_creacion`, pausado sábado/domingo, si no viene explícita (webhook/alta/import) |
 | `fecha_resolucion` | integer (timestamp ms), nullable | Se autocompleta al pasar a `resuelto`/`cerrado` |
 
 ### `seguimientos` — historial de cada ticket
@@ -269,16 +269,16 @@ No se puede borrar un rol con usuarios asignados (`409`), aunque esté inactivo.
 - `scripts/src/import-excel.ts` — CLI, agrega soporte `.xlsx` vía `exceljs` encima de esto.
 - `backend/src/routes/admin.ts` (`POST /admin/import`) — importador web.
 
-Expone: `parseCsv` (parser RFC 4180 con autodetección de `;`/`,`), `detectarColumnas` (mapea encabezados por alias — ver `HEADER_ALIASES` — tolerando variantes de nombre/acentos), `filaATicket` (convierte una fila cruda en los valores de un ticket, aplicando SLA de 48 hs y clasificación de motivo), y las constantes `ESTADOS_VALIDOS`/`PRIORIDADES_VALIDAS` (espejo del schema, duplicadas a propósito para que esta lib no arrastre `better-sqlite3`).
+Expone: `parseCsv` (parser RFC 4180 con autodetección de `;`/`,`), `detectarColumnas` (mapea encabezados por alias — ver `HEADER_ALIASES` — tolerando variantes de nombre/acentos), `filaATicket` (combina fecha/hora histórica, valida formatos, convierte una fila cruda y aplica el SLA/clasificación), `fechaExcelAStringLocal` (conserva la hora civil de una celda Excel), `calcularFechaLimiteSla`/`sumarHorasHabiles`, y las constantes `ESTADOS_VALIDOS`/`PRIORIDADES_VALIDAS` (espejo del schema, duplicadas a propósito para que esta lib no arrastre `better-sqlite3`).
 
 ## Eventos en vivo (SSE)
 
 `src/lib/events.ts` mantiene un `Set` en memoria de las respuestas HTTP abiertas (una por pestaña de navegador conectada a `GET /api/events`). `broadcastEvent(tipo, data)` escribe `data: {...}\n\n` a todos los clientes conectados.
 
 Emisores actuales:
-- `POST /webhooks/ticket` → `ticket_creado` (con `ticket_id`, `nombre`, `apellido`, `motivo`)
-- `POST /admin/tickets` → `ticket_creado`
-- `POST /admin/import` → `tickets_importados` (con `cantidad`), solo si insertó algo real (no en `dry_run`)
+- `POST /webhooks/ticket` → `ticket_creado` para tickets operativos (con `ticket_id`, `nombre`, `apellido`, `motivo`); `datos_actualizados` para registros vacíos en cuarentena.
+- `POST /admin/tickets` → `ticket_creado` para tickets operativos; `datos_actualizados` para registros vacíos en cuarentena.
+- `POST /admin/import` → `tickets_importados` (con cantidad visible y total insertado) si la tanda incluye al menos un ticket operativo; si todos los registros importados quedan en cuarentena, emite `datos_actualizados`. No emite eventos en `dry_run`.
 - `POST /admin/truncate` → `datos_actualizados`
 
 El endpoint manda `retry: 5000` (reconexión automática del navegador) y un heartbeat cada 25 s (`: ping\n\n`) para que proxies intermedios no corten la conexión por inactividad. En producción, nginx necesita un location dedicado con `proxy_buffering off` — ver `frontend/nginx.conf` y `docs/DEPLOY.md`.

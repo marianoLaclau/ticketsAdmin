@@ -52,6 +52,7 @@ import {
   Headphones
 } from 'lucide-react';
 import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
+import { getEstadoLabel } from '@/lib/estados';
 import { getContactDisplayEmail, getContactDisplayName, getContactDisplayPhone } from '@/lib/contacto';
 import { dateTimeLocalValueToIso, toDateTimeLocalValue } from '@/lib/datetime-local';
 import { puedeCerrarTickets } from '@/lib/roles';
@@ -60,7 +61,7 @@ import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
 const PROGRESS_STEPS = [
   { estado: TicketEstado.nuevo, value: 0, label: 'Nuevo' },
   { estado: TicketEstado.en_proceso, value: 25, label: 'En Proceso' },
-  { estado: TicketEstado.pendiente, value: 50, label: 'Pendiente' },
+  { estado: TicketEstado.pendiente, value: 50, label: getEstadoLabel(TicketEstado.pendiente) },
   { estado: TicketEstado.resuelto, value: 75, label: 'Resuelto' },
   { estado: TicketEstado.cerrado, value: 100, label: 'Cerrado' },
 ];
@@ -322,7 +323,7 @@ export default function TicketDetail() {
                             value={e}
                             disabled={e === TicketEstado.cerrado && !puedeCerrar}
                           >
-                            {e.replace('_', ' ').toUpperCase()}
+                            {getEstadoLabel(e).toUpperCase()}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -412,7 +413,7 @@ export default function TicketDetail() {
                 const isCurrent = ticket.estado === step.estado;
                 
                 return (
-                  <div key={step.value} className="flex flex-col items-center gap-2">
+                  <div key={step.value} className="flex min-w-0 flex-1 flex-col items-center gap-2">
                     <div 
                       className={`h-6 w-6 rounded-full flex items-center justify-center border-2 transition-colors z-10 bg-white
                         ${isCompleted ? 'border-primary text-primary' : 'border-slate-200 text-slate-300'}
@@ -421,7 +422,7 @@ export default function TicketDetail() {
                     >
                       {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : <div className="h-2 w-2 rounded-full bg-current" />}
                     </div>
-                    <span className={`text-xs font-medium ${isCurrent ? 'text-primary' : isCompleted ? 'text-slate-700' : 'text-slate-400'}`}>
+                    <span className={`max-w-full px-1 text-center text-xs font-medium leading-tight ${isCurrent ? 'text-primary' : isCompleted ? 'text-slate-700' : 'text-slate-400'}`}>
                       {step.label}
                     </span>
                   </div>

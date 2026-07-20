@@ -1,5 +1,10 @@
 import { Router } from "express";
-import { db, ticketsTable, seguimientosTable } from "@workspace/db";
+import {
+  db,
+  ticketsTable,
+  seguimientosTable,
+  ticketVisibleCondition,
+} from "@workspace/db";
 import { eq, lt, not, inArray, gte, and, desc, asc } from "drizzle-orm";
 import { GetActividadRecienteQueryParams } from "@workspace/api-zod";
 import {
@@ -16,15 +21,15 @@ router.get("/dashboard/stats", async (req, res) => {
   const todayEnd = new Date(todayStart.getTime() + 86400000);
 
   const [allTickets, vencidosResult, resueltosHoy, nuevosHoy] = await Promise.all([
-    db.select().from(ticketsTable),
+    db.select().from(ticketsTable).where(ticketVisibleCondition),
     db.select({ id: ticketsTable.id }).from(ticketsTable).where(
-      and(lt(ticketsTable.fecha_limite, now), not(inArray(ticketsTable.estado, ["resuelto", "cerrado"])))
+      and(ticketVisibleCondition, lt(ticketsTable.fecha_limite, now), not(inArray(ticketsTable.estado, ["resuelto", "cerrado"])))
     ),
     db.select({ id: ticketsTable.id }).from(ticketsTable).where(
-      and(gte(ticketsTable.fecha_resolucion, todayStart), lt(ticketsTable.fecha_resolucion, todayEnd))
+      and(ticketVisibleCondition, gte(ticketsTable.fecha_resolucion, todayStart), lt(ticketsTable.fecha_resolucion, todayEnd))
     ),
     db.select({ id: ticketsTable.id }).from(ticketsTable).where(
-      and(gte(ticketsTable.fecha_creacion, todayStart), lt(ticketsTable.fecha_creacion, todayEnd))
+      and(ticketVisibleCondition, gte(ticketsTable.fecha_creacion, todayStart), lt(ticketsTable.fecha_creacion, todayEnd))
     ),
   ]);
 
@@ -62,10 +67,18 @@ router.get("/dashboard/actividad-reciente", async (req, res) => {
   const parsed = GetActividadRecienteQueryParams.safeParse(req.query);
   const limit = parsed.success ? (parsed.data.limit ?? 10) : 10;
 
-  const recentTickets = await db.select().from(ticketsTable).orderBy(desc(ticketsTable.fecha_creacion)).limit(limit);
+  const recentTickets = await db
+    .select()
+    .from(ticketsTable)
+    .where(ticketVisibleCondition)
+    .orderBy(desc(ticketsTable.fecha_creacion))
+    .limit(limit);
   const recentSeguimientos = await db.select({ seg: seguimientosTable, ticket: { nombre: ticketsTable.nombre, apellido: ticketsTable.apellido } })
     .from(seguimientosTable)
-    .leftJoin(ticketsTable, eq(seguimientosTable.ticket_id, ticketsTable.id))
+    .innerJoin(
+      ticketsTable,
+      and(eq(seguimientosTable.ticket_id, ticketsTable.id), ticketVisibleCondition),
+    )
     .orderBy(desc(seguimientosTable.fecha_creacion))
     .limit(limit);
 
@@ -93,14 +106,14 @@ router.get("/dashboard/actividad-reciente", async (req, res) => {
 router.get("/dashboard/tickets-vencidos", async (req, res) => {
   const now = new Date();
   const tickets = await db.select().from(ticketsTable).where(
-    and(lt(ticketsTable.fecha_limite, now), not(inArray(ticketsTable.estado, ["resuelto", "cerrado"])))
+    and(ticketVisibleCondition, lt(ticketsTable.fecha_limite, now), not(inArray(ticketsTable.estado, ["resuelto", "cerrado"])))
   ).orderBy(asc(ticketsTable.fecha_limite)).limit(20);
   res.json(tickets);
 });
 
 // Estadísticas por categoría derivada. El motivo original nunca se modifica.
 router.get("/dashboard/motivos", async (req, res) => {
-  const tickets = await db.select().from(ticketsTable);
+  const tickets = await db.select().from(ticketsTable).where(ticketVisibleCondition);
   const motivoCounts = new Map<MotivoCategoria, number>();
   for (const t of tickets) {
     motivoCounts.set(

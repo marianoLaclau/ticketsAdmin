@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LogOut } from 'lucide-react';
 import { ROL_SYSADMIN } from '@/lib/roles';
 import { getContactDisplayName } from '@/lib/contacto';
+import { getEstadoLabel } from '@/lib/estados';
 
 // @ts-ignore
 import gsbLogo from '@/assets/gsb-logo.jpg';
@@ -53,7 +54,7 @@ function useEventosEnVivo() {
         });
       } else if (data.tipo === 'tickets_importados') {
         toast({
-          dedupeKey: `tickets-imported:${data.cantidad}`,
+          dedupeKey: `tickets-imported:${data.cantidad_total ?? data.cantidad}`,
           variant: 'info',
           title: 'Importación disponible',
           description: `${data.cantidad} ${data.cantidad === 1 ? 'llamado nuevo' : 'llamados nuevos'} en el listado.`,
@@ -195,7 +196,9 @@ export function Sidebar() {
             </span>
           </div>
           <div className="flex justify-between items-center text-sm">
-            <span className="text-sidebar-foreground/80">Pendientes</span>
+            <span className="max-w-[150px] text-xs leading-tight text-sidebar-foreground/80">
+              {getEstadoLabel('pendiente')}
+            </span>
             <span className="font-semibold text-amber-400">
               {stats?.por_estado?.find((e: any) => e.estado === 'pendiente')?.cantidad || 0}
             </span>

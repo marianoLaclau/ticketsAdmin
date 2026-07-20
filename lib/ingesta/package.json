@@ -4,9 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test ./test/*.test.ts"
+    "test": "tsx --test ./test/*.test.ts"
   },
   "exports": {
     ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@date-fns/tz": "^1.5.0"
+  },
+  "devDependencies": {
+    "tsx": "catalog:"
   }
 }

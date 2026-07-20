@@ -2,6 +2,90 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-07-20 — Aclaración visible del estado Pendiente
+
+**Agente:** Codex
+**Contexto:** se pidió aclarar en la interfaz que el estado Pendiente corresponde a una persona que ya fue contactada.
+
+### Cambio realizado
+
+- La etiqueta se centralizó como `Pendiente (fue contactado)` y se reutiliza en badges, filtro de Tickets, selector y progreso del detalle, historial, Dashboard, resumen lateral y Administración.
+- El badge conserva la presentación en mayúsculas: `PENDIENTE (FUE CONTACTADO)`.
+- Se ajustó el espacio del progreso y del resumen lateral para permitir que la aclaración se distribuya sin desbordar.
+- El valor técnico continúa siendo `pendiente`: no se modificaron la base de datos, el backend, el contrato OpenAPI ni los filtros enviados a la API.
+
+Archivos principales: `frontend/src/lib/estados.ts`, `frontend/src/lib/utils-tickets.tsx`, pantallas de Tickets, Dashboard y Administración.
+
+### Validaciones
+
+- Tests del frontend: 7/7 correctos, incluidos los nuevos casos de etiquetas de estado.
+- Typecheck del frontend: correcto.
+- Build de producción del frontend: correcto; solo permanecen las advertencias conocidas de sourcemaps y tamaño del bundle.
+- Smoke sobre el módulo servido por Vite: respondió con `Pendiente (fue contactado)`; frontend y backend continúan escuchando en los puertos 3000 y 5000.
+- `git diff --check`: sin errores de whitespace.
+
+## 2026-07-20 — SLA de 48 horas hábiles sin fines de semana
+
+**Agente:** Codex
+**Contexto:** el plazo de resolución sumaba 48 horas corridas, por lo que sábado y domingo reducían indebidamente el tiempo disponible.
+
+### Implementación
+
+- Se centralizó el cálculo en `lib/ingesta/src/sla.ts`, compartido por webhook, alta manual y los importadores CSV/Excel.
+- El reloj del SLA cuenta las 24 horas de lunes a viernes y se pausa durante sábado y domingo. Los feriados no forman parte de esta corrección y continúan contando.
+- La zona de negocio queda fijada en `America/Argentina/Buenos_Aires`, independientemente de la zona horaria de la máquina que ejecute el importador.
+- El webhook y el alta manual capturan un único instante para `fecha_creacion` y para la base del SLA, evitando diferencias de milisegundos.
+- En importaciones históricas, una fecha y una hora en columnas separadas se combinan antes de calcular el SLA; la columna de hora tiene precedencia y queda normalizada como `HH:mm`.
+- Las fechas locales/ISO y las celdas Excel se interpretan de forma estable en Buenos Aires, sin retroceder tres horas ni cambiar de día por la zona del proceso. Fechas u horas imposibles dejan la fila como inválida.
+- Las fechas límite explícitas y las ediciones manuales se preservan.
+- No se recalcularon tickets existentes: no hay una marca confiable que permita separar vencimientos automáticos históricos de ajustes humanos sin riesgo de sobrescribirlos.
+
+Ejemplos: lunes 10:00 vence miércoles 10:00; jueves 10:00 vence lunes 10:00; viernes 10:00 vence martes 10:00. Un ingreso de fin de semana empieza a consumir sus 48 horas el lunes a las 00:00.
+
+Archivos principales: `lib/ingesta/src/sla.ts`, `lib/ingesta/src/index.ts`, `backend/src/routes/webhooks.ts`, `backend/src/routes/admin.ts`, contrato OpenAPI y documentación operativa.
+
+### Validaciones
+
+- Pruebas unitarias del SLA: días de semana, cruces de fin de semana, ingresos sábado/domingo, límite exacto al comenzar el sábado, preservación de hora/milisegundos, inmutabilidad y entradas inválidas.
+- Prueba de integración del importador: `24/07/2026 10:00` (viernes) conserva la hora de Buenos Aires y vence `28/07/2026 10:00` (martes).
+- Contrato regenerado desde OpenAPI con `pnpm --filter @workspace/api-spec run codegen`.
+- `pnpm -r --if-present test`: 33 pruebas correctas (24 de ingesta/SLA, 5 de base de datos y 4 de presentación del frontend).
+- Las 24 pruebas de ingesta/SLA también pasaron con `TZ=UTC`, confirmando que el resultado no depende de la zona configurada en el servidor.
+- `pnpm run typecheck`: correcto en librerías, backend, frontend y scripts.
+- `pnpm run build`: backend y frontend compilaron correctamente; solo permanecen las advertencias conocidas de sourcemaps y tamaño del bundle.
+- Backend reiniciado con el artefacto compilado; `GET /api/healthz` respondió HTTP `200`. No se modificaron ni recalcularon filas existentes para validar esta corrección.
+
+## 2026-07-20 — Cuarentena administrativa de tickets vacíos
+
+**Agente:** Codex
+**Contexto:** se pidió evitar que los registros recibidos sin ningún dato útil aparezcan en Tickets o distorsionen el Dashboard, sin perderlos y manteniéndolos disponibles para revisión administrativa.
+
+### Regla acordada
+
+- Los registros se conservan en SQLite tal como llegaron: no se descartan, borran, reescriben ni se les aplica un backfill destructivo.
+- La cuarentena es una condición derivada y estrictamente AND. Un ticket se considera vacío solo si:
+  - `nombre` está vacío o vale `Sin nombre` / `Sin nombre proporcionado`; `apellido`, `telefono`, `dni`, `empresa`, `email`, `resumen` y `notas` están vacíos; `motivo` está vacío o vale `Sin especificar`;
+  - además conserva `estado = nuevo`, `prioridad = media`, `progreso = 0`, `notificado = false` y no tiene asignación ni seguimientos.
+- `id`, `conversation_id`, `hora`, fechas, `motivo_categoria` y `audio_url` se ignoran para esta decisión porque son técnicos, derivados o automáticos. Una URL de grabación por sí sola no rescata un registro sin información útil.
+- Un registro que ya tenga seguimientos no se oculta. Si Administración completa cualquier dato o cambia uno de los valores operativos anteriores, la condición deja de cumplirse y el ticket reaparece automáticamente en la operación.
+
+### Visibilidad y seguridad
+
+- Los tickets en cuarentena quedan fuera del listado operativo, detalle, seguimientos, Dashboard, badges, actividad reciente, motivos, vencidos y toasts de ingreso/importación.
+- Continúan visibles en la tabla de Administración mediante `incluir_vacios=true`.
+- Incluir vacíos exige sesión SysAdmin y `ADMIN_API_KEY` válida; el parámetro no amplía el acceso de Operadores ni Administradores.
+
+Archivos de documentación actualizados: `README.md`, `docs/FLUJO.md` y `docs/BITACORA_AGENTES.MD`.
+
+### Validaciones
+
+- Contrato regenerado desde OpenAPI con `pnpm --filter @workspace/api-spec run codegen`.
+- `pnpm run typecheck`: correcto en librerías, backend, frontend y scripts.
+- `pnpm -r --if-present test`: 19 pruebas correctas (clasificación, migración, presentación de contacto y nueva paridad entre el helper de cuarentena y su condición SQL).
+- `pnpm run build`: backend y frontend compilaron correctamente.
+- Verificación de solo lectura sobre la base local: 12 registros totales, 1 en cuarentena y 11 operativos. No se modificó ninguna fila para realizar esta comprobación.
+- Prueba HTTP aislada sobre las rutas reales: el listado operativo devolvió 11; solicitar vacíos sin rol devolvió `403`, con SysAdmin pero sin llave devolvió `401`, y con ambas credenciales devolvió los 12. El detalle y los seguimientos del registro en cuarentena respondieron `404`; tampoco apareció en estadísticas, motivos, vencidos ni actividad reciente.
+
 ## 2026-07-20 — Teléfono y email fijos en la ficha del ticket
 
 **Agente:** Codex

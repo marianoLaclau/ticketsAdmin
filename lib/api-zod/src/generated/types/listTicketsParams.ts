@@ -26,6 +26,10 @@ motivo_categoria?: MotivoCategoria;
 search?: string;
 vencidos?: boolean;
 /**
+ * Incluye registros en cuarentena sin datos útiles. Requiere sesión SysAdmin y el header x-admin-key; el listado operativo los excluye.
+ */
+incluir_vacios?: boolean;
+/**
  * Orden compuesto por día de creación y, dentro de cada día, por hora del llamado
  */
 order?: ListTicketsOrder;

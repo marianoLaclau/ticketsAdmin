@@ -23,6 +23,7 @@ import {
   ArrowUp, ArrowDown, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
+import { getEstadoLabel } from '@/lib/estados';
 import { getMotivoCategoriaConfig, MOTIVO_CATEGORIA_OPTIONS } from '@/lib/motivos';
 import { getContactDisplayName } from '@/lib/contacto';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -139,7 +140,7 @@ export default function TicketList() {
               <SelectItem value="_all">Todos</SelectItem>
               <SelectItem value={TicketEstado.nuevo}>Nuevo</SelectItem>
               <SelectItem value={TicketEstado.en_proceso}>En Proceso</SelectItem>
-              <SelectItem value={TicketEstado.pendiente}>Pendiente</SelectItem>
+              <SelectItem value={TicketEstado.pendiente}>{getEstadoLabel(TicketEstado.pendiente)}</SelectItem>
               <SelectItem value={TicketEstado.resuelto}>Resuelto</SelectItem>
               <SelectItem value={TicketEstado.cerrado}>Cerrado</SelectItem>
             </SelectContent>

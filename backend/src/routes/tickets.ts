@@ -1,6 +1,11 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { db, ticketsTable, seguimientosTable } from "@workspace/db";
-import { eq, and, gte, lte, like, or, lt, not, inArray, asc, desc, count, sql } from "drizzle-orm";
+import {
+  db,
+  ticketsTable,
+  seguimientosTable,
+  ticketVisibleCondition,
+} from "@workspace/db";
+import { eq, and, gte, lte, like, or, lt, not, inArray, asc, desc, count, sql, type SQL } from "drizzle-orm";
 import {
   ListTicketsQueryParams,
   GetTicketParams,
@@ -59,13 +64,33 @@ const requireAdminTicketUpdate = (
     return;
   }
 
-  requireSysAdmin(req, res, () => requireAdminKey(req, res, next));
+  requireSysAdmin(req, res, () =>
+    requireAdminKey(req, res, () => {
+      res.locals.includeEmptyTickets = true;
+      next();
+    }),
+  );
 };
 
 const parseBooleanQueryParam = (value: unknown): unknown => {
   if (value === "true" || value === true) return true;
   if (value === "false" || value === false) return false;
   return value;
+};
+
+// Los registros sin ningún dato útil quedan en cuarentena administrativa.
+// Incluirlos en el listado requiere tanto rol SysAdmin como ADMIN_API_KEY.
+const requireAdminForEmptyTickets = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  if (parseBooleanQueryParam(req.query.incluir_vacios) !== true) {
+    next();
+    return;
+  }
+
+  requireSysAdmin(req, res, () => requireAdminKey(req, res, next));
 };
 
 const parseLocalDateQueryParam = (value: unknown, endOfDay = false): unknown => {
@@ -90,25 +115,28 @@ const parseLocalDateQueryParam = (value: unknown, endOfDay = false): unknown => 
 };
 
 // List tickets with filters
-router.get("/tickets", async (req, res) => {
+router.get("/tickets", requireAdminForEmptyTickets, async (req, res) => {
   const parsed = ListTicketsQueryParams.safeParse({
     ...req.query,
     fecha_desde: parseLocalDateQueryParam(req.query.fecha_desde),
     fecha_hasta: parseLocalDateQueryParam(req.query.fecha_hasta, true),
     vencidos: parseBooleanQueryParam(req.query.vencidos),
+    incluir_vacios: parseBooleanQueryParam(req.query.incluir_vacios),
   });
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid query params" });
     return;
   }
-  const { estado, prioridad, fecha_desde, fecha_hasta, hora_desde, hora_hasta, empresa, motivo, motivo_categoria, search, vencidos, order = "desc", page = 1, limit = 20 } = parsed.data;
+  const { estado, prioridad, fecha_desde, fecha_hasta, hora_desde, hora_hasta, empresa, motivo, motivo_categoria, search, vencidos, incluir_vacios = false, order = "desc", page = 1, limit = 20 } = parsed.data;
 
   if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1 || limit > 100) {
     res.status(400).json({ error: "Invalid pagination params" });
     return;
   }
 
-  const conditions: ReturnType<typeof eq>[] = [];
+  const conditions: SQL[] = [];
+
+  if (!incluir_vacios) conditions.push(ticketVisibleCondition);
 
   if (estado) conditions.push(eq(ticketsTable.estado, estado as "nuevo" | "en_proceso" | "pendiente" | "resuelto" | "cerrado"));
   if (prioridad) conditions.push(eq(ticketsTable.prioridad, prioridad as "baja" | "media" | "alta" | "urgente"));
@@ -166,7 +194,10 @@ router.get("/tickets/:id", async (req, res) => {
   const parsed = GetTicketParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const [ticket] = await db.select().from(ticketsTable).where(eq(ticketsTable.id, parsed.data.id));
+  const [ticket] = await db
+    .select()
+    .from(ticketsTable)
+    .where(and(eq(ticketsTable.id, parsed.data.id), ticketVisibleCondition));
   if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
 
   const seguimientos = await db.select().from(seguimientosTable).where(eq(seguimientosTable.ticket_id, ticket.id)).orderBy(seguimientosTable.fecha_creacion);
@@ -206,6 +237,10 @@ router.patch("/tickets/:id", requireAdminTicketUpdate, async (req, res) => {
 
   // Una sola lectura alimenta la reclasificación, la detección de transición
   // de estado y la fecha automática de resolución.
+  const ticketAccessCondition = res.locals.includeEmptyTickets
+    ? eq(ticketsTable.id, paramsParsed.data.id)
+    : and(eq(ticketsTable.id, paramsParsed.data.id), ticketVisibleCondition);
+
   const [current] = await db
     .select({
       estado: ticketsTable.estado,
@@ -214,7 +249,7 @@ router.patch("/tickets/:id", requireAdminTicketUpdate, async (req, res) => {
       fecha_resolucion: ticketsTable.fecha_resolucion,
     })
     .from(ticketsTable)
-    .where(eq(ticketsTable.id, paramsParsed.data.id));
+    .where(ticketAccessCondition);
   if (!current) { res.status(404).json({ error: "Ticket not found" }); return; }
 
   // La categoría es siempre derivada. El motivo y el resumen originales se
@@ -258,7 +293,11 @@ router.patch("/tickets/:id", requireAdminTicketUpdate, async (req, res) => {
     if (!current.fecha_resolucion) updates.fecha_resolucion = new Date();
   }
 
-  const [updated] = await db.update(ticketsTable).set(updates).where(eq(ticketsTable.id, paramsParsed.data.id)).returning();
+  const [updated] = await db
+    .update(ticketsTable)
+    .set(updates)
+    .where(ticketAccessCondition)
+    .returning();
   if (!updated) { res.status(404).json({ error: "Ticket not found" }); return; }
 
   // Refresca en vivo las demás sesiones: si otro operador cambia el estado,
@@ -287,6 +326,12 @@ router.get("/tickets/:id/seguimientos", async (req, res) => {
   const parsed = ListSeguimientosParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) { res.status(400).json({ error: "Invalid id" }); return; }
 
+  const [ticket] = await db
+    .select({ id: ticketsTable.id })
+    .from(ticketsTable)
+    .where(and(eq(ticketsTable.id, parsed.data.id), ticketVisibleCondition));
+  if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
+
   const seguimientos = await db.select().from(seguimientosTable).where(eq(seguimientosTable.ticket_id, parsed.data.id)).orderBy(seguimientosTable.fecha_creacion);
   res.json(seguimientos);
 });
@@ -299,7 +344,10 @@ router.post("/tickets/:id/seguimientos", async (req, res) => {
   const bodyParsed = CreateSeguimientoBody.safeParse(req.body);
   if (!bodyParsed.success) { res.status(400).json({ error: "Invalid body" }); return; }
 
-  const [ticket] = await db.select().from(ticketsTable).where(eq(ticketsTable.id, paramsParsed.data.id));
+  const [ticket] = await db
+    .select()
+    .from(ticketsTable)
+    .where(and(eq(ticketsTable.id, paramsParsed.data.id), ticketVisibleCondition));
   if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
 
   const body = bodyParsed.data;

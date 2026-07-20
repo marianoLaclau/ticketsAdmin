@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { db, ticketsTable } from "@workspace/db";
+import { db, esTicketVacio, ticketsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { IngestTicketBody } from "@workspace/api-zod";
-import { clasificarMotivo, SLA_MS } from "@workspace/ingesta";
+import { calcularFechaLimiteSla, clasificarMotivo } from "@workspace/ingesta";
 import { requireWebhookKey } from "../lib/auth";
 import { broadcastEvent } from "../lib/events";
 
@@ -24,6 +24,7 @@ router.post("/webhooks/ticket", requireWebhookKey, async (req, res) => {
     return;
   }
 
+  const fechaCreacion = new Date();
   const [ticket] = await db.insert(ticketsTable).values({
     conversation_id: data.conversation_id,
     hora: data.hora,
@@ -42,17 +43,25 @@ router.post("/webhooks/ticket", requireWebhookKey, async (req, res) => {
     asignado_a: data.asignado_a ?? null,
     audio_url: data.audio_url ?? null,
     notas: data.notas ?? null,
-    fecha_limite: data.fecha_limite ? new Date(data.fecha_limite) : new Date(Date.now() + SLA_MS),
+    fecha_creacion: fechaCreacion,
+    fecha_limite: data.fecha_limite
+      ? new Date(data.fecha_limite)
+      : calcularFechaLimiteSla(fechaCreacion),
     progreso: data.progreso ?? 0,
   }).returning();
 
-  // Avisar en vivo a las pestañas abiertas que entró un llamado nuevo
-  broadcastEvent("ticket_creado", {
-    ticket_id: ticket.id,
-    nombre: ticket.nombre,
-    apellido: ticket.apellido,
-    motivo: ticket.motivo,
-  });
+  // Un registro en cuarentena refresca Administración, pero no genera una
+  // alerta de nuevo llamado para los operadores.
+  if (esTicketVacio(ticket)) {
+    broadcastEvent("datos_actualizados");
+  } else {
+    broadcastEvent("ticket_creado", {
+      ticket_id: ticket.id,
+      nombre: ticket.nombre,
+      apellido: ticket.apellido,
+      motivo: ticket.motivo,
+    });
+  }
 
   res.status(201).json({ created: true, ticket });
 });

@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Clock, PhoneIncoming, AlertCircle, CheckCircle2, Inbox, TrendingUp } from 'lucide-react';
 import { Link } from 'wouter';
 import { formatDate, PrioridadBadge } from '@/lib/utils-tickets';
+import { getEstadoLabel } from '@/lib/estados';
 import { getContactDisplayName, SIN_NOMBRE_PROPORCIONADO } from '@/lib/contacto';
 import { getMotivoCategoriaConfig } from '@/lib/motivos';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -18,7 +19,7 @@ import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
 const ESTADO_COLOR: Record<string, { bar: string; label: string; text: string }> = {
   nuevo:      { bar: '#64748b', label: 'Nuevo',      text: 'text-slate-600' },
   en_proceso: { bar: '#3b82f6', label: 'En proceso', text: 'text-blue-600' },
-  pendiente:  { bar: '#f59e0b', label: 'Pendiente',  text: 'text-amber-600' },
+  pendiente:  { bar: '#f59e0b', label: getEstadoLabel('pendiente'), text: 'text-amber-600' },
   resuelto:   { bar: '#3d7532', label: 'Resuelto',   text: 'text-green-700' },
   cerrado:    { bar: '#1e293b', label: 'Cerrado',    text: 'text-slate-800' },
 };

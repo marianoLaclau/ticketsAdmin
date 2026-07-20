@@ -26,6 +26,7 @@ export interface TicketInput {
   asignado_a?: string;
   audio_url?: string;
   notas?: string;
+  /** Fecha explícita opcional; si se omite, el backend calcula 48 horas hábiles de lunes a viernes */
   fecha_limite?: Date;
   /**
      * @minimum 0

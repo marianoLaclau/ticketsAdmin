@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  getListTicketsQueryKey,
   useListTickets,
   useCreateAdminTicket,
   useUpdateTicket,
   useDeleteTicket,
   useImportCsv,
   useTruncateTickets,
-  useGetDashboardStats,
   TicketEstado,
   TicketPrioridad,
   type Ticket,
@@ -16,7 +16,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { adminErrorMessage, useAdminAccess } from '@/hooks/use-admin-access';
 import { AdminHeader } from '@/components/admin/AdminHeader';
-import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -43,6 +42,7 @@ import {
   ChevronLeft, ChevronRight, FileText, CheckCircle2,
 } from 'lucide-react';
 import { EstadoBadge, PrioridadBadge, formatDate } from '@/lib/utils-tickets';
+import { getEstadoLabel } from '@/lib/estados';
 import { getContactDisplayName } from '@/lib/contacto';
 
 const CAMPOS_TEXTO: Array<{ campo: string; label: string; requerido?: boolean }> = [
@@ -56,6 +56,13 @@ const CAMPOS_TEXTO: Array<{ campo: string; label: string; requerido?: boolean }>
   { campo: 'email', label: 'Email' },
   { campo: 'audio_url', label: 'URL del audio' },
 ];
+
+let adminTicketsQueryVersion = 0;
+
+function nextAdminTicketsQueryVersion(): number {
+  adminTicketsQueryVersion += 1;
+  return adminTicketsQueryVersion;
+}
 
 function formVacio() {
   const now = new Date();
@@ -98,11 +105,35 @@ export default function Admin() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState('');
-  const listQuery = useListTickets({
+  // La versión fuerza una consulta nueva cuando cambia la llave, sin incluir
+  // el secreto en el query key ni dejarlo expuesto en la caché del navegador.
+  const adminAccessVersion = useMemo(nextAdminTicketsQueryVersion, [adminKey]);
+  const listParams = {
     page,
     limit: pageSize,
+    incluir_vacios: true,
     ...(search ? { search } : {}),
+  };
+  const listQuery = useListTickets(listParams, {
+    query: {
+      enabled: Boolean(adminKey),
+      queryKey: [...getListTicketsQueryKey(listParams), 'admin-access', adminAccessVersion],
+      retry: false,
+    },
+    request: adminRequest,
   });
+  const totalBaseParams = { page: 1, limit: 1, incluir_vacios: true };
+  const totalBaseQuery = useListTickets(
+    totalBaseParams,
+    {
+      query: {
+        enabled: Boolean(adminKey),
+        queryKey: [...getListTicketsQueryKey(totalBaseParams), 'admin-access', adminAccessVersion],
+        retry: false,
+      },
+      request: adminRequest,
+    },
+  );
   const { data: listResponse, isLoading } = listQuery;
   const tickets = listResponse?.tickets ?? [];
   const total = listResponse?.total ?? 0;
@@ -252,7 +283,6 @@ export default function Admin() {
   };
 
   // ---------- Zona peligrosa ----------
-  const { data: stats } = useGetDashboardStats();
   const truncate = useTruncateTickets({ request: adminRequest });
   const [confirmTexto, setConfirmTexto] = useState('');
 
@@ -273,18 +303,6 @@ export default function Admin() {
       },
     );
   };
-
-  if (listQuery.isError) {
-    return (
-      <ErrorPage
-        status={getErrorStatus(listQuery.error) ?? 503}
-        title="No pudimos cargar la administración"
-        message="No fue posible obtener los tickets para administrar. Reintentá o volvé al inicio."
-        onRetry={() => void listQuery.refetch()}
-        isRetrying={listQuery.isFetching}
-      />
-    );
-  }
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto w-full space-y-4">
@@ -319,6 +337,10 @@ export default function Admin() {
             </Button>
           </div>
 
+          <p className="text-xs text-muted-foreground">
+            Esta vista incluye los registros en cuarentena sin datos útiles, ocultos en Tickets y Dashboard.
+          </p>
+
           <div className="bg-card border border-border rounded-md shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <Table>
@@ -335,7 +357,13 @@ export default function Admin() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading ? (
+                  {!adminKey ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="h-40 text-center text-sm text-muted-foreground">
+                        Ingresá la llave de administración para ver todos los registros.
+                      </TableCell>
+                    </TableRow>
+                  ) : isLoading ? (
                     Array.from({ length: 8 }).map((_, i) => (
                       <TableRow key={i}>
                         {Array.from({ length: 8 }).map((_, j) => (
@@ -343,6 +371,12 @@ export default function Admin() {
                         ))}
                       </TableRow>
                     ))
+                  ) : listQuery.isError ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="h-40 text-center text-sm text-destructive">
+                        {adminErrorMessage(listQuery.error)}
+                      </TableCell>
+                    </TableRow>
                   ) : tickets.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="h-40 text-center text-sm text-muted-foreground">
@@ -514,7 +548,7 @@ export default function Admin() {
             </CardHeader>
             <CardContent className="pt-4 space-y-4">
               <p className="text-sm text-slate-600">
-                Actualmente hay <strong>{stats?.total ?? '…'}</strong> tickets en la base.
+                Actualmente hay <strong>{totalBaseQuery.data?.total ?? '…'}</strong> tickets en la base.
               </p>
               <div className="space-y-2 max-w-sm">
                 <Label htmlFor="confirm-borrar" className="text-sm">
@@ -570,7 +604,7 @@ export default function Admin() {
                 <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.values(TicketEstado).map((e) => (
-                    <SelectItem key={e} value={e}>{e.replace('_', ' ').toUpperCase()}</SelectItem>
+                    <SelectItem key={e} value={e}>{getEstadoLabel(e).toUpperCase()}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

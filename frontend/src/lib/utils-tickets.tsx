@@ -1,5 +1,6 @@
 import React from 'react';
 import { TicketEstado, TicketPrioridad } from '@workspace/api-client-react';
+import { getEstadoLabel } from './estados';
 
 export const getEstadoColor = (estado: string) => {
   switch (estado) {
@@ -25,7 +26,7 @@ export const getPrioridadStyle = (prioridad: string) => {
 export const EstadoBadge = ({ estado, className = '' }: { estado: string, className?: string }) => (
   <div className={`inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 ${className}`}>
     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${getEstadoColor(estado)}`} />
-    <span>{estado.replace('_', ' ').toUpperCase()}</span>
+    <span>{getEstadoLabel(estado).toUpperCase()}</span>
   </div>
 );
 

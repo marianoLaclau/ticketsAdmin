@@ -45,7 +45,10 @@ export interface Ticket {
   /** @nullable */
   notas?: string | null;
   fecha_creacion: Date;
-  /** @nullable */
+  /**
+     * Vencimiento; el default automático suma 48 horas hábiles de lunes a viernes
+     * @nullable
+     */
   fecha_limite?: Date | null;
   /** @nullable */
   fecha_resolucion?: Date | null;

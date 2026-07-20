@@ -17,11 +17,16 @@ import ExcelJS from "exceljs";
 import path from "node:path";
 import fs from "node:fs";
 import { db, ticketsTable } from "@workspace/db";
-import { parseCsv, detectarColumnas, filaATicket } from "@workspace/ingesta";
+import {
+  parseCsv,
+  detectarColumnas,
+  fechaExcelAStringLocal,
+  filaATicket,
+} from "@workspace/ingesta";
 
 function cellToString(value: ExcelJS.CellValue): string {
   if (value === null || value === undefined) return "";
-  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Date) return fechaExcelAStringLocal(value);
   if (typeof value === "object") {
     if ("text" in value && typeof value.text === "string") return value.text.trim(); // hyperlink / rich text
     if ("richText" in value && Array.isArray(value.richText)) {
@@ -118,7 +123,9 @@ async function main() {
 
     const values = filaATicket(record);
     if (!values) {
-      warnings.push(`Fila ${rowNumber}: sin conversation_id, salteada`);
+      warnings.push(
+        `Fila ${rowNumber}: sin conversation_id o con fecha/hora inválida, salteada`,
+      );
       skippedInvalid++;
       continue;
     }

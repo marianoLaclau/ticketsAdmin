@@ -268,7 +268,10 @@ export interface Ticket {
   /** @nullable */
   notas?: string | null;
   fecha_creacion: string;
-  /** @nullable */
+  /**
+     * Vencimiento; el default automático suma 48 horas hábiles de lunes a viernes
+     * @nullable
+     */
   fecha_limite?: string | null;
   /** @nullable */
   fecha_resolucion?: string | null;
@@ -351,6 +354,7 @@ export interface TicketInput {
   asignado_a?: string;
   audio_url?: string;
   notas?: string;
+  /** Fecha explícita opcional; si se omite, el backend calcula 48 horas hábiles de lunes a viernes */
   fecha_limite?: string;
   /**
      * @minimum 0
@@ -395,6 +399,7 @@ export interface TicketUpdate {
   prioridad?: TicketUpdatePrioridad;
   audio_url?: string;
   notas?: string;
+  /** Ajuste manual explícito del vencimiento */
   fecha_limite?: string;
   fecha_resolucion?: string;
   /**
@@ -462,6 +467,10 @@ motivo?: string;
 motivo_categoria?: MotivoCategoria;
 search?: string;
 vencidos?: boolean;
+/**
+ * Incluye registros en cuarentena sin datos útiles. Requiere sesión SysAdmin y el header x-admin-key; el listado operativo los excluye.
+ */
+incluir_vacios?: boolean;
 /**
  * Orden compuesto por día de creación y, dentro de cada día, por hora del llamado
  */

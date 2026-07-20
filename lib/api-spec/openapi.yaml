@@ -95,6 +95,14 @@ paths:
           in: query
           schema:
             type: boolean
+        - name: incluir_vacios
+          in: query
+          description: >
+            Incluye registros en cuarentena sin datos útiles. Requiere sesión
+            SysAdmin y el header x-admin-key; el listado operativo los excluye.
+          schema:
+            type: boolean
+            default: false
         - name: order
           in: query
           description: Orden compuesto por día de creación y, dentro de cada día, por hora del llamado
@@ -1158,6 +1166,7 @@ components:
         fecha_limite:
           type: ["string", "null"]
           format: date-time
+          description: Vencimiento; el default automático suma 48 horas hábiles de lunes a viernes
         fecha_resolucion:
           type: ["string", "null"]
           format: date-time
@@ -1245,6 +1254,7 @@ components:
         fecha_limite:
           type: string
           format: date-time
+          description: Fecha explícita opcional; si se omite, el backend calcula 48 horas hábiles de lunes a viernes
         progreso:
           type: integer
           minimum: 0
@@ -1287,6 +1297,7 @@ components:
         fecha_limite:
           type: string
           format: date-time
+          description: Ajuste manual explícito del vencimiento
         fecha_resolucion:
           type: string
           format: date-time

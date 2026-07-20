@@ -11,3 +11,4 @@ export const db = drizzle(sqlite, { schema });
 
 export { resolveDbPath } from "./db-path";
 export * from "./schema";
+export * from "./ticket-visibility";
