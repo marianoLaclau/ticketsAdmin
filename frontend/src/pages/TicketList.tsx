@@ -122,13 +122,13 @@ export default function TicketList() {
 
       {/* Filters Bar - Structured Rows */}
       <div className="shrink-0 space-y-2 rounded-md border border-border bg-card p-2 shadow-sm">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_185px_165px_220px]">
-          <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+        <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_185px_165px]">
+          <div className="flex h-8 min-w-0 items-center lg:col-span-2 xl:col-span-1">
+            <Search className="ml-2.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
             <Input
               aria-label="Buscar tickets"
               placeholder="Buscar contacto, empresa o motivo..."
-              className="pl-8 h-8 text-sm bg-transparent border-none shadow-none focus-visible:ring-0"
+              className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-sm shadow-none focus-visible:ring-0"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -164,10 +164,12 @@ export default function TicketList() {
               <SelectItem value={TicketPrioridad.urgente}>Urgente</SelectItem>
             </SelectContent>
           </Select>
+        </div>
 
+        <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 xl:grid-cols-[220px_minmax(0,1.3fr)_minmax(0,1fr)]">
           <Label htmlFor="tickets-categoria" className="sr-only">Filtrar por categoría</Label>
           <Select value={motivoCategoriaFilter} onValueChange={setMotivoCategoriaFilter}>
-            <SelectTrigger id="tickets-categoria" className="h-8 w-full min-w-0 justify-start gap-1.5 border-slate-200 bg-slate-50 text-xs sm:col-span-2 xl:col-span-1 [&>svg]:ml-auto">
+            <SelectTrigger id="tickets-categoria" className="h-8 w-full min-w-0 justify-start gap-1.5 border-slate-200 bg-slate-50 text-xs lg:col-span-2 xl:col-span-1 [&>svg]:ml-auto">
               <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Categoría:</span>
               <SelectValue className="min-w-0 truncate" />
             </SelectTrigger>
@@ -180,9 +182,7 @@ export default function TicketList() {
               ))}
             </SelectContent>
           </Select>
-        </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(145px,.7fr)_auto_auto]">
           {/* Dates */}
           <div className="flex h-8 min-w-0 items-center overflow-hidden rounded-md border border-slate-200 bg-slate-50">
             <span className="pl-2 pr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Fecha:</span>
@@ -227,6 +227,10 @@ export default function TicketList() {
             />
           </div>
 
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 lg:grid-cols-[minmax(220px,1fr)_auto_auto]">
+
           <div className="relative min-w-0">
             <span className="pointer-events-none absolute left-2.5 top-1/2 z-10 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
               Empresa:
@@ -258,7 +262,7 @@ export default function TicketList() {
               variant="ghost" 
               size="sm" 
               onClick={clearFilters}
-              className="h-8 w-full px-2 text-xs text-slate-500 hover:text-slate-900 sm:col-span-2 sm:w-auto sm:justify-self-end xl:col-span-1"
+              className="h-8 w-full px-2 text-xs text-slate-500 hover:text-slate-900 lg:w-auto lg:justify-self-end"
             >
               Limpiar filtros
             </Button>

@@ -2,6 +2,26 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-07-21 — Ajuste visual final de los filtros de Tickets
+
+**Agente:** Codex
+**Contexto:** la primera distribución en filas todavía dejaba el buscador demasiado corto y el ícono de búsqueda podía percibirse descentrado.
+
+### Cambio realizado
+
+- Categoría pasó a encabezar la segunda fila, dejando la primera exclusivamente para una búsqueda amplia, estado y prioridad.
+- El buscador absorbe todo el espacio restante; en la revisión visual midió 728 px a 1440 y 568 px a 1280.
+- La lupa ahora forma parte de un contenedor `flex` de altura fija, por lo que queda centrada por layout y no mediante posición absoluta o transformaciones.
+- En escritorio se usan tres filas estables: búsqueda/estado/prioridad; categoría/fecha/hora; empresa/plazo/limpiar. En resoluciones menores cada grupo se apila sin cortes automáticos.
+
+Archivos: `frontend/src/pages/TicketList.tsx`, `frontend/README_FRONTEND.md` y esta bitácora.
+
+### Validaciones
+
+- Revisión visual del listado en escritorio y viewport reducido.
+- Typecheck, tests y build de producción del frontend: correctos.
+- `git diff --check`: sin errores de whitespace.
+
 ## 2026-07-21 — Corrección del layout de filtros de Tickets
 
 **Agente:** Codex
