@@ -26,6 +26,7 @@ import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-
 import { getEstadoLabel } from '@/lib/estados';
 import { getMotivoCategoriaConfig, MOTIVO_CATEGORIA_OPTIONS } from '@/lib/motivos';
 import { getContactDisplayName } from '@/lib/contacto';
+import { getAssignedDisplayName, hasAssignedDisplayName } from '@/lib/asignacion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
 
@@ -264,6 +265,7 @@ export default function TicketList() {
                 <TableHead className="w-[250px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Motivo</TableHead>
                 <TableHead className="w-[120px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Estado</TableHead>
                 <TableHead className="w-[100px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Prioridad</TableHead>
+                <TableHead className="w-[170px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Asignado</TableHead>
                 <TableHead className="w-[150px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Progreso</TableHead>
                 <TableHead className="w-[140px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3 text-right">Límite</TableHead>
               </TableRow>
@@ -278,13 +280,14 @@ export default function TicketList() {
                     <TableCell className="py-2.5"><Skeleton className="h-4 w-48" /></TableCell>
                     <TableCell className="py-2.5"><Skeleton className="h-4 w-20" /></TableCell>
                     <TableCell className="py-2.5"><Skeleton className="h-4 w-16" /></TableCell>
+                    <TableCell className="py-2.5"><Skeleton className="h-4 w-28" /></TableCell>
                     <TableCell className="py-2.5"><Skeleton className="h-2 w-full" /></TableCell>
                     <TableCell className="py-2.5"><Skeleton className="h-4 w-24 ml-auto" /></TableCell>
                   </TableRow>
                 ))
               ) : tickets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-64 text-center border-b-0">
+                  <TableCell colSpan={9} className="h-64 text-center border-b-0">
                     <div className="flex flex-col items-center justify-center text-slate-500 space-y-3">
                       <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100">
                         <Filter className="h-5 w-5 text-slate-400" />
@@ -300,6 +303,8 @@ export default function TicketList() {
                   const motivoCategoria = getMotivoCategoriaConfig(ticket.motivo_categoria);
                   const contactoLabel = getContactDisplayName(ticket);
                   const empresaLabel = ticket.empresa?.trim() || 'Sin empresa asociada';
+                  const asignadoLabel = getAssignedDisplayName(ticket.asignado_a);
+                  const tieneAsignado = hasAssignedDisplayName(ticket.asignado_a);
                   
                   return (
                     <TableRow 
@@ -347,6 +352,14 @@ export default function TicketList() {
                       </TableCell>
                       <TableCell className="py-2.5">
                         <PrioridadBadge prioridad={ticket.prioridad} />
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <span
+                          className={`block truncate text-sm ${tieneAsignado ? 'font-medium text-slate-700' : 'text-slate-400'}`}
+                          title={asignadoLabel}
+                        >
+                          {asignadoLabel}
+                        </span>
                       </TableCell>
                       <TableCell className="py-2.5">
                         <div className="flex items-center gap-2">

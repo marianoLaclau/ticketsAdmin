@@ -37,6 +37,9 @@ import type {
   AuthUser,
   DashboardStats,
   GetActividadRecienteParams,
+  GetDashboardStatsParams,
+  GetMotivoStatsParams,
+  GetTicketsVencidosParams,
   HealthStatus,
   ListAdminRolesParams,
   ListAdminUsersParams,
@@ -1724,20 +1727,27 @@ export const useCreateSeguimiento = <TError = ErrorType<unknown>,
       return useMutation(getCreateSeguimientoMutationOptions(options));
     }
 
-export const getGetDashboardStatsUrl = () => {
+export const getGetDashboardStatsUrl = (params?: GetDashboardStatsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/dashboard/stats`
+  return stringifiedParams.length > 0 ? `/api/dashboard/stats?${stringifiedParams}` : `/api/dashboard/stats`
 }
 
 /**
  * @summary Get dashboard statistics
  */
-export const getDashboardStats = async ( options?: RequestInit): Promise<DashboardStats> => {
+export const getDashboardStats = async (params?: GetDashboardStatsParams, options?: RequestInit): Promise<DashboardStats> => {
 
-  return customFetch<DashboardStats>(getGetDashboardStatsUrl(),
+  return customFetch<DashboardStats>(getGetDashboardStatsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -1750,23 +1760,23 @@ export const getDashboardStats = async ( options?: RequestInit): Promise<Dashboa
 
 
 
-export const getGetDashboardStatsQueryKey = () => {
+export const getGetDashboardStatsQueryKey = (params?: GetDashboardStatsParams,) => {
     return [
-    `/api/dashboard/stats`
+    `/api/dashboard/stats`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetDashboardStatsQueryOptions = <TData = Awaited<ReturnType<typeof getDashboardStats>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetDashboardStatsQueryOptions = <TData = Awaited<ReturnType<typeof getDashboardStats>>, TError = ErrorType<void>>(params?: GetDashboardStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetDashboardStatsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetDashboardStatsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDashboardStats>>> = ({ signal }) => getDashboardStats({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDashboardStats>>> = ({ signal }) => getDashboardStats(params, { signal, ...requestOptions });
 
 
 
@@ -1776,19 +1786,19 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetDashboardStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getDashboardStats>>>
-export type GetDashboardStatsQueryError = ErrorType<unknown>
+export type GetDashboardStatsQueryError = ErrorType<void>
 
 
 /**
  * @summary Get dashboard statistics
  */
 
-export function useGetDashboardStats<TData = Awaited<ReturnType<typeof getDashboardStats>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export function useGetDashboardStats<TData = Awaited<ReturnType<typeof getDashboardStats>>, TError = ErrorType<void>>(
+ params?: GetDashboardStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetDashboardStatsQueryOptions(options)
+  const queryOptions = getGetDashboardStatsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -1841,7 +1851,7 @@ export const getGetActividadRecienteQueryKey = (params?: GetActividadRecientePar
     }
 
 
-export const getGetActividadRecienteQueryOptions = <TData = Awaited<ReturnType<typeof getActividadReciente>>, TError = ErrorType<unknown>>(params?: GetActividadRecienteParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActividadReciente>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetActividadRecienteQueryOptions = <TData = Awaited<ReturnType<typeof getActividadReciente>>, TError = ErrorType<void>>(params?: GetActividadRecienteParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActividadReciente>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -1860,14 +1870,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetActividadRecienteQueryResult = NonNullable<Awaited<ReturnType<typeof getActividadReciente>>>
-export type GetActividadRecienteQueryError = ErrorType<unknown>
+export type GetActividadRecienteQueryError = ErrorType<void>
 
 
 /**
  * @summary Get recent ticket activity
  */
 
-export function useGetActividadReciente<TData = Awaited<ReturnType<typeof getActividadReciente>>, TError = ErrorType<unknown>>(
+export function useGetActividadReciente<TData = Awaited<ReturnType<typeof getActividadReciente>>, TError = ErrorType<void>>(
  params?: GetActividadRecienteParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActividadReciente>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -1885,20 +1895,27 @@ export function useGetActividadReciente<TData = Awaited<ReturnType<typeof getAct
 
 
 
-export const getGetTicketsVencidosUrl = () => {
+export const getGetTicketsVencidosUrl = (params?: GetTicketsVencidosParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/dashboard/tickets-vencidos`
+  return stringifiedParams.length > 0 ? `/api/dashboard/tickets-vencidos?${stringifiedParams}` : `/api/dashboard/tickets-vencidos`
 }
 
 /**
  * @summary Get overdue tickets
  */
-export const getTicketsVencidos = async ( options?: RequestInit): Promise<Ticket[]> => {
+export const getTicketsVencidos = async (params?: GetTicketsVencidosParams, options?: RequestInit): Promise<Ticket[]> => {
 
-  return customFetch<Ticket[]>(getGetTicketsVencidosUrl(),
+  return customFetch<Ticket[]>(getGetTicketsVencidosUrl(params),
   {
     ...options,
     method: 'GET'
@@ -1911,23 +1928,23 @@ export const getTicketsVencidos = async ( options?: RequestInit): Promise<Ticket
 
 
 
-export const getGetTicketsVencidosQueryKey = () => {
+export const getGetTicketsVencidosQueryKey = (params?: GetTicketsVencidosParams,) => {
     return [
-    `/api/dashboard/tickets-vencidos`
+    `/api/dashboard/tickets-vencidos`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetTicketsVencidosQueryOptions = <TData = Awaited<ReturnType<typeof getTicketsVencidos>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicketsVencidos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetTicketsVencidosQueryOptions = <TData = Awaited<ReturnType<typeof getTicketsVencidos>>, TError = ErrorType<void>>(params?: GetTicketsVencidosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicketsVencidos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetTicketsVencidosQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetTicketsVencidosQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTicketsVencidos>>> = ({ signal }) => getTicketsVencidos({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTicketsVencidos>>> = ({ signal }) => getTicketsVencidos(params, { signal, ...requestOptions });
 
 
 
@@ -1937,19 +1954,19 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetTicketsVencidosQueryResult = NonNullable<Awaited<ReturnType<typeof getTicketsVencidos>>>
-export type GetTicketsVencidosQueryError = ErrorType<unknown>
+export type GetTicketsVencidosQueryError = ErrorType<void>
 
 
 /**
  * @summary Get overdue tickets
  */
 
-export function useGetTicketsVencidos<TData = Awaited<ReturnType<typeof getTicketsVencidos>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicketsVencidos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export function useGetTicketsVencidos<TData = Awaited<ReturnType<typeof getTicketsVencidos>>, TError = ErrorType<void>>(
+ params?: GetTicketsVencidosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicketsVencidos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetTicketsVencidosQueryOptions(options)
+  const queryOptions = getGetTicketsVencidosQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -1962,20 +1979,27 @@ export function useGetTicketsVencidos<TData = Awaited<ReturnType<typeof getTicke
 
 
 
-export const getGetMotivoStatsUrl = () => {
+export const getGetMotivoStatsUrl = (params?: GetMotivoStatsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/dashboard/motivos`
+  return stringifiedParams.length > 0 ? `/api/dashboard/motivos?${stringifiedParams}` : `/api/dashboard/motivos`
 }
 
 /**
  * @summary Get ticket counts grouped by normalized contact category
  */
-export const getMotivoStats = async ( options?: RequestInit): Promise<MotivoStat[]> => {
+export const getMotivoStats = async (params?: GetMotivoStatsParams, options?: RequestInit): Promise<MotivoStat[]> => {
 
-  return customFetch<MotivoStat[]>(getGetMotivoStatsUrl(),
+  return customFetch<MotivoStat[]>(getGetMotivoStatsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -1988,23 +2012,23 @@ export const getMotivoStats = async ( options?: RequestInit): Promise<MotivoStat
 
 
 
-export const getGetMotivoStatsQueryKey = () => {
+export const getGetMotivoStatsQueryKey = (params?: GetMotivoStatsParams,) => {
     return [
-    `/api/dashboard/motivos`
+    `/api/dashboard/motivos`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetMotivoStatsQueryOptions = <TData = Awaited<ReturnType<typeof getMotivoStats>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMotivoStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetMotivoStatsQueryOptions = <TData = Awaited<ReturnType<typeof getMotivoStats>>, TError = ErrorType<void>>(params?: GetMotivoStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMotivoStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetMotivoStatsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getGetMotivoStatsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMotivoStats>>> = ({ signal }) => getMotivoStats({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMotivoStats>>> = ({ signal }) => getMotivoStats(params, { signal, ...requestOptions });
 
 
 
@@ -2014,19 +2038,19 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetMotivoStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getMotivoStats>>>
-export type GetMotivoStatsQueryError = ErrorType<unknown>
+export type GetMotivoStatsQueryError = ErrorType<void>
 
 
 /**
  * @summary Get ticket counts grouped by normalized contact category
  */
 
-export function useGetMotivoStats<TData = Awaited<ReturnType<typeof getMotivoStats>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMotivoStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export function useGetMotivoStats<TData = Awaited<ReturnType<typeof getMotivoStats>>, TError = ErrorType<void>>(
+ params?: GetMotivoStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMotivoStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetMotivoStatsQueryOptions(options)
+  const queryOptions = getGetMotivoStatsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

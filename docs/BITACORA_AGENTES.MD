@@ -2,6 +2,34 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-07-21 — Errores seguros, responsable en Tickets y períodos del Dashboard
+
+**Agente:** Codex
+**Contexto:** se pidió eliminar detalles técnicos de los toasts de error, mostrar el responsable de cada ticket en el listado y permitir que todo el Dashboard se visualice sin filtro, por semana, por mes o entre dos fechas.
+
+### Cambios realizados
+
+- Se centralizó la presentación de errores en `frontend/src/lib/error-messages.ts`. La UI inspecciona `status`, `response.status` y únicamente respuestas de negocio conocidas; nunca imprime `Error.message`, HTTP, método, URL, JSON, HTML, stack ni detalles internos de Zod. Login, Administración, Roles y usuarios, edición de tickets, seguimientos y logout usan mensajes humanos. La creación y el reset de contraseñas también validan longitud y coincidencia antes de llamar a la API.
+- El listado operativo ganó la columna **Asignado**. Muestra el snapshot visible `asignado_a` limpio y, si está vacío o es nulo, `Sin asignar`. No cambia la asignación ni reescribe registros; `asignado_usuario_id` continúa siendo la identidad autoritativa en el backend.
+- El Dashboard incorporó el selector **Todo / Semana actual / Mes actual / Período personalizado**. Todo sigue siendo el default; semana usa lunes a domingo, mes usa el mes calendario completo y el rango desde/hasta incluye ambos días. El personalizado conserva un borrador y solo aplica fechas completas y ordenadas.
+- Los presets se recalculan automáticamente al cambiar el día y los controles permiten wrap en anchos intermedios para no desbordar junto al sidebar.
+- Los cuatro endpoints del Dashboard aceptan `fecha_desde` y `fecha_hasta`. Estados, prioridades, motivos, vencidos y resueltos del período usan la misma cohorte por fecha de creación; actividad usa la fecha real de cada ticket/seguimiento. El badge global del sidebar permanece sin filtro.
+- Se agregaron `resueltos_periodo` y `nuevos_periodo` al contrato sin retirar `resueltos_hoy` ni `nuevos_hoy`, preservando la compatibilidad y el comportamiento exacto de Todo.
+- Los días calendario se interpretan explícitamente en `America/Argentina/Buenos_Aires`, sin depender de la zona del proceso; el límite “hasta” incluye el día completo y un rango invertido responde `400`.
+- No fue necesaria ninguna migración ni se modificaron tickets existentes.
+
+Archivos principales: `frontend/src/lib/error-messages.ts`, `frontend/src/lib/asignacion.ts`, `frontend/src/lib/dashboard-period.ts`, `frontend/src/pages/Dashboard.tsx`, `frontend/src/pages/TicketList.tsx`, `backend/src/lib/dashboard-date-range.ts`, `backend/src/routes/dashboard.ts` y `lib/api-spec/openapi.yaml`.
+
+### Validaciones
+
+- Contrato React Query/Zod regenerado desde OpenAPI.
+- `pnpm -r --if-present test`: 53 pruebas correctas (24 ingesta/SLA, 5 base de datos y 24 frontend). Los casos nuevos cubren ausencia de filtraciones técnicas, mensajes administrativos/login, fallback de asignación, lunes-domingo, mes calendario, rango personalizado y formato local.
+- `pnpm run typecheck`: correcto en librerías, backend, frontend y scripts.
+- `pnpm run build`: backend y frontend compilaron correctamente; solo permanecen las advertencias conocidas de sourcemaps y tamaño del bundle.
+- Smoke HTTP aislado sobre una base temporal migrada: login/logout correctos; los cuatro endpoints aceptaron el mismo rango; la respuesta de stats incluyó las nuevas métricas y un rango invertido devolvió `400`. El proceso y la base temporal se eliminaron al finalizar.
+- El parser de período se verificó además con `TZ=UTC`: mantuvo correctamente los límites de medianoche de Buenos Aires.
+- `git diff --check`: sin errores de whitespace.
+
 ## 2026-07-20 — Aclaración visible del estado Pendiente
 
 **Agente:** Codex

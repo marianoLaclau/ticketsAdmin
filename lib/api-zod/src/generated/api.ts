@@ -726,6 +726,11 @@ export const CreateSeguimientoResponse = zod.object({
 /**
  * @summary Get dashboard statistics
  */
+export const GetDashboardStatsQueryParams = zod.object({
+  "fecha_desde": zod.coerce.date().optional().describe('Primer dia incluido en el periodo del dashboard (YYYY-MM-DD).'),
+  "fecha_hasta": zod.coerce.date().optional().describe('Ultimo dia incluido en el periodo del dashboard (YYYY-MM-DD).')
+})
+
 export const GetDashboardStatsResponse = zod.object({
   "total": zod.number(),
   "por_estado": zod.array(zod.object({
@@ -739,6 +744,8 @@ export const GetDashboardStatsResponse = zod.object({
   "vencidos": zod.number(),
   "resueltos_hoy": zod.number(),
   "nuevos_hoy": zod.number(),
+  "resueltos_periodo": zod.number().describe('Tickets creados en el periodo solicitado cuyo estado actual es resuelto o cerrado.'),
+  "nuevos_periodo": zod.number().describe('Tickets creados dentro del periodo solicitado; sin filtro, total historico.'),
   "tiempo_promedio_resolucion": zod.number().nullable()
 })
 
@@ -749,7 +756,9 @@ export const GetDashboardStatsResponse = zod.object({
 export const getActividadRecienteQueryLimitDefault = 10;
 
 export const GetActividadRecienteQueryParams = zod.object({
-  "limit": zod.coerce.number().default(getActividadRecienteQueryLimitDefault)
+  "limit": zod.coerce.number().default(getActividadRecienteQueryLimitDefault),
+  "fecha_desde": zod.coerce.date().optional().describe('Primer dia incluido en el periodo del dashboard (YYYY-MM-DD).'),
+  "fecha_hasta": zod.coerce.date().optional().describe('Ultimo dia incluido en el periodo del dashboard (YYYY-MM-DD).')
 })
 
 export const GetActividadRecienteResponseItem = zod.object({
@@ -765,6 +774,11 @@ export const GetActividadRecienteResponse = zod.array(GetActividadRecienteRespon
 /**
  * @summary Get overdue tickets
  */
+export const GetTicketsVencidosQueryParams = zod.object({
+  "fecha_desde": zod.coerce.date().optional().describe('Primer dia incluido en el periodo del dashboard (YYYY-MM-DD).'),
+  "fecha_hasta": zod.coerce.date().optional().describe('Ultimo dia incluido en el periodo del dashboard (YYYY-MM-DD).')
+})
+
 export const getTicketsVencidosResponseProgresoMin = 0;
 export const getTicketsVencidosResponseProgresoMax = 100;
 
@@ -801,6 +815,11 @@ export const GetTicketsVencidosResponse = zod.array(GetTicketsVencidosResponseIt
 /**
  * @summary Get ticket counts grouped by normalized contact category
  */
+export const GetMotivoStatsQueryParams = zod.object({
+  "fecha_desde": zod.coerce.date().optional().describe('Primer dia incluido en el periodo del dashboard (YYYY-MM-DD).'),
+  "fecha_hasta": zod.coerce.date().optional().describe('Ultimo dia incluido en el periodo del dashboard (YYYY-MM-DD).')
+})
+
 export const GetMotivoStatsResponseItem = zod.object({
   "categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']),
   "motivo": zod.string().describe('Etiqueta legible de la categoría'),

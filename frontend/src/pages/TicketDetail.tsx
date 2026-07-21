@@ -57,6 +57,7 @@ import { getContactDisplayEmail, getContactDisplayName, getContactDisplayPhone }
 import { dateTimeLocalValueToIso, toDateTimeLocalValue } from '@/lib/datetime-local';
 import { puedeCerrarTickets } from '@/lib/roles';
 import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
+import { getUserErrorMessage } from '@/lib/error-messages';
 
 const PROGRESS_STEPS = [
   { estado: TicketEstado.nuevo, value: 0, label: 'Nuevo' },
@@ -65,10 +66,6 @@ const PROGRESS_STEPS = [
   { estado: TicketEstado.resuelto, value: 75, label: 'Resuelto' },
   { estado: TicketEstado.cerrado, value: 100, label: 'Cerrado' },
 ];
-
-function errorDescription(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message.trim() ? error.message : fallback;
-}
 
 export default function TicketDetail() {
   const { id } = useParams<{ id: string }>();
@@ -165,7 +162,7 @@ export default function TicketDetail() {
           toast({
             variant: 'destructive',
             title: `No se pudo actualizar el ticket #${ticketId}`,
-            description: errorDescription(error, 'Reintentá la operación.'),
+            description: getUserErrorMessage(error, 'Reintentá la operación.'),
           });
         }
       }
@@ -200,7 +197,7 @@ export default function TicketDetail() {
           toast({
             variant: 'destructive',
             title: 'No se pudo agregar el seguimiento',
-            description: errorDescription(error, 'Reintentá la operación.'),
+            description: getUserErrorMessage(error, 'Reintentá la operación.'),
           });
         }
       }

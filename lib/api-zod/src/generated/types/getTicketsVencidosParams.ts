@@ -8,8 +8,7 @@
 import type { DashboardFechaDesdeParameter } from './dashboardFechaDesdeParameter';
 import type { DashboardFechaHastaParameter } from './dashboardFechaHastaParameter';
 
-export type GetActividadRecienteParams = {
-limit?: number;
+export type GetTicketsVencidosParams = {
 /**
  * Primer dia incluido en el periodo del dashboard (YYYY-MM-DD).
  */

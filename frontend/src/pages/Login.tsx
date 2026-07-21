@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { AlertCircle, KeyRound, LogIn, User } from 'lucide-react';
 import { useLocation } from 'wouter';
+import { getLoginErrorMessage } from '@/lib/error-messages';
 
 // @ts-ignore
 import gsbLogo from '@/assets/gsb-logo.jpg';
@@ -33,12 +34,7 @@ export default function Login() {
           navigate('/dashboard', { replace: true });
         },
         onError: (err) => {
-          const msg = err instanceof Error ? err.message : '';
-          setError(
-            msg.includes('401')
-              ? 'Usuario o contraseña incorrectos'
-              : 'No se pudo iniciar sesión. Verificá la conexión con el servidor.',
-          );
+          setError(getLoginErrorMessage(err));
         },
       },
     );

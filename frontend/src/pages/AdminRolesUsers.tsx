@@ -210,6 +210,22 @@ export default function AdminRolesUsers() {
 
   const savePassword = () => {
     if (!passwordUser) return;
+    if (passwordNueva.length < 6) {
+      toast({
+        variant: 'warning',
+        title: 'Contraseña muy corta',
+        description: 'La contraseña nueva debe tener al menos 6 caracteres.',
+      });
+      return;
+    }
+    if (passwordNueva !== passwordRepetida) {
+      toast({
+        variant: 'warning',
+        title: 'Las contraseñas no coinciden',
+        description: 'Revisá los dos campos de contraseña.',
+      });
+      return;
+    }
     resetPassword.mutate(
       { id: passwordUser.id, data: { password: passwordNueva } },
       {

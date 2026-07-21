@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getGetMeQueryKey, useGetMe } from '@workspace/api-client-react';
+import { getAdminErrorMessage } from '@/lib/error-messages';
 
 const LEGACY_ADMIN_KEY_STORAGE = 'admin-key';
 const ADMIN_KEY_STORAGE_PREFIX = 'admin-key:user:';
@@ -58,6 +59,5 @@ export function useAdminAccess() {
 }
 
 export function adminErrorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : 'Error desconocido';
-  return message.includes('401') ? 'Clave de administración inválida (completala arriba a la derecha)' : message;
+  return getAdminErrorMessage(error);
 }

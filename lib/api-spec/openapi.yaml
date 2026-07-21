@@ -695,7 +695,12 @@ paths:
       operationId: getDashboardStats
       tags: [dashboard]
       summary: Get dashboard statistics
+      parameters:
+        - $ref: "#/components/parameters/DashboardFechaDesde"
+        - $ref: "#/components/parameters/DashboardFechaHasta"
       responses:
+        "400":
+          description: Invalid dashboard date range
         "200":
           description: Dashboard statistics
           content:
@@ -714,7 +719,11 @@ paths:
           schema:
             type: integer
             default: 10
+        - $ref: "#/components/parameters/DashboardFechaDesde"
+        - $ref: "#/components/parameters/DashboardFechaHasta"
       responses:
+        "400":
+          description: Invalid dashboard date range
         "200":
           description: Recent activity
           content:
@@ -729,7 +738,12 @@ paths:
       operationId: getTicketsVencidos
       tags: [dashboard]
       summary: Get overdue tickets
+      parameters:
+        - $ref: "#/components/parameters/DashboardFechaDesde"
+        - $ref: "#/components/parameters/DashboardFechaHasta"
       responses:
+        "400":
+          description: Invalid dashboard date range
         "200":
           description: Overdue tickets
           content:
@@ -744,7 +758,12 @@ paths:
       operationId: getMotivoStats
       tags: [dashboard]
       summary: Get ticket counts grouped by normalized contact category
+      parameters:
+        - $ref: "#/components/parameters/DashboardFechaDesde"
+        - $ref: "#/components/parameters/DashboardFechaHasta"
       responses:
+        "400":
+          description: Invalid dashboard date range
         "200":
           description: Contact category statistics
           content:
@@ -755,6 +774,22 @@ paths:
                   $ref: "#/components/schemas/MotivoStat"
 
 components:
+  parameters:
+    DashboardFechaDesde:
+      name: fecha_desde
+      in: query
+      description: Primer dia incluido en el periodo del dashboard (YYYY-MM-DD).
+      schema:
+        type: string
+        format: date
+    DashboardFechaHasta:
+      name: fecha_hasta
+      in: query
+      description: Ultimo dia incluido en el periodo del dashboard (YYYY-MM-DD).
+      schema:
+        type: string
+        format: date
+
   securitySchemes:
     webhookApiKey:
       type: apiKey
@@ -1353,6 +1388,8 @@ components:
         - vencidos
         - resueltos_hoy
         - nuevos_hoy
+        - resueltos_periodo
+        - nuevos_periodo
         - tiempo_promedio_resolucion
       properties:
         total:
@@ -1371,6 +1408,12 @@ components:
           type: integer
         nuevos_hoy:
           type: integer
+        resueltos_periodo:
+          type: integer
+          description: Tickets creados en el periodo solicitado cuyo estado actual es resuelto o cerrado.
+        nuevos_periodo:
+          type: integer
+          description: Tickets creados dentro del periodo solicitado; sin filtro, total historico.
         tiempo_promedio_resolucion:
           type: ["number", "null"]
 

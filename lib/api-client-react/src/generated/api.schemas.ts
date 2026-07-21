@@ -433,6 +433,10 @@ export interface DashboardStats {
   vencidos: number;
   resueltos_hoy: number;
   nuevos_hoy: number;
+  /** Tickets creados en el periodo solicitado cuyo estado actual es resuelto o cerrado. */
+  resueltos_periodo: number;
+  /** Tickets creados dentro del periodo solicitado; sin filtro, total historico. */
+  nuevos_periodo: number;
   /** @nullable */
   tiempo_promedio_resolucion: number | null;
 }
@@ -451,6 +455,16 @@ export interface ActividadItem {
   descripcion: string;
   fecha: string;
 }
+
+/**
+ * Primer dia incluido en el periodo del dashboard (YYYY-MM-DD).
+ */
+export type DashboardFechaDesdeParameter = string;
+
+/**
+ * Ultimo dia incluido en el periodo del dashboard (YYYY-MM-DD).
+ */
+export type DashboardFechaHastaParameter = string;
 
 export type ListTicketsParams = {
 estado?: ListTicketsEstado;
@@ -546,7 +560,48 @@ page?: number;
 limit?: number;
 };
 
+export type GetDashboardStatsParams = {
+/**
+ * Primer dia incluido en el periodo del dashboard (YYYY-MM-DD).
+ */
+fecha_desde?: DashboardFechaDesdeParameter;
+/**
+ * Ultimo dia incluido en el periodo del dashboard (YYYY-MM-DD).
+ */
+fecha_hasta?: DashboardFechaHastaParameter;
+};
+
 export type GetActividadRecienteParams = {
 limit?: number;
+/**
+ * Primer dia incluido en el periodo del dashboard (YYYY-MM-DD).
+ */
+fecha_desde?: DashboardFechaDesdeParameter;
+/**
+ * Ultimo dia incluido en el periodo del dashboard (YYYY-MM-DD).
+ */
+fecha_hasta?: DashboardFechaHastaParameter;
+};
+
+export type GetTicketsVencidosParams = {
+/**
+ * Primer dia incluido en el periodo del dashboard (YYYY-MM-DD).
+ */
+fecha_desde?: DashboardFechaDesdeParameter;
+/**
+ * Ultimo dia incluido en el periodo del dashboard (YYYY-MM-DD).
+ */
+fecha_hasta?: DashboardFechaHastaParameter;
+};
+
+export type GetMotivoStatsParams = {
+/**
+ * Primer dia incluido en el periodo del dashboard (YYYY-MM-DD).
+ */
+fecha_desde?: DashboardFechaDesdeParameter;
+/**
+ * Ultimo dia incluido en el periodo del dashboard (YYYY-MM-DD).
+ */
+fecha_hasta?: DashboardFechaHastaParameter;
 };
 

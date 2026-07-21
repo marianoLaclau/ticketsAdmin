@@ -106,10 +106,10 @@ Todas bajo el prefijo `/api`. ✅ = requiere sesión (candado global). 🔑 = ad
 | `DELETE /tickets/:id` | Borra el ticket (cascada sobre sus seguimientos). `204`. | ✅🔑🗝️ |
 | `GET /tickets/:id/seguimientos` | Historial ordenado por fecha. | ✅ |
 | `POST /tickets/:id/seguimientos` | Crea una nota. **El campo `autor` lo asigna el backend con el usuario de la sesión** — lo que mande el body se ignora, así el historial no es falsificable. | ✅ |
-| `GET /dashboard/stats` | Totales por estado/prioridad, vencidos, resueltos hoy, nuevos hoy, tiempo promedio de resolución (horas). | ✅ |
-| `GET /dashboard/actividad-reciente` | Mezcla de tickets creados + seguimientos agregados, ordenados por fecha, `limit` configurable. | ✅ |
-| `GET /dashboard/tickets-vencidos` | Los que pasaron `fecha_limite` sin llegar a `resuelto`/`cerrado`, hasta 20. | ✅ |
-| `GET /dashboard/motivos` | Conteo por `motivo_categoria` (no por texto libre), con su label, ordenado descendente. | ✅ |
+| `GET /dashboard/stats` | Totales por estado/prioridad, vencidos, resueltos hoy/período, nuevos hoy/período y tiempo promedio. Admite `fecha_desde`/`fecha_hasta` inclusivas por fecha de creación; resueltos del período pertenece a esa misma cohorte. | ✅ |
+| `GET /dashboard/actividad-reciente` | Mezcla de tickets creados + seguimientos, ordenados por fecha, con `limit` y `fecha_desde`/`fecha_hasta`; el rango se aplica a la fecha real de cada evento. | ✅ |
+| `GET /dashboard/tickets-vencidos` | Los que pasaron `fecha_limite` sin llegar a `resuelto`/`cerrado`, hasta 20; admite rango inclusivo por fecha de creación. | ✅ |
+| `GET /dashboard/motivos` | Conteo por `motivo_categoria` (no por texto libre), con label y rango inclusivo por fecha de creación. | ✅ |
 | `POST /admin/tickets` | Alta manual (`409` si el `conversation_id` ya existe). Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío. | ✅🔑🗝️ |
 | `GET /admin/roles` | Listado paginado de roles, con `search` sobre nombre/descripción. | ✅🔑🗝️ |
 | `POST /admin/roles` | Crea un rol (`409` si el nombre ya existe). | ✅🔑🗝️ |

@@ -20,6 +20,7 @@ import { LogOut } from 'lucide-react';
 import { ROL_SYSADMIN } from '@/lib/roles';
 import { getContactDisplayName } from '@/lib/contacto';
 import { getEstadoLabel } from '@/lib/estados';
+import { getUserErrorMessage } from '@/lib/error-messages';
 
 // @ts-ignore
 import gsbLogo from '@/assets/gsb-logo.jpg';
@@ -69,8 +70,9 @@ function useEventosEnVivo() {
 export function Sidebar() {
   const [location] = useLocation();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   // Refresco periódico para que el badge de nuevos funcione como notificación
-  const { data: stats } = useGetDashboardStats({
+  const { data: stats } = useGetDashboardStats(undefined, {
     query: { queryKey: getGetDashboardStatsQueryKey(), refetchInterval: 30_000 },
   });
   const { data: me } = useGetMe({
@@ -90,6 +92,16 @@ export function Sidebar() {
         // La recarga completa descarta cualquier árbol autenticado todavía
         // montado y obliga a verificar la cookie ya eliminada por el backend.
         window.location.replace(import.meta.env.BASE_URL);
+      },
+      onError: (error) => {
+        toast({
+          variant: 'destructive',
+          title: 'No se pudo cerrar la sesión',
+          description: getUserErrorMessage(
+            error,
+            'Reintentá en unos segundos. Tu sesión continúa abierta.',
+          ),
+        });
       },
     });
   };

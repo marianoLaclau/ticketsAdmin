@@ -116,10 +116,10 @@ API REST en Express 5. Único componente que toca la base. Rutas:
 | `PATCH /api/tickets/:id`                 | Editar estado, prioridad, progreso, notas o fecha límite. Una transición real de estado autoasigna al usuario de la sesión; los campos administrativos exigen SysAdmin + `x-admin-key`. |
 | `DELETE /api/tickets/:id`                | Eliminar; exige sesión SysAdmin + `x-admin-key`.                                                                                                  |
 | `GET/POST /api/tickets/:id/seguimientos` | Historial: notas con autor y cambios de estado.                                                                                                  |
-| `GET /api/dashboard/stats`               | Totales por estado/prioridad, vencidos, resueltos hoy, nuevos hoy, tiempo promedio de resolución.                                                |
-| `GET /api/dashboard/actividad-reciente`  | Línea de tiempo de tickets creados y seguimientos.                                                                                               |
-| `GET /api/dashboard/tickets-vencidos`    | Los que pasaron su fecha límite sin resolverse.                                                                                                  |
-| `GET /api/dashboard/motivos`             | Top 10 de motivos de llamada.                                                                                                                    |
+| `GET /api/dashboard/stats`               | Totales y KPIs; acepta `fecha_desde`/`fecha_hasta` inclusivas por fecha de creación.                                                             |
+| `GET /api/dashboard/actividad-reciente`  | Línea de tiempo de tickets y seguimientos; el rango se aplica a la fecha real del evento.                                                        |
+| `GET /api/dashboard/tickets-vencidos`    | Vencidos del conjunto de tickets creados dentro del rango solicitado.                                                                            |
+| `GET /api/dashboard/motivos`             | Categorías de contacto del conjunto creado dentro del rango solicitado.                                                                           |
 | `GET /api/healthz`                       | Chequeo de vida.                                                                                                                                 |
 | `POST /api/admin/tickets`                | **Admin**: alta manual de un registro (409 si el conversation_id existe).                                                                        |
 | `POST /api/admin/import`                 | **Admin**: importación masiva desde CSV, con `dry_run` para simular. Idempotente.                                                                |
@@ -161,8 +161,8 @@ Sigue visible en la tabla de Administración mediante `GET /api/tickets?incluir_
 
 React + Vite. Pantallas principales:
 
-- **Dashboard** (`/dashboard`): KPIs (sin revisar, en proceso, vencidos, resueltos hoy), distribución por estado, rendimiento, motivos de contacto, prioridades, tickets vencidos y actividad reciente.
-- **Listado** (`/tickets`): tabla con contacto, empresa, motivo, estado, prioridad, progreso y fecha límite. Si nombre y apellido están vacíos se muestra `Sin nombre proporcionado` como fallback visual, conservando intacto el dato recibido. Filtros combinables.
+- **Dashboard** (`/dashboard`): KPIs, distribución por estado, rendimiento, motivos, prioridades, vencidos y actividad. El desplegable permite visualizar Todo (default), semana actual, mes actual o un rango desde/hasta; el mismo período se aplica a todos los paneles.
+- **Listado** (`/tickets`): tabla con contacto, categoría, motivo, estado, prioridad, **asignado**, progreso y fecha límite. Si no existe responsable muestra `Sin asignar`; si nombre y apellido están vacíos muestra `Sin nombre proporcionado`, sin alterar los datos recibidos. Filtros combinables.
 - **Detalle** (`/tickets/:id`): resumen de la llamada, reproductor de la grabación, datos del contacto, tiempos, edición de estado/prioridad/progreso y el historial de seguimientos. Teléfono y email son filas fijas de esta ficha: cuando un valor no fue indicado se muestra `Teléfono no proporcionado` o `Email no proporcionado`.
 
 **Actualización en vivo**: la app mantiene abierta una conexión SSE (`/api/events`). Cuando entra un llamado operativo nuevo por el webhook (o se importan registros operativos), **todas las pestañas abiertas se refrescan al instante** y muestran una notificación con el contacto y el motivo — sin recargar la página. Los registros vacíos en cuarentena no generan toast, aunque Administración puede refrescar sus datos. El refresco periódico de 30s del sidebar queda como respaldo por si la conexión de eventos se corta.
@@ -171,7 +171,7 @@ React + Vite. Pantallas principales:
 
 - **Administración** (`/admin`): conserva la rueda de configuración a la izquierda y muestra un escudo administrativo en el extremo derecho del botón del sidebar; dentro del panel, la sección **Tickets** conserva la tabla CRUD con paginación configurable 10/25/50/100, incluye los registros vacíos en cuarentena mediante `incluir_vacios=true`, y ofrece el importador CSV y la zona peligrosa. La lectura inclusiva y sus mutaciones envían la segunda credencial `x-admin-key`.
 - **Roles y usuarios** (`/admin/roles-usuarios`): altas y edición de perfiles, asignación de rol, filtros, activación/desactivación y gestión del catálogo de roles. Comparte con Tickets la clave `ADMIN_API_KEY`, enmascarada y persistida en el navegador por ID de SysAdmin. Los campos de contraseña también permanecen ocultos y ofrecen un botón de ojo.
-- **Errores y sesión**: el login no tiene una ruta `/login`; vive en `/` cuando no hay sesión, mientras que una sesión válida que entra a la raíz se redirige a `/dashboard`. Un `401` vuelve a la raíz, un `403` muestra acceso denegado, un `404` identifica páginas o tickets inexistentes y los fallos `5xx`/conexión ofrecen reintentar. Todas las pantallas de error incluyen **Volver al inicio**.
+- **Errores y sesión**: el login no tiene una ruta `/login`; vive en `/` cuando no hay sesión, mientras que una sesión válida que entra a la raíz se redirige a `/dashboard`. Un `401` vuelve a la raíz, un `403` muestra acceso denegado, un `404` identifica páginas o tickets inexistentes y los fallos `5xx`/conexión ofrecen reintentar. Todas las pantallas de error incluyen **Volver al inicio**. Los toasts traducen los errores a mensajes de usuario y no exponen HTTP, URLs, JSON ni validaciones internas.
 
 En desarrollo, Vite proxea todo `/api/*` al backend (puerto 5000), por eso el frontend usa rutas relativas.
 

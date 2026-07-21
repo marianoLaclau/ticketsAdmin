@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   useGetDashboardStats, 
   useGetActividadReciente, 
@@ -6,7 +6,17 @@ import {
   useGetMotivoStats 
 } from '@workspace/api-client-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Clock, PhoneIncoming, AlertCircle, CheckCircle2, Inbox, TrendingUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Clock, PhoneIncoming, AlertCircle, CheckCircle2, Inbox, TrendingUp, CalendarRange } from 'lucide-react';
 import { Link } from 'wouter';
 import { formatDate, PrioridadBadge } from '@/lib/utils-tickets';
 import { getEstadoLabel } from '@/lib/estados';
@@ -14,6 +24,14 @@ import { getContactDisplayName, SIN_NOMBRE_PROPORCIONADO } from '@/lib/contacto'
 import { getMotivoCategoriaConfig } from '@/lib/motivos';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
+import {
+  currentMonthToToday,
+  getDashboardPeriodLabel,
+  getDashboardPeriodParams,
+  getDashboardRangeLabel,
+  validateDashboardDateRange,
+  type DashboardPeriod,
+} from '@/lib/dashboard-period';
 
 // Estado colors — coherent with badge system
 const ESTADO_COLOR: Record<string, { bar: string; label: string; text: string }> = {
@@ -60,10 +78,39 @@ function GaugeRing({ pct, size = 120, stroke = 10, color = '#3d7532' }: {
 }
 
 export default function Dashboard() {
-  const statsQuery = useGetDashboardStats();
-  const actividadQuery = useGetActividadReciente({ limit: 12 });
-  const vencidosQuery = useGetTicketsVencidos();
-  const motivosQuery = useGetMotivoStats();
+  const [periodo, setPeriodo] = useState<DashboardPeriod>('todo');
+  const [fechaReferencia, setFechaReferencia] = useState(() => new Date());
+  const [periodoPersonalizado, setPeriodoPersonalizado] = useState(() => currentMonthToToday());
+  const [periodoAplicado, setPeriodoAplicado] = useState(() => currentMonthToToday());
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      const now = new Date();
+      setFechaReferencia((actual) =>
+        actual.getFullYear() === now.getFullYear() &&
+        actual.getMonth() === now.getMonth() &&
+        actual.getDate() === now.getDate()
+          ? actual
+          : now,
+      );
+    }, 60_000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+  const errorPeriodo = validateDashboardDateRange(
+    periodoPersonalizado.fecha_desde,
+    periodoPersonalizado.fecha_hasta,
+  );
+  const dashboardParams = useMemo(
+    () =>
+      periodo === 'personalizado'
+        ? periodoAplicado
+        : getDashboardPeriodParams(periodo, fechaReferencia),
+    [periodo, periodoAplicado, fechaReferencia],
+  );
+
+  const statsQuery = useGetDashboardStats(dashboardParams);
+  const actividadQuery = useGetActividadReciente({ limit: 12, ...dashboardParams });
+  const vencidosQuery = useGetTicketsVencidos(dashboardParams);
+  const motivosQuery = useGetMotivoStats(dashboardParams);
 
   const { data: stats, isLoading: loadingStats } = statsQuery;
   const { data: actividades, isLoading: loadingActividad } = actividadQuery;
@@ -96,6 +143,9 @@ export default function Dashboard() {
 
   const today = new Date();
   const dateString = today.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const periodoLabel = getDashboardPeriodLabel(periodo);
+  const resueltosDelPeriodo =
+    periodo === 'todo' ? stats?.resueltos_hoy : stats?.resueltos_periodo;
 
   // Estado derived values
   const totalEstados = stats?.por_estado?.reduce((acc: number, curr: any) => acc + curr.cantidad, 0) || 0;
@@ -141,9 +191,87 @@ export default function Dashboard() {
   return (
     <div className="p-6 max-w-[1400px] mx-auto w-full space-y-5">
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold tracking-tight text-foreground">Sistema de Tickets</h1>
-        <p className="text-sm text-muted-foreground capitalize">{dateString}</p>
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">Sistema de Tickets</h1>
+          <p className="text-sm text-muted-foreground capitalize">{dateString}</p>
+        </div>
+
+        <div className="w-full rounded-xl border bg-card p-3 shadow-sm xl:w-auto">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+            <div className="min-w-[220px] space-y-1.5">
+              <Label htmlFor="dashboard-periodo" className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <CalendarRange className="h-3.5 w-3.5" />
+                Datos a visualizar
+              </Label>
+              <Select
+                value={periodo}
+                onValueChange={(value) => setPeriodo(value as DashboardPeriod)}
+              >
+                <SelectTrigger id="dashboard-periodo">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todo">Todo</SelectItem>
+                  <SelectItem value="semana">Semana actual</SelectItem>
+                  <SelectItem value="mes">Mes actual</SelectItem>
+                  <SelectItem value="personalizado">Período personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {periodo === 'personalizado' && (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="dashboard-desde" className="text-xs text-muted-foreground">Desde</Label>
+                  <Input
+                    id="dashboard-desde"
+                    type="date"
+                    value={periodoPersonalizado.fecha_desde}
+                    onChange={(event) =>
+                      setPeriodoPersonalizado((actual) => ({
+                        ...actual,
+                        fecha_desde: event.target.value,
+                      }))
+                    }
+                    className="w-full sm:w-[155px]"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="dashboard-hasta" className="text-xs text-muted-foreground">Hasta</Label>
+                  <Input
+                    id="dashboard-hasta"
+                    type="date"
+                    value={periodoPersonalizado.fecha_hasta}
+                    onChange={(event) =>
+                      setPeriodoPersonalizado((actual) => ({
+                        ...actual,
+                        fecha_hasta: event.target.value,
+                      }))
+                    }
+                    className="w-full sm:w-[155px]"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={Boolean(errorPeriodo)}
+                  onClick={() => setPeriodoAplicado({ ...periodoPersonalizado })}
+                >
+                  Aplicar
+                </Button>
+              </>
+            )}
+          </div>
+          {periodo === 'personalizado' && errorPeriodo && (
+            <p className="mt-2 text-xs text-red-600" role="alert">{errorPeriodo}</p>
+          )}
+          {dashboardParams && (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Período aplicado: {getDashboardRangeLabel(dashboardParams)}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* KPI Row */}
@@ -186,8 +314,8 @@ export default function Dashboard() {
             <CheckCircle2 className="h-5 w-5 text-emerald-600" />
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Resueltos hoy</p>
-            {loadingStats ? <Skeleton className="h-8 w-10 mt-1" /> : <p className="text-3xl font-bold text-emerald-800 leading-none mt-1">{stats?.resueltos_hoy || 0}</p>}
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Resueltos {periodoLabel}</p>
+            {loadingStats ? <Skeleton className="h-8 w-10 mt-1" /> : <p className="text-3xl font-bold text-emerald-800 leading-none mt-1">{resueltosDelPeriodo || 0}</p>}
             <p className="text-[11px] text-emerald-600 mt-0.5">cerrados</p>
           </div>
         </div>
@@ -395,11 +523,11 @@ export default function Dashboard() {
                 <Clock className="h-3.5 w-3.5" />
                 Requieren Atención Inmediata
               </h3>
-              {vencidos && vencidos.length > 0 && (
+              {stats?.vencidos ? (
                 <span className="bg-red-500 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full">
-                  {vencidos.length} vencidos
+                  {stats.vencidos} vencidos
                 </span>
-              )}
+              ) : null}
             </div>
             {loadingVencidos ? (
               <div className="p-4 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-9 w-full" />)}</div>
@@ -447,7 +575,9 @@ export default function Dashboard() {
         <div className="lg:col-span-1">
           <div className="bg-card border rounded-xl shadow-sm flex flex-col h-full">
             <div className="px-5 py-4 border-b flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Actividad Reciente</h3>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {periodo === 'todo' ? 'Actividad Reciente' : `Actividad ${periodoLabel}`}
+              </h3>
               <span className="text-[10px] text-muted-foreground bg-slate-100 px-2 py-0.5 rounded-full">en vivo</span>
             </div>
             <div className="p-5 flex-1 overflow-y-auto">

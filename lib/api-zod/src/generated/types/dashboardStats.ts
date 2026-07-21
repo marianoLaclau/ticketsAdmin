@@ -15,6 +15,10 @@ export interface DashboardStats {
   vencidos: number;
   resueltos_hoy: number;
   nuevos_hoy: number;
+  /** Tickets creados en el periodo solicitado cuyo estado actual es resuelto o cerrado. */
+  resueltos_periodo: number;
+  /** Tickets creados dentro del periodo solicitado; sin filtro, total historico. */
+  nuevos_periodo: number;
   /** @nullable */
   tiempo_promedio_resolucion: number | null;
 }
