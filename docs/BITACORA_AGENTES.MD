@@ -2,6 +2,28 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-07-21 — Contexto persistente en los filtros de Tickets
+
+**Agente:** Codex
+**Contexto:** los selects controlados usaban `_all` como valor inicial; por eso Radix mostraba `Todos/Todas` y nunca el placeholder que indicaba a qué filtro pertenecía cada uno.
+
+### Cambio realizado
+
+- Estado, prioridad y categoría mantienen un prefijo visible dentro del trigger: `Estado: Todos`, `Prioridad: Todas` y `Categoría: Todas`; al seleccionar otra opción el prefijo permanece.
+- Fecha, hora, empresa y plazo también tienen etiquetas compactas persistentes. El switch ahora se presenta como `Plazo: Solo vencidos`.
+- La búsqueda explica qué campos abarca y todos los controles recibieron nombres accesibles para lectores de pantalla.
+- Se mantuvo la altura compacta de la barra. Los controles permiten wrap y ocupan todo el ancho en pantallas pequeñas para evitar desbordes.
+- No se modificó la lógica ni los parámetros enviados al backend; el cambio es exclusivamente de presentación y accesibilidad.
+
+Archivos: `frontend/src/pages/TicketList.tsx`, `frontend/README_FRONTEND.md` y esta bitácora.
+
+### Validaciones
+
+- Tests del frontend: 24/24 correctos.
+- Typecheck del frontend: correcto.
+- Build de producción del frontend: correcto; solo permanecen las advertencias conocidas de sourcemaps y tamaño del bundle.
+- `git diff --check`: sin errores de whitespace.
+
 ## 2026-07-21 — Errores seguros, responsable en Tickets y períodos del Dashboard
 
 **Agente:** Codex

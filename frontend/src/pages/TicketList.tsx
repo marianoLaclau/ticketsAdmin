@@ -125,17 +125,20 @@ export default function TicketList() {
         <div className="flex-1 relative min-w-[200px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input 
-            placeholder="Buscar..." 
+            aria-label="Buscar tickets"
+            placeholder="Buscar contacto, empresa o motivo..."
             className="pl-8 h-8 text-sm bg-transparent border-none shadow-none focus-visible:ring-0"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         
-        <div className="flex flex-wrap lg:flex-nowrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Label htmlFor="tickets-estado" className="sr-only">Filtrar por estado</Label>
           <Select value={estadoFilter} onValueChange={setEstadoFilter}>
-            <SelectTrigger className="w-[130px] h-8 text-xs bg-slate-50 border-slate-200">
-              <SelectValue placeholder="Estado" />
+            <SelectTrigger id="tickets-estado" className="h-8 w-full justify-start gap-1.5 bg-slate-50 text-xs border-slate-200 sm:w-[185px] [&>svg]:ml-auto">
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Estado:</span>
+              <SelectValue className="min-w-0 truncate" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="_all">Todos</SelectItem>
@@ -147,9 +150,11 @@ export default function TicketList() {
             </SelectContent>
           </Select>
 
+          <Label htmlFor="tickets-prioridad" className="sr-only">Filtrar por prioridad</Label>
           <Select value={prioridadFilter} onValueChange={setPrioridadFilter}>
-            <SelectTrigger className="w-[120px] h-8 text-xs bg-slate-50 border-slate-200">
-              <SelectValue placeholder="Prioridad" />
+            <SelectTrigger id="tickets-prioridad" className="h-8 w-full justify-start gap-1.5 bg-slate-50 text-xs border-slate-200 sm:w-[165px] [&>svg]:ml-auto">
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Prioridad:</span>
+              <SelectValue className="min-w-0 truncate" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="_all">Todas</SelectItem>
@@ -160,12 +165,14 @@ export default function TicketList() {
             </SelectContent>
           </Select>
 
+          <Label htmlFor="tickets-categoria" className="sr-only">Filtrar por categoría</Label>
           <Select value={motivoCategoriaFilter} onValueChange={setMotivoCategoriaFilter}>
-            <SelectTrigger className="w-[190px] h-8 text-xs bg-slate-50 border-slate-200">
-              <SelectValue placeholder="Categoría" />
+            <SelectTrigger id="tickets-categoria" className="h-8 w-full justify-start gap-1.5 bg-slate-50 text-xs border-slate-200 sm:w-[220px] [&>svg]:ml-auto">
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Categoría:</span>
+              <SelectValue className="min-w-0 truncate" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="_all">Todas las categorías</SelectItem>
+              <SelectItem value="_all">Todas</SelectItem>
               {MOTIVO_CATEGORIA_OPTIONS.map((categoria) => (
                 <SelectItem key={categoria.value} value={categoria.value}>
                   {categoria.label}
@@ -175,10 +182,12 @@ export default function TicketList() {
           </Select>
 
           {/* Dates */}
-          <div className="flex items-center border border-slate-200 bg-slate-50 rounded-md overflow-hidden h-8">
+          <div className="flex h-8 w-full items-center overflow-hidden rounded-md border border-slate-200 bg-slate-50 sm:w-auto">
+            <span className="pl-2 pr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Fecha:</span>
             <input 
               type="date" 
-              className="text-xs bg-transparent border-none outline-none px-2 h-full text-slate-700 w-[115px]" 
+              aria-label="Fecha desde"
+              className="h-full min-w-0 flex-1 border-none bg-transparent px-1.5 text-xs text-slate-700 outline-none sm:w-[112px] sm:flex-none"
               value={fechaDesde}
               onChange={(e) => setFechaDesde(e.target.value)}
               title="Fecha Desde"
@@ -186,7 +195,8 @@ export default function TicketList() {
             <span className="text-slate-300">-</span>
             <input 
               type="date" 
-              className="text-xs bg-transparent border-none outline-none px-2 h-full text-slate-700 w-[115px]" 
+              aria-label="Fecha hasta"
+              className="h-full min-w-0 flex-1 border-none bg-transparent px-1.5 text-xs text-slate-700 outline-none sm:w-[112px] sm:flex-none"
               value={fechaHasta}
               onChange={(e) => setFechaHasta(e.target.value)}
               title="Fecha Hasta"
@@ -194,10 +204,12 @@ export default function TicketList() {
           </div>
 
           {/* Times */}
-          <div className="flex items-center border border-slate-200 bg-slate-50 rounded-md overflow-hidden h-8">
+          <div className="flex h-8 w-full items-center overflow-hidden rounded-md border border-slate-200 bg-slate-50 sm:w-auto">
+            <span className="pl-2 pr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Hora:</span>
             <input 
               type="time" 
-              className="text-xs bg-transparent border-none outline-none px-2 h-full text-slate-700 w-[85px]" 
+              aria-label="Hora desde"
+              className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-xs text-slate-700 outline-none sm:w-[85px] sm:flex-none"
               value={horaDesde}
               onChange={(e) => setHoraDesde(e.target.value)}
               title="Hora Desde"
@@ -205,21 +217,29 @@ export default function TicketList() {
             <span className="text-slate-300">-</span>
             <input 
               type="time" 
-              className="text-xs bg-transparent border-none outline-none px-2 h-full text-slate-700 w-[85px]" 
+              aria-label="Hora hasta"
+              className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-xs text-slate-700 outline-none sm:w-[85px] sm:flex-none"
               value={horaHasta}
               onChange={(e) => setHoraHasta(e.target.value)}
               title="Hora Hasta"
             />
           </div>
 
-          <Input 
-            placeholder="Empresa..." 
-            className="w-[140px] h-8 text-xs bg-slate-50 border-slate-200"
-            value={empresa}
-            onChange={(e) => setEmpresa(e.target.value)}
-          />
+          <div className="relative w-full sm:w-[180px]">
+            <span className="pointer-events-none absolute left-2.5 top-1/2 z-10 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              Empresa:
+            </span>
+            <Input
+              aria-label="Filtrar por empresa"
+              placeholder="Todas"
+              className="h-8 w-full bg-slate-50 pl-[68px] text-xs border-slate-200"
+              value={empresa}
+              onChange={(e) => setEmpresa(e.target.value)}
+            />
+          </div>
 
-          <div className="flex items-center space-x-2 border border-slate-200 rounded-md px-2.5 h-8 bg-slate-50">
+          <div className="flex h-8 w-full items-center space-x-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 sm:w-auto">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Plazo:</span>
             <Switch 
               id="vencidos-mode" 
               checked={vencidosFilter} 
@@ -227,7 +247,7 @@ export default function TicketList() {
               className="scale-75 origin-left"
             />
             <Label htmlFor="vencidos-mode" className="text-xs font-medium cursor-pointer text-slate-700 whitespace-nowrap">
-              Vencidos
+              Solo vencidos
             </Label>
           </div>
           
@@ -238,7 +258,7 @@ export default function TicketList() {
               onClick={clearFilters}
               className="h-8 text-xs px-2 text-slate-500 hover:text-slate-900"
             >
-              Limpiar
+              Limpiar filtros
             </Button>
           )}
         </div>
