@@ -2,6 +2,27 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-07-21 — Corrección del layout de filtros de Tickets
+
+**Agente:** Codex
+**Contexto:** tras agregar prefijos persistentes, todos los controles permanecían dentro de un único `flex-wrap`; la mezcla de anchos completos y fijos producía saltos irregulares y deformaba la barra según el ancho disponible.
+
+### Cambio realizado
+
+- Se reemplazó el wrap automático por dos filas explícitas con CSS Grid.
+- La primera fila contiene búsqueda, estado, prioridad y categoría; la segunda agrupa fecha, hora, empresa, plazo y la acción para limpiar.
+- En tablet cada fila se reorganiza en dos columnas y en móvil en una sola, sin cambiar la lógica de filtrado.
+- Los rangos de fecha y hora pueden contraerse sin desbordar, y el padding de la página se redujo en móvil.
+
+Archivos: `frontend/src/pages/TicketList.tsx`, `frontend/README_FRONTEND.md` y esta bitácora.
+
+### Validaciones
+
+- Typecheck del frontend: correcto.
+- Tests del frontend: correctos.
+- Build de producción del frontend: correcto.
+- `git diff --check`: sin errores de whitespace.
+
 ## 2026-07-21 — Contexto persistente en los filtros de Tickets
 
 **Agente:** Codex

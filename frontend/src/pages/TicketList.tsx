@@ -108,7 +108,7 @@ export default function TicketList() {
   }
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto w-full space-y-4 flex flex-col h-full">
+    <div className="p-4 md:p-8 max-w-[1600px] mx-auto w-full space-y-4 flex flex-col h-full">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Llamados</h1>
@@ -120,23 +120,23 @@ export default function TicketList() {
         </div>
       </div>
 
-      {/* Filters Bar - Compact Single Row */}
-      <div className="shrink-0 bg-card border border-border rounded-md shadow-sm p-1.5 flex flex-col xl:flex-row gap-2">
-        <div className="flex-1 relative min-w-[200px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input 
-            aria-label="Buscar tickets"
-            placeholder="Buscar contacto, empresa o motivo..."
-            className="pl-8 h-8 text-sm bg-transparent border-none shadow-none focus-visible:ring-0"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        
-        <div className="flex flex-wrap items-center gap-2">
+      {/* Filters Bar - Structured Rows */}
+      <div className="shrink-0 space-y-2 rounded-md border border-border bg-card p-2 shadow-sm">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_185px_165px_220px]">
+          <div className="relative min-w-0 sm:col-span-2 xl:col-span-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              aria-label="Buscar tickets"
+              placeholder="Buscar contacto, empresa o motivo..."
+              className="pl-8 h-8 text-sm bg-transparent border-none shadow-none focus-visible:ring-0"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
           <Label htmlFor="tickets-estado" className="sr-only">Filtrar por estado</Label>
           <Select value={estadoFilter} onValueChange={setEstadoFilter}>
-            <SelectTrigger id="tickets-estado" className="h-8 w-full justify-start gap-1.5 bg-slate-50 text-xs border-slate-200 sm:w-[185px] [&>svg]:ml-auto">
+            <SelectTrigger id="tickets-estado" className="h-8 w-full min-w-0 justify-start gap-1.5 border-slate-200 bg-slate-50 text-xs [&>svg]:ml-auto">
               <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Estado:</span>
               <SelectValue className="min-w-0 truncate" />
             </SelectTrigger>
@@ -152,7 +152,7 @@ export default function TicketList() {
 
           <Label htmlFor="tickets-prioridad" className="sr-only">Filtrar por prioridad</Label>
           <Select value={prioridadFilter} onValueChange={setPrioridadFilter}>
-            <SelectTrigger id="tickets-prioridad" className="h-8 w-full justify-start gap-1.5 bg-slate-50 text-xs border-slate-200 sm:w-[165px] [&>svg]:ml-auto">
+            <SelectTrigger id="tickets-prioridad" className="h-8 w-full min-w-0 justify-start gap-1.5 border-slate-200 bg-slate-50 text-xs [&>svg]:ml-auto">
               <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Prioridad:</span>
               <SelectValue className="min-w-0 truncate" />
             </SelectTrigger>
@@ -167,7 +167,7 @@ export default function TicketList() {
 
           <Label htmlFor="tickets-categoria" className="sr-only">Filtrar por categoría</Label>
           <Select value={motivoCategoriaFilter} onValueChange={setMotivoCategoriaFilter}>
-            <SelectTrigger id="tickets-categoria" className="h-8 w-full justify-start gap-1.5 bg-slate-50 text-xs border-slate-200 sm:w-[220px] [&>svg]:ml-auto">
+            <SelectTrigger id="tickets-categoria" className="h-8 w-full min-w-0 justify-start gap-1.5 border-slate-200 bg-slate-50 text-xs sm:col-span-2 xl:col-span-1 [&>svg]:ml-auto">
               <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Categoría:</span>
               <SelectValue className="min-w-0 truncate" />
             </SelectTrigger>
@@ -180,14 +180,16 @@ export default function TicketList() {
               ))}
             </SelectContent>
           </Select>
+        </div>
 
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(145px,.7fr)_auto_auto]">
           {/* Dates */}
-          <div className="flex h-8 w-full items-center overflow-hidden rounded-md border border-slate-200 bg-slate-50 sm:w-auto">
+          <div className="flex h-8 min-w-0 items-center overflow-hidden rounded-md border border-slate-200 bg-slate-50">
             <span className="pl-2 pr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Fecha:</span>
             <input 
               type="date" 
               aria-label="Fecha desde"
-              className="h-full min-w-0 flex-1 border-none bg-transparent px-1.5 text-xs text-slate-700 outline-none sm:w-[112px] sm:flex-none"
+              className="h-full min-w-0 flex-1 border-none bg-transparent px-1.5 text-xs text-slate-700 outline-none"
               value={fechaDesde}
               onChange={(e) => setFechaDesde(e.target.value)}
               title="Fecha Desde"
@@ -196,7 +198,7 @@ export default function TicketList() {
             <input 
               type="date" 
               aria-label="Fecha hasta"
-              className="h-full min-w-0 flex-1 border-none bg-transparent px-1.5 text-xs text-slate-700 outline-none sm:w-[112px] sm:flex-none"
+              className="h-full min-w-0 flex-1 border-none bg-transparent px-1.5 text-xs text-slate-700 outline-none"
               value={fechaHasta}
               onChange={(e) => setFechaHasta(e.target.value)}
               title="Fecha Hasta"
@@ -204,12 +206,12 @@ export default function TicketList() {
           </div>
 
           {/* Times */}
-          <div className="flex h-8 w-full items-center overflow-hidden rounded-md border border-slate-200 bg-slate-50 sm:w-auto">
+          <div className="flex h-8 min-w-0 items-center overflow-hidden rounded-md border border-slate-200 bg-slate-50">
             <span className="pl-2 pr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Hora:</span>
             <input 
               type="time" 
               aria-label="Hora desde"
-              className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-xs text-slate-700 outline-none sm:w-[85px] sm:flex-none"
+              className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-xs text-slate-700 outline-none"
               value={horaDesde}
               onChange={(e) => setHoraDesde(e.target.value)}
               title="Hora Desde"
@@ -218,14 +220,14 @@ export default function TicketList() {
             <input 
               type="time" 
               aria-label="Hora hasta"
-              className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-xs text-slate-700 outline-none sm:w-[85px] sm:flex-none"
+              className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-xs text-slate-700 outline-none"
               value={horaHasta}
               onChange={(e) => setHoraHasta(e.target.value)}
               title="Hora Hasta"
             />
           </div>
 
-          <div className="relative w-full sm:w-[180px]">
+          <div className="relative min-w-0">
             <span className="pointer-events-none absolute left-2.5 top-1/2 z-10 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
               Empresa:
             </span>
@@ -238,7 +240,7 @@ export default function TicketList() {
             />
           </div>
 
-          <div className="flex h-8 w-full items-center space-x-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 sm:w-auto">
+          <div className="flex h-8 min-w-0 items-center space-x-2 rounded-md border border-slate-200 bg-slate-50 px-2.5">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Plazo:</span>
             <Switch 
               id="vencidos-mode" 
@@ -256,7 +258,7 @@ export default function TicketList() {
               variant="ghost" 
               size="sm" 
               onClick={clearFilters}
-              className="h-8 text-xs px-2 text-slate-500 hover:text-slate-900"
+              className="h-8 w-full px-2 text-xs text-slate-500 hover:text-slate-900 sm:col-span-2 sm:w-auto sm:justify-self-end xl:col-span-1"
             >
               Limpiar filtros
             </Button>
