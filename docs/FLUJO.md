@@ -23,8 +23,8 @@
          ▼
 ┌──────────────────┐   Valida el JSON (Zod), chequea que el conversation_id
 │  Backend (API)   │   no exista ya (idempotente) y guarda el ticket
-│  Express :5000   │   con estado "nuevo".
-└────────┬─────────┘
+│  Express :5000   │   con estado "nuevo". Si llegó empresa, registra
+└────────┬─────────┘   el origen Serin como primer seguimiento.
          │ Drizzle ORM
          ▼
 ┌──────────────────┐   Base de datos local. Un solo archivo:
@@ -164,7 +164,7 @@ React + Vite. Pantallas principales:
 
 - **Dashboard** (`/dashboard`): KPIs, distribución por estado, rendimiento, motivos, prioridades, vencidos y actividad. El desplegable permite visualizar Todo (default), semana actual, mes actual o un rango desde/hasta; el mismo período se aplica a todos los paneles.
 - **Listado** (`/tickets`): tabla con contacto, categoría, motivo, estado, prioridad, **asignado**, progreso y fecha límite. Si existe una empresa y n8n informó `estado_empleado`, debajo se muestra `Activo` o `Inactivo`; sin empresa, la presentación no cambia. Si no existe responsable muestra `Sin asignar`; si nombre y apellido están vacíos muestra `Sin nombre proporcionado`, sin alterar los datos recibidos. Filtros combinables.
-- **Detalle** (`/tickets/:id`): resumen de la llamada, reproductor de la grabación, datos del contacto, tiempos, edición de estado/prioridad/progreso y el historial de seguimientos. El estado laboral también se presenta debajo de la empresa cuando corresponde. Teléfono y email son filas fijas de esta ficha: cuando un valor no fue indicado se muestra `Teléfono no proporcionado` o `Email no proporcionado`.
+- **Detalle** (`/tickets/:id`): resumen de la llamada, reproductor de la grabación, datos del contacto, tiempos, edición de estado/prioridad/progreso y el historial de seguimientos. El estado laboral también se presenta debajo de la empresa cuando corresponde. Si el webhook recibió una empresa real, el primer seguimiento deja asentado que los datos fueron extraídos y persistidos desde Serin con el DNI proporcionado. Teléfono y email son filas fijas de esta ficha: cuando un valor no fue indicado se muestra `Teléfono no proporcionado` o `Email no proporcionado`.
 
 **Actualización en vivo**: la app mantiene abierta una conexión SSE (`/api/events`). Cuando entra un llamado operativo nuevo por el webhook (o se importan registros operativos), **todas las pestañas abiertas se refrescan al instante** y muestran una notificación con el contacto y el motivo — sin recargar la página. Los registros vacíos en cuarentena no generan toast, aunque Administración puede refrescar sus datos. El refresco periódico de 30s del sidebar queda como respaldo por si la conexión de eventos se corta.
 

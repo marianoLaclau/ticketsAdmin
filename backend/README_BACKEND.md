@@ -96,7 +96,7 @@ Todas bajo el prefijo `/api`. ✅ = requiere sesión (candado global). 🔑 = ad
 | Método y ruta | Qué hace | Acceso |
 |---|---|---|
 | `GET /healthz` | Chequeo de vida | público |
-| `POST /webhooks/ticket` | Ingesta de una llamada desde n8n. Idempotente por `conversation_id`: si ya existe, `200 { created: false, ticket }`; si no, `201 { created: true, ticket }`. Si no viene `fecha_limite`, se preestablece a **48 horas hábiles de lunes a viernes**. Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío. | `x-api-key: WEBHOOK_API_KEY` |
+| `POST /webhooks/ticket` | Ingesta de una llamada desde n8n. Idempotente por `conversation_id`: si ya existe, `200 { created: false, ticket }`; si no, `201 { created: true, ticket }`. Si llega una empresa real, crea atómicamente el primer seguimiento indicando que los datos fueron extraídos y persistidos desde Serin mediante el DNI proporcionado. Si no viene `fecha_limite`, se preestablece a **48 horas hábiles de lunes a viernes**. Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío. | `x-api-key: WEBHOOK_API_KEY` |
 | `POST /auth/login` | Body `{ usuario, password }` (`usuario` = el `username` asignado al crear la cuenta, no el email; se normaliza a minúsculas). Devuelve `AuthUser` y setea la cookie `gsb_session`. Mensaje de error genérico a propósito (no revela si el usuario existe). | público |
 | `POST /auth/logout` | Revoca la sesión actual (borra la fila) y limpia la cookie. `204`. | ✅ (no falla si no hay cookie) |
 | `GET /auth/me` | Devuelve el `AuthUser` de la sesión activa, o `401`. | ✅ |
@@ -211,6 +211,8 @@ SQLite vía `better-sqlite3`, modo WAL, `foreign_keys = ON`. Definido en `lib/db
 | `estado_anterior`, `estado_nuevo` | text, nullable | Registra transiciones de estado |
 | `autor` | text, nullable | **Asignado por el backend** desde la sesión, no por el cliente |
 | `fecha_creacion` | integer (timestamp ms) | |
+
+Cuando el webhook crea un ticket con empresa real, inserta en la misma transacción un seguimiento inicial con autor `Sistema` y la leyenda de origen Serin. Los reintentos por `conversation_id` no duplican esa entrada. El historial se ordena por fecha y luego por ID para conservar un orden determinista. La entrada automática permanece visible en el ticket, pero se excluye de `actividad-reciente` para no duplicar cada alta en el feed general.
 
 ### `roles`
 

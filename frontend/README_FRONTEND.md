@@ -122,7 +122,7 @@ El listado principal (ruta `/tickets`). Filtros: búsqueda libre, estado, priori
 - Tracker visual de progreso (0–100%) con 5 pasos fijos que corresponden a los 5 estados.
 - Dialog "Editar Estado": estado (con el bloqueo de "Cerrado" según rol), prioridad, progreso (slider), fecha límite (`datetime-local`, ver conversión abajo), notas internas.
 - Reproductor `<audio>` nativo si el ticket tiene `audio_url`.
-- Timeline de seguimientos + textarea para agregar uno nuevo (el `autor` no se manda desde acá — lo pone el backend).
+- Timeline de seguimientos + textarea para agregar uno nuevo (el `autor` no se manda desde acá — lo pone el backend). Los tickets creados por el webhook con empresa real comienzan con una entrada de `Sistema` que registra el origen Serin; el backend garantiza que quede primera ordenando por fecha e ID.
 - **Fecha límite**: si el usuario no tocó el control, el campo no se reenvía en el `PATCH` (preserva segundos/milisegundos originales que `datetime-local` no puede representar). Si el control queda vacío pero antes tenía valor, se bloquea el guardado con un toast — el contrato actual no permite null-ear `fecha_limite`.
 
 ### `Admin.tsx` (ruta `/admin`, solo SysAdmin)

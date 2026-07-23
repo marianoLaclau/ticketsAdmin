@@ -12,6 +12,9 @@ Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada 
 - El contrato acepta únicamente `Activo` o `Inactivo` respetando Title Case, y el webhook y el alta administrativa conservan el valor.
 - La tabla `tickets` incorpora una columna nullable mediante una migración aditiva. Los registros históricos quedan con `null`.
 - En el listado y el detalle de Tickets se muestra `Activo` o `Inactivo` debajo de la empresa. Si no existe empresa, el valor está ausente/desconocido o se recibe el marcador `Sin empresa asignada/asociada`, la interfaz queda como antes.
+- Cuando el webhook crea un ticket con una empresa real, ticket y seguimiento inicial se guardan en una misma transacción. El historial comienza con `Los datos fueron extraídos y persistidos desde Serin con el DNI proporcionado.`, bajo el autor `Sistema`.
+- La inserción usa el `conversation_id` como conflicto idempotente: un reintento devuelve el ticket existente y no duplica el seguimiento. Los historiales se ordenan por fecha y luego por ID para garantizar cuál es la primera entrada.
+- La nota automática no se incluye en `actividad-reciente`: queda disponible donde fue solicitada, dentro del historial del ticket, sin duplicar el evento de alta en el Dashboard.
 - `estado_empleado` no participa de la regla de cuarentena: por sí solo no convierte un registro completamente vacío en un ticket operativo.
 - Se regeneraron los tipos y validadores derivados de OpenAPI.
 
@@ -23,9 +26,11 @@ Archivos principales: `lib/api-spec/openapi.yaml`, `lib/db/src/schema/tickets.ts
 
 ### Validaciones
 
-- Tests del workspace: DB 6/6, ingesta 24/24 y frontend 28/28 correctos.
+- Tests del workspace: DB 6/6, ingesta 26/26 y frontend 28/28 correctos.
 - Typecheck completo y build de producción de backend/frontend: correctos; permanecen únicamente las advertencias conocidas de sourcemaps y tamaño del bundle.
 - Smoke test sobre una base temporal migrada: el webhook conservó `estado_empleado: Activo` en su respuesta y rechazó la variante incorrecta `activo` con HTTP 400.
+- Smoke HTTP del seguimiento Serin: empresa real generó exactamente una entrada; el reintento respondió `created: false` sin duplicarla; un ticket sin empresa generó cero entradas. Un fallo forzado al insertar el seguimiento revirtió también el ticket, confirmando la atomicidad.
+- Smoke autenticado del detalle y Dashboard: el historial devolvió la nota de `Sistema` como primera y única entrada, mientras que `actividad-reciente` conservó únicamente `ticket_creado`.
 - La columna aditiva se aplicó también a la base local para poder probar esta rama; `PRAGMA integrity_check` devolvió `ok`.
 - `git diff --check`: correcto, sin errores de whitespace.
 

@@ -200,7 +200,14 @@ router.get("/tickets/:id", async (req, res) => {
     .where(and(eq(ticketsTable.id, parsed.data.id), ticketVisibleCondition));
   if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
 
-  const seguimientos = await db.select().from(seguimientosTable).where(eq(seguimientosTable.ticket_id, ticket.id)).orderBy(seguimientosTable.fecha_creacion);
+  const seguimientos = await db
+    .select()
+    .from(seguimientosTable)
+    .where(eq(seguimientosTable.ticket_id, ticket.id))
+    .orderBy(
+      asc(seguimientosTable.fecha_creacion),
+      asc(seguimientosTable.id),
+    );
 
   res.json({ ...ticket, seguimientos });
 });
@@ -332,7 +339,14 @@ router.get("/tickets/:id/seguimientos", async (req, res) => {
     .where(and(eq(ticketsTable.id, parsed.data.id), ticketVisibleCondition));
   if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
 
-  const seguimientos = await db.select().from(seguimientosTable).where(eq(seguimientosTable.ticket_id, parsed.data.id)).orderBy(seguimientosTable.fecha_creacion);
+  const seguimientos = await db
+    .select()
+    .from(seguimientosTable)
+    .where(eq(seguimientosTable.ticket_id, parsed.data.id))
+    .orderBy(
+      asc(seguimientosTable.fecha_creacion),
+      asc(seguimientosTable.id),
+    );
   res.json(seguimientos);
 });
 

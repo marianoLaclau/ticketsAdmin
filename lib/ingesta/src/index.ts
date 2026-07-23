@@ -15,6 +15,7 @@ import { calcularFechaLimiteSla, SLA_TIME_ZONE } from "./sla";
 
 export * from "./motivos";
 export * from "./sla";
+export * from "./serin";
 
 // Espejo de los enums del schema (lib/db/src/schema/tickets.ts).
 // Se duplican acá a propósito para que esta lib no arrastre better-sqlite3.
