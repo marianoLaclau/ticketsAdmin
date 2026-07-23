@@ -2,6 +2,33 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-07-23 — Estado Activo/Inactivo del empleado
+
+**Agente:** Codex
+**Contexto:** el JSON de n8n incorporó el campo opcional `estado_empleado`. El cambio se aisló en la rama `feature/estado-empleado`; el trabajo local todavía no probado de v0.5 quedó protegido en un stash y no se mezcló.
+
+### Cambio realizado
+
+- El contrato acepta únicamente `Activo` o `Inactivo` respetando Title Case, y el webhook y el alta administrativa conservan el valor.
+- La tabla `tickets` incorpora una columna nullable mediante una migración aditiva. Los registros históricos quedan con `null`.
+- En el listado y el detalle de Tickets se muestra `Activo` o `Inactivo` debajo de la empresa. Si no existe empresa, el valor está ausente/desconocido o se recibe el marcador `Sin empresa asignada/asociada`, la interfaz queda como antes.
+- `estado_empleado` no participa de la regla de cuarentena: por sí solo no convierte un registro completamente vacío en un ticket operativo.
+- Se regeneraron los tipos y validadores derivados de OpenAPI.
+
+Archivos principales: `lib/api-spec/openapi.yaml`, `lib/db/src/schema/tickets.ts`, `lib/db/drizzle/0007_add_estado_empleado.sql`, rutas de ingesta del backend, `frontend/src/lib/estado-empleado.ts`, `TicketList.tsx`, `TicketDetail.tsx` y pruebas asociadas.
+
+### Integración pendiente
+
+- Al recuperar v0.5 habrá que reconciliar la numeración de sus migraciones locales porque ambas líneas de trabajo parten del número `0007`. No se debe aplicar el stash directamente sin resolver esa colisión.
+
+### Validaciones
+
+- Tests del workspace: DB 6/6, ingesta 24/24 y frontend 28/28 correctos.
+- Typecheck completo y build de producción de backend/frontend: correctos; permanecen únicamente las advertencias conocidas de sourcemaps y tamaño del bundle.
+- Smoke test sobre una base temporal migrada: el webhook conservó `estado_empleado: Activo` en su respuesta y rechazó la variante incorrecta `activo` con HTTP 400.
+- La columna aditiva se aplicó también a la base local para poder probar esta rama; `PRAGMA integrity_check` devolvió `ok`.
+- `git diff --check`: correcto, sin errores de whitespace.
+
 ## 2026-07-21 — Ajuste visual final de los filtros de Tickets
 
 **Agente:** Codex

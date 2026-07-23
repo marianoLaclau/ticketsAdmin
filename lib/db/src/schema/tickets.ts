@@ -5,6 +5,7 @@ import { usuariosTable } from "./admin";
 
 export const ESTADOS = ["nuevo", "en_proceso", "pendiente", "resuelto", "cerrado"] as const;
 export const PRIORIDADES = ["baja", "media", "alta", "urgente"] as const;
+export const ESTADOS_EMPLEADO = ["Activo", "Inactivo"] as const;
 export const MOTIVO_CATEGORIAS = [
   "haberes_pagos",
   "recibos_documentacion",
@@ -19,6 +20,7 @@ export const MOTIVO_CATEGORIAS = [
 
 export type Estado = (typeof ESTADOS)[number];
 export type Prioridad = (typeof PRIORIDADES)[number];
+export type EstadoEmpleado = (typeof ESTADOS_EMPLEADO)[number];
 export type MotivoCategoria = (typeof MOTIVO_CATEGORIAS)[number];
 
 export const ticketsTable = sqliteTable("tickets", {
@@ -30,6 +32,7 @@ export const ticketsTable = sqliteTable("tickets", {
   telefono: text("telefono"),
   dni: text("dni"),
   empresa: text("empresa"),
+  estado_empleado: text("estado_empleado", { enum: ESTADOS_EMPLEADO }),
   email: text("email"),
   motivo: text("motivo").notNull(),
   motivo_categoria: text("motivo_categoria", { enum: MOTIVO_CATEGORIAS })

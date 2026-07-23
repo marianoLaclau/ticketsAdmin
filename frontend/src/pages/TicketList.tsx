@@ -27,6 +27,7 @@ import { getEstadoLabel } from '@/lib/estados';
 import { getMotivoCategoriaConfig, MOTIVO_CATEGORIA_OPTIONS } from '@/lib/motivos';
 import { getContactDisplayName } from '@/lib/contacto';
 import { getAssignedDisplayName, hasAssignedDisplayName } from '@/lib/asignacion';
+import { getEstadoEmpleadoConfig } from '@/lib/estado-empleado';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
 
@@ -328,7 +329,9 @@ export default function TicketList() {
                   const vencido = isVencido(ticket.fecha_limite, ticket.estado);
                   const motivoCategoria = getMotivoCategoriaConfig(ticket.motivo_categoria);
                   const contactoLabel = getContactDisplayName(ticket);
-                  const empresaLabel = ticket.empresa?.trim() || 'Sin empresa asociada';
+                  const empresa = ticket.empresa?.trim();
+                  const empresaLabel = empresa || 'Sin empresa asociada';
+                  const estadoEmpleado = getEstadoEmpleadoConfig(empresa, ticket.estado_empleado);
                   const asignadoLabel = getAssignedDisplayName(ticket.asignado_a);
                   const tieneAsignado = hasAssignedDisplayName(ticket.asignado_a);
                   
@@ -361,6 +364,15 @@ export default function TicketList() {
                             <Building className="mr-1 h-3 w-3 shrink-0 text-slate-400" />
                             <span className="truncate">{empresaLabel}</span>
                           </span>
+                          {estadoEmpleado && (
+                            <span className={`mt-0.5 flex items-center text-[11px] font-medium ${estadoEmpleado.textClass}`}>
+                              <span
+                                className={`mr-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${estadoEmpleado.dotClass}`}
+                                aria-hidden="true"
+                              />
+                              {estadoEmpleado.label}
+                            </span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="py-2.5">

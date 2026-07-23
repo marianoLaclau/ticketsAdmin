@@ -81,6 +81,7 @@ n8n y este sistema están en la misma red interna, así que n8n le pega directo 
   "telefono": "{{ $json.telefono }}",
   "dni": "{{ $json.dni }}",
   "empresa": "{{ $json.empresa }}",
+  "estado_empleado": "{{ $json.estado_empleado }}",
   "email": "{{ $json.email }}",
   "motivo": "{{ $json.motivo }}",
   "resumen": "{{ $json.resumen }}",
@@ -162,8 +163,8 @@ Sigue visible en la tabla de Administración mediante `GET /api/tickets?incluir_
 React + Vite. Pantallas principales:
 
 - **Dashboard** (`/dashboard`): KPIs, distribución por estado, rendimiento, motivos, prioridades, vencidos y actividad. El desplegable permite visualizar Todo (default), semana actual, mes actual o un rango desde/hasta; el mismo período se aplica a todos los paneles.
-- **Listado** (`/tickets`): tabla con contacto, categoría, motivo, estado, prioridad, **asignado**, progreso y fecha límite. Si no existe responsable muestra `Sin asignar`; si nombre y apellido están vacíos muestra `Sin nombre proporcionado`, sin alterar los datos recibidos. Filtros combinables.
-- **Detalle** (`/tickets/:id`): resumen de la llamada, reproductor de la grabación, datos del contacto, tiempos, edición de estado/prioridad/progreso y el historial de seguimientos. Teléfono y email son filas fijas de esta ficha: cuando un valor no fue indicado se muestra `Teléfono no proporcionado` o `Email no proporcionado`.
+- **Listado** (`/tickets`): tabla con contacto, categoría, motivo, estado, prioridad, **asignado**, progreso y fecha límite. Si existe una empresa y n8n informó `estado_empleado`, debajo se muestra `Activo` o `Inactivo`; sin empresa, la presentación no cambia. Si no existe responsable muestra `Sin asignar`; si nombre y apellido están vacíos muestra `Sin nombre proporcionado`, sin alterar los datos recibidos. Filtros combinables.
+- **Detalle** (`/tickets/:id`): resumen de la llamada, reproductor de la grabación, datos del contacto, tiempos, edición de estado/prioridad/progreso y el historial de seguimientos. El estado laboral también se presenta debajo de la empresa cuando corresponde. Teléfono y email son filas fijas de esta ficha: cuando un valor no fue indicado se muestra `Teléfono no proporcionado` o `Email no proporcionado`.
 
 **Actualización en vivo**: la app mantiene abierta una conexión SSE (`/api/events`). Cuando entra un llamado operativo nuevo por el webhook (o se importan registros operativos), **todas las pestañas abiertas se refrescan al instante** y muestran una notificación con el contacto y el motivo — sin recargar la página. Los registros vacíos en cuarentena no generan toast, aunque Administración puede refrescar sus datos. El refresco periódico de 30s del sidebar queda como respaldo por si la conexión de eventos se corta.
 
@@ -199,6 +200,7 @@ Si se cambia la API: primero se edita el yaml, se corre codegen, y después se i
 | `hora`                                | texto "HH:MM"          | Hora de la llamada.                                                                                                                                                       |
 | `nombre`, `apellido`                  | texto                  | Datos del llamante.                                                                                                                                                       |
 | `telefono`, `dni`, `empresa`, `email` | texto, opcionales      | Datos del llamante. `empresa` viene de n8n.                                                                                                                               |
+| `estado_empleado`                     | enum opcional          | `Activo` o `Inactivo`, informado por n8n. No vuelve visible por sí solo un registro vacío y solo se muestra si existe una empresa real.                                  |
 | `motivo`                              | texto                  | Por qué llamó (título del ticket).                                                                                                                                        |
 | `motivo_categoria`                    | enum derivado          | Clasificación estable sin alterar el texto original: haberes/pagos, recibos/documentación, vacaciones/licencias, bajas/liquidación, empleo, contacto, reclamos, legales o sin clasificar. |
 | `resumen`                             | texto, opcional        | Resumen de la conversación que arma ElevenLabs.                                                                                                                           |

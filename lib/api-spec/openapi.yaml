@@ -1169,6 +1169,10 @@ components:
           type: ["string", "null"]
         empresa:
           type: ["string", "null"]
+        estado_empleado:
+          type: ["string", "null"]
+          enum: [Activo, Inactivo, null]
+          description: Estado laboral informado; solo se presenta cuando el ticket tiene una empresa asociada
         email:
           type: ["string", "null"]
         motivo:
@@ -1262,6 +1266,10 @@ components:
           type: string
         empresa:
           type: string
+        estado_empleado:
+          type: string
+          enum: [Activo, Inactivo]
+          description: Estado laboral informado para el contacto
         email:
           type: string
         motivo:

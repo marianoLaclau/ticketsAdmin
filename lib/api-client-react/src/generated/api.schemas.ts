@@ -196,6 +196,18 @@ export interface AdminTruncateResult {
   seguimientos_eliminados: number;
 }
 
+/**
+ * Estado laboral informado; solo se presenta cuando el ticket tiene una empresa asociada
+ * @nullable
+ */
+export type TicketEstadoEmpleado = typeof TicketEstadoEmpleado[keyof typeof TicketEstadoEmpleado] | null;
+
+
+export const TicketEstadoEmpleado = {
+  Activo: 'Activo',
+  Inactivo: 'Inactivo',
+} as const;
+
 export type MotivoCategoria = typeof MotivoCategoria[keyof typeof MotivoCategoria];
 
 
@@ -244,6 +256,11 @@ export interface Ticket {
   dni?: string | null;
   /** @nullable */
   empresa?: string | null;
+  /**
+     * Estado laboral informado; solo se presenta cuando el ticket tiene una empresa asociada
+     * @nullable
+     */
+  estado_empleado?: TicketEstadoEmpleado;
   /** @nullable */
   email?: string | null;
   motivo: string;
@@ -315,6 +332,17 @@ export interface TicketListResponse {
   limit: number;
 }
 
+/**
+ * Estado laboral informado para el contacto
+ */
+export type TicketInputEstadoEmpleado = typeof TicketInputEstadoEmpleado[keyof typeof TicketInputEstadoEmpleado];
+
+
+export const TicketInputEstadoEmpleado = {
+  Activo: 'Activo',
+  Inactivo: 'Inactivo',
+} as const;
+
 export type TicketInputEstado = typeof TicketInputEstado[keyof typeof TicketInputEstado];
 
 
@@ -344,6 +372,8 @@ export interface TicketInput {
   telefono?: string;
   dni?: string;
   empresa?: string;
+  /** Estado laboral informado para el contacto */
+  estado_empleado?: TicketInputEstadoEmpleado;
   email?: string;
   motivo: string;
   resumen?: string;

@@ -188,6 +188,7 @@ SQLite vía `better-sqlite3`, modo WAL, `foreign_keys = ON`. Definido en `lib/db
 | `hora` | text | `"HH:MM"` de la llamada |
 | `nombre`, `apellido` | text (nombre requerido) | Datos del contacto |
 | `telefono`, `dni`, `empresa`, `email` | text, nullable | |
+| `estado_empleado` | text enum: `Activo` \| `Inactivo`, nullable | Informado por n8n; los registros anteriores permanecen en `null` |
 | `motivo` | text | Texto libre tal cual llega — **nunca se reescribe** |
 | `motivo_categoria` | text enum, default `sin_clasificar` | Derivado de `motivo`/`resumen` por `clasificarMotivo()` — ver [Categorización de motivos](#categorización-de-motivos) |
 | `resumen` | text, nullable | |

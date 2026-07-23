@@ -50,6 +50,13 @@
       "when": 1784318351542,
       "tag": "0006_add_legales_category",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1784815629269,
+      "tag": "0007_add_estado_empleado",
+      "breakpoints": true
     }
   ]
 }

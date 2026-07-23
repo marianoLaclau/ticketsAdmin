@@ -7,6 +7,7 @@
  */
 import type { MotivoCategoria } from './motivoCategoria';
 import type { TicketEstado } from './ticketEstado';
+import type { TicketEstadoEmpleado } from './ticketEstadoEmpleado';
 import type { TicketPrioridad } from './ticketPrioridad';
 
 export interface Ticket {
@@ -21,6 +22,11 @@ export interface Ticket {
   dni?: string | null;
   /** @nullable */
   empresa?: string | null;
+  /**
+     * Estado laboral informado; solo se presenta cuando el ticket tiene una empresa asociada
+     * @nullable
+     */
+  estado_empleado?: TicketEstadoEmpleado;
   /** @nullable */
   email?: string | null;
   motivo: string;

@@ -55,6 +55,7 @@ import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-
 import { getEstadoLabel } from '@/lib/estados';
 import { getContactDisplayEmail, getContactDisplayName, getContactDisplayPhone } from '@/lib/contacto';
 import { dateTimeLocalValueToIso, toDateTimeLocalValue } from '@/lib/datetime-local';
+import { getEstadoEmpleadoConfig } from '@/lib/estado-empleado';
 import { puedeCerrarTickets } from '@/lib/roles';
 import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
 import { getUserErrorMessage } from '@/lib/error-messages';
@@ -250,6 +251,11 @@ export default function TicketDetail() {
   const contactoLabel = getContactDisplayName(ticket);
   const telefonoLabel = getContactDisplayPhone(ticket.telefono);
   const emailLabel = getContactDisplayEmail(ticket.email);
+  const empresaLabel = ticket.empresa?.trim();
+  const estadoEmpleado = getEstadoEmpleadoConfig(
+    empresaLabel,
+    ticket.estado_empleado,
+  );
 
   return (
     <div className="p-8 max-w-6xl mx-auto w-full space-y-6 pb-24">
@@ -576,13 +582,22 @@ export default function TicketDetail() {
                 <p className="font-medium text-slate-900">{contactoLabel}</p>
               </div>
               
-              {ticket.empresa && (
+              {empresaLabel && (
                 <div>
                   <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Empresa</h4>
                   <p className="text-slate-900 flex items-center gap-2">
                     <Building className="h-4 w-4 text-slate-400" />
-                    {ticket.empresa}
+                    {empresaLabel}
                   </p>
+                  {estadoEmpleado && (
+                    <p className={`mt-1 flex items-center pl-6 text-sm font-medium ${estadoEmpleado.textClass}`}>
+                      <span
+                        className={`mr-2 h-2 w-2 rounded-full ${estadoEmpleado.dotClass}`}
+                        aria-hidden="true"
+                      />
+                      {estadoEmpleado.label}
+                    </p>
+                  )}
                 </div>
               )}
 

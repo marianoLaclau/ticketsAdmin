@@ -123,6 +123,7 @@ router.post("/admin/tickets", async (req, res) => {
       telefono: data.telefono ?? null,
       dni: data.dni ?? null,
       empresa: data.empresa ?? null,
+      estado_empleado: data.estado_empleado ?? null,
       email: data.email ?? null,
       motivo: data.motivo,
       motivo_categoria: clasificarMotivo(data.motivo, data.resumen),
