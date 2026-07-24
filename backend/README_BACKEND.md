@@ -101,7 +101,7 @@ Todas bajo el prefijo `/api`. ✅ = requiere sesión (candado global). 🔑 = ad
 | Método y ruta | Qué hace | Acceso |
 |---|---|---|
 | `GET /healthz` | Chequeo de vida | público |
-| `POST /webhooks/ticket` | Ingesta de una llamada desde n8n. Idempotente por `conversation_id`: si ya existe, `200 { created: false, ticket }`; si no, `201 { created: true, ticket }`. Si no viene `fecha_limite`, se preestablece a **48 horas hábiles de lunes a viernes**; si viene, debe ser RFC3339 con zona (no se coercionan `null`/booleanos/números). Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío. | `x-api-key: WEBHOOK_API_KEY` |
+| `POST /webhooks/ticket` | Ingesta de una llamada desde n8n. Idempotente por `conversation_id`: si ya existe, `200 { created: false, ticket }`; si no, `201 { created: true, ticket }`. Si llega una empresa real, crea atómicamente el primer seguimiento indicando que los datos fueron extraídos y persistidos desde Serin mediante el DNI proporcionado. Si no viene `fecha_limite`, se preestablece a **48 horas hábiles de lunes a viernes**; si viene, debe ser RFC3339 con zona (no se coercionan `null`/booleanos/números). Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío. | `x-api-key: WEBHOOK_API_KEY` |
 | `POST /auth/login` | Body `{ usuario, password }` (`usuario` = el `username` asignado al crear la cuenta, no el email; se normaliza a minúsculas). Devuelve `AuthUser` y setea la cookie `gsb_session`. Mensaje de error genérico a propósito (no revela si el usuario existe). | público |
 | `POST /auth/logout` | Revoca la sesión actual (borra la fila) y limpia la cookie. `204`. | ✅ (no falla si no hay cookie) |
 | `GET /auth/me` | Devuelve el `AuthUser` de la sesión activa, o `401`. | ✅ |
@@ -194,6 +194,7 @@ SQLite vía `better-sqlite3`, modo WAL, `foreign_keys = ON`. Definido en `lib/db
 | `hora` | text | `"HH:MM"` de la llamada |
 | `nombre`, `apellido` | text (nombre requerido) | Datos del contacto |
 | `telefono`, `dni`, `empresa`, `email` | text, nullable | |
+| `estado_empleado` | text enum: `Activo` \| `Inactivo`, nullable | Informado por n8n; los registros anteriores permanecen en `null` |
 | `motivo` | text | Texto libre recibido; los procesos automáticos nunca lo reescriben, aunque puede corregirse mediante una edición funcional auditada |
 | `motivo_categoria` | text enum, default `sin_clasificar` | Derivado de `motivo`/`resumen` por `clasificarMotivo()` — ver [Categorización de motivos](#categorización-de-motivos) |
 | `resumen` | text, nullable | |
@@ -207,6 +208,8 @@ SQLite vía `better-sqlite3`, modo WAL, `foreign_keys = ON`. Definido en `lib/db
 | `fecha_creacion` | integer (timestamp ms) | Default: ahora; los importadores históricos usan la fecha/hora válida de la fila |
 | `fecha_limite` | integer (timestamp ms), nullable | SLA de 48 horas hábiles desde `fecha_creacion`, pausado sábado/domingo, si no viene explícita (webhook/alta/import) |
 | `fecha_resolucion` | integer (timestamp ms), nullable | Se autocompleta al entrar en `resuelto`/`cerrado`; se limpia al reabrir y se conserva al pasar de resuelto a cerrado |
+
+`estado_empleado` corresponde a la consulta de Serin para el DNI y la empresa recibidos. Si una edición manual cambia cualquiera de esos dos datos, el backend lo limpia automáticamente y audita también ese campo para no asociar un estado laboral anterior a otra identidad o empresa.
 
 ### `seguimientos` — historial de cada ticket
 
@@ -222,6 +225,8 @@ SQLite vía `better-sqlite3`, modo WAL, `foreign_keys = ON`. Definido en `lib/db
 | `campos_editados` | JSON de strings, nullable | Nombres de los campos modificados; no duplica valores sensibles |
 | `autor` | text, nullable | **Asignado por el backend** desde la sesión, no por el cliente |
 | `fecha_creacion` | integer (timestamp ms) | |
+
+Cuando el webhook crea un ticket con empresa real, inserta en la misma transacción un seguimiento inicial con autor `Sistema` y la leyenda de origen Serin. Los reintentos por `conversation_id` no duplican esa entrada. El historial se ordena por fecha y luego por ID para conservar un orden determinista. La entrada automática permanece visible en el ticket, pero se excluye de `actividad-reciente` para no duplicar cada alta en el feed general.
 
 ### `roles`
 
@@ -263,7 +268,7 @@ No se puede borrar un rol con usuarios asignados (`409`), aunque esté inactivo.
 - **Desarrollo local**: `pnpm --filter @workspace/db run push` (drizzle-kit push, sin archivos de migración — rápido para iterar).
 - **Cambiar el schema para que llegue a Docker/producción**: después de editar `lib/db/src/schema/*.ts`, correr `pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts` y **commitear** el SQL generado en `lib/db/drizzle/`. El contenedor corre `backend/dist/migrate.mjs` (compilado desde `src/migrate.ts`) al arrancar, que aplica cualquier migración pendiente vía el migrator de drizzle-orm — idempotente, no rompe si ya estaban aplicadas.
 - Si se olvida generar la migración, el deploy en Docker arranca con el schema viejo (el volumen persiste entre deploys) y las columnas/tablas nuevas no existen ahí.
-- **v0.5**: `0007_v05_auditoria_ticket.sql` agrega los campos de auditoría a `seguimientos`; no crea eventos retroactivos. `0008_add_embargos_category.sql` ejecuta un primer backfill conservador de Embargos. Después de migrar y antes de abrir el puerto, `reconciliarCategoriasMotivo()` alinea idempotentemente **toda la columna derivada** con el clasificador vigente. Nunca modifica `motivo` ni `resumen`; esto también corrige históricos cuyo motivo era genérico y cuya categoría anterior había sido inferida desde el resumen.
+- **v0.5**: después de `0007_add_estado_empleado.sql`, `0008_v05_auditoria_ticket.sql` agrega los campos de auditoría a `seguimientos` sin crear eventos retroactivos y `0009_add_embargos_category.sql` ejecuta un primer backfill conservador de Embargos. Después de migrar y antes de abrir el puerto, `reconciliarCategoriasMotivo()` promueve idempotentemente a Embargos los históricos que ahora cumplen la regla. Nunca modifica `motivo` ni `resumen` ni recalcula categorías ajenas a Embargos.
 
 ## Categorización de motivos
 

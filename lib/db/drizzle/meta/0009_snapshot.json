@@ -1,8 +1,8 @@
 {
+  "id": "e48305f7-ffe4-49fb-ba1f-c22ab22dfcc9",
+  "prevId": "fe797976-8c22-48dd-8913-b38f6f3e53dc",
   "version": "6",
   "dialect": "sqlite",
-  "id": "1967a1e2-b36c-4611-bb75-bfb03ea6dbc2",
-  "prevId": "d1efd352-0b6b-4a7e-bdf8-bebab87210d9",
   "tables": {
     "seguimientos": {
       "name": "seguimientos",
@@ -42,6 +42,55 @@
           "notNull": false,
           "autoincrement": false
         },
+        "prioridad_anterior": {
+          "name": "prioridad_anterior",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "prioridad_nueva": {
+          "name": "prioridad_nueva",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "asignado_anterior_usuario_id": {
+          "name": "asignado_anterior_usuario_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "asignado_anterior": {
+          "name": "asignado_anterior",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "asignado_nuevo_usuario_id": {
+          "name": "asignado_nuevo_usuario_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "asignado_nuevo": {
+          "name": "asignado_nuevo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "campos_editados": {
+          "name": "campos_editados",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "autor": {
           "name": "autor",
           "type": "text",
@@ -62,15 +111,41 @@
         "seguimientos_ticket_id_tickets_id_fk": {
           "name": "seguimientos_ticket_id_tickets_id_fk",
           "tableFrom": "seguimientos",
-          "tableTo": "tickets",
           "columnsFrom": [
             "ticket_id"
           ],
+          "tableTo": "tickets",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
+        "seguimientos_asignado_anterior_usuario_id_usuarios_id_fk": {
+          "name": "seguimientos_asignado_anterior_usuario_id_usuarios_id_fk",
+          "tableFrom": "seguimientos",
+          "columnsFrom": [
+            "asignado_anterior_usuario_id"
+          ],
+          "tableTo": "usuarios",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        },
+        "seguimientos_asignado_nuevo_usuario_id_usuarios_id_fk": {
+          "name": "seguimientos_asignado_nuevo_usuario_id_usuarios_id_fk",
+          "tableFrom": "seguimientos",
+          "columnsFrom": [
+            "asignado_nuevo_usuario_id"
+          ],
+          "tableTo": "usuarios",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
@@ -267,15 +342,15 @@
         "tickets_asignado_usuario_id_usuarios_id_fk": {
           "name": "tickets_asignado_usuario_id_usuarios_id_fk",
           "tableFrom": "tickets",
-          "tableTo": "usuarios",
           "columnsFrom": [
             "asignado_usuario_id"
           ],
+          "tableTo": "usuarios",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
@@ -380,15 +455,15 @@
         "sesiones_usuario_id_usuarios_id_fk": {
           "name": "sesiones_usuario_id_usuarios_id_fk",
           "tableFrom": "sesiones",
-          "tableTo": "usuarios",
           "columnsFrom": [
             "usuario_id"
           ],
+          "tableTo": "usuarios",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -490,15 +565,15 @@
         "usuarios_role_id_roles_id_fk": {
           "name": "usuarios_role_id_roles_id_fk",
           "tableFrom": "usuarios",
-          "tableTo": "roles",
           "columnsFrom": [
             "role_id"
           ],
+          "tableTo": "roles",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "restrict"
         }
       },
       "compositePrimaryKeys": {},
@@ -509,9 +584,9 @@
   "views": {},
   "enums": {},
   "_meta": {
+    "columns": {},
     "schemas": {},
-    "tables": {},
-    "columns": {}
+    "tables": {}
   },
   "internal": {
     "indexes": {}

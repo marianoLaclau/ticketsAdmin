@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import Database from "better-sqlite3";
 
 const migrationSql = readFileSync(
-  new URL("../drizzle/0008_add_embargos_category.sql", import.meta.url),
+  new URL("../drizzle/0009_add_embargos_category.sql", import.meta.url),
   "utf8",
 );
 

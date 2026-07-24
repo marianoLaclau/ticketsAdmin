@@ -54,15 +54,22 @@
     {
       "idx": 7,
       "version": "6",
-      "when": 1784759507328,
-      "tag": "0007_v05_auditoria_ticket",
+      "when": 1784815629269,
+      "tag": "0007_add_estado_empleado",
       "breakpoints": true
     },
     {
       "idx": 8,
       "version": "6",
-      "when": 1784759532058,
-      "tag": "0008_add_embargos_category",
+      "when": 1784897172367,
+      "tag": "0008_v05_auditoria_ticket",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1784897207983,
+      "tag": "0009_add_embargos_category",
       "breakpoints": true
     }
   ]

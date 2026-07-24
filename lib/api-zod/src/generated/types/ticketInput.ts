@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.5.0
  */
 import type { TicketInputEstado } from './ticketInputEstado';
+import type { TicketInputEstadoEmpleado } from './ticketInputEstadoEmpleado';
 import type { TicketInputPrioridad } from './ticketInputPrioridad';
 
 export interface TicketInput {
@@ -16,6 +17,8 @@ export interface TicketInput {
   telefono?: string;
   dni?: string;
   empresa?: string;
+  /** Estado laboral informado para el contacto */
+  estado_empleado?: TicketInputEstadoEmpleado;
   email?: string;
   motivo: string;
   resumen?: string;

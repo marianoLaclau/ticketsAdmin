@@ -2,16 +2,28 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-07-24 — Integración de la versión 0.5 con estado laboral y Serin
+
+**Agente:** Codex
+**Estado:** paquete integrado y validado para su publicación en `main`.
+
+- Se conservó sin cambios la migración `0007_add_estado_empleado.sql`, ya aplicada en el entorno remoto. Las migraciones locales de v0.5 se regeneraron como `0008_v05_auditoria_ticket.sql` y `0009_add_embargos_category.sql`, con snapshots y timestamps posteriores en el journal.
+- Se comprobó el migrador real tanto sobre una base que ya tenía `0007` como desde una base vacía. En ambos casos la segunda ejecución fue idempotente, las claves foráneas de auditoría conservaron `ON DELETE SET NULL` y `PRAGMA integrity_check` devolvió `ok`.
+- Se preservaron en el mismo webhook la persistencia de `estado_empleado`, la creación atómica del seguimiento inicial de Serin y la idempotencia por `conversation_id`. Una prueba HTTP integrada verifica que un reintento no duplica el seguimiento.
+- El CSV completo incorpora la columna **Estado laboral**. Si una edición manual cambia DNI o empresa, el backend invalida el estado laboral obtenido previamente desde Serin y registra ambos cambios en el historial, evitando asociar un dato antiguo a otra identidad o empresa.
+- Se regeneraron los clientes y validadores desde OpenAPI. La validación final quedó en 147 pruebas correctas (backend 50, base de datos 8, ingesta 48 y frontend 41), `drizzle-kit check`, typecheck y build de producción correctos.
+- El alcance se limitó al paquete v0.5 y a su convivencia con los cambios de estado laboral/Serin ya presentes en `main`; no se incluyeron `.env`, bases locales, backups ni artefactos de ejecución.
+
 ## 2026-07-22 — Paquete local v0.5: clasificación, SLA, auditoría y gestión ampliada
 
 **Agente:** Codex
-**Estado:** implementación y validación local completas. Por indicación explícita del usuario, este paquete todavía no se considera publicado y no se realizó commit ni push.
+**Estado:** implementación y validación local completas; integración a `main` autorizada el 2026-07-24 como versión 0.5.
 
 ### Categoría Embargos y migración conservadora
 
 - Se agregó `embargos` al catálogo estable compartido entre schema, clasificador, OpenAPI y frontend, con la etiqueta visible **Embargos**.
 - Las reglas se evalúan antes de `legales` y de categorías generales. Captan variantes de embargo/desembargo, retenciones o descuentos judiciales y órdenes/oficios relacionados; la expresión “sin embargo” se excluye explícitamente para evitar falsos positivos.
-- La migración `0008_add_embargos_category.sql` hace un primer backfill conservador. Después, antes de abrir el puerto, una reconciliación idempotente compara todos los históricos con el clasificador vigente y actualiza únicamente `motivo_categoria`. Esto cubre casos donde un motivo genérico había quedado categorizado antiguamente desde el resumen, mantiene la prioridad del motivo explícito y conserva `motivo`/`resumen` byte a byte.
+- La migración integrada `0009_add_embargos_category.sql` hace un primer backfill conservador. Después, antes de abrir el puerto, una reconciliación idempotente promueve únicamente a Embargos los históricos que ahora cumplen la regla. Mantiene la prioridad del motivo explícito, no recalcula categorías ajenas y conserva `motivo`/`resumen` byte a byte.
 
 ### Prioridad automática según horas hábiles
 
@@ -23,7 +35,7 @@ Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada 
 
 ### Auditoría estructurada desde v0.5
 
-- La migración `0007_v05_auditoria_ticket.sql` amplía `seguimientos` con prioridad anterior/nueva, asignación anterior/nueva (ID y snapshot legible) y `campos_editados`.
+- La migración `0008_v05_auditoria_ticket.sql` amplía `seguimientos` con prioridad anterior/nueva, asignación anterior/nueva (ID y snapshot legible) y `campos_editados`.
 - `PATCH /api/tickets/:id` relee el estado autoritativo, persiste únicamente diferencias reales y crea un único seguimiento dentro de la misma transacción. Estado, prioridad y asignación guardan sus valores anterior/nuevo; los demás cambios guardan nombres de campos, no copias de valores sensibles.
 - La identidad del autor y la autoasignación se derivan de la sesión. Las notas manuales aceptan solo la nota: el cliente no puede falsificar autor, estado ni snapshots de auditoría.
 - Al reabrir un ticket resuelto/cerrado se limpia `fecha_resolucion`; si vuelve a resolverse se registra un instante nuevo. Pasar de resuelto a cerrado conserva la fecha de resolución existente.
@@ -55,7 +67,7 @@ Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada 
 
 - Backend: `backend/src/routes/tickets.ts`, `backend/src/lib/ticket-query.ts`, `backend/src/lib/ticket-csv.ts`, `backend/src/lib/prioridad-automatica.ts`, `backend/src/lib/prioridad-automatica-runner.ts`, `backend/src/lib/reclasificar-motivos.ts` y `backend/src/index.ts`.
 - Frontend: `frontend/src/pages/TicketList.tsx`, `frontend/src/pages/Admin.tsx`, `frontend/src/pages/TicketDetail.tsx`, `frontend/src/components/SortableTableHead.tsx`, `frontend/src/components/tickets/TicketDataEditDialog.tsx`, `frontend/src/lib/ticket-edit.ts` y `frontend/src/lib/ticket-list-controls.ts`.
-- Contrato/datos: `lib/api-spec/openapi.yaml`, clientes generados, schemas Drizzle, `lib/ingesta/src/motivos.ts`, `lib/ingesta/src/sla.ts` y migraciones `0007`/`0008`.
+- Contrato/datos: `lib/api-spec/openapi.yaml`, clientes generados, schemas Drizzle, `lib/ingesta/src/motivos.ts`, `lib/ingesta/src/sla.ts` y migraciones integradas `0007`/`0008`/`0009`.
 - Documentación: `README.md`, `backend/README_BACKEND.md`, `frontend/README_FRONTEND.md`, `docs/FLUJO.md` y esta bitácora.
 
 ### Validación final local
@@ -65,7 +77,40 @@ Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada 
 - Cadena completa de migraciones probada desde una base vacía y smoke HTTP real aprobado: login/cookie, doble protección SysAdmin, webhook, Embargos, listado/orden, CSV, edición, autoasignación, historial, escalado automático a Urgente y logout.
 - La base local fue respaldada en `backups/tickets-pre-v0.5-2026-07-22.db`, actualizada mediante Drizzle e iniciada una vez con v0.5. `PRAGMA integrity_check` devolvió `ok`; se compararon los 12 registros preexistentes contra el backup y `motivo`/`resumen` permanecieron byte a byte intactos.
 - QA visual aprobado en 1440×1000 y 1024×900 para detalle operativo, detalle Admin, registro en cuarentena, historial/asignación y ambos editores: sin overflow, recortes ni errores de consola/red.
-- Higiene final: temporales de migración, smoke y QA eliminados. No se realizó commit ni push.
+- Higiene final: temporales de migración, smoke y QA eliminados. El paquete quedó listo para su integración controlada con los cambios de estado laboral y origen Serin que ya estaban publicados.
+
+## 2026-07-23 — Estado Activo/Inactivo del empleado
+
+**Agente:** Codex
+**Contexto:** el JSON de n8n incorporó el campo opcional `estado_empleado`. El cambio se aisló en la rama `feature/estado-empleado`; el trabajo local todavía no probado de v0.5 quedó protegido en un stash y no se mezcló.
+
+### Cambio realizado
+
+- El contrato acepta únicamente `Activo` o `Inactivo` respetando Title Case, y el webhook y el alta administrativa conservan el valor.
+- La tabla `tickets` incorpora una columna nullable mediante una migración aditiva. Los registros históricos quedan con `null`.
+- En el listado y el detalle de Tickets se muestra `Activo` o `Inactivo` debajo de la empresa. Si no existe empresa, el valor está ausente/desconocido o se recibe el marcador `Sin empresa asignada/asociada`, la interfaz queda como antes.
+- Cuando el webhook crea un ticket con una empresa real, ticket y seguimiento inicial se guardan en una misma transacción. El historial comienza con `Los datos fueron extraídos y persistidos desde Serin con el DNI proporcionado.`, bajo el autor `Sistema`.
+- La inserción usa el `conversation_id` como conflicto idempotente: un reintento devuelve el ticket existente y no duplica el seguimiento. Los historiales se ordenan por fecha y luego por ID para garantizar cuál es la primera entrada.
+- La nota automática no se incluye en `actividad-reciente`: queda disponible donde fue solicitada, dentro del historial del ticket, sin duplicar el evento de alta en el Dashboard.
+- `estado_empleado` no participa de la regla de cuarentena: por sí solo no convierte un registro completamente vacío en un ticket operativo.
+- Se regeneraron los tipos y validadores derivados de OpenAPI.
+
+Archivos principales: `lib/api-spec/openapi.yaml`, `lib/db/src/schema/tickets.ts`, `lib/db/drizzle/0007_add_estado_empleado.sql`, rutas de ingesta del backend, `frontend/src/lib/estado-empleado.ts`, `TicketList.tsx`, `TicketDetail.tsx` y pruebas asociadas.
+
+### Integración con v0.5
+
+- La colisión de numeración se resolvió conservando `0007_add_estado_empleado.sql`, que ya estaba aplicada en producción, y regenerando el paquete v0.5 como `0008_v05_auditoria_ticket.sql` y `0009_add_embargos_category.sql`.
+- Los timestamps del journal quedaron estrictamente posteriores a `0007`, de modo que una base existente aplica ambas migraciones nuevas y una instalación limpia recorre la misma secuencia completa.
+
+### Validaciones
+
+- Tests del workspace: DB 6/6, ingesta 26/26 y frontend 28/28 correctos.
+- Typecheck completo y build de producción de backend/frontend: correctos; permanecen únicamente las advertencias conocidas de sourcemaps y tamaño del bundle.
+- Smoke test sobre una base temporal migrada: el webhook conservó `estado_empleado: Activo` en su respuesta y rechazó la variante incorrecta `activo` con HTTP 400.
+- Smoke HTTP del seguimiento Serin: empresa real generó exactamente una entrada; el reintento respondió `created: false` sin duplicarla; un ticket sin empresa generó cero entradas. Un fallo forzado al insertar el seguimiento revirtió también el ticket, confirmando la atomicidad.
+- Smoke autenticado del detalle y Dashboard: el historial devolvió la nota de `Sistema` como primera y única entrada, mientras que `actividad-reciente` conservó únicamente `ticket_creado`.
+- La columna aditiva se aplicó también a la base local para poder probar esta rama; `PRAGMA integrity_check` devolvió `ok`.
+- `git diff --check`: correcto, sin errores de whitespace.
 
 ## 2026-07-21 — Ajuste visual final de los filtros de Tickets
 

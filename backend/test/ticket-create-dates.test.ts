@@ -26,6 +26,7 @@ bootstrap.exec(`
     telefono TEXT,
     dni TEXT,
     empresa TEXT,
+    estado_empleado TEXT,
     email TEXT,
     motivo TEXT NOT NULL,
     motivo_categoria TEXT NOT NULL DEFAULT 'sin_clasificar',
@@ -41,6 +42,22 @@ bootstrap.exec(`
     fecha_creacion INTEGER NOT NULL,
     fecha_limite INTEGER,
     fecha_resolucion INTEGER
+  );
+  CREATE TABLE seguimientos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    nota TEXT NOT NULL,
+    estado_anterior TEXT,
+    estado_nuevo TEXT,
+    prioridad_anterior TEXT,
+    prioridad_nueva TEXT,
+    asignado_anterior_usuario_id INTEGER,
+    asignado_anterior TEXT,
+    asignado_nuevo_usuario_id INTEGER,
+    asignado_nuevo TEXT,
+    campos_editados TEXT,
+    autor TEXT,
+    fecha_creacion INTEGER NOT NULL
   );
 `);
 bootstrap.close();
@@ -108,7 +125,7 @@ function createRequest(
 }
 
 beforeEach(() => {
-  sqlite.exec("DELETE FROM tickets");
+  sqlite.exec("DELETE FROM seguimientos; DELETE FROM tickets");
 });
 
 after(async () => {
@@ -158,4 +175,56 @@ describe("fecha límite en altas de tickets", () => {
       assert.equal(fecha_limite, Date.parse(deadline));
     });
   }
+});
+
+describe("ingesta integrada desde Serin", () => {
+  it("persiste el estado laboral y crea un solo seguimiento idempotente", async () => {
+    const body = {
+      conversation_id: "serin-integrado",
+      hora: "10:30",
+      nombre: "Persona",
+      apellido: "Prueba",
+      dni: "12345678",
+      empresa: "Empresa Serin",
+      estado_empleado: "Activo",
+      motivo: "Consulta general",
+    };
+
+    const create = () =>
+      fetch(`${baseUrl}/webhooks/ticket`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": "webhook-create-test-key",
+        },
+        body: JSON.stringify(body),
+      });
+
+    const first = await create();
+    assert.equal(first.status, 201);
+    const second = await create();
+    assert.equal(second.status, 200);
+
+    const ticket = sqlite
+      .prepare(
+        "SELECT id, estado_empleado FROM tickets WHERE conversation_id = ?",
+      )
+      .get(body.conversation_id) as {
+      id: number;
+      estado_empleado: string;
+    };
+    assert.equal(ticket.estado_empleado, "Activo");
+
+    const seguimientos = sqlite
+      .prepare(
+        "SELECT autor, nota FROM seguimientos WHERE ticket_id = ? ORDER BY id",
+      )
+      .all(ticket.id) as Array<{ autor: string; nota: string }>;
+    assert.deepEqual(seguimientos, [
+      {
+        autor: "Sistema",
+        nota: "Los datos fueron extraídos y persistidos desde Serin con el DNI proporcionado.",
+      },
+    ]);
+  });
 });

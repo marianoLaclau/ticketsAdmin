@@ -23,8 +23,8 @@
          ▼
 ┌──────────────────┐   Valida el JSON (Zod), chequea que el conversation_id
 │  Backend (API)   │   no exista ya (idempotente) y guarda el ticket
-│  Express :5000   │   con estado "nuevo".
-└────────┬─────────┘
+│  Express :5000   │   con estado "nuevo". Si llegó empresa, registra
+└────────┬─────────┘   el origen Serin como primer seguimiento.
          │ Drizzle ORM
          ▼
 ┌──────────────────┐   Base de datos local. Un solo archivo:
@@ -81,6 +81,7 @@ n8n y este sistema están en la misma red interna, así que n8n le pega directo 
   "telefono": "{{ $json.telefono }}",
   "dni": "{{ $json.dni }}",
   "empresa": "{{ $json.empresa }}",
+  "estado_empleado": "{{ $json.estado_empleado }}",
   "email": "{{ $json.email }}",
   "motivo": "{{ $json.motivo }}",
   "resumen": "{{ $json.resumen }}",
@@ -163,8 +164,8 @@ Sigue visible en la tabla de Administración mediante `GET /api/tickets?incluir_
 React + Vite. Pantallas principales:
 
 - **Dashboard** (`/dashboard`): KPIs, distribución por estado, rendimiento, motivos, prioridades, vencidos y actividad. El desplegable permite visualizar Todo (default), semana actual, mes actual o un rango desde/hasta; el mismo período se aplica a todos los paneles.
-- **Listado** (`/tickets`): tabla con contacto, categoría, motivo, estado, prioridad, **asignado**, progreso y fecha límite. Todos los encabezados de datos ordenan en el servidor antes de paginar. Los filtros son combinables y el botón **Exportar CSV** descarga el resultado completo filtrado/ordenado. Si no existe responsable muestra `Sin asignar`; si nombre y apellido están vacíos muestra `Sin nombre proporcionado`.
-- **Detalle** (`/tickets/:id`): resumen de la llamada, audio, datos del contacto, tiempos y gestión. Un lápiz permite corregir nombre/apellido, teléfono, DNI/CUIT, empresa, email, motivo y resumen; envía solo diferencias y cada edición queda en el historial. Teléfono/email mantienen filas fijas y fallbacks cuando faltan. El historial muestra desde v0.5 cambios de estado, prioridad, asignación y campos editados.
+- **Listado** (`/tickets`): tabla con contacto, categoría, motivo, estado, prioridad, **asignado**, progreso y fecha límite. Todos los encabezados de datos ordenan en el servidor antes de paginar y admiten varios criterios priorizados; los filtros son combinables y el botón **Exportar CSV** descarga el resultado completo filtrado/ordenado. Si existe una empresa y n8n informó `estado_empleado`, debajo se muestra `Activo` o `Inactivo`; sin empresa, la presentación no cambia. Si no existe responsable muestra `Sin asignar`; si nombre y apellido están vacíos muestra `Sin nombre proporcionado`.
+- **Detalle** (`/tickets/:id`): resumen de la llamada, audio, datos del contacto, tiempos y gestión. Un lápiz permite corregir nombre/apellido, teléfono, DNI/CUIT, empresa, email, motivo y resumen; envía solo diferencias y cada edición queda en el historial. El estado laboral se presenta debajo de la empresa cuando corresponde. Teléfono y email mantienen filas fijas y fallbacks cuando faltan. El historial muestra cambios de estado, prioridad, asignación y campos editados; si el webhook recibió una empresa real, comienza con la entrada de `Sistema` que registra el origen Serin.
 
 **Actualización en vivo**: la app mantiene abierta una conexión SSE (`/api/events`). Cuando entra un llamado operativo nuevo por el webhook (o se importan registros operativos), **todas las pestañas abiertas se refrescan al instante** y muestran una notificación con el contacto y el motivo — sin recargar la página. Los registros vacíos en cuarentena no generan toast, aunque Administración puede refrescar sus datos. El refresco periódico de 30s del sidebar queda como respaldo por si la conexión de eventos se corta.
 
@@ -202,6 +203,7 @@ El contrato declara `gsb_session` como seguridad global. `healthz` y login son p
 | `hora`                                | texto "HH:MM"          | Hora de la llamada.                                                                                                                                                       |
 | `nombre`, `apellido`                  | texto                  | Datos del llamante.                                                                                                                                                       |
 | `telefono`, `dni`, `empresa`, `email` | texto, opcionales      | Datos del llamante. `empresa` viene de n8n.                                                                                                                               |
+| `estado_empleado`                     | enum opcional          | `Activo` o `Inactivo`, informado por n8n. No vuelve visible por sí solo un registro vacío y solo se muestra si existe una empresa real.                                  |
 | `motivo`                              | texto                  | Por qué llamó. Los procesos automáticos no lo reescriben; una corrección explícita desde el detalle sí puede editarlo y queda auditada.                                  |
 | `motivo_categoria`                    | enum derivado          | Clasificación estable: haberes/pagos, recibos/documentación, vacaciones/licencias, bajas/liquidación, empleo, contacto, reclamos, legales, **embargos** o sin clasificar. |
 | `resumen`                             | texto, opcional        | Resumen de la conversación que arma ElevenLabs.                                                                                                                           |
@@ -234,6 +236,8 @@ El cálculo usa siempre la zona `America/Argentina/Buenos_Aires` y una única fu
 Para webhook y alta manual, `fecha_creacion` es el instante en que el backend recibe y crea el ticket. Para una importación histórica se usa la fecha y hora de la fila: si vienen en columnas separadas, se combinan antes de calcular el vencimiento y la columna `hora` tiene precedencia sobre una hora embebida. Las fechas de Excel se reinterpretan como hora civil de Buenos Aires porque el formato no guarda zona horaria.
 
 Una `fecha_limite` explícita enviada por n8n/Admin o editada posteriormente se conserva: la regla solo completa el vencimiento cuando ese dato se omite. Antes de la coerción de tipos, el backend exige un date-time RFC3339 real y con zona; `null`, booleanos, números, fechas imposibles o sin zona responden 400 en lugar de convertirse accidentalmente en 1970. Tampoco se recalculan automáticamente los tickets existentes, porque la base no distingue con certeza un vencimiento histórico automático de uno ajustado por una persona.
+
+El estado laboral (`Activo`/`Inactivo`) se considera un dato derivado de la consulta a Serin para el DNI y la empresa recibidos. Si una edición manual cambia DNI o empresa, ese estado se limpia y la invalidación queda registrada junto con la corrección en el historial.
 
 **Prioridad por cercanía al vencimiento:** al arrancar, antes de escuchar requests, el backend revisa todos los tickets visibles con fecha límite y estado no final. Luego repite la revisión cada 5 minutos (configurable con `PRIORIDAD_AUTOMATICA_INTERVAL_MS`, mínimo 10 segundos):
 
@@ -283,7 +287,7 @@ La promoción comprueba nuevamente estado, prioridad y vencimiento antes de escr
 
 Estas filas son metadatos administrativos, no identidades autenticables. No guardan contraseña, hash ni token y todavía no gobiernan permisos efectivos dentro de la aplicación.
 
-**Cambios de schema**: en desarrollo local se editan los archivos de `lib/db/src/schema/` y se corre `pnpm --filter @workspace/db run push`. Para que el cambio llegue al servidor de testing hay que además generar la migración SQL y commitearla; el contenedor la aplica al arrancar. v0.5 incorpora `0007_v05_auditoria_ticket.sql` para los campos nuevos de seguimiento y `0008_add_embargos_category.sql` para un primer backfill conservador de Embargos. A continuación, antes de escuchar requests, el backend reconcilia idempotentemente `motivo_categoria` con el clasificador actual. Solo cambia esa columna derivada: `motivo` y `resumen` permanecen byte a byte intactos, y un motivo explícito conserva prioridad sobre el resumen.
+**Cambios de schema**: en desarrollo local se editan los archivos de `lib/db/src/schema/` y se corre `pnpm --filter @workspace/db run push`. Para que el cambio llegue al servidor de testing hay que además generar la migración SQL y commitearla; el contenedor la aplica al arrancar. La secuencia integrada conserva `0007_add_estado_empleado.sql`; v0.5 continúa con `0008_v05_auditoria_ticket.sql` para los campos nuevos de seguimiento y `0009_add_embargos_category.sql` para un primer backfill conservador de Embargos. A continuación, antes de escuchar requests, el backend promueve idempotentemente a Embargos los históricos que cumplen el clasificador actual. Solo cambia esa categoría derivada: `motivo` y `resumen` permanecen byte a byte intactos, un motivo explícito conserva prioridad sobre el resumen y las categorías ajenas no se recalculan.
 
 ## 4. El importador del histórico
 

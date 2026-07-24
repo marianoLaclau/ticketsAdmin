@@ -13,6 +13,7 @@ export interface TicketCsvRecord {
   telefono?: string | null;
   dni?: string | null;
   empresa?: string | null;
+  estado_empleado?: string | null;
   email?: string | null;
   motivo: string;
   motivo_categoria: string;
@@ -44,6 +45,7 @@ export const TICKET_CSV_HEADERS = [
   "Teléfono",
   "DNI / CUIT",
   "Empresa",
+  "Estado laboral",
   "Email",
   "Categoría",
   "Motivo",
@@ -154,6 +156,7 @@ export function ticketToCsvRow(
     ticket.telefono,
     ticket.dni,
     ticket.empresa,
+    ticket.estado_empleado,
     ticket.email,
     categoriaLabel(ticket.motivo_categoria),
     ticket.motivo,

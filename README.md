@@ -14,7 +14,7 @@ Llamada telefónica → ElevenLabs (agente de voz) → n8n → POST /api/webhook
 🎨 **Frontend en detalle** (páginas, routing, estado, componentes): [frontend/README_FRONTEND.md](frontend/README_FRONTEND.md)
 📓 **Bitácora de cambios técnicos**: [docs/BITACORA_AGENTES.MD](docs/BITACORA_AGENTES.MD)
 
-> **Estado de v0.5:** paquete en desarrollo y prueba exclusivamente local. Incluye las mejoras descritas abajo, pero todavía no se considera una versión publicada: no debe hacerse commit ni push hasta completar la validación funcional y visual final.
+> **Versión v0.5:** integra las mejoras de gestión, auditoría, clasificación y prioridad descritas abajo, junto con el estado laboral recibido desde Serin.
 
 ## Qué hace el sistema
 
@@ -118,7 +118,7 @@ Copiar `.env.example` a `.env` en la raíz:
 - **Texto recibido preservado frente a procesos automáticos, categoría derivada**: el clasificador y los backfills nunca reescriben `ticket.motivo` ni `ticket.resumen`; solo calculan `ticket.motivo_categoria`. Un usuario autenticado sí puede corregir explícitamente esos datos desde el detalle, y esa edición queda auditada; al cambiar motivo o resumen se recalcula la categoría.
 - **Cuarentena derivada, sin borrar ni reescribir**: un ticket queda fuera de la operación únicamente cuando, por una condición AND, no contiene nombre/apellido, teléfono, DNI, empresa, email, motivo, resumen ni notas, no tiene seguimientos y conserva todos sus valores operativos iniciales. IDs, fechas, hora, categoría derivada y `audio_url` no se consideran contenido porque son datos técnicos o automáticos. Administración puede incluir estos registros con `incluir_vacios=true`, protegido por sesión SysAdmin y `ADMIN_API_KEY`; al completar o gestionar el ticket deja de cumplir la regla y reaparece automáticamente. La definición exacta está en [docs/FLUJO.md](docs/FLUJO.md#cuarentena-administrativa-de-registros-vacíos).
 - Los tickets **no se crean a mano** en el flujo normal: la vía de alta es el webhook (o el importador). El alta manual existe solo dentro del panel `/admin` (`POST /api/admin/tickets`), pensado para corrección de datos.
-- **Migraciones en Docker, `push` en desarrollo local**: en local se usa `drizzle-kit push` contra `data/tickets.db`. En Docker el contenedor corre `dist/migrate.mjs` antes de levantar la API. v0.5 incorpora `0007_v05_auditoria_ticket.sql` (trazabilidad) y `0008_add_embargos_category.sql` (backfill inicial); luego el arranque reconcilia idempotentemente la categoría derivada con el clasificador vigente.
+- **Migraciones en Docker, `push` en desarrollo local**: en local se usa `drizzle-kit push` contra `data/tickets.db`. En Docker el contenedor corre `dist/migrate.mjs` antes de levantar la API. La secuencia integrada incorpora `0007_add_estado_empleado.sql`, `0008_v05_auditoria_ticket.sql` (trazabilidad) y `0009_add_embargos_category.sql` (backfill inicial); luego el arranque reconcilia idempotentemente la categoría derivada con el clasificador vigente.
 
 ## Gotchas
 

@@ -26,6 +26,7 @@ import {
 } from "@workspace/api-zod";
 import {
   MOTIVO_CATEGORIA_LABELS,
+  SERIN_SEGUIMIENTO_NOTA,
   type MotivoCategoria,
 } from "@workspace/ingesta";
 import {
@@ -190,6 +191,7 @@ router.get("/dashboard/actividad-reciente", async (req, res) => {
     )
     .where(
       and(
+        not(eq(seguimientosTable.nota, SERIN_SEGUIMIENTO_NOTA)),
         ...dateRangeConditions(seguimientosTable.fecha_creacion, range),
       ),
     )

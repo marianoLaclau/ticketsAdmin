@@ -1,8 +1,17 @@
 import { Router } from "express";
-import { db, esTicketVacio, ticketsTable } from "@workspace/db";
+import {
+  db,
+  esTicketVacio,
+  seguimientosTable,
+  ticketsTable,
+} from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { IngestTicketBody } from "@workspace/api-zod";
-import { calcularFechaLimiteSla, clasificarMotivo } from "@workspace/ingesta";
+import {
+  calcularFechaLimiteSla,
+  clasificarMotivo,
+  crearSeguimientoOrigenSerin,
+} from "@workspace/ingesta";
 import { requireWebhookKey } from "../lib/auth";
 import { broadcastEvent } from "../lib/events";
 import { findInvalidRfc3339DateTimeField } from "../lib/rfc3339";
@@ -32,37 +41,82 @@ router.post("/webhooks/ticket", requireWebhookKey, async (req, res) => {
   }
   const data = parsed.data;
 
-  const [existing] = await db.select().from(ticketsTable).where(eq(ticketsTable.conversation_id, data.conversation_id));
-  if (existing) {
-    res.status(200).json({ created: false, ticket: existing });
+  const fechaCreacion = new Date();
+  const result = db.transaction((tx) => {
+    const [inserted] = tx
+      .insert(ticketsTable)
+      .values({
+        conversation_id: data.conversation_id,
+        hora: data.hora,
+        nombre: data.nombre,
+        apellido: data.apellido,
+        telefono: data.telefono ?? null,
+        dni: data.dni ?? null,
+        empresa: data.empresa ?? null,
+        estado_empleado: data.estado_empleado ?? null,
+        email: data.email ?? null,
+        motivo: data.motivo,
+        motivo_categoria: clasificarMotivo(data.motivo, data.resumen),
+        resumen: data.resumen ?? null,
+        notificado: data.notificado ?? false,
+        estado:
+          (data.estado as
+            | "nuevo"
+            | "en_proceso"
+            | "pendiente"
+            | "resuelto"
+            | "cerrado") ?? "nuevo",
+        prioridad:
+          (data.prioridad as "baja" | "media" | "alta" | "urgente") ??
+          "media",
+        asignado_a: data.asignado_a ?? null,
+        audio_url: data.audio_url ?? null,
+        notas: data.notas ?? null,
+        fecha_creacion: fechaCreacion,
+        fecha_limite: data.fecha_limite
+          ? new Date(data.fecha_limite)
+          : calcularFechaLimiteSla(fechaCreacion),
+        progreso: data.progreso ?? 0,
+      })
+      .onConflictDoNothing({ target: ticketsTable.conversation_id })
+      .returning()
+      .all();
+
+    if (!inserted) {
+      const existing = tx
+        .select()
+        .from(ticketsTable)
+        .where(eq(ticketsTable.conversation_id, data.conversation_id))
+        .get();
+
+      if (!existing) {
+        throw new Error("No se pudo recuperar el ticket existente");
+      }
+
+      return { created: false as const, ticket: existing };
+    }
+
+    const seguimientoSerin = crearSeguimientoOrigenSerin(data.empresa);
+    if (seguimientoSerin) {
+      tx.insert(seguimientosTable)
+        .values({
+          ticket_id: inserted.id,
+          autor: seguimientoSerin.autor,
+          nota: seguimientoSerin.nota,
+          fecha_creacion: fechaCreacion,
+        })
+        .run();
+    }
+
+    return { created: true as const, ticket: inserted };
+  });
+
+  if (!result.created) {
+    res.status(200).json(result);
     return;
   }
 
-  const fechaCreacion = new Date();
-  const [ticket] = await db.insert(ticketsTable).values({
-    conversation_id: data.conversation_id,
-    hora: data.hora,
-    nombre: data.nombre,
-    apellido: data.apellido,
-    telefono: data.telefono ?? null,
-    dni: data.dni ?? null,
-    empresa: data.empresa ?? null,
-    email: data.email ?? null,
-    motivo: data.motivo,
-    motivo_categoria: clasificarMotivo(data.motivo, data.resumen),
-    resumen: data.resumen ?? null,
-    notificado: data.notificado ?? false,
-    estado: (data.estado as "nuevo" | "en_proceso" | "pendiente" | "resuelto" | "cerrado") ?? "nuevo",
-    prioridad: (data.prioridad as "baja" | "media" | "alta" | "urgente") ?? "media",
-    asignado_a: data.asignado_a ?? null,
-    audio_url: data.audio_url ?? null,
-    notas: data.notas ?? null,
-    fecha_creacion: fechaCreacion,
-    fecha_limite: data.fecha_limite
-      ? new Date(data.fecha_limite)
-      : calcularFechaLimiteSla(fechaCreacion),
-    progreso: data.progreso ?? 0,
-  }).returning();
+  const { ticket } = result;
 
   // Un registro en cuarentena refresca Administración, pero no genera una
   // alerta de nuevo llamado para los operadores.
@@ -77,7 +131,7 @@ router.post("/webhooks/ticket", requireWebhookKey, async (req, res) => {
     });
   }
 
-  res.status(201).json({ created: true, ticket });
+  res.status(201).json(result);
 });
 
 export default router;

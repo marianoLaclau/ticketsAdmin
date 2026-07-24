@@ -46,6 +46,7 @@ bootstrap.exec(`
     telefono TEXT,
     dni TEXT,
     empresa TEXT,
+    estado_empleado TEXT,
     email TEXT,
     motivo TEXT NOT NULL,
     motivo_categoria TEXT NOT NULL DEFAULT 'sin_clasificar',
@@ -170,17 +171,17 @@ beforeEach(() => {
       (2, 'Sistema', 'Admin', 'sysadmin', 'sys@example.test', 2, 1, 1, 1);
 
     INSERT INTO tickets (
-      id, conversation_id, hora, nombre, apellido, telefono, empresa, email,
-      motivo, motivo_categoria, resumen, notificado, estado, prioridad,
+      id, conversation_id, hora, nombre, apellido, telefono, empresa,
+      estado_empleado, email, motivo, motivo_categoria, resumen, notificado, estado, prioridad,
       progreso, fecha_creacion, fecha_limite
     ) VALUES
-      (1, 'conv-1', '09:15', 'Ana', 'Perez', '1111', 'Alfa',
+      (1, 'conv-1', '09:15', 'Ana', 'Perez', '1111', 'Alfa', 'Activo',
        'ana@example.test', 'Consulta general', 'sin_clasificar', NULL, 0,
        'nuevo', 'media', 0, 1784721600000, 1784894400000),
-      (2, 'conv-2', '10:30', 'Bruno', 'Diaz', '2222', 'Beta',
+      (2, 'conv-2', '10:30', 'Bruno', 'Diaz', '2222', 'Beta', 'Inactivo',
        'bruno@example.test', 'Reclamo', 'reclamos', NULL, 0,
        'pendiente', 'urgente', 50, 1784808000000, 1784894400000),
-      (3, 'conv-empty', '00:00', 'Sin nombre proporcionado', '', NULL, NULL,
+      (3, 'conv-empty', '00:00', 'Sin nombre proporcionado', '', NULL, NULL, NULL,
        NULL, 'Sin especificar', 'sin_clasificar', NULL, 0, 'nuevo', 'media',
        0, 1784808000000, 1784980800000);
   `);
@@ -401,6 +402,30 @@ describe("edición y auditoría atómica", () => {
       .prepare("SELECT nombre FROM tickets WHERE id = 1")
       .get() as { nombre: string };
     assert.equal(row.nombre, "Ana");
+  });
+
+  it("invalida y audita el estado laboral si cambia DNI o empresa", async () => {
+    const response = await jsonRequest("/tickets/1", "PATCH", {
+      empresa: "Empresa corregida",
+    });
+    assert.equal(response.status, 200);
+
+    const ticket = (await response.json()) as {
+      empresa: string;
+      estado_empleado: string | null;
+    };
+    assert.equal(ticket.empresa, "Empresa corregida");
+    assert.equal(ticket.estado_empleado, null);
+
+    const seguimiento = sqlite
+      .prepare(
+        "SELECT campos_editados FROM seguimientos WHERE ticket_id = 1 ORDER BY id DESC LIMIT 1",
+      )
+      .get() as { campos_editados: string };
+    assert.deepEqual(JSON.parse(seguimiento.campos_editados), [
+      "empresa",
+      "estado_empleado",
+    ]);
   });
 
   it("mantiene los campos técnicos detrás de SysAdmin y la llave", async () => {

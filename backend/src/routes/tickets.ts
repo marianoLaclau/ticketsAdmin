@@ -85,6 +85,7 @@ const AUDIT_FIELD_LABELS: Readonly<Record<string, string>> = {
   telefono: "teléfono",
   dni: "DNI / CUIT",
   empresa: "empresa",
+  estado_empleado: "estado laboral",
   email: "email",
   motivo: "motivo",
   motivo_categoria: "categoría",
@@ -511,6 +512,18 @@ router.patch(
       }
       if (body.fecha_resolucion !== undefined) {
         requested.fecha_resolucion = new Date(body.fecha_resolucion.getTime());
+      }
+
+      // El estado laboral proviene de la consulta a Serin para un DNI y una
+      // empresa concretos. Si una persona corrige cualquiera de esos datos,
+      // el valor anterior deja de ser confiable y debe volver a obtenerse.
+      const cambiaIdentidadSerin =
+        (body.dni !== undefined &&
+          !sameStoredValue(current.dni, requested.dni)) ||
+        (body.empresa !== undefined &&
+          !sameStoredValue(current.empresa, requested.empresa));
+      if (cambiaIdentidadSerin) {
+        requested.estado_empleado = null;
       }
 
       if (body.motivo !== undefined || body.resumen !== undefined) {

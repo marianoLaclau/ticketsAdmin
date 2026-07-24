@@ -20,6 +20,7 @@ const ticket: TicketCsvRecord = {
   telefono: "+54 11 1234-5678",
   dni: "00123456",
   empresa: "ACME; Sur",
+  estado_empleado: "Inactivo",
   email: "ana@example.test",
   motivo: 'Consulta por "recibo"',
   motivo_categoria: "recibos_documentacion",
@@ -47,6 +48,7 @@ describe("CSV de tickets", () => {
       TICKET_CSV_HEADERS.length,
     );
     assert.ok(row);
+    assert.match(row, /"Inactivo"/);
     assert.match(row, /"Recibos y documentaci/);
     assert.match(row, /"Pendiente \(fue contactado\)"/);
   });
