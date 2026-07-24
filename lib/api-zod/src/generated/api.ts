@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * GSB Ticket Management System API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.5.0
  */
 import * as zod from 'zod';
 
@@ -22,6 +22,8 @@ export const HealthCheckResponse = zod.object({
  */
 export const listTicketsQueryIncluirVaciosDefault = false;
 export const listTicketsQueryOrderDefault = `desc`;
+export const listTicketsQuerySortMax = 512;
+
 export const listTicketsQueryPageDefault = 1;
 
 export const listTicketsQueryLimitDefault = 20;
@@ -38,11 +40,13 @@ export const ListTicketsQueryParams = zod.object({
   "hora_hasta": zod.coerce.string().optional(),
   "empresa": zod.coerce.string().optional(),
   "motivo": zod.coerce.string().optional(),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']).optional().describe('Categoría normalizada derivada del motivo original'),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'sin_clasificar']).optional().describe('Categoría normalizada derivada del motivo original'),
   "search": zod.coerce.string().optional(),
   "vencidos": zod.boolean().optional(),
   "incluir_vacios": zod.boolean().default(listTicketsQueryIncluirVaciosDefault).describe('Incluye registros en cuarentena sin datos útiles. Requiere sesión SysAdmin y el header x-admin-key; el listado operativo los excluye.\n'),
+  "sort_by": zod.enum(['id', 'fecha_creacion', 'conversation_id', 'contacto', 'empresa', 'motivo_categoria', 'motivo', 'estado', 'prioridad', 'asignado_a', 'progreso', 'fecha_limite']).optional().describe('Columna de ordenamiento aplicada sobre el conjunto completo antes de paginar'),
   "order": zod.enum(['asc', 'desc']).default(listTicketsQueryOrderDefault).describe('Orden compuesto por día de creación y, dentro de cada día, por hora del llamado'),
+  "sort": zod.coerce.string().max(listTicketsQuerySortMax).optional().describe('Ordenamiento múltiple priorizado, separado por comas y expresado como columna:dirección. Ejemplo: fecha_creacion:desc,contacto:asc. Cuando se informa, reemplaza a sort_by y order.\n'),
   "page": zod.coerce.number().min(1).default(listTicketsQueryPageDefault),
   "limit": zod.coerce.number().min(1).max(listTicketsQueryLimitMax).default(listTicketsQueryLimitDefault)
 })
@@ -64,7 +68,7 @@ export const ListTicketsResponse = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
@@ -82,6 +86,34 @@ export const ListTicketsResponse = zod.object({
   "page": zod.number(),
   "limit": zod.number()
 })
+
+
+/**
+ * @summary Exportar todos los tickets operativos que coinciden con los filtros
+ */
+export const exportTicketsCsvQueryOrderDefault = `desc`;
+export const exportTicketsCsvQuerySortMax = 512;
+
+
+
+export const ExportTicketsCsvQueryParams = zod.object({
+  "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']).optional(),
+  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional(),
+  "fecha_desde": zod.coerce.date().optional(),
+  "fecha_hasta": zod.coerce.date().optional(),
+  "hora_desde": zod.coerce.string().optional(),
+  "hora_hasta": zod.coerce.string().optional(),
+  "empresa": zod.coerce.string().optional(),
+  "motivo": zod.coerce.string().optional(),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'sin_clasificar']).optional(),
+  "search": zod.coerce.string().optional(),
+  "vencidos": zod.boolean().optional(),
+  "sort_by": zod.enum(['id', 'fecha_creacion', 'conversation_id', 'contacto', 'empresa', 'motivo_categoria', 'motivo', 'estado', 'prioridad', 'asignado_a', 'progreso', 'fecha_limite']).optional(),
+  "order": zod.enum(['asc', 'desc']).default(exportTicketsCsvQueryOrderDefault),
+  "sort": zod.coerce.string().max(exportTicketsCsvQuerySortMax).optional().describe('Ordenamiento múltiple priorizado, separado por comas y expresado como columna:dirección. Cuando se informa, reemplaza a sort_by y order.\n')
+})
+
+export const ExportTicketsCsvResponse = zod.unknown()
 
 
 /**
@@ -173,7 +205,7 @@ export const IngestTicketResponse = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
@@ -240,7 +272,7 @@ export const CreateAdminTicketResponse = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
@@ -558,6 +590,12 @@ export const GetTicketParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const getTicketQueryIncluirVaciosDefault = false;
+
+export const GetTicketQueryParams = zod.object({
+  "incluir_vacios": zod.boolean().default(getTicketQueryIncluirVaciosDefault).describe('Permite abrir registros en cuarentena; requiere SysAdmin y x-admin-key')
+})
+
 export const getTicketResponseOneProgresoMin = 0;
 export const getTicketResponseOneProgresoMax = 100;
 
@@ -574,7 +612,7 @@ export const GetTicketResponse = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
@@ -594,6 +632,13 @@ export const GetTicketResponse = zod.object({
   "nota": zod.string(),
   "estado_anterior": zod.string().nullish(),
   "estado_nuevo": zod.string().nullish(),
+  "prioridad_anterior": zod.union([zod.literal('baja'),zod.literal('media'),zod.literal('alta'),zod.literal('urgente'),zod.literal(null)]).nullish(),
+  "prioridad_nueva": zod.union([zod.literal('baja'),zod.literal('media'),zod.literal('alta'),zod.literal('urgente'),zod.literal(null)]).nullish(),
+  "asignado_anterior_usuario_id": zod.number().nullish(),
+  "asignado_anterior": zod.string().nullish(),
+  "asignado_nuevo_usuario_id": zod.number().nullish(),
+  "asignado_nuevo": zod.string().nullish(),
+  "campos_editados": zod.array(zod.string()).nullish(),
   "autor": zod.string().nullish(),
   "fecha_creacion": zod.coerce.date()
 })).optional()
@@ -601,14 +646,20 @@ export const GetTicketResponse = zod.object({
 
 
 /**
- * Las actualizaciones operativas (estado, prioridad, notas, progreso y
- * fecha limite) requieren una sesion valida. La edicion administrativa
- * de los datos de origen/contacto requiere ademas rol SysAdmin y el
- * header x-admin-key.
+ * Las actualizaciones operativas y el enriquecimiento de contacto,
+ * motivo o resumen requieren una sesión válida. Los campos técnicos y
+ * el acceso a registros en cuarentena requieren además rol SysAdmin y
+ * el header x-admin-key.
  * @summary Update a ticket
  */
 export const UpdateTicketParams = zod.object({
   "id": zod.coerce.number()
+})
+
+export const updateTicketQueryIncluirVaciosDefault = false;
+
+export const UpdateTicketQueryParams = zod.object({
+  "incluir_vacios": zod.boolean().default(updateTicketQueryIncluirVaciosDefault).describe('Permite modificar registros en cuarentena; requiere SysAdmin y x-admin-key')
 })
 
 export const updateTicketBodyProgresoMin = 0;
@@ -620,16 +671,16 @@ export const UpdateTicketBody = zod.object({
   "hora": zod.string().optional(),
   "nombre": zod.string().optional(),
   "apellido": zod.string().optional(),
-  "telefono": zod.string().optional(),
-  "dni": zod.string().optional(),
-  "empresa": zod.string().optional(),
-  "email": zod.string().optional(),
+  "telefono": zod.string().nullish(),
+  "dni": zod.string().nullish(),
+  "empresa": zod.string().nullish(),
+  "email": zod.string().email().nullish(),
   "motivo": zod.string().optional(),
-  "resumen": zod.string().optional(),
+  "resumen": zod.string().nullish(),
   "notificado": zod.boolean().optional(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']).optional(),
   "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional(),
-  "audio_url": zod.string().optional(),
+  "audio_url": zod.string().nullish(),
   "notas": zod.string().optional(),
   "fecha_limite": zod.coerce.date().optional().describe('Ajuste manual explícito del vencimiento'),
   "fecha_resolucion": zod.coerce.date().optional(),
@@ -652,7 +703,7 @@ export const UpdateTicketResponse = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
@@ -686,12 +737,25 @@ export const ListSeguimientosParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const listSeguimientosQueryIncluirVaciosDefault = false;
+
+export const ListSeguimientosQueryParams = zod.object({
+  "incluir_vacios": zod.boolean().default(listSeguimientosQueryIncluirVaciosDefault).describe('Permite consultar un registro en cuarentena desde Admin')
+})
+
 export const ListSeguimientosResponseItem = zod.object({
   "id": zod.number(),
   "ticket_id": zod.number(),
   "nota": zod.string(),
   "estado_anterior": zod.string().nullish(),
   "estado_nuevo": zod.string().nullish(),
+  "prioridad_anterior": zod.union([zod.literal('baja'),zod.literal('media'),zod.literal('alta'),zod.literal('urgente'),zod.literal(null)]).nullish(),
+  "prioridad_nueva": zod.union([zod.literal('baja'),zod.literal('media'),zod.literal('alta'),zod.literal('urgente'),zod.literal(null)]).nullish(),
+  "asignado_anterior_usuario_id": zod.number().nullish(),
+  "asignado_anterior": zod.string().nullish(),
+  "asignado_nuevo_usuario_id": zod.number().nullish(),
+  "asignado_nuevo": zod.string().nullish(),
+  "campos_editados": zod.array(zod.string()).nullish(),
   "autor": zod.string().nullish(),
   "fecha_creacion": zod.coerce.date()
 })
@@ -705,11 +769,14 @@ export const CreateSeguimientoParams = zod.object({
   "id": zod.coerce.number()
 })
 
+export const createSeguimientoQueryIncluirVaciosDefault = false;
+
+export const CreateSeguimientoQueryParams = zod.object({
+  "incluir_vacios": zod.boolean().default(createSeguimientoQueryIncluirVaciosDefault).describe('Permite agregar seguimiento a un registro en cuarentena desde Admin')
+})
+
 export const CreateSeguimientoBody = zod.object({
-  "nota": zod.string(),
-  "estado_anterior": zod.string().optional(),
-  "estado_nuevo": zod.string().optional(),
-  "autor": zod.string().optional()
+  "nota": zod.string()
 })
 
 export const CreateSeguimientoResponse = zod.object({
@@ -718,6 +785,13 @@ export const CreateSeguimientoResponse = zod.object({
   "nota": zod.string(),
   "estado_anterior": zod.string().nullish(),
   "estado_nuevo": zod.string().nullish(),
+  "prioridad_anterior": zod.union([zod.literal('baja'),zod.literal('media'),zod.literal('alta'),zod.literal('urgente'),zod.literal(null)]).nullish(),
+  "prioridad_nueva": zod.union([zod.literal('baja'),zod.literal('media'),zod.literal('alta'),zod.literal('urgente'),zod.literal(null)]).nullish(),
+  "asignado_anterior_usuario_id": zod.number().nullish(),
+  "asignado_anterior": zod.string().nullish(),
+  "asignado_nuevo_usuario_id": zod.number().nullish(),
+  "asignado_nuevo": zod.string().nullish(),
+  "campos_editados": zod.array(zod.string()).nullish(),
   "autor": zod.string().nullish(),
   "fecha_creacion": zod.coerce.date()
 })
@@ -795,7 +869,7 @@ export const GetTicketsVencidosResponseItem = zod.object({
   "empresa": zod.string().nullish(),
   "email": zod.string().nullish(),
   "motivo": zod.string(),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'sin_clasificar']),
   "resumen": zod.string().nullish(),
   "notificado": zod.boolean(),
   "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
@@ -821,7 +895,7 @@ export const GetMotivoStatsQueryParams = zod.object({
 })
 
 export const GetMotivoStatsResponseItem = zod.object({
-  "categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'legales', 'sin_clasificar']),
+  "categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'sin_clasificar']),
   "motivo": zod.string().describe('Etiqueta legible de la categoría'),
   "cantidad": zod.number()
 })

@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * GSB Ticket Management System API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.5.0
  */
 
 export * from './actividadItem';
@@ -22,17 +22,24 @@ export * from './adminUserListResponse';
 export * from './adminUserPasswordInput';
 export * from './adminUserUpdate';
 export * from './authUser';
+export * from './createSeguimientoParams';
 export * from './dashboardFechaDesdeParameter';
 export * from './dashboardFechaHastaParameter';
 export * from './dashboardStats';
 export * from './estadoStat';
+export * from './exportTicketsCsvEstado';
+export * from './exportTicketsCsvOrder';
+export * from './exportTicketsCsvParams';
+export * from './exportTicketsCsvPrioridad';
 export * from './getActividadRecienteParams';
 export * from './getDashboardStatsParams';
 export * from './getMotivoStatsParams';
+export * from './getTicketParams';
 export * from './getTicketsVencidosParams';
 export * from './healthStatus';
 export * from './listAdminRolesParams';
 export * from './listAdminUsersParams';
+export * from './listSeguimientosParams';
 export * from './listTicketsEstado';
 export * from './listTicketsOrder';
 export * from './listTicketsParams';
@@ -43,6 +50,8 @@ export * from './motivoStat';
 export * from './prioridadStat';
 export * from './seguimiento';
 export * from './seguimientoInput';
+export * from './seguimientoPrioridadAnterior';
+export * from './seguimientoPrioridadNueva';
 export * from './ticket';
 export * from './ticketDetail';
 export * from './ticketEstado';
@@ -52,6 +61,8 @@ export * from './ticketInputEstado';
 export * from './ticketInputPrioridad';
 export * from './ticketListResponse';
 export * from './ticketPrioridad';
+export * from './ticketSortBy';
 export * from './ticketUpdate';
 export * from './ticketUpdateEstado';
 export * from './ticketUpdatePrioridad';
+export * from './updateTicketParams';

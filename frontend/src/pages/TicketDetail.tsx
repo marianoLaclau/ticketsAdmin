@@ -8,7 +8,9 @@ import {
   useGetMe,
   getGetMeQueryKey,
   TicketEstado,
-  TicketPrioridad
+  TicketPrioridad,
+  type Seguimiento,
+  type TicketUpdate,
 } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
@@ -48,8 +50,8 @@ import {
   PlayCircle,
   MessageSquare,
   History,
-  Save,
-  Headphones
+  Headphones,
+  Pencil,
 } from 'lucide-react';
 import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
 import { getEstadoLabel } from '@/lib/estados';
@@ -58,6 +60,10 @@ import { dateTimeLocalValueToIso, toDateTimeLocalValue } from '@/lib/datetime-lo
 import { puedeCerrarTickets } from '@/lib/roles';
 import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
 import { getUserErrorMessage } from '@/lib/error-messages';
+import { useAdminAccess, adminErrorMessage } from '@/hooks/use-admin-access';
+import { TicketDataEditDialog } from '@/components/tickets/TicketDataEditDialog';
+import { getFunctionalFieldLabel } from '@/lib/ticket-edit';
+import { getAssignedDisplayName } from '@/lib/asignacion';
 
 const PROGRESS_STEPS = [
   { estado: TicketEstado.nuevo, value: 0, label: 'Nuevo' },
@@ -67,25 +73,41 @@ const PROGRESS_STEPS = [
   { estado: TicketEstado.cerrado, value: 100, label: 'Cerrado' },
 ];
 
-export default function TicketDetail() {
+interface TicketDetailProps {
+  adminMode?: boolean;
+}
+
+export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
   const { id } = useParams<{ id: string }>();
   const ticketId = parseInt(id || '0', 10);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { adminKey, adminRequest } = useAdminAccess();
+  const includeEmptyParams = adminMode ? { incluir_vacios: true } : undefined;
+  const requestOptions = adminMode ? adminRequest : undefined;
+  const queryScope = adminMode ? 'admin' : 'operativo';
 
-  const ticketQuery = useGetTicket(ticketId, {
-    query: { enabled: !!ticketId, queryKey: ['/api/tickets', ticketId] }
+  const ticketQuery = useGetTicket(ticketId, includeEmptyParams, {
+    query: {
+      enabled: !!ticketId && (!adminMode || Boolean(adminKey)),
+      queryKey: ['/api/tickets', ticketId, queryScope],
+    },
+    request: requestOptions,
   });
   const { data: ticket, isLoading: loadingTicket } = ticketQuery;
 
-  const seguimientosQuery = useListSeguimientos(ticketId, {
-    query: { enabled: !!ticketId, queryKey: ['/api/tickets', ticketId, 'seguimientos'] }
+  const seguimientosQuery = useListSeguimientos(ticketId, includeEmptyParams, {
+    query: {
+      enabled: !!ticketId && (!adminMode || Boolean(adminKey)),
+      queryKey: ['/api/tickets', ticketId, queryScope, 'seguimientos'],
+    },
+    request: requestOptions,
   });
   const { data: seguimientos, isLoading: loadingSeguimientos } = seguimientosQuery;
 
-  const updateTicket = useUpdateTicket();
-  const createSeguimiento = useCreateSeguimiento();
+  const updateTicket = useUpdateTicket(adminMode ? { request: adminRequest } : undefined);
+  const createSeguimiento = useCreateSeguimiento(adminMode ? { request: adminRequest } : undefined);
 
   // Cerrar tickets es exclusivo de Administrador/SysAdmin (el backend lo
   // valida igual; acá se grisa la opción para el resto de los roles)
@@ -94,6 +116,7 @@ export default function TicketDetail() {
 
   // Edit states
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditingData, setIsEditingData] = useState(false);
   const [editData, setEditData] = useState<any>({});
   
   // New seguimiento state
@@ -106,15 +129,15 @@ export default function TicketDetail() {
         prioridad: ticket.prioridad,
         progreso: ticket.progreso || 0,
         notas: ticket.notas || '',
-        fecha_limite: toDateTimeLocalValue(ticket.fecha_limite),
+        ...(adminMode ? { fecha_limite: toDateTimeLocalValue(ticket.fecha_limite) } : {}),
       });
     }
-  }, [ticket, isEditing]);
+  }, [adminMode, ticket, isEditing]);
 
   const handleUpdateTicket = () => {
     const originalFechaLimite = toDateTimeLocalValue(ticket?.fecha_limite);
 
-    if (originalFechaLimite && !editData.fecha_limite) {
+    if (adminMode && originalFechaLimite && !editData.fecha_limite) {
       toast({
         variant: 'warning',
         title: 'Fecha límite requerida',
@@ -132,7 +155,7 @@ export default function TicketDetail() {
     };
     // Si el usuario no modificó el control, se omite el campo para conservar
     // también los segundos y milisegundos que datetime-local no muestra.
-    if (editData.fecha_limite && editData.fecha_limite !== originalFechaLimite) {
+    if (adminMode && editData.fecha_limite && editData.fecha_limite !== originalFechaLimite) {
       const fechaLimiteIso = dateTimeLocalValueToIso(editData.fecha_limite);
       if (!fechaLimiteIso) {
         toast({
@@ -146,10 +169,10 @@ export default function TicketDetail() {
     }
 
     updateTicket.mutate(
-      { id: ticketId, data: updatedData },
+      { id: ticketId, params: includeEmptyParams, data: updatedData },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ['/api/tickets', ticketId] });
+          queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
           setIsEditing(false);
           const estadoLabel = PROGRESS_STEPS.find((step) => step.estado === editData.estado)?.label;
           toast({
@@ -162,10 +185,38 @@ export default function TicketDetail() {
           toast({
             variant: 'destructive',
             title: `No se pudo actualizar el ticket #${ticketId}`,
-            description: getUserErrorMessage(error, 'Reintentá la operación.'),
+            description: adminMode
+              ? adminErrorMessage(error)
+              : getUserErrorMessage(error, 'Reintentá la operación.'),
           });
         }
       }
+    );
+  };
+
+  const handleUpdateFunctionalData = (data: TicketUpdate) => {
+    updateTicket.mutate(
+      { id: ticketId, params: includeEmptyParams, data },
+      {
+        onSuccess: () => {
+          setIsEditingData(false);
+          queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
+          toast({
+            variant: 'success',
+            title: 'Datos actualizados',
+            description: `Los cambios del ticket #${ticketId} quedaron registrados en el historial.`,
+          });
+        },
+        onError: (error) => {
+          toast({
+            variant: 'destructive',
+            title: 'No se pudieron guardar los datos',
+            description: adminMode
+              ? adminErrorMessage(error)
+              : getUserErrorMessage(error, 'Reintentá la operación.'),
+          });
+        },
+      },
     );
   };
 
@@ -176,16 +227,12 @@ export default function TicketDetail() {
     createSeguimiento.mutate(
       {
         id: ticketId,
-        data: {
-          nota: seguimiento,
-          estado_anterior: ticket?.estado,
-          estado_nuevo: ticket?.estado, // unless they change it, but we keep simple here
-          // autor: lo asigna el backend con el usuario de la sesión
-        }
+        params: includeEmptyParams,
+        data: { nota: seguimiento },
       },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ['/api/tickets', ticketId, 'seguimientos'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
           setNewSeguimiento('');
           toast({
             variant: 'success',
@@ -197,7 +244,9 @@ export default function TicketDetail() {
           toast({
             variant: 'destructive',
             title: 'No se pudo agregar el seguimiento',
-            description: getUserErrorMessage(error, 'Reintentá la operación.'),
+            description: adminMode
+              ? adminErrorMessage(error)
+              : getUserErrorMessage(error, 'Reintentá la operación.'),
           });
         }
       }
@@ -206,6 +255,18 @@ export default function TicketDetail() {
 
   const detailError = ticketQuery.error ?? seguimientosQuery.error;
   const detailStatus = getErrorStatus(detailError);
+
+  if (adminMode && !adminKey) {
+    return (
+      <ErrorPage
+        status={401}
+        title="Falta la llave de administración"
+        message="Volvé a Administración e ingresá la llave para abrir este registro."
+        homeHref="/admin"
+      />
+    );
+  }
+
   if (ticketQuery.isError || seguimientosQuery.isError) {
     const notFound = detailStatus === 404;
     return (
@@ -214,7 +275,10 @@ export default function TicketDetail() {
         title={notFound ? 'Ticket no encontrado' : 'No pudimos cargar el ticket'}
         message={notFound
           ? 'El ticket solicitado no existe o ya fue eliminado.'
-          : 'No fue posible obtener el ticket o su historial. Reintentá o volvé al inicio.'}
+          : adminMode
+            ? adminErrorMessage(detailError)
+            : 'No fue posible obtener el ticket o su historial. Reintentá o volvé al inicio.'}
+        homeHref={adminMode ? '/admin' : '/dashboard'}
         onRetry={notFound ? undefined : () => {
           void ticketQuery.refetch();
           void seguimientosQuery.refetch();
@@ -259,15 +323,16 @@ export default function TicketDetail() {
           <Button 
             variant="outline" 
             size="icon" 
-            onClick={() => setLocation('/tickets')}
+            onClick={() => setLocation(adminMode ? '/admin' : '/tickets')}
             className="mt-1 shrink-0 bg-white"
+            aria-label={adminMode ? 'Volver a Administración' : 'Volver a Tickets'}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <div className="flex items-center gap-3 mb-1">
+            <div className="flex items-center gap-2 mb-1">
               <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                {ticket.motivo}
+                {ticket.motivo?.trim() || 'Sin motivo proporcionado'}
               </h1>
               {vencido && (
                 <span className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full font-medium flex items-center gap-1 border border-red-200">
@@ -280,12 +345,10 @@ export default function TicketDetail() {
                 <Clock className="h-3.5 w-3.5" />
                 Creado: {formatDate(ticket.fecha_creacion)}
               </span>
-              {ticket.asignado_a && (
-                <span className="flex items-center gap-1">
-                  <User className="h-3.5 w-3.5" /> 
-                  Asignado a: {ticket.asignado_a}
-                </span>
-              )}
+              <span className="flex items-center gap-1">
+                <User className="h-3.5 w-3.5" />
+                Asignado a: {getAssignedDisplayName(ticket.asignado_a)}
+              </span>
             </div>
           </div>
         </div>
@@ -359,14 +422,19 @@ export default function TicketDetail() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Fecha Límite</label>
-                  <Input 
-                    type="datetime-local" 
-                    value={editData.fecha_limite}
-                    onChange={(e) => setEditData({...editData, fecha_limite: e.target.value})}
-                  />
-                </div>
+                {adminMode && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Fecha Límite</label>
+                    <Input
+                      type="datetime-local"
+                      value={editData.fecha_limite || ''}
+                      onChange={(e) => setEditData({...editData, fecha_limite: e.target.value})}
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Campo técnico protegido por la llave de administración.
+                    </p>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Notas Internas</label>
@@ -388,6 +456,14 @@ export default function TicketDetail() {
           </Dialog>
         </div>
       </div>
+
+      <TicketDataEditDialog
+        ticket={ticket}
+        open={isEditingData}
+        onOpenChange={setIsEditingData}
+        isSaving={updateTicket.isPending}
+        onSave={handleUpdateFunctionalData}
+      />
 
       {/* Progress Tracker */}
       <Card className="border-slate-200 shadow-sm overflow-hidden">
@@ -522,7 +598,7 @@ export default function TicketDetail() {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {seguimientos.map((seg: any, idx: number) => (
+                    {seguimientos.map((seg: Seguimiento, idx: number) => (
                       <div key={seg.id} className="relative pl-6">
                         {idx !== seguimientos.length - 1 && (
                           <div className="absolute left-[11px] top-6 bottom-[-24px] w-[2px] bg-slate-100" />
@@ -544,11 +620,37 @@ export default function TicketDetail() {
                           <p className="text-sm text-slate-700 whitespace-pre-wrap">{seg.nota}</p>
                           
                           {(seg.estado_anterior || seg.estado_nuevo) && seg.estado_anterior !== seg.estado_nuevo && (
-                            <div className="mt-3 pt-3 border-t border-slate-50 flex items-center gap-2 text-xs">
+                            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-xs">
                               <span className="text-slate-500">Cambio de estado:</span>
                               {seg.estado_anterior && <EstadoBadge estado={seg.estado_anterior} className="text-[10px] py-0 px-1.5" />}
                               <span className="text-slate-400">→</span>
                               {seg.estado_nuevo && <EstadoBadge estado={seg.estado_nuevo} className="text-[10px] py-0 px-1.5" />}
+                            </div>
+                          )}
+
+                          {(seg.prioridad_anterior || seg.prioridad_nueva) && seg.prioridad_anterior !== seg.prioridad_nueva && (
+                            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-xs">
+                              <span className="text-slate-500">Cambio de prioridad:</span>
+                              {seg.prioridad_anterior && <PrioridadBadge prioridad={seg.prioridad_anterior} className="text-[10px] py-0 px-1.5" />}
+                              <span className="text-slate-400">→</span>
+                              {seg.prioridad_nueva && <PrioridadBadge prioridad={seg.prioridad_nueva} className="text-[10px] py-0 px-1.5" />}
+                            </div>
+                          )}
+
+                          {(seg.asignado_anterior_usuario_id !== seg.asignado_nuevo_usuario_id || seg.asignado_anterior !== seg.asignado_nuevo) &&
+                            (seg.asignado_anterior || seg.asignado_nuevo || seg.asignado_anterior_usuario_id || seg.asignado_nuevo_usuario_id) && (
+                              <div className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-600">
+                                <span className="font-medium">Cambio de asignación:</span>{' '}
+                                {getAssignedDisplayName(seg.asignado_anterior)}
+                                <span className="px-1.5 text-slate-400">→</span>
+                                {getAssignedDisplayName(seg.asignado_nuevo)}
+                              </div>
+                            )}
+
+                          {seg.campos_editados && seg.campos_editados.length > 0 && (
+                            <div className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-600">
+                              <span className="font-medium">Datos editados:</span>{' '}
+                              {seg.campos_editados.map(getFunctionalFieldLabel).join(', ')}
                             </div>
                           )}
                         </div>
@@ -568,6 +670,17 @@ export default function TicketDetail() {
               <CardTitle className="text-lg flex items-center gap-2">
                 <User className="h-5 w-5 text-primary" />
                 Datos del Contacto
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="ml-1 h-7 w-7 shrink-0 text-slate-500"
+                  onClick={() => setIsEditingData(true)}
+                  aria-label="Editar datos del contacto"
+                  title="Editar datos del contacto"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-4 space-y-4">

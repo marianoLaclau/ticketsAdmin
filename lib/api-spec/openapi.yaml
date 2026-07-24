@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
+  version: 0.5.0
   description: GSB Ticket Management System API
 servers:
   - url: /api
@@ -25,6 +25,9 @@ tags:
       Autenticación por sesión. El login setea una cookie httpOnly; toda la API
       (salvo healthz, el webhook de n8n y el propio login) exige esa sesión.
 
+security:
+  - sessionCookie: []
+
 paths:
   /healthz:
     get:
@@ -32,6 +35,7 @@ paths:
       tags: [health]
       summary: Health check
       description: Returns server health status
+      security: []
       responses:
         "200":
           description: Healthy
@@ -103,6 +107,12 @@ paths:
           schema:
             type: boolean
             default: false
+        - name: sort_by
+          in: query
+          description: Columna de ordenamiento aplicada sobre el conjunto completo antes de paginar
+          schema:
+            $ref: "#/components/schemas/TicketSortBy"
+            default: fecha_creacion
         - name: order
           in: query
           description: Orden compuesto por día de creación y, dentro de cada día, por hora del llamado
@@ -110,6 +120,17 @@ paths:
             type: string
             enum: [asc, desc]
             default: desc
+        - name: sort
+          in: query
+          description: >
+            Ordenamiento múltiple priorizado, separado por comas y expresado
+            como columna:dirección. Ejemplo:
+            fecha_creacion:desc,contacto:asc. Cuando se informa, reemplaza a
+            sort_by y order.
+          schema:
+            type: string
+            maxLength: 512
+          example: fecha_creacion:desc,contacto:asc
         - name: page
           in: query
           schema:
@@ -131,11 +152,99 @@ paths:
               schema:
                 $ref: "#/components/schemas/TicketListResponse"
 
+  /tickets/export.csv:
+    get:
+      operationId: exportTicketsCsv
+      tags: [tickets]
+      summary: Exportar todos los tickets operativos que coinciden con los filtros
+      parameters:
+        - name: estado
+          in: query
+          schema:
+            type: string
+            enum: [nuevo, en_proceso, pendiente, resuelto, cerrado]
+        - name: prioridad
+          in: query
+          schema:
+            type: string
+            enum: [baja, media, alta, urgente]
+        - name: fecha_desde
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: fecha_hasta
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: hora_desde
+          in: query
+          schema:
+            type: string
+        - name: hora_hasta
+          in: query
+          schema:
+            type: string
+        - name: empresa
+          in: query
+          schema:
+            type: string
+        - name: motivo
+          in: query
+          schema:
+            type: string
+        - name: motivo_categoria
+          in: query
+          schema:
+            $ref: "#/components/schemas/MotivoCategoria"
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: vencidos
+          in: query
+          schema:
+            type: boolean
+        - name: sort_by
+          in: query
+          schema:
+            $ref: "#/components/schemas/TicketSortBy"
+            default: fecha_creacion
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: sort
+          in: query
+          description: >
+            Ordenamiento múltiple priorizado, separado por comas y expresado
+            como columna:dirección. Cuando se informa, reemplaza a sort_by y
+            order.
+          schema:
+            type: string
+            maxLength: 512
+          example: fecha_creacion:desc,contacto:asc
+      responses:
+        "200":
+          description: CSV UTF-8 con todos los resultados filtrados, sin paginación
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+          content:
+            text/csv:
+              schema:
+                type: string
+
   /auth/login:
     post:
       operationId: login
       tags: [auth]
       summary: Iniciar sesión
+      security: []
       description: >
         Valida usuario y contraseña. Si son correctos setea la cookie de sesión
         (httpOnly) y devuelve los datos del usuario.
@@ -222,7 +331,8 @@ paths:
         Alta manual de un registro desde el panel de administración. El flujo
         normal de creación de tickets sigue siendo el webhook de n8n.
       security:
-        - adminApiKey: []
+        - sessionCookie: []
+          adminApiKey: []
       requestBody:
         required: true
         content:
@@ -252,7 +362,8 @@ paths:
         existan. Idempotente por conversation_id. Con dry_run true solo simula
         y devuelve el resumen sin escribir nada.
       security:
-        - adminApiKey: []
+        - sessionCookie: []
+          adminApiKey: []
       requestBody:
         required: true
         content:
@@ -280,7 +391,8 @@ paths:
         Elimina TODOS los tickets y seguimientos y reinicia los contadores de
         id. El schema queda intacto. Requiere confirmar explícitamente.
       security:
-        - adminApiKey: []
+        - sessionCookie: []
+          adminApiKey: []
       requestBody:
         required: true
         content:
@@ -305,7 +417,8 @@ paths:
       tags: [admin]
       summary: Listar roles
       security:
-        - adminApiKey: []
+        - sessionCookie: []
+          adminApiKey: []
       parameters:
         - name: search
           in: query
@@ -341,7 +454,8 @@ paths:
       tags: [admin]
       summary: Crear un rol
       security:
-        - adminApiKey: []
+        - sessionCookie: []
+          adminApiKey: []
       requestBody:
         required: true
         content:
@@ -368,7 +482,8 @@ paths:
       tags: [admin]
       summary: Actualizar un rol
       security:
-        - adminApiKey: []
+        - sessionCookie: []
+          adminApiKey: []
       parameters:
         - name: id
           in: path
@@ -403,7 +518,8 @@ paths:
       tags: [admin]
       summary: Eliminar un rol sin usuarios asignados
       security:
-        - adminApiKey: []
+        - sessionCookie: []
+          adminApiKey: []
       parameters:
         - name: id
           in: path
@@ -429,7 +545,8 @@ paths:
       tags: [admin]
       summary: Listar usuarios
       security:
-        - adminApiKey: []
+        - sessionCookie: []
+          adminApiKey: []
       parameters:
         - name: search
           in: query
@@ -474,7 +591,8 @@ paths:
       tags: [admin]
       summary: Crear un usuario
       security:
-        - adminApiKey: []
+        - sessionCookie: []
+          adminApiKey: []
       requestBody:
         required: true
         content:
@@ -502,7 +620,8 @@ paths:
       summary: Actualizar o desactivar un usuario
       description: Los usuarios se desactivan estableciendo activo en false; no se eliminan.
       security:
-        - adminApiKey: []
+        - sessionCookie: []
+          adminApiKey: []
       parameters:
         - name: id
           in: path
@@ -542,7 +661,8 @@ paths:
         todas sus sesiones activas: si estaba logueado en algún navegador,
         queda afuera y debe volver a entrar con la clave nueva.
       security:
-        - adminApiKey: []
+        - sessionCookie: []
+          adminApiKey: []
       parameters:
         - name: id
           in: path
@@ -577,6 +697,12 @@ paths:
           required: true
           schema:
             type: integer
+        - name: incluir_vacios
+          in: query
+          description: Permite abrir registros en cuarentena; requiere SysAdmin y x-admin-key
+          schema:
+            type: boolean
+            default: false
       responses:
         "200":
           description: Ticket details
@@ -592,16 +718,22 @@ paths:
       tags: [tickets]
       summary: Update a ticket
       description: |
-        Las actualizaciones operativas (estado, prioridad, notas, progreso y
-        fecha limite) requieren una sesion valida. La edicion administrativa
-        de los datos de origen/contacto requiere ademas rol SysAdmin y el
-        header x-admin-key.
+        Las actualizaciones operativas y el enriquecimiento de contacto,
+        motivo o resumen requieren una sesión válida. Los campos técnicos y
+        el acceso a registros en cuarentena requieren además rol SysAdmin y
+        el header x-admin-key.
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+        - name: incluir_vacios
+          in: query
+          description: Permite modificar registros en cuarentena; requiere SysAdmin y x-admin-key
+          schema:
+            type: boolean
+            default: false
       requestBody:
         required: true
         content:
@@ -628,7 +760,8 @@ paths:
       summary: Delete a ticket (solo SysAdmin con clave administrativa)
       description: Requiere sesion con rol SysAdmin y el header x-admin-key.
       security:
-        - adminApiKey: []
+        - sessionCookie: []
+          adminApiKey: []
       parameters:
         - name: id
           in: path
@@ -656,6 +789,12 @@ paths:
           required: true
           schema:
             type: integer
+        - name: incluir_vacios
+          in: query
+          description: Permite consultar un registro en cuarentena desde Admin
+          schema:
+            type: boolean
+            default: false
       responses:
         "200":
           description: List of follow-ups
@@ -676,6 +815,12 @@ paths:
           required: true
           schema:
             type: integer
+        - name: incluir_vacios
+          in: query
+          description: Permite agregar seguimiento a un registro en cuarentena desde Admin
+          schema:
+            type: boolean
+            default: false
       requestBody:
         required: true
         content:
@@ -791,6 +936,11 @@ components:
         format: date
 
   securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: gsb_session
+      description: Cookie httpOnly emitida por POST /auth/login y validada por el backend.
     webhookApiKey:
       type: apiKey
       in: header
@@ -1306,17 +1456,18 @@ components:
         apellido:
           type: string
         telefono:
-          type: string
+          type: ["string", "null"]
         dni:
-          type: string
+          type: ["string", "null"]
         empresa:
-          type: string
+          type: ["string", "null"]
         email:
-          type: string
+          type: ["string", "null"]
+          format: email
         motivo:
           type: string
         resumen:
-          type: string
+          type: ["string", "null"]
         notificado:
           type: boolean
         estado:
@@ -1326,7 +1477,7 @@ components:
           type: string
           enum: [baja, media, alta, urgente]
         audio_url:
-          type: string
+          type: ["string", "null"]
         notas:
           type: string
         fecha_limite:
@@ -1359,6 +1510,24 @@ components:
           type: ["string", "null"]
         estado_nuevo:
           type: ["string", "null"]
+        prioridad_anterior:
+          type: ["string", "null"]
+          enum: [baja, media, alta, urgente, null]
+        prioridad_nueva:
+          type: ["string", "null"]
+          enum: [baja, media, alta, urgente, null]
+        asignado_anterior_usuario_id:
+          type: ["integer", "null"]
+        asignado_anterior:
+          type: ["string", "null"]
+        asignado_nuevo_usuario_id:
+          type: ["integer", "null"]
+        asignado_nuevo:
+          type: ["string", "null"]
+        campos_editados:
+          type: ["array", "null"]
+          items:
+            type: string
         autor:
           type: ["string", "null"]
         fecha_creacion:
@@ -1372,12 +1541,22 @@ components:
       properties:
         nota:
           type: string
-        estado_anterior:
-          type: string
-        estado_nuevo:
-          type: string
-        autor:
-          type: string
+
+    TicketSortBy:
+      type: string
+      enum:
+        - id
+        - fecha_creacion
+        - conversation_id
+        - contacto
+        - empresa
+        - motivo_categoria
+        - motivo
+        - estado
+        - prioridad
+        - asignado_a
+        - progreso
+        - fecha_limite
 
     DashboardStats:
       type: object
@@ -1449,6 +1628,7 @@ components:
         - empleo_postulaciones
         - contacto_general
         - reclamos
+        - embargos
         - legales
         - sin_clasificar
 

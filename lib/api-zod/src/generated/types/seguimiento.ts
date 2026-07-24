@@ -3,8 +3,10 @@
  * Do not edit manually.
  * Api
  * GSB Ticket Management System API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.5.0
  */
+import type { SeguimientoPrioridadAnterior } from './seguimientoPrioridadAnterior';
+import type { SeguimientoPrioridadNueva } from './seguimientoPrioridadNueva';
 
 export interface Seguimiento {
   id: number;
@@ -14,6 +16,20 @@ export interface Seguimiento {
   estado_anterior?: string | null;
   /** @nullable */
   estado_nuevo?: string | null;
+  /** @nullable */
+  prioridad_anterior?: SeguimientoPrioridadAnterior;
+  /** @nullable */
+  prioridad_nueva?: SeguimientoPrioridadNueva;
+  /** @nullable */
+  asignado_anterior_usuario_id?: number | null;
+  /** @nullable */
+  asignado_anterior?: string | null;
+  /** @nullable */
+  asignado_nuevo_usuario_id?: number | null;
+  /** @nullable */
+  asignado_nuevo?: string | null;
+  /** @nullable */
+  campos_editados?: string[] | null;
   /** @nullable */
   autor?: string | null;
   fecha_creacion: Date;

@@ -12,6 +12,7 @@ export const MOTIVO_CATEGORIAS = [
   { codigo: "empleo_postulaciones", label: "Empleo y postulaciones" },
   { codigo: "contacto_general", label: "Contacto y consultas generales" },
   { codigo: "reclamos", label: "Reclamos" },
+  { codigo: "embargos", label: "Embargos" },
   { codigo: "legales", label: "Legales" },
   { codigo: "sin_clasificar", label: "Sin clasificar" },
 ] as const;
@@ -34,6 +35,7 @@ export const MOTIVO_CATEGORIA_LABELS: Record<
   empleo_postulaciones: "Empleo y postulaciones",
   contacto_general: "Contacto y consultas generales",
   reclamos: "Reclamos",
+  embargos: "Embargos",
   legales: "Legales",
   sin_clasificar: "Sin clasificar",
 };
@@ -51,6 +53,18 @@ interface ReglaClasificacionMotivo {
 export const REGLAS_CLASIFICACION_MOTIVO: readonly ReglaClasificacionMotivo[] =
   [
     {
+      categoria: "embargos",
+      patrones: [
+        // El lookbehind evita confundir el conector discursivo "sin embargo"
+        // con una retención judicial. Si el texto menciona luego un embargo
+        // real, esa segunda aparición sí coincide.
+        /(?<!\bsin\s)\b(?:des)?embarg\w*\b/,
+        /\b(?:retencion|descuento)s?(?:\s+\w+){0,3}\s+(?:judicial|por\s+orden\s+judicial)\b/,
+        /\borden judicial(?:\s+\w+){0,4}\s+(?:reten\w*|retuv\w*|retenc\w*|descont\w*|afect\w*)\b/,
+        /\boficio(?:\s+\w+){0,3}\s+(?:retencion|descuento)(?:\s+de)?\s+(?:sueldo|salario|haberes)\b/,
+      ],
+    },
+    {
       categoria: "legales",
       patrones: [
         /\b(?:carta documento|telegrama laboral|patrocinio letrado)\b/,
@@ -65,7 +79,7 @@ export const REGLAS_CLASIFICACION_MOTIVO: readonly ReglaClasificacionMotivo[] =
         /\b(?:audiencia|conciliacion|mediacion)(?:\s+\w+){0,3}\s+(?:laboral|judicial|seclo)\b/,
         /\b(?:area|departamento|sector)(?:\s+de)?\s+legales\b/,
         /\b(?:intimacion|intimar|intimado|intimada)\b/,
-        /\b(?:embargo|medida cautelar)(?:\s+\w+){0,2}\s+(?:judicial|laboral)\b/,
+        /\bmedida cautelar(?:\s+\w+){0,2}\s+(?:judicial|laboral)\b/,
       ],
     },
     {

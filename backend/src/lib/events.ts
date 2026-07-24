@@ -14,6 +14,18 @@ export function addEventClient(res: Response): void {
 export function broadcastEvent(tipo: string, data: Record<string, unknown> = {}): void {
   const payload = `data: ${JSON.stringify({ tipo, ...data })}\n\n`;
   for (const res of clients) {
-    res.write(payload);
+    if (res.destroyed || res.writableEnded) {
+      clients.delete(res);
+      continue;
+    }
+
+    try {
+      res.write(payload);
+    } catch {
+      // Un navegador puede desaparecer entre el chequeo y la escritura. La
+      // notificación SSE es secundaria: nunca debe convertir en 500 una
+      // operación que ya quedó confirmada en la base.
+      clients.delete(res);
+    }
   }
 }

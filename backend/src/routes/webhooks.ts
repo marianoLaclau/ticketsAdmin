@@ -5,12 +5,26 @@ import { IngestTicketBody } from "@workspace/api-zod";
 import { calcularFechaLimiteSla, clasificarMotivo } from "@workspace/ingesta";
 import { requireWebhookKey } from "../lib/auth";
 import { broadcastEvent } from "../lib/events";
+import { findInvalidRfc3339DateTimeField } from "../lib/rfc3339";
 
 const router = Router();
 
 // Ingesta de llamadas: n8n envía el JSON que arma ElevenLabs al terminar la llamada.
 // Idempotente por conversation_id — un reintento de n8n devuelve el ticket existente.
 router.post("/webhooks/ticket", requireWebhookKey, async (req, res) => {
+  if (req.body && typeof req.body === "object" && !Array.isArray(req.body)) {
+    const invalidDateField = findInvalidRfc3339DateTimeField(
+      req.body,
+      ["fecha_limite"] as const,
+    );
+    if (invalidDateField) {
+      res.status(400).json({
+        error: `${invalidDateField} debe ser una fecha RFC3339 válida con zona horaria`,
+      });
+      return;
+    }
+  }
+
   const parsed = IngestTicketBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid body", details: parsed.error.issues });

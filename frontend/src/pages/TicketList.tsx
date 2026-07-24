@@ -1,26 +1,32 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  useListTickets, 
-  TicketEstado, 
+import {
+  exportTicketsCsv,
+  useListTickets,
+  TicketEstado,
   TicketPrioridad,
-  ListTicketsEstado,
-  ListTicketsPrioridad
+  TicketSortBy,
+  type ListTicketsEstado,
+  type ListTicketsPrioridad,
+  type MotivoCategoria,
 } from '@workspace/api-client-react';
 import { useLocation } from 'wouter';
-import { 
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
-} from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { 
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import {
-  Search, Filter, Building, AlertCircle,
-  ArrowUp, ArrowDown, ChevronLeft, ChevronRight,
+  Search,
+  Filter,
+  Building,
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Loader2,
+  RotateCcw,
 } from 'lucide-react';
 import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
 import { getEstadoLabel } from '@/lib/estados';
@@ -29,15 +35,30 @@ import { getContactDisplayName } from '@/lib/contacto';
 import { getAssignedDisplayName, hasAssignedDisplayName } from '@/lib/asignacion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
+import { SortableTableHead } from '@/components/SortableTableHead';
+import { useToast } from '@/hooks/use-toast';
+import { getUserErrorMessage } from '@/lib/error-messages';
+import {
+  buildTicketExportParams,
+  buildTicketListParams,
+  createDefaultTicketSort,
+  createTicketCsvFilename,
+  downloadTicketCsv,
+  isDefaultTicketSort,
+  nextTicketSort,
+  type TicketActiveFilters,
+  type TicketSortRule,
+} from '@/lib/ticket-list-controls';
 
 export default function TicketList() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [estadoFilter, setEstadoFilter] = useState<string>('_all');
   const [prioridadFilter, setPrioridadFilter] = useState<string>('_all');
   const [motivoCategoriaFilter, setMotivoCategoriaFilter] = useState<string>('_all');
   const [vencidosFilter, setVencidosFilter] = useState(false);
-  
+
   // Date and Time filters
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
@@ -45,28 +66,44 @@ export default function TicketList() {
   const [horaHasta, setHoraHasta] = useState('');
   const [empresa, setEmpresa] = useState('');
 
-  // Orden por fecha/hora del llamado + paginación
-  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
+  // Orden server-side sobre el conjunto completo + paginación.
+  const [sorts, setSorts] = useState<TicketSortRule[]>(createDefaultTicketSort);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Al cambiar cualquier filtro u orden, volver a la primera página
   useEffect(() => {
     setPage(1);
-  }, [search, estadoFilter, prioridadFilter, motivoCategoriaFilter, vencidosFilter, fechaDesde, fechaHasta, horaDesde, horaHasta, empresa, order, pageSize]);
+  }, [
+    search,
+    estadoFilter,
+    prioridadFilter,
+    motivoCategoriaFilter,
+    vencidosFilter,
+    fechaDesde,
+    fechaHasta,
+    horaDesde,
+    horaHasta,
+    empresa,
+    sorts,
+    pageSize,
+  ]);
 
-  // Custom hook usage with active filters
-  const params: any = { order, page, limit: pageSize };
-  if (search) params.search = search;
-  if (estadoFilter !== '_all') params.estado = estadoFilter as ListTicketsEstado;
-  if (prioridadFilter !== '_all') params.prioridad = prioridadFilter as ListTicketsPrioridad;
-  if (motivoCategoriaFilter !== '_all') params.motivo_categoria = motivoCategoriaFilter;
-  if (vencidosFilter) params.vencidos = true;
-  if (fechaDesde) params.fecha_desde = fechaDesde;
-  if (fechaHasta) params.fecha_hasta = fechaHasta;
-  if (horaDesde) params.hora_desde = horaDesde;
-  if (horaHasta) params.hora_hasta = horaHasta;
-  if (empresa) params.empresa = empresa;
+  const activeFilters: TicketActiveFilters = {
+    ...(search ? { search } : {}),
+    ...(estadoFilter !== '_all' ? { estado: estadoFilter as ListTicketsEstado } : {}),
+    ...(prioridadFilter !== '_all' ? { prioridad: prioridadFilter as ListTicketsPrioridad } : {}),
+    ...(motivoCategoriaFilter !== '_all' ? { motivo_categoria: motivoCategoriaFilter as MotivoCategoria } : {}),
+    ...(vencidosFilter ? { vencidos: true } : {}),
+    ...(fechaDesde ? { fecha_desde: fechaDesde } : {}),
+    ...(fechaHasta ? { fecha_hasta: fechaHasta } : {}),
+    ...(horaDesde ? { hora_desde: horaDesde } : {}),
+    ...(horaHasta ? { hora_hasta: horaHasta } : {}),
+    ...(empresa ? { empresa } : {}),
+  };
+  const params = buildTicketListParams(activeFilters, sorts, page, pageSize);
+  const exportParams = buildTicketExportParams(activeFilters, sorts);
 
   const {
     data: listResponse,
@@ -80,7 +117,17 @@ export default function TicketList() {
   const total = listResponse?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  const hasFilters = search || estadoFilter !== '_all' || prioridadFilter !== '_all' || motivoCategoriaFilter !== '_all' || vencidosFilter || fechaDesde || fechaHasta || horaDesde || horaHasta || empresa;
+  const hasFilters =
+    search ||
+    estadoFilter !== '_all' ||
+    prioridadFilter !== '_all' ||
+    motivoCategoriaFilter !== '_all' ||
+    vencidosFilter ||
+    fechaDesde ||
+    fechaHasta ||
+    horaDesde ||
+    horaHasta ||
+    empresa;
 
   const clearFilters = () => {
     setSearch('');
@@ -93,6 +140,38 @@ export default function TicketList() {
     setHoraDesde('');
     setHoraHasta('');
     setEmpresa('');
+  };
+
+  const handleSort = (column: TicketSortBy, additive: boolean) => {
+    setSorts((current) => nextTicketSort(current, column, additive));
+    setPage(1);
+  };
+
+  const resetSort = () => {
+    setSorts(createDefaultTicketSort());
+    setPage(1);
+  };
+
+  const handleExportCsv = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const csv = await exportTicketsCsv(exportParams);
+      downloadTicketCsv(csv, createTicketCsvFilename());
+      toast({
+        variant: 'success',
+        title: 'CSV exportado',
+        description: 'Se descargaron todos los tickets que coinciden con los filtros actuales.',
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'No se pudo exportar el CSV',
+        description: getUserErrorMessage(error, 'No pudimos generar el archivo. Reintentá en unos segundos.'),
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (listIsError) {
@@ -134,9 +213,14 @@ export default function TicketList() {
             />
           </div>
 
-          <Label htmlFor="tickets-estado" className="sr-only">Filtrar por estado</Label>
+          <Label htmlFor="tickets-estado" className="sr-only">
+            Filtrar por estado
+          </Label>
           <Select value={estadoFilter} onValueChange={setEstadoFilter}>
-            <SelectTrigger id="tickets-estado" className="h-8 w-full min-w-0 justify-start gap-1.5 border-slate-200 bg-slate-50 text-xs [&>svg]:ml-auto">
+            <SelectTrigger
+              id="tickets-estado"
+              className="h-8 w-full min-w-0 justify-start gap-1.5 border-slate-200 bg-slate-50 text-xs [&>svg]:ml-auto"
+            >
               <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Estado:</span>
               <SelectValue className="min-w-0 truncate" />
             </SelectTrigger>
@@ -150,10 +234,17 @@ export default function TicketList() {
             </SelectContent>
           </Select>
 
-          <Label htmlFor="tickets-prioridad" className="sr-only">Filtrar por prioridad</Label>
+          <Label htmlFor="tickets-prioridad" className="sr-only">
+            Filtrar por prioridad
+          </Label>
           <Select value={prioridadFilter} onValueChange={setPrioridadFilter}>
-            <SelectTrigger id="tickets-prioridad" className="h-8 w-full min-w-0 justify-start gap-1.5 border-slate-200 bg-slate-50 text-xs [&>svg]:ml-auto">
-              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Prioridad:</span>
+            <SelectTrigger
+              id="tickets-prioridad"
+              className="h-8 w-full min-w-0 justify-start gap-1.5 border-slate-200 bg-slate-50 text-xs [&>svg]:ml-auto"
+            >
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                Prioridad:
+              </span>
               <SelectValue className="min-w-0 truncate" />
             </SelectTrigger>
             <SelectContent>
@@ -167,10 +258,17 @@ export default function TicketList() {
         </div>
 
         <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 xl:grid-cols-[220px_minmax(0,1.3fr)_minmax(0,1fr)]">
-          <Label htmlFor="tickets-categoria" className="sr-only">Filtrar por categoría</Label>
+          <Label htmlFor="tickets-categoria" className="sr-only">
+            Filtrar por categoría
+          </Label>
           <Select value={motivoCategoriaFilter} onValueChange={setMotivoCategoriaFilter}>
-            <SelectTrigger id="tickets-categoria" className="h-8 w-full min-w-0 justify-start gap-1.5 border-slate-200 bg-slate-50 text-xs lg:col-span-2 xl:col-span-1 [&>svg]:ml-auto">
-              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Categoría:</span>
+            <SelectTrigger
+              id="tickets-categoria"
+              className="h-8 w-full min-w-0 justify-start gap-1.5 border-slate-200 bg-slate-50 text-xs lg:col-span-2 xl:col-span-1 [&>svg]:ml-auto"
+            >
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                Categoría:
+              </span>
               <SelectValue className="min-w-0 truncate" />
             </SelectTrigger>
             <SelectContent>
@@ -186,8 +284,8 @@ export default function TicketList() {
           {/* Dates */}
           <div className="flex h-8 min-w-0 items-center overflow-hidden rounded-md border border-slate-200 bg-slate-50">
             <span className="pl-2 pr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Fecha:</span>
-            <input 
-              type="date" 
+            <input
+              type="date"
               aria-label="Fecha desde"
               className="h-full min-w-0 flex-1 border-none bg-transparent px-1.5 text-xs text-slate-700 outline-none"
               value={fechaDesde}
@@ -195,8 +293,8 @@ export default function TicketList() {
               title="Fecha Desde"
             />
             <span className="text-slate-300">-</span>
-            <input 
-              type="date" 
+            <input
+              type="date"
               aria-label="Fecha hasta"
               className="h-full min-w-0 flex-1 border-none bg-transparent px-1.5 text-xs text-slate-700 outline-none"
               value={fechaHasta}
@@ -208,8 +306,8 @@ export default function TicketList() {
           {/* Times */}
           <div className="flex h-8 min-w-0 items-center overflow-hidden rounded-md border border-slate-200 bg-slate-50">
             <span className="pl-2 pr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Hora:</span>
-            <input 
-              type="time" 
+            <input
+              type="time"
               aria-label="Hora desde"
               className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-xs text-slate-700 outline-none"
               value={horaDesde}
@@ -217,8 +315,8 @@ export default function TicketList() {
               title="Hora Desde"
             />
             <span className="text-slate-300">-</span>
-            <input 
-              type="time" 
+            <input
+              type="time"
               aria-label="Hora hasta"
               className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-xs text-slate-700 outline-none"
               value={horaHasta}
@@ -226,11 +324,9 @@ export default function TicketList() {
               title="Hora Hasta"
             />
           </div>
-
         </div>
 
-        <div className="grid grid-cols-1 gap-2 lg:grid-cols-[minmax(220px,1fr)_auto_auto]">
-
+        <div className="grid grid-cols-1 gap-2 lg:grid-cols-[minmax(220px,1fr)_auto]">
           <div className="relative min-w-0">
             <span className="pointer-events-none absolute left-2.5 top-1/2 z-10 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
               Empresa:
@@ -244,71 +340,177 @@ export default function TicketList() {
             />
           </div>
 
-          <div className="flex h-8 min-w-0 items-center space-x-2 rounded-md border border-slate-200 bg-slate-50 px-2.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Plazo:</span>
-            <Switch 
-              id="vencidos-mode" 
-              checked={vencidosFilter} 
-              onCheckedChange={setVencidosFilter}
-              className="scale-75 origin-left"
-            />
-            <Label htmlFor="vencidos-mode" className="text-xs font-medium cursor-pointer text-slate-700 whitespace-nowrap">
-              Solo vencidos
-            </Label>
-          </div>
-          
-          {hasFilters && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={clearFilters}
-              className="h-8 w-full px-2 text-xs text-slate-500 hover:text-slate-900 lg:w-auto lg:justify-self-end"
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap lg:flex-nowrap">
+            <div className="flex h-8 w-full min-w-0 items-center space-x-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 sm:w-auto">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Plazo:</span>
+              <Switch
+                id="vencidos-mode"
+                checked={vencidosFilter}
+                onCheckedChange={setVencidosFilter}
+                className="scale-75 origin-left"
+              />
+              <Label
+                htmlFor="vencidos-mode"
+                className="cursor-pointer whitespace-nowrap text-xs font-medium text-slate-700"
+              >
+                Solo vencidos
+              </Label>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void handleExportCsv()}
+              disabled={isExporting}
+              aria-label="Exportar todos los tickets filtrados a CSV"
+              className="h-8 w-full whitespace-nowrap bg-white px-2.5 text-xs sm:w-auto"
             >
-              Limpiar filtros
+              {isExporting ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              ) : (
+                <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+              )}
+              {isExporting ? 'Exportando…' : 'Exportar CSV'}
             </Button>
-          )}
+
+            {hasFilters && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="h-8 w-full px-2 text-xs text-slate-500 hover:text-slate-900 sm:w-auto"
+              >
+                Limpiar filtros
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Table Area */}
       <div className="flex-1 bg-card border border-border rounded-md shadow-sm overflow-hidden flex flex-col">
+        <div className="flex shrink-0 flex-col items-start justify-between gap-1.5 border-b border-slate-200 bg-slate-50/60 px-3 py-1.5 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:gap-3">
+          <span>
+            Ordená con un clic. Usá <kbd className="rounded border bg-white px-1 font-sans">Shift</kbd> + clic para
+            combinar varias columnas; los números indican su prioridad.
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={resetSort}
+            disabled={isDefaultTicketSort(sorts)}
+            className="h-7 shrink-0 gap-1.5 px-2 text-[11px] font-medium"
+            title="Volver a Fecha de llegada, más recientes primero"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Restablecer orden
+          </Button>
+        </div>
         <div className="overflow-x-auto overflow-y-auto flex-1 bg-white">
           <Table>
             <TableHeader className="bg-slate-50/80 sticky top-0 z-10 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
               <TableRow className="hover:bg-transparent border-b border-border">
-                <TableHead className="w-[140px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">
-                  <button
-                    className="flex items-center gap-1 uppercase tracking-wider font-semibold hover:text-slate-900 transition-colors"
-                    onClick={() => setOrder(order === 'desc' ? 'asc' : 'desc')}
-                    title={order === 'desc' ? 'Más recientes primero (click para invertir)' : 'Más antiguos primero (click para invertir)'}
-                  >
-                    Fecha y Hora
-                    {order === 'desc' ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />}
-                  </button>
-                </TableHead>
-                <TableHead className="w-[220px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Contacto</TableHead>
-                <TableHead className="w-[190px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Categoría</TableHead>
-                <TableHead className="w-[250px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Motivo</TableHead>
-                <TableHead className="w-[120px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Estado</TableHead>
-                <TableHead className="w-[100px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Prioridad</TableHead>
-                <TableHead className="w-[170px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Asignado</TableHead>
-                <TableHead className="w-[150px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3">Progreso</TableHead>
-                <TableHead className="w-[140px] font-semibold text-xs text-slate-500 uppercase tracking-wider py-3 text-right">Límite</TableHead>
+                <SortableTableHead
+                  label="Fecha y Hora"
+                  column={TicketSortBy.fecha_creacion}
+                  sorts={sorts}
+                  onSort={handleSort}
+                  className="w-[140px]"
+                />
+                <SortableTableHead
+                  label="Contacto"
+                  column={TicketSortBy.contacto}
+                  sorts={sorts}
+                  onSort={handleSort}
+                  className="w-[220px]"
+                />
+                <SortableTableHead
+                  label="Categoría"
+                  column={TicketSortBy.motivo_categoria}
+                  sorts={sorts}
+                  onSort={handleSort}
+                  className="w-[190px]"
+                />
+                <SortableTableHead
+                  label="Motivo"
+                  column={TicketSortBy.motivo}
+                  sorts={sorts}
+                  onSort={handleSort}
+                  className="w-[250px]"
+                />
+                <SortableTableHead
+                  label="Estado"
+                  column={TicketSortBy.estado}
+                  sorts={sorts}
+                  onSort={handleSort}
+                  className="w-[120px]"
+                />
+                <SortableTableHead
+                  label="Prioridad"
+                  column={TicketSortBy.prioridad}
+                  sorts={sorts}
+                  onSort={handleSort}
+                  className="w-[100px]"
+                />
+                <SortableTableHead
+                  label="Asignado"
+                  column={TicketSortBy.asignado_a}
+                  sorts={sorts}
+                  onSort={handleSort}
+                  className="w-[170px]"
+                />
+                <SortableTableHead
+                  label="Progreso"
+                  column={TicketSortBy.progreso}
+                  sorts={sorts}
+                  onSort={handleSort}
+                  className="w-[150px]"
+                />
+                <SortableTableHead
+                  label="Límite"
+                  column={TicketSortBy.fecha_limite}
+                  sorts={sorts}
+                  onSort={handleSort}
+                  className="w-[140px]"
+                  align="right"
+                />
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 Array.from({ length: 10 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell className="py-2.5"><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell className="py-2.5 space-y-1"><Skeleton className="h-4 w-32" /><Skeleton className="h-3 w-24" /></TableCell>
-                    <TableCell className="py-2.5"><Skeleton className="h-5 w-32" /></TableCell>
-                    <TableCell className="py-2.5"><Skeleton className="h-4 w-48" /></TableCell>
-                    <TableCell className="py-2.5"><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell className="py-2.5"><Skeleton className="h-4 w-16" /></TableCell>
-                    <TableCell className="py-2.5"><Skeleton className="h-4 w-28" /></TableCell>
-                    <TableCell className="py-2.5"><Skeleton className="h-2 w-full" /></TableCell>
-                    <TableCell className="py-2.5"><Skeleton className="h-4 w-24 ml-auto" /></TableCell>
+                    <TableCell className="py-2.5">
+                      <Skeleton className="h-4 w-20" />
+                    </TableCell>
+                    <TableCell className="py-2.5 space-y-1">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-24" />
+                    </TableCell>
+                    <TableCell className="py-2.5">
+                      <Skeleton className="h-5 w-32" />
+                    </TableCell>
+                    <TableCell className="py-2.5">
+                      <Skeleton className="h-4 w-48" />
+                    </TableCell>
+                    <TableCell className="py-2.5">
+                      <Skeleton className="h-4 w-20" />
+                    </TableCell>
+                    <TableCell className="py-2.5">
+                      <Skeleton className="h-4 w-16" />
+                    </TableCell>
+                    <TableCell className="py-2.5">
+                      <Skeleton className="h-4 w-28" />
+                    </TableCell>
+                    <TableCell className="py-2.5">
+                      <Skeleton className="h-2 w-full" />
+                    </TableCell>
+                    <TableCell className="py-2.5">
+                      <Skeleton className="h-4 w-24 ml-auto" />
+                    </TableCell>
                   </TableRow>
                 ))
               ) : tickets.length === 0 ? (
@@ -331,9 +533,9 @@ export default function TicketList() {
                   const empresaLabel = ticket.empresa?.trim() || 'Sin empresa asociada';
                   const asignadoLabel = getAssignedDisplayName(ticket.asignado_a);
                   const tieneAsignado = hasAssignedDisplayName(ticket.asignado_a);
-                  
+
                   return (
-                    <TableRow 
+                    <TableRow
                       key={ticket.id}
                       onClick={() => setLocation(`/tickets/${ticket.id}`)}
                       className="cursor-pointer transition-all hover:bg-slate-50/80 group border-b border-slate-100 last:border-0 relative"
@@ -364,7 +566,9 @@ export default function TicketList() {
                         </div>
                       </TableCell>
                       <TableCell className="py-2.5">
-                        <span className={`inline-flex max-w-full items-center rounded border px-1.5 py-0.5 text-[10px] font-semibold ${motivoCategoria.badgeClass}`}>
+                        <span
+                          className={`inline-flex max-w-full items-center rounded border px-1.5 py-0.5 text-[10px] font-semibold ${motivoCategoria.badgeClass}`}
+                        >
                           <span className="truncate">{motivoCategoria.label}</span>
                         </span>
                       </TableCell>
@@ -397,7 +601,9 @@ export default function TicketList() {
                       </TableCell>
                       <TableCell className="py-2.5 text-right">
                         {ticket.fecha_limite ? (
-                          <div className={`flex items-center justify-end gap-1 text-[13px] ${vencido ? 'text-red-600 font-bold' : 'text-slate-600 font-medium'}`}>
+                          <div
+                            className={`flex items-center justify-end gap-1 text-[13px] ${vencido ? 'text-red-600 font-bold' : 'text-slate-600 font-medium'}`}
+                          >
                             {vencido && <AlertCircle className="h-3.5 w-3.5" />}
                             {formatDate(ticket.fecha_limite).split(' ')[0]}
                           </div>
@@ -423,7 +629,9 @@ export default function TicketList() {
               </SelectTrigger>
               <SelectContent>
                 {[10, 25, 50, 100].map((n) => (
-                  <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                  <SelectItem key={n} value={String(n)}>
+                    {n}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

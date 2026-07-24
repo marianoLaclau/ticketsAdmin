@@ -111,11 +111,12 @@ API REST en Express 5. Único componente que toca la base. Rutas:
 | Ruta                                     | Qué hace                                                                                                                                         |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `POST /api/webhooks/ticket`              | **Ingesta**: crea el ticket de una llamada. Única ruta con API key. Idempotente. Si no viene `fecha_limite`, se preestablece a **48 horas hábiles de lunes a viernes** (SLA). |
-| `GET /api/tickets`                       | Listado operativo con filtros y paginación. Omite registros en cuarentena; `incluir_vacios=true` permite incluirlos solo con sesión SysAdmin y `x-admin-key`. |
-| `GET /api/tickets/:id`                   | Detalle + historial de seguimientos.                                                                                                             |
-| `PATCH /api/tickets/:id`                 | Editar estado, prioridad, progreso, notas o fecha límite. Una transición real de estado autoasigna al usuario de la sesión; los campos administrativos exigen SysAdmin + `x-admin-key`. |
+| `GET /api/tickets`                       | Listado operativo con filtros, orden server-side por columna y paginación. Omite registros en cuarentena; `incluir_vacios=true` permite incluirlos solo con sesión SysAdmin y `x-admin-key`. |
+| `GET /api/tickets/export.csv`            | Exporta todos los tickets operativos que cumplen los filtros y el orden activos, no solo la página visible.                                      |
+| `GET /api/tickets/:id`                   | Detalle + historial de seguimientos; `incluir_vacios=true` permite abrir la cuarentena con acceso administrativo.                               |
+| `PATCH /api/tickets/:id`                 | Edita estado/prioridad/progreso/notas y datos funcionales; los campos técnicos exigen SysAdmin + `x-admin-key`. Actualización y auditoría son atómicas, motivo/resumen reclasifican y una transición real autoasigna. |
 | `DELETE /api/tickets/:id`                | Eliminar; exige sesión SysAdmin + `x-admin-key`.                                                                                                  |
-| `GET/POST /api/tickets/:id/seguimientos` | Historial: notas con autor y cambios de estado.                                                                                                  |
+| `GET/POST /api/tickets/:id/seguimientos` | Historial: notas y cambios de estado, prioridad, asignación y campos editados. Autor y contexto los determina el backend.                        |
 | `GET /api/dashboard/stats`               | Totales y KPIs; acepta `fecha_desde`/`fecha_hasta` inclusivas por fecha de creación.                                                             |
 | `GET /api/dashboard/actividad-reciente`  | Línea de tiempo de tickets y seguimientos; el rango se aplica a la fecha real del evento.                                                        |
 | `GET /api/dashboard/tickets-vencidos`    | Vencidos del conjunto de tickets creados dentro del rango solicitado.                                                                            |
@@ -128,7 +129,7 @@ API REST en Express 5. Único componente que toca la base. Rutas:
 | `PATCH/DELETE /api/admin/roles/:id`      | **Admin**: edición de roles y borrado solo si no tienen usuarios asignados.                                                                      |
 | `GET/POST /api/admin/users`              | **Admin**: listado paginado, filtros y alta de usuarios.                                                                                         |
 | `PATCH /api/admin/users/:id`             | **Admin**: edición, cambio de rol y activación/desactivación sin borrado físico.                                                                 |
-| `GET /api/events`                        | **SSE**: stream de eventos en vivo. El frontend lo mantiene abierto y recibe `ticket_creado` / `tickets_importados` / `datos_actualizados` al instante. Fuera del contrato OpenAPI a propósito (es un stream, Orval no lo modela). |
+| `GET /api/events`                        | **SSE**: stream de eventos en vivo. El frontend recibe altas/importaciones, actualizaciones de tickets y cambios automáticos de prioridad al instante. Fuera de OpenAPI porque Orval no modela streams. |
 
 Las rutas `admin`, el borrado y la edición administrativa de tickets exigen sesión SysAdmin y el header `x-admin-key`. Si `ADMIN_API_KEY` falta o está vacía, responden `503` y permanecen cerradas. Los nombres de rol y emails son únicos, los emails se normalizan a minúsculas y una clave foránea impide borrar roles asignados. La lógica de parseo del CSV es la misma del importador CLI: vive compartida en [lib/ingesta/](../lib/ingesta/).
 
@@ -162,14 +163,14 @@ Sigue visible en la tabla de Administración mediante `GET /api/tickets?incluir_
 React + Vite. Pantallas principales:
 
 - **Dashboard** (`/dashboard`): KPIs, distribución por estado, rendimiento, motivos, prioridades, vencidos y actividad. El desplegable permite visualizar Todo (default), semana actual, mes actual o un rango desde/hasta; el mismo período se aplica a todos los paneles.
-- **Listado** (`/tickets`): tabla con contacto, categoría, motivo, estado, prioridad, **asignado**, progreso y fecha límite. Si no existe responsable muestra `Sin asignar`; si nombre y apellido están vacíos muestra `Sin nombre proporcionado`, sin alterar los datos recibidos. Filtros combinables.
-- **Detalle** (`/tickets/:id`): resumen de la llamada, reproductor de la grabación, datos del contacto, tiempos, edición de estado/prioridad/progreso y el historial de seguimientos. Teléfono y email son filas fijas de esta ficha: cuando un valor no fue indicado se muestra `Teléfono no proporcionado` o `Email no proporcionado`.
+- **Listado** (`/tickets`): tabla con contacto, categoría, motivo, estado, prioridad, **asignado**, progreso y fecha límite. Todos los encabezados de datos ordenan en el servidor antes de paginar. Los filtros son combinables y el botón **Exportar CSV** descarga el resultado completo filtrado/ordenado. Si no existe responsable muestra `Sin asignar`; si nombre y apellido están vacíos muestra `Sin nombre proporcionado`.
+- **Detalle** (`/tickets/:id`): resumen de la llamada, audio, datos del contacto, tiempos y gestión. Un lápiz permite corregir nombre/apellido, teléfono, DNI/CUIT, empresa, email, motivo y resumen; envía solo diferencias y cada edición queda en el historial. Teléfono/email mantienen filas fijas y fallbacks cuando faltan. El historial muestra desde v0.5 cambios de estado, prioridad, asignación y campos editados.
 
 **Actualización en vivo**: la app mantiene abierta una conexión SSE (`/api/events`). Cuando entra un llamado operativo nuevo por el webhook (o se importan registros operativos), **todas las pestañas abiertas se refrescan al instante** y muestran una notificación con el contacto y el motivo — sin recargar la página. Los registros vacíos en cuarentena no generan toast, aunque Administración puede refrescar sus datos. El refresco periódico de 30s del sidebar queda como respaldo por si la conexión de eventos se corta.
 
 **Notificaciones del sidebar**: junto a "Tickets" hay dos numeritos — **ámbar** = tickets en estado `nuevo` (sin abrir), **rojo** = tickets vencidos.
 
-- **Administración** (`/admin`): conserva la rueda de configuración a la izquierda y muestra un escudo administrativo en el extremo derecho del botón del sidebar; dentro del panel, la sección **Tickets** conserva la tabla CRUD con paginación configurable 10/25/50/100, incluye los registros vacíos en cuarentena mediante `incluir_vacios=true`, y ofrece el importador CSV y la zona peligrosa. La lectura inclusiva y sus mutaciones envían la segunda credencial `x-admin-key`.
+- **Administración** (`/admin`): la tabla ampliada muestra ID, fecha/hora, conversation ID, contacto (incluidos teléfono/email), empresa, categoría/motivo, estado, prioridad, asignado y vencimiento. Sus columnas son ordenables en el servidor, mantiene paginación 10/25/50/100 y permite abrir cada fila en `/admin/tickets/:id`. Ese detalle usa `incluir_vacios=true`, por lo que un SysAdmin con `x-admin-key` también puede inspeccionar y completar registros en cuarentena. El panel conserva alta/edición/borrado, importador CSV y zona peligrosa.
 - **Roles y usuarios** (`/admin/roles-usuarios`): altas y edición de perfiles, asignación de rol, filtros, activación/desactivación y gestión del catálogo de roles. Comparte con Tickets la clave `ADMIN_API_KEY`, enmascarada y persistida en el navegador por ID de SysAdmin. Los campos de contraseña también permanecen ocultos y ofrecen un botón de ojo.
 - **Errores y sesión**: el login no tiene una ruta `/login`; vive en `/` cuando no hay sesión, mientras que una sesión válida que entra a la raíz se redirige a `/dashboard`. Un `401` vuelve a la raíz, un `403` muestra acceso denegado, un `404` identifica páginas o tickets inexistentes y los fallos `5xx`/conexión ofrecen reintentar. Todas las pantallas de error incluyen **Volver al inicio**. Los toasts traducen los errores a mensajes de usuario y no exponen HTTP, URLs, JSON ni validaciones internas.
 
@@ -184,6 +185,8 @@ La fuente de verdad de la API. De ahí, `pnpm --filter @workspace/api-spec run c
 
 Si se cambia la API: primero se edita el yaml, se corre codegen, y después se implementa. Los dos lados quedan sincronizados por construcción.
 
+El contrato declara `gsb_session` como seguridad global. `healthz` y login son públicos, el webhook usa solo `x-api-key`, y cada operación administrativa declara sesión + `x-admin-key` en un mismo requisito (AND). Orval está fijado a la salida compatible con Zod 3.25 para no generar constructores exclusivos de Zod 4.
+
 ## 3. Cómo se guardan los datos
 
 **Motor**: SQLite — un único archivo (`data/tickets.db` en desarrollo local; en el servidor de testing vive dentro de un volumen Docker, ver [docs/DEPLOY.md](DEPLOY.md)). Sin servidores de base de datos, sin credenciales. Modo WAL activado (lecturas y escrituras concurrentes sin bloquearse).
@@ -194,25 +197,25 @@ Si se cambia la API: primero se edita el yaml, se corre codegen, y después se i
 
 | Campo                                 | Tipo                   | Notas                                                                                                                                                                     |
 | ------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                                  | entero autoincremental | **Uso interno** (rutas de la API). No se muestra en la UI.                                                                                                                |
+| `id`                                  | entero autoincremental | Uso interno y rutas de la API; Administración lo muestra para soporte.                                                                                                    |
 | `conversation_id`                     | texto, **único**       | El ID de ElevenLabs. Es la clave de idempotencia.                                                                                                                         |
 | `hora`                                | texto "HH:MM"          | Hora de la llamada.                                                                                                                                                       |
 | `nombre`, `apellido`                  | texto                  | Datos del llamante.                                                                                                                                                       |
 | `telefono`, `dni`, `empresa`, `email` | texto, opcionales      | Datos del llamante. `empresa` viene de n8n.                                                                                                                               |
-| `motivo`                              | texto                  | Por qué llamó (título del ticket).                                                                                                                                        |
-| `motivo_categoria`                    | enum derivado          | Clasificación estable sin alterar el texto original: haberes/pagos, recibos/documentación, vacaciones/licencias, bajas/liquidación, empleo, contacto, reclamos, legales o sin clasificar. |
+| `motivo`                              | texto                  | Por qué llamó. Los procesos automáticos no lo reescriben; una corrección explícita desde el detalle sí puede editarlo y queda auditada.                                  |
+| `motivo_categoria`                    | enum derivado          | Clasificación estable: haberes/pagos, recibos/documentación, vacaciones/licencias, bajas/liquidación, empleo, contacto, reclamos, legales, **embargos** o sin clasificar. |
 | `resumen`                             | texto, opcional        | Resumen de la conversación que arma ElevenLabs.                                                                                                                           |
 | `audio_url`                           | texto, opcional        | Link a la grabación (SharePoint).                                                                                                                                         |
 | `notificado`                          | booleano               | Si ya se avisó al área correspondiente.                                                                                                                                   |
 | `estado`                              | enum                   | `nuevo` → `en_proceso` → `pendiente` → `resuelto` → `cerrado`                                                                                                             |
-| `prioridad`                           | enum                   | `baja` / `media` / `alta` / `urgente`                                                                                                                                     |
+| `prioridad`                           | enum                   | `baja` / `media` / `alta` / `urgente`; puede subir automáticamente según las horas hábiles restantes y nunca baja por el proceso automático.                             |
 | `asignado_usuario_id`                 | referencia opcional   | Usuario asignado de forma autoritativa. Se actualiza desde la sesión cuando cambia realmente el estado; al borrar el usuario queda `null`.                               |
 | `asignado_a`                          | texto, opcional        | Nombre visible del responsable y compatibilidad con valores históricos/importados. No se acepta como identidad enviada en una edición normal.                           |
 | `notas`                               | texto, opcional        | Notas internas de gestión.                                                                                                                                                |
 | `progreso`                            | entero 0-100           | Barra de avance.                                                                                                                                                          |
 | `fecha_creacion`                      | timestamp (ms)         | Cuándo se creó el ticket: instante de recepción para webhook/alta manual y fecha/hora histórica de la fila para importaciones.                                             |
 | `fecha_limite`                        | timestamp              | **SLA: 48 horas hábiles desde `fecha_creacion`**. Lunes a viernes cuentan las 24 h; sábado y domingo pausan el reloj. Es editable y una fecha explícita se respeta.          |
-| `fecha_resolucion`                    | timestamp, opcional    | **Se registra sola** la primera vez que el ticket pasa a `resuelto` o `cerrado`. Alimenta "resueltos hoy" y el tiempo promedio de resolución del dashboard.               |
+| `fecha_resolucion`                    | timestamp, opcional    | **Se registra sola** al entrar en `resuelto` o `cerrado`, se limpia al reabrir y se renueva si vuelve a resolverse. Pasar de resuelto a cerrado conserva el instante. Alimenta "resueltos hoy" y el tiempo promedio. |
 
 Las fechas se guardan como enteros (milisegundos Unix); Drizzle convierte a `Date` automáticamente. Los enums son `text` con restricción (SQLite no tiene enums nativos).
 
@@ -230,9 +233,17 @@ El cálculo usa siempre la zona `America/Argentina/Buenos_Aires` y una única fu
 
 Para webhook y alta manual, `fecha_creacion` es el instante en que el backend recibe y crea el ticket. Para una importación histórica se usa la fecha y hora de la fila: si vienen en columnas separadas, se combinan antes de calcular el vencimiento y la columna `hora` tiene precedencia sobre una hora embebida. Las fechas de Excel se reinterpretan como hora civil de Buenos Aires porque el formato no guarda zona horaria.
 
-Una `fecha_limite` explícita enviada por n8n/Admin o editada posteriormente se conserva: la regla solo completa el vencimiento cuando ese dato se omite. Tampoco se recalculan automáticamente los tickets existentes, porque la base no distingue con certeza un vencimiento histórico automático de uno ajustado por una persona.
+Una `fecha_limite` explícita enviada por n8n/Admin o editada posteriormente se conserva: la regla solo completa el vencimiento cuando ese dato se omite. Antes de la coerción de tipos, el backend exige un date-time RFC3339 real y con zona; `null`, booleanos, números, fechas imposibles o sin zona responden 400 en lugar de convertirse accidentalmente en 1970. Tampoco se recalculan automáticamente los tickets existentes, porque la base no distingue con certeza un vencimiento histórico automático de uno ajustado por una persona.
 
-**Autoasignación:** el primer cambio de `nuevo` a cualquier otro estado asigna el ticket al usuario autenticado. Cada transición posterior de estado lo reasigna al último usuario que la realizó. Editar notas, prioridad o progreso sin cambiar el estado conserva al responsable actual. El backend deriva siempre la identidad de la cookie de sesión; el cliente no puede elegir ni falsificar el usuario asignado.
+**Prioridad por cercanía al vencimiento:** al arrancar, antes de escuchar requests, el backend revisa todos los tickets visibles con fecha límite y estado no final. Luego repite la revisión cada 5 minutos (configurable con `PRIORIDAD_AUTOMATICA_INTERVAL_MS`, mínimo 10 segundos):
+
+- 24 horas hábiles o menos restantes → al menos `alta`;
+- 12 horas hábiles o menos, o vencido → `urgente`;
+- una prioridad superior nunca se degrada.
+
+La promoción comprueba nuevamente estado, prioridad y vencimiento antes de escribir, y persiste el cambio junto con un seguimiento de autor `Sistema` en una sola transacción. Si la auditoría falla, tampoco cambia el ticket. El SSE se emite después del commit.
+
+**Autoasignación y auditoría:** el primer cambio de `nuevo` a cualquier otro estado asigna el ticket al usuario autenticado. Cada transición posterior lo reasigna al último usuario que la realizó. Editar otros campos sin cambiar el estado conserva al responsable. El backend deriva la identidad de la sesión, guarda ticket + seguimiento atómicamente y registra snapshots anterior/nuevo de la asignación. La trazabilidad estructurada comienza con v0.5: no se inventan cambios anteriores ni responsables históricos.
 
 ### Tabla `seguimientos` — historial de cada ticket
 
@@ -242,6 +253,10 @@ Una `fecha_limite` explícita enviada por n8n/Admin o editada posteriormente se 
 | `ticket_id`                        | referencia a `tickets` (borrado en cascada) |
 | `nota`                             | texto                                       |
 | `estado_anterior` / `estado_nuevo` | texto, opcionales (registra transiciones)   |
+| `prioridad_anterior` / `prioridad_nueva` | texto, opcionales (registra cambios manuales/automáticos) |
+| `asignado_anterior_usuario_id` / `asignado_nuevo_usuario_id` | referencias opcionales a usuarios |
+| `asignado_anterior` / `asignado_nuevo` | texto, snapshots legibles de la asignación |
+| `campos_editados`                  | JSON opcional con nombres de campos cambiados; no copia valores sensibles |
 | `autor`                            | texto, opcional                             |
 | `fecha_creacion`                   | timestamp                                   |
 
@@ -268,7 +283,7 @@ Una `fecha_limite` explícita enviada por n8n/Admin o editada posteriormente se 
 
 Estas filas son metadatos administrativos, no identidades autenticables. No guardan contraseña, hash ni token y todavía no gobiernan permisos efectivos dentro de la aplicación.
 
-**Cambios de schema**: en desarrollo local se editan los archivos de `lib/db/src/schema/` y se corre `pnpm --filter @workspace/db run push` (rápido, sin archivos de migración). Para que el cambio llegue al servidor de testing hay que además generar la migración SQL (`drizzle-kit generate`) y commitearla — el contenedor la aplica solo al arrancar. Ver [docs/DEPLOY.md](DEPLOY.md).
+**Cambios de schema**: en desarrollo local se editan los archivos de `lib/db/src/schema/` y se corre `pnpm --filter @workspace/db run push`. Para que el cambio llegue al servidor de testing hay que además generar la migración SQL y commitearla; el contenedor la aplica al arrancar. v0.5 incorpora `0007_v05_auditoria_ticket.sql` para los campos nuevos de seguimiento y `0008_add_embargos_category.sql` para un primer backfill conservador de Embargos. A continuación, antes de escuchar requests, el backend reconcilia idempotentemente `motivo_categoria` con el clasificador actual. Solo cambia esa columna derivada: `motivo` y `resumen` permanecen byte a byte intactos, y un motivo explícito conserva prioridad sobre el resumen.
 
 ## 4. El importador del histórico
 
@@ -298,6 +313,7 @@ Archivo `.env` en la raíz (plantilla: [.env.example](../.env.example)):
 | `WEBHOOK_API_KEY` | La clave que n8n manda en `x-api-key`. Sin ella el webhook responde 503.                                                                                               |
 | `ADMIN_API_KEY`   | Segunda credencial obligatoria de las operaciones administrativas del SysAdmin, incluida la gestión de tickets, roles y usuarios. No reemplaza el login ni crea una sesión; si falta, el backend responde `503`. |
 | `TICKETS_DB_PATH` | Ruta del archivo SQLite (opcional; default `data/tickets.db`).                                                                                                         |
+| `PRIORIDAD_AUTOMATICA_INTERVAL_MS` | Intervalo opcional de la revisión de prioridades; default `300000` ms (5 minutos), mínimo `10000` ms.                                                   |
 
 Arrancar el sistema (dos terminales):
 
@@ -315,7 +331,8 @@ Esto es para **desarrollo local**. El servidor de testing corre los mismos dos s
 - **Login obligatorio en toda la aplicación**: sin sesión iniciada no se ve ninguna pantalla privada (cualquier URL protegida vuelve a `/`, donde está el login) ni se puede consumir ningún endpoint de la API — responden 401. Únicas excepciones: `GET /api/healthz` (chequeo de vida), `POST /api/webhooks/ticket` (n8n, autenticado con su propia `x-api-key`) y `POST /api/auth/login`.
 - **Sesiones**: cookie `httpOnly` + `SameSite=Lax` respaldada en la tabla `sesiones` (revocables, sobreviven reinicios del backend), expiración a los 7 días. Contraseñas hasheadas con scrypt (módulo nativo de Node, sin dependencias extra).
 - **Usuario semilla**: en el primer arranque (si ningún usuario tiene contraseña asignada) se crea el rol `Administrador` y el usuario **`admin` / clave `admin`** — **cambiar esa clave apenas se pueda**. El seed no revive al admin si después lo reemplazan por cuentas propias con contraseña.
-- **Triple verificación en administración**: los endpoints `/api/admin/*`, el borrado y la edición administrativa de tickets exigen sesión, rol SysAdmin **y además** el header `x-admin-key`. La `ADMIN_API_KEY` no se guarda en la base: queda en `localStorage`, separada por ID de SysAdmin, para reutilizarla en futuros logins desde ese navegador. La variable ausente nunca abre las rutas: devuelve `503`.
-- **Seguimientos auditables**: el campo `autor` lo asigna el backend con el usuario de la sesión — lo que mande el cliente se ignora.
+- **Triple verificación en administración**: los endpoints `/api/admin/*`, el borrado, el acceso a cuarentena y la edición de campos técnicos exigen sesión, rol SysAdmin **y además** `x-admin-key`. La `ADMIN_API_KEY` no se guarda en la base: queda en `localStorage`, separada por ID de SysAdmin. La variable ausente nunca abre las rutas: devuelve `503`.
+- **Edición funcional**: cualquier usuario autenticado puede corregir nombre, apellido, teléfono, DNI/CUIT, empresa, email, motivo y resumen. Hora, notificación, audio y fechas límite/resolución son campos técnicos protegidos por SysAdmin + llave. La API vuelve a validar estos permisos aunque la UI oculte controles.
+- **Seguimientos auditables desde v0.5**: autor y contexto los asigna el backend. Las actualizaciones registran solo diferencias reales y no aceptan snapshots de auditoría suministrados por el cliente.
 - **Pendiente (próxima fase)**: permisos por rol con checkboxes — el botón y la ruta `/admin` visibles solo para usuarios con ese permiso, validado en el backend, no solo ocultado en la UI.
 - Si n8n corre en la nube, necesita poder llegar a esta máquina: túnel (Cloudflare Tunnel / ngrok) o IP pública con firewall.

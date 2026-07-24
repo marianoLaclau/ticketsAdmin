@@ -3,12 +3,9 @@
  * Do not edit manually.
  * Api
  * GSB Ticket Management System API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.5.0
  */
 
 export interface SeguimientoInput {
   nota: string;
-  estado_anterior?: string;
-  estado_nuevo?: string;
-  autor?: string;
 }

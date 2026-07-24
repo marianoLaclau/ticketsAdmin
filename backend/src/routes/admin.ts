@@ -36,6 +36,7 @@ import {
 import { requireAdminKey, requireSysAdmin } from "../lib/auth";
 import { hashPassword } from "../lib/passwords";
 import { broadcastEvent } from "../lib/events";
+import { findInvalidRfc3339DateTimeField } from "../lib/rfc3339";
 
 const router = Router();
 
@@ -91,6 +92,19 @@ const hasSqliteConstraint = (error: unknown, constraint: string): boolean => {
 
 // Alta manual de un registro (el flujo normal sigue siendo el webhook)
 router.post("/admin/tickets", async (req, res) => {
+  if (req.body && typeof req.body === "object" && !Array.isArray(req.body)) {
+    const invalidDateField = findInvalidRfc3339DateTimeField(
+      req.body,
+      ["fecha_limite"] as const,
+    );
+    if (invalidDateField) {
+      res.status(400).json({
+        error: `${invalidDateField} debe ser una fecha RFC3339 válida con zona horaria`,
+      });
+      return;
+    }
+  }
+
   const parsed = CreateAdminTicketBody.safeParse(req.body);
   if (!parsed.success) {
     res

@@ -13,6 +13,7 @@ API REST en Express 5. Es el único componente que toca la base de datos: el fro
 - [Autenticación y autorización](#autenticación-y-autorización)
 - [Base de datos](#base-de-datos)
 - [Categorización de motivos](#categorización-de-motivos)
+- [Prioridad automática y auditoría](#prioridad-automática-y-auditoría)
 - [Ingesta y CSV compartidos](#ingesta-y-csv-compartidos)
 - [Eventos en vivo (SSE)](#eventos-en-vivo-sse)
 - [Variables de entorno](#variables-de-entorno)
@@ -52,6 +53,10 @@ backend/
       events.ts                → registro de clientes SSE y broadcastEvent()
       logger.ts                 → instancia de pino
       load-env.ts                → carga el .env de la raíz del monorepo (walk-up)
+      ticket-query.ts             → filtros y orden server-side compartidos por listado/CSV
+      ticket-csv.ts                 → serialización segura del export completo
+      prioridad-automatica.ts        → evaluación y promoción transaccional de prioridades
+      prioridad-automatica-runner.ts  → pasada de arranque + ejecución periódica sin solapamientos
     routes/
       auth.ts     → POST /auth/login, /auth/logout, GET /auth/me
       tickets.ts  → CRUD de tickets + seguimientos
@@ -96,21 +101,22 @@ Todas bajo el prefijo `/api`. ✅ = requiere sesión (candado global). 🔑 = ad
 | Método y ruta | Qué hace | Acceso |
 |---|---|---|
 | `GET /healthz` | Chequeo de vida | público |
-| `POST /webhooks/ticket` | Ingesta de una llamada desde n8n. Idempotente por `conversation_id`: si ya existe, `200 { created: false, ticket }`; si no, `201 { created: true, ticket }`. Si no viene `fecha_limite`, se preestablece a **48 horas hábiles de lunes a viernes**. Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío. | `x-api-key: WEBHOOK_API_KEY` |
+| `POST /webhooks/ticket` | Ingesta de una llamada desde n8n. Idempotente por `conversation_id`: si ya existe, `200 { created: false, ticket }`; si no, `201 { created: true, ticket }`. Si no viene `fecha_limite`, se preestablece a **48 horas hábiles de lunes a viernes**; si viene, debe ser RFC3339 con zona (no se coercionan `null`/booleanos/números). Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío. | `x-api-key: WEBHOOK_API_KEY` |
 | `POST /auth/login` | Body `{ usuario, password }` (`usuario` = el `username` asignado al crear la cuenta, no el email; se normaliza a minúsculas). Devuelve `AuthUser` y setea la cookie `gsb_session`. Mensaje de error genérico a propósito (no revela si el usuario existe). | público |
 | `POST /auth/logout` | Revoca la sesión actual (borra la fila) y limpia la cookie. `204`. | ✅ (no falla si no hay cookie) |
 | `GET /auth/me` | Devuelve el `AuthUser` de la sesión activa, o `401`. | ✅ |
-| `GET /tickets` | Listado con filtros: `estado`, `prioridad`, `fecha_desde`/`fecha_hasta` (día calendario **local**, según `TZ`), `hora_desde`/`hora_hasta`, `empresa`, `motivo` (texto libre), `motivo_categoria` (código exacto), `search` (nombre/apellido/teléfono/DNI/email/empresa/motivo/conversation_id), `vencidos` (boolean estricto), `order` (`asc`/`desc`, default `desc`), `page`/`limit` (1–100). | ✅ |
-| `GET /tickets/:id` | Detalle + array de `seguimientos`. | ✅ |
-| `PATCH /tickets/:id` | Los campos operativos (estado/prioridad/notas/progreso/fecha límite) requieren sesión. Los datos administrativos de contacto/origen exigen además SysAdmin + `x-admin-key`. Si `motivo` o `resumen` cambian, recalcula `motivo_categoria`; una transición real autoasigna al usuario. | ✅ / ✅🔑🗝️ |
+| `GET /tickets` | Listado con filtros: `estado`, `prioridad`, `fecha_desde`/`fecha_hasta` (día calendario **local**, según `TZ`), `hora_desde`/`hora_hasta`, `empresa`, `motivo`, `motivo_categoria`, `search`, `vencidos`; orden server-side con `sort_by` sobre una lista cerrada de columnas y `order`; paginación `page`/`limit` (1–100). `incluir_vacios=true` agrega la cuarentena únicamente con acceso administrativo. | ✅ / ✅🔑🗝️ |
+| `GET /tickets/export.csv` | Exporta **todos** los tickets operativos que coinciden con los mismos filtros y orden del listado, sin limitarse a la página visible. CSV UTF-8 con BOM, separador `;` y protección ante fórmulas. | ✅ |
+| `GET /tickets/:id` | Detalle + array de `seguimientos`. Admite `incluir_vacios=true` con acceso administrativo para abrir un registro en cuarentena. | ✅ / ✅🔑🗝️ |
+| `PATCH /tickets/:id` | Estado, prioridad, notas, progreso y datos funcionales del contacto/llamada requieren sesión; los campos técnicos (`hora`, `notificado`, `audio_url`, `fecha_resolucion`, `fecha_limite`) exigen SysAdmin + `x-admin-key`. Las fechas explícitas deben ser RFC3339 con zona. La actualización y su seguimiento se guardan en una sola transacción; motivo/resumen recalculan la categoría y una transición real autoasigna al usuario. | ✅ / ✅🔑🗝️ |
 | `DELETE /tickets/:id` | Borra el ticket (cascada sobre sus seguimientos). `204`. | ✅🔑🗝️ |
-| `GET /tickets/:id/seguimientos` | Historial ordenado por fecha. | ✅ |
-| `POST /tickets/:id/seguimientos` | Crea una nota. **El campo `autor` lo asigna el backend con el usuario de la sesión** — lo que mande el body se ignora, así el historial no es falsificable. | ✅ |
+| `GET /tickets/:id/seguimientos` | Historial ordenado por fecha; admite el acceso administrativo a cuarentena mediante `incluir_vacios=true`. | ✅ / ✅🔑🗝️ |
+| `POST /tickets/:id/seguimientos` | Crea una nota; admite el acceso administrativo a cuarentena. **El campo `autor` y el contexto se derivan en el backend desde la sesión y el ticket**, así el historial no es falsificable. | ✅ / ✅🔑🗝️ |
 | `GET /dashboard/stats` | Totales por estado/prioridad, vencidos, resueltos hoy/período, nuevos hoy/período y tiempo promedio. Admite `fecha_desde`/`fecha_hasta` inclusivas por fecha de creación; resueltos del período pertenece a esa misma cohorte. | ✅ |
 | `GET /dashboard/actividad-reciente` | Mezcla de tickets creados + seguimientos, ordenados por fecha, con `limit` y `fecha_desde`/`fecha_hasta`; el rango se aplica a la fecha real de cada evento. | ✅ |
 | `GET /dashboard/tickets-vencidos` | Los que pasaron `fecha_limite` sin llegar a `resuelto`/`cerrado`, hasta 20; admite rango inclusivo por fecha de creación. | ✅ |
 | `GET /dashboard/motivos` | Conteo por `motivo_categoria` (no por texto libre), con label y rango inclusivo por fecha de creación. | ✅ |
-| `POST /admin/tickets` | Alta manual (`409` si el `conversation_id` ya existe). Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío. | ✅🔑🗝️ |
+| `POST /admin/tickets` | Alta manual (`409` si el `conversation_id` ya existe). Una `fecha_limite` explícita debe ser RFC3339 con zona. Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío. | ✅🔑🗝️ |
 | `GET /admin/roles` | Listado paginado de roles, con `search` sobre nombre/descripción. | ✅🔑🗝️ |
 | `POST /admin/roles` | Crea un rol (`409` si el nombre ya existe). | ✅🔑🗝️ |
 | `PATCH /admin/roles/:id` | Edita nombre/descripción/activo. | ✅🔑🗝️ |
@@ -188,17 +194,19 @@ SQLite vía `better-sqlite3`, modo WAL, `foreign_keys = ON`. Definido en `lib/db
 | `hora` | text | `"HH:MM"` de la llamada |
 | `nombre`, `apellido` | text (nombre requerido) | Datos del contacto |
 | `telefono`, `dni`, `empresa`, `email` | text, nullable | |
-| `motivo` | text | Texto libre tal cual llega — **nunca se reescribe** |
+| `motivo` | text | Texto libre recibido; los procesos automáticos nunca lo reescriben, aunque puede corregirse mediante una edición funcional auditada |
 | `motivo_categoria` | text enum, default `sin_clasificar` | Derivado de `motivo`/`resumen` por `clasificarMotivo()` — ver [Categorización de motivos](#categorización-de-motivos) |
 | `resumen` | text, nullable | |
 | `notificado` | boolean, default `false` | |
 | `estado` | text enum: `nuevo` \| `en_proceso` \| `pendiente` \| `resuelto` \| `cerrado`, default `nuevo` | Pasar a `cerrado` exige rol Administrador/SysAdmin |
-| `prioridad` | text enum: `baja` \| `media` \| `alta` \| `urgente`, default `media` | |
-| `asignado_a`, `audio_url`, `notas` | text, nullable | |
+| `prioridad` | text enum: `baja` \| `media` \| `alta` \| `urgente`, default `media` | Puede promoverse automáticamente según las horas hábiles restantes; nunca se degrada |
+| `asignado_usuario_id` | integer → `usuarios.id`, nullable | Identidad autoritativa; `onDelete: set null` |
+| `asignado_a` | text, nullable | Snapshot legible del responsable y compatibilidad histórica |
+| `audio_url`, `notas` | text, nullable | |
 | `progreso` | integer, default `0` | 0–100 |
 | `fecha_creacion` | integer (timestamp ms) | Default: ahora; los importadores históricos usan la fecha/hora válida de la fila |
 | `fecha_limite` | integer (timestamp ms), nullable | SLA de 48 horas hábiles desde `fecha_creacion`, pausado sábado/domingo, si no viene explícita (webhook/alta/import) |
-| `fecha_resolucion` | integer (timestamp ms), nullable | Se autocompleta al pasar a `resuelto`/`cerrado` |
+| `fecha_resolucion` | integer (timestamp ms), nullable | Se autocompleta al entrar en `resuelto`/`cerrado`; se limpia al reabrir y se conserva al pasar de resuelto a cerrado |
 
 ### `seguimientos` — historial de cada ticket
 
@@ -208,6 +216,10 @@ SQLite vía `better-sqlite3`, modo WAL, `foreign_keys = ON`. Definido en `lib/db
 | `ticket_id` | integer → `tickets.id` | `onDelete: cascade` |
 | `nota` | text | |
 | `estado_anterior`, `estado_nuevo` | text, nullable | Registra transiciones de estado |
+| `prioridad_anterior`, `prioridad_nueva` | text, nullable | Registra promociones manuales o automáticas |
+| `asignado_anterior_usuario_id`, `asignado_nuevo_usuario_id` | integer, nullable | Identidades de la asignación antes/después |
+| `asignado_anterior`, `asignado_nuevo` | text, nullable | Snapshots legibles de la asignación antes/después |
+| `campos_editados` | JSON de strings, nullable | Nombres de los campos modificados; no duplica valores sensibles |
 | `autor` | text, nullable | **Asignado por el backend** desde la sesión, no por el cliente |
 | `fecha_creacion` | integer (timestamp ms) | |
 
@@ -251,6 +263,7 @@ No se puede borrar un rol con usuarios asignados (`409`), aunque esté inactivo.
 - **Desarrollo local**: `pnpm --filter @workspace/db run push` (drizzle-kit push, sin archivos de migración — rápido para iterar).
 - **Cambiar el schema para que llegue a Docker/producción**: después de editar `lib/db/src/schema/*.ts`, correr `pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts` y **commitear** el SQL generado en `lib/db/drizzle/`. El contenedor corre `backend/dist/migrate.mjs` (compilado desde `src/migrate.ts`) al arrancar, que aplica cualquier migración pendiente vía el migrator de drizzle-orm — idempotente, no rompe si ya estaban aplicadas.
 - Si se olvida generar la migración, el deploy en Docker arranca con el schema viejo (el volumen persiste entre deploys) y las columnas/tablas nuevas no existen ahí.
+- **v0.5**: `0007_v05_auditoria_ticket.sql` agrega los campos de auditoría a `seguimientos`; no crea eventos retroactivos. `0008_add_embargos_category.sql` ejecuta un primer backfill conservador de Embargos. Después de migrar y antes de abrir el puerto, `reconciliarCategoriasMotivo()` alinea idempotentemente **toda la columna derivada** con el clasificador vigente. Nunca modifica `motivo` ni `resumen`; esto también corrige históricos cuyo motivo era genérico y cuya categoría anterior había sido inferida desde el resumen.
 
 ## Categorización de motivos
 
@@ -258,9 +271,25 @@ No se puede borrar un rol con usuarios asignados (`409`), aunque esté inactivo.
 
 - `clasificarMotivo(motivo, resumen?)` normaliza el texto (minúsculas, sin tildes, sin puntuación) y lo corre contra una lista ordenada de reglas (`REGLAS_CLASIFICACION_MOTIVO`, cada una con una categoría y un array de regex). **Gana la primera regla que matchea**, evaluada de la más específica a la más general (ej. "liquidación" antes que "sueldo", para no confundir un despido con una consulta de haberes).
 - Si `motivo` no matchea ninguna regla, se prueba con `resumen` antes de rendirse. Si tampoco, cae en `sin_clasificar`.
-- Categorías actuales: `haberes_pagos`, `recibos_documentacion`, `vacaciones_licencias`, `bajas_liquidacion`, `empleo_postulaciones`, `contacto_general`, `reclamos`, `legales`, `sin_clasificar`.
+- Al arrancar, `backend/src/lib/reclasificar-motivos.ts` compara la categoría guardada con el resultado actual y actualiza solo las diferencias mediante compare-and-set. Así los históricos convergen a las mismas reglas que los tickets nuevos sin alterar los datos fuente.
+- Categorías actuales: `haberes_pagos`, `recibos_documentacion`, `vacaciones_licencias`, `bajas_liquidacion`, `empleo_postulaciones`, `contacto_general`, `reclamos`, `legales`, `embargos`, `sin_clasificar`.
 - `legales` exige señales jurídicas concretas (por ejemplo, carta documento, telegrama laboral, contacto explícito con un abogado, SECLO, intimación o consulta jurídica). Una profesión mencionada incidentalmente o la palabra `legal` aislada no alcanzan, para evitar falsos positivos.
-- Se recalcula en tres puntos: al ingerir por webhook, al importar CSV, y al editar `motivo`/`resumen` de un ticket existente (`PATCH /tickets/:id`). **`motivo` original nunca se pisa** — solo se deriva `motivo_categoria` a partir de él.
+- `embargos` se evalúa antes de `legales` y de las reglas generales. Reconoce variantes directas de embargo/desembargo y órdenes o retenciones judiciales, pero excluye expresamente “sin embargo” para reducir falsos positivos.
+- Se recalcula en tres puntos: al ingerir por webhook, al importar CSV, y al editar `motivo`/`resumen` de un ticket existente (`PATCH /tickets/:id`). El clasificador y su backfill nunca pisan esos textos: solo derivan `motivo_categoria`. Una corrección explícita hecha por un usuario sí modifica el campo funcional y queda auditada.
+
+## Prioridad automática y auditoría
+
+Antes de abrir el puerto, `index.ts` ejecuta una primera revisión de tickets elegibles. Después, `prioridad-automatica-runner.ts` repite la pasada cada 5 minutos por defecto, evita ejecuciones solapadas y registra los errores sin detener el servidor. Solo evalúa tickets visibles, con `fecha_limite` y sin estado final (`resuelto`/`cerrado`).
+
+- con 24 horas hábiles o menos restantes, promueve a `alta`;
+- con 12 horas hábiles o menos —o ya vencido— promueve a `urgente`;
+- nunca degrada una prioridad manual o automática superior;
+- usa una comparación condicional contra prioridad, estado y vencimiento leídos para no pisar una edición concurrente;
+- la promoción y su seguimiento con autor `Sistema` se guardan en la misma transacción; el SSE `ticket_actualizado` se emite solo después del commit.
+
+El cálculo usa horas hábiles firmadas y excluye sábados y domingos igual que el SLA. El intervalo se puede ajustar con `PRIORIDAD_AUTOMATICA_INTERVAL_MS`; valores menores a 10 segundos o inválidos vuelven al default seguro.
+
+El `PATCH` de tickets aplica la misma garantía transaccional: toma un snapshot autoritativo, persiste solo diferencias reales y registra estado, prioridad, asignación y nombres de campos editados. Esta trazabilidad comienza con v0.5; las migraciones preservan los seguimientos antiguos tal como existen y no inventan responsables ni cambios históricos.
 
 ## Ingesta y CSV compartidos
 
@@ -269,7 +298,7 @@ No se puede borrar un rol con usuarios asignados (`409`), aunque esté inactivo.
 - `scripts/src/import-excel.ts` — CLI, agrega soporte `.xlsx` vía `exceljs` encima de esto.
 - `backend/src/routes/admin.ts` (`POST /admin/import`) — importador web.
 
-Expone: `parseCsv` (parser RFC 4180 con autodetección de `;`/`,`), `detectarColumnas` (mapea encabezados por alias — ver `HEADER_ALIASES` — tolerando variantes de nombre/acentos), `filaATicket` (combina fecha/hora histórica, valida formatos, convierte una fila cruda y aplica el SLA/clasificación), `fechaExcelAStringLocal` (conserva la hora civil de una celda Excel), `calcularFechaLimiteSla`/`sumarHorasHabiles`, y las constantes `ESTADOS_VALIDOS`/`PRIORIDADES_VALIDAS` (espejo del schema, duplicadas a propósito para que esta lib no arrastre `better-sqlite3`).
+Expone: `parseCsv` (parser RFC 4180 con autodetección de `;`/`,`), `detectarColumnas` (mapea encabezados por alias — ver `HEADER_ALIASES` — tolerando variantes de nombre/acentos), `filaATicket` (combina fecha/hora histórica, valida formatos, convierte una fila cruda y aplica el SLA/clasificación), `fechaExcelAStringLocal` (conserva la hora civil de una celda Excel), `calcularFechaLimiteSla`/`sumarHorasHabiles`, el cálculo firmado de horas hábiles restantes y la prioridad mínima correspondiente, además de las constantes `ESTADOS_VALIDOS`/`PRIORIDADES_VALIDAS`.
 
 ## Eventos en vivo (SSE)
 
@@ -280,6 +309,7 @@ Emisores actuales:
 - `POST /admin/tickets` → `ticket_creado` para tickets operativos; `datos_actualizados` para registros vacíos en cuarentena.
 - `POST /admin/import` → `tickets_importados` (con cantidad visible y total insertado) si la tanda incluye al menos un ticket operativo; si todos los registros importados quedan en cuarentena, emite `datos_actualizados`. No emite eventos en `dry_run`.
 - `POST /admin/truncate` → `datos_actualizados`
+- `PATCH /tickets/:id` y cada promoción automática confirmada → `ticket_actualizado`, siempre después de completar la transacción de datos + auditoría.
 
 El endpoint manda `retry: 5000` (reconexión automática del navegador) y un heartbeat cada 25 s (`: ping\n\n`) para que proxies intermedios no corten la conexión por inactividad. En producción, nginx necesita un location dedicado con `proxy_buffering off` — ver `frontend/nginx.conf` y `docs/DEPLOY.md`.
 
@@ -295,6 +325,7 @@ Ver también la tabla en el [README raíz](../README.md#configuración). Las que
 | `WEBHOOK_API_KEY` | `requireWebhookKey` | El webhook responde `503` (cerrado) |
 | `ADMIN_API_KEY` | `requireAdminKey` | Las operaciones administrativas responden `503` (cerradas) |
 | `TICKETS_DB_PATH` | `lib/db/src/db-path.ts` | Default `<repo>/data/tickets.db` (busca la raíz del monorepo por `pnpm-workspace.yaml`) |
+| `PRIORIDAD_AUTOMATICA_INTERVAL_MS` | `prioridad-automatica-runner.ts` | Default `300000` (5 min); acepta enteros desde `10000` ms |
 | `TZ` | proceso Node (filtros de fecha) | Zona del sistema; en Docker se fija `America/Argentina/Buenos_Aires` por default |
 | `NODE_ENV` | `logger.ts` | En producción desactiva `pino-pretty` (logs JSON crudos) |
 

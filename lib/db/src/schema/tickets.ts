@@ -13,6 +13,7 @@ export const MOTIVO_CATEGORIAS = [
   "empleo_postulaciones",
   "contacto_general",
   "reclamos",
+  "embargos",
   "legales",
   "sin_clasificar",
 ] as const;
@@ -66,6 +67,19 @@ export const seguimientosTable = sqliteTable("seguimientos", {
   nota: text("nota").notNull(),
   estado_anterior: text("estado_anterior"),
   estado_nuevo: text("estado_nuevo"),
+  prioridad_anterior: text("prioridad_anterior", { enum: PRIORIDADES }),
+  prioridad_nueva: text("prioridad_nueva", { enum: PRIORIDADES }),
+  asignado_anterior_usuario_id: integer(
+    "asignado_anterior_usuario_id",
+  ).references(() => usuariosTable.id, { onDelete: "set null" }),
+  asignado_anterior: text("asignado_anterior"),
+  asignado_nuevo_usuario_id: integer("asignado_nuevo_usuario_id").references(
+    () => usuariosTable.id,
+    { onDelete: "set null" },
+  ),
+  asignado_nuevo: text("asignado_nuevo"),
+  // Lista de nombres de campos modificados. No replica valores sensibles.
+  campos_editados: text("campos_editados", { mode: "json" }).$type<string[]>(),
   autor: text("autor"),
   fecha_creacion: integer("fecha_creacion", { mode: "timestamp_ms" })
     .notNull()

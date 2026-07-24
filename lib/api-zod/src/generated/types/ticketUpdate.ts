@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * GSB Ticket Management System API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.5.0
  */
 import type { TicketUpdateEstado } from './ticketUpdateEstado';
 import type { TicketUpdatePrioridad } from './ticketUpdatePrioridad';
@@ -12,16 +12,22 @@ export interface TicketUpdate {
   hora?: string;
   nombre?: string;
   apellido?: string;
-  telefono?: string;
-  dni?: string;
-  empresa?: string;
-  email?: string;
+  /** @nullable */
+  telefono?: string | null;
+  /** @nullable */
+  dni?: string | null;
+  /** @nullable */
+  empresa?: string | null;
+  /** @nullable */
+  email?: string | null;
   motivo?: string;
-  resumen?: string;
+  /** @nullable */
+  resumen?: string | null;
   notificado?: boolean;
   estado?: TicketUpdateEstado;
   prioridad?: TicketUpdatePrioridad;
-  audio_url?: string;
+  /** @nullable */
+  audio_url?: string | null;
   notas?: string;
   /** Ajuste manual explícito del vencimiento */
   fecha_limite?: Date;

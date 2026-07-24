@@ -3,12 +3,13 @@
  * Do not edit manually.
  * Api
  * GSB Ticket Management System API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.5.0
  */
 import type { ListTicketsEstado } from './listTicketsEstado';
 import type { ListTicketsOrder } from './listTicketsOrder';
 import type { ListTicketsPrioridad } from './listTicketsPrioridad';
 import type { MotivoCategoria } from './motivoCategoria';
+import type { TicketSortBy } from './ticketSortBy';
 
 export type ListTicketsParams = {
 estado?: ListTicketsEstado;
@@ -30,9 +31,18 @@ vencidos?: boolean;
  */
 incluir_vacios?: boolean;
 /**
+ * Columna de ordenamiento aplicada sobre el conjunto completo antes de paginar
+ */
+sort_by?: TicketSortBy;
+/**
  * Orden compuesto por día de creación y, dentro de cada día, por hora del llamado
  */
 order?: ListTicketsOrder;
+/**
+ * Ordenamiento múltiple priorizado, separado por comas y expresado como columna:dirección. Ejemplo: fecha_creacion:desc,contacto:asc. Cuando se informa, reemplaza a sort_by y order.
+ * @maxLength 512
+ */
+sort?: string;
 /**
  * @minimum 1
  */

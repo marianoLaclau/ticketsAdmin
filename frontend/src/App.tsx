@@ -160,10 +160,13 @@ function ProtectedRouter() {
         <Route path="/admin/roles-usuarios">
           <SoloSysAdmin><AdminRolesUsers /></SoloSysAdmin>
         </Route>
+        <Route path="/admin/tickets/:id">
+          <SoloSysAdmin><TicketDetail adminMode /></SoloSysAdmin>
+        </Route>
         <Route path="/admin">
           <SoloSysAdmin><Admin /></SoloSysAdmin>
         </Route>
-        <Route path="/tickets/:id" component={TicketDetail} />
+        <Route path="/tickets/:id"><TicketDetail /></Route>
         <Route path="/tickets" component={TicketList} />
         <Route component={NotFound} />
       </Switch>

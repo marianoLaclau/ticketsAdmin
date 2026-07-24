@@ -14,16 +14,19 @@ Llamada telefónica → ElevenLabs (agente de voz) → n8n → POST /api/webhook
 🎨 **Frontend en detalle** (páginas, routing, estado, componentes): [frontend/README_FRONTEND.md](frontend/README_FRONTEND.md)
 📓 **Bitácora de cambios técnicos**: [docs/BITACORA_AGENTES.MD](docs/BITACORA_AGENTES.MD)
 
+> **Estado de v0.5:** paquete en desarrollo y prueba exclusivamente local. Incluye las mejoras descritas abajo, pero todavía no se considera una versión publicada: no debe hacerse commit ni push hasta completar la validación funcional y visual final.
+
 ## Qué hace el sistema
 
 - **Ingesta automática**: cada llamada atendida por el agente de voz crea un ticket solo, vía webhook. Idempotente — un reintento de n8n no duplica nada.
-- **SLA de 48 horas hábiles**: el plazo corre de lunes a viernes durante las 24 horas y se pausa por completo los sábados y domingos. Los feriados aún cuentan como hábiles.
+- **SLA de 48 horas hábiles y prioridad dinámica**: el plazo corre de lunes a viernes durante las 24 horas y se pausa por completo los sábados y domingos. Los feriados aún cuentan como hábiles. Un ticket sin resolver sube, sin degradaciones, a prioridad `alta` cuando quedan 24 horas hábiles o menos y a `urgente` cuando quedan 12 horas hábiles o menos o ya venció.
 - **Cuarentena de registros vacíos**: una llamada sin datos útiles se conserva intacta en la base para auditoría, pero no aparece en Tickets ni participa del Dashboard o de las notificaciones operativas. Solo un SysAdmin puede verla desde Administración.
-- **Gestión de tickets**: dashboard con KPIs y gráficos filtrables por todo, semana, mes o rango personalizado; listado con responsable asignado, filtros (estado, prioridad, motivo, empresa, fechas, horas, texto libre), orden y paginación; detalle con historial de seguimientos y reproductor de audio.
-- **Categorización automática del motivo**: un clasificador basado en reglas agrupa el texto libre de `motivo`/`resumen` en categorías estables (haberes y pagos, recibos, vacaciones, bajas, empleo, reclamos, legales, etc.) para poder filtrar y graficar sin que cada redacción de n8n sea una categoría nueva.
+- **Gestión de tickets**: dashboard con KPIs y gráficos filtrables por todo, semana, mes o rango personalizado; listado con responsable asignado, filtros combinables, ordenamiento server-side por todas sus columnas, paginación y exportación CSV completa del resultado filtrado; detalle con edición funcional, historial auditable y reproductor de audio.
+- **Categorización automática del motivo**: un clasificador basado en reglas agrupa el texto libre de `motivo`/`resumen` en categorías estables (haberes y pagos, recibos, vacaciones, bajas, empleo, reclamos, legales, **embargos**, etc.) para poder filtrar y graficar sin que cada redacción de n8n sea una categoría nueva. v0.5 reconcilia la columna derivada de registros anteriores al arrancar, sin reescribir sus textos originales.
+- **Trazabilidad desde v0.5**: cada modificación registra de forma atómica el autor y los cambios reales de estado, prioridad, asignación y campos editados. El historial nuevo no intenta inventar eventos anteriores a la incorporación de esta auditoría.
 - **Actualización en vivo**: la app mantiene una conexión de Server-Sent Events; cuando entra un llamado nuevo (o se importa un CSV), todas las pestañas abiertas se refrescan al instante y muestran una notificación — sin recargar la página.
 - **Login obligatorio con roles**: nadie ve ninguna pantalla ni puede pegarle a la API sin sesión iniciada. Tres roles con permisos distintos (ver sección Autenticación).
-- **Panel de administración** (solo rol SysAdmin): CRUD manual de tickets, importador de CSV con simulación previa, "zona peligrosa" para vaciar la base, y gestión de roles/usuarios con reset de contraseña.
+- **Panel de administración** (solo rol SysAdmin): tabla ampliada, ordenable y paginada, acceso al detalle incluso para registros en cuarentena, CRUD manual de tickets, importador de CSV con simulación previa, "zona peligrosa" para vaciar la base, y gestión de roles/usuarios con reset de contraseña.
 - **Importador del histórico**: script CLI que carga de una vez un Excel/CSV viejo con el mismo motor de parseo que usa el panel web.
 - **Backup online de SQLite**: copia consistente con el WAL, verificada con `integrity_check`, sin sobrescribir destinos.
 
@@ -94,12 +97,13 @@ Copiar `.env.example` a `.env` en la raíz:
 | `WEBHOOK_API_KEY` | Clave que n8n manda en `x-api-key` al crear tickets (requerida para el webhook) |
 | `ADMIN_API_KEY` | Segunda credencial obligatoria de las operaciones administrativas del SysAdmin; si falta, esas operaciones responden `503` |
 | `TICKETS_DB_PATH` | Ruta del archivo SQLite (opcional, default `data/tickets.db`) |
+| `PRIORIDAD_AUTOMATICA_INTERVAL_MS` | Intervalo opcional de revisión de prioridades en milisegundos (default 300000 = 5 minutos; mínimo aceptado 10000) |
 | `TZ` | Timezone del proceso backend — en Docker por default `America/Argentina/Buenos_Aires`; los filtros por día calendario usan esta zona |
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- **Backend**: Express 5 · SQLite (better-sqlite3) + Drizzle ORM · Zod (`zod/v4`) · scrypt para contraseñas · SSE nativo
+- **Backend**: Express 5 · SQLite (better-sqlite3) + Drizzle ORM · Zod 3.25 · scrypt para contraseñas · SSE nativo
 - **Frontend**: React 19 + Vite 7 · wouter (routing) · TanStack Query 5 · Tailwind 4 + shadcn/ui (Radix) · Recharts
 - **Codegen**: Orval genera hooks de React Query + validadores Zod desde un único contrato OpenAPI
 - **Build backend**: esbuild (bundle ESM; better-sqlite3 queda externo — ver Dockerfile.backend)
@@ -111,10 +115,10 @@ Copiar `.env.example` a `.env` en la raíz:
 - **SQLite en lugar de Postgres** (migrado 2026-07): better-sqlite3 con WAL alcanza para el volumen de llamadas, sin servidor de base de datos que administrar.
 - **Login real con roles**, no solo una API key: sesiones en cookie `httpOnly` respaldadas en tabla, contraseñas con scrypt, y un candado global (`requireSession`) que protege toda la API salvo el webhook y el propio login.
 - **`ADMIN_API_KEY` es una segunda verificación obligatoria, no la única**: las rutas `/admin/*`, el borrado y la edición administrativa de tickets exigen sesión + rol SysAdmin + esta clave. Si la variable falta, el backend falla cerrado con `503`.
-- **Motivo original inmutable, categoría derivada**: `ticket.motivo` nunca se reescribe; `ticket.motivo_categoria` se recalcula con un clasificador de reglas cada vez que `motivo` o `resumen` cambian, y es lo que se usa para filtrar/graficar.
+- **Texto recibido preservado frente a procesos automáticos, categoría derivada**: el clasificador y los backfills nunca reescriben `ticket.motivo` ni `ticket.resumen`; solo calculan `ticket.motivo_categoria`. Un usuario autenticado sí puede corregir explícitamente esos datos desde el detalle, y esa edición queda auditada; al cambiar motivo o resumen se recalcula la categoría.
 - **Cuarentena derivada, sin borrar ni reescribir**: un ticket queda fuera de la operación únicamente cuando, por una condición AND, no contiene nombre/apellido, teléfono, DNI, empresa, email, motivo, resumen ni notas, no tiene seguimientos y conserva todos sus valores operativos iniciales. IDs, fechas, hora, categoría derivada y `audio_url` no se consideran contenido porque son datos técnicos o automáticos. Administración puede incluir estos registros con `incluir_vacios=true`, protegido por sesión SysAdmin y `ADMIN_API_KEY`; al completar o gestionar el ticket deja de cumplir la regla y reaparece automáticamente. La definición exacta está en [docs/FLUJO.md](docs/FLUJO.md#cuarentena-administrativa-de-registros-vacíos).
 - Los tickets **no se crean a mano** en el flujo normal: la vía de alta es el webhook (o el importador). El alta manual existe solo dentro del panel `/admin` (`POST /api/admin/tickets`), pensado para corrección de datos.
-- **Migraciones en Docker, `push` en desarrollo local**: en local se usa `drizzle-kit push` (rápido, sin archivos de migración) contra `data/tickets.db`. En Docker el volumen arranca vacío, así que el contenedor corre `dist/migrate.mjs` (aplica `lib/db/drizzle/*.sql`, idempotente) antes de levantar la API.
+- **Migraciones en Docker, `push` en desarrollo local**: en local se usa `drizzle-kit push` contra `data/tickets.db`. En Docker el contenedor corre `dist/migrate.mjs` antes de levantar la API. v0.5 incorpora `0007_v05_auditoria_ticket.sql` (trazabilidad) y `0008_add_embargos_category.sql` (backfill inicial); luego el arranque reconcilia idempotentemente la categoría derivada con el clasificador vigente.
 
 ## Gotchas
 

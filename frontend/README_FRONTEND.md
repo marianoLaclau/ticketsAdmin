@@ -53,6 +53,8 @@ frontend/
     components/
       layout/AppLayout.tsx        → Sidebar + listener de eventos en vivo
       admin/AdminHeader.tsx        → header compartido de las pantallas de admin (llave + nav)
+      SortableTableHead.tsx         → encabezado accesible para orden server-side
+      tickets/TicketDataEditDialog.tsx → edición de datos funcionales del ticket
       ui/                            → primitivas shadcn/ui (button, dialog, table, toast, password-input, ...)
     hooks/
       use-admin-access.ts          → llave administrativa persistida por usuario en el navegador
@@ -61,6 +63,8 @@ frontend/
     lib/
       roles.ts                       → constantes de rol + puedeCerrarTickets() (espejo del backend)
       motivos.ts                      → catálogo de categorías de motivo + estilos de badge
+      ticket-edit.ts                   → formulario funcional, PATCH mínimo y labels de auditoría
+      ticket-list-controls.ts           → parámetros compartidos por listado y exportación
       utils-tickets.tsx                → badges de Estado/Prioridad, formatDate, isVencido
       datetime-local.ts                 → conversión segura entre ISO y <input type="datetime-local">
       utils.ts                            → cn() (clsx + tailwind-merge)
@@ -85,7 +89,7 @@ Todo se define en `App.tsx`. La raíz es la única entrada pública del lado del
 
 - **`PublicEntry`** atiende `/`: sin sesión muestra `<Login />`; si la sesión todavía es válida redirige a `/dashboard` con reemplazo de historial.
 - **`AuthGate`** protege `/dashboard`, `/tickets` y `/admin`. Llama a `useGetMe()` (`GET /api/auth/me`), muestra un spinner mientras verifica y, ante un `401`, normaliza la URL a `/`. Un fallo de red o del backend muestra una pantalla de error con opción de reintentar, no un login engañoso.
-- **`SoloSysAdmin`** envuelve las rutas `/admin` y `/admin/roles-usuarios`: si `me.rol !== 'SysAdmin'`, muestra una pantalla `403 Acceso denegado`. El backend valida lo mismo de forma independiente; este guard visual no es la única defensa.
+- **`SoloSysAdmin`** envuelve `/admin`, `/admin/roles-usuarios` y `/admin/tickets/:id`: si `me.rol !== 'SysAdmin'`, muestra una pantalla `403 Acceso denegado`. El backend valida lo mismo de forma independiente; este guard visual no es la única defensa.
 - **Manejo de sesión vencida**: `QueryCache` y `MutationCache` revalidan `/auth/me` ante un `401` de sesión, lo que devuelve la aplicación a la raíz/login. Se excluyen el propio `/auth/me`, los intentos de login y los `401` de la llave administrativa para evitar loops o expulsar al SysAdmin por una key mal escrita.
 - **Login**: tras autenticar, actualiza el caché de `/auth/me` y navega explícitamente a `/dashboard` con `replace`.
 - **Logout**: tras el `204`, `queryClient.clear()` elimina los datos de la sesión y hace una recarga limpia en `/`. La recarga fuerza una nueva verificación de la cookie ya eliminada y evita que un observer conserve momentáneamente al usuario anterior. La llave administrativa no se borra: permanece localmente, separada por ID de SysAdmin.
@@ -101,12 +105,13 @@ export const ROL_OPERADOR = 'Operador';
 export function puedeCerrarTickets(rol) { return rol === ROL_SYSADMIN || rol === ROL_ADMINISTRADOR; }
 ```
 
-Dos lugares donde esto cambia lo que se ve:
+Las restricciones visibles principales son:
 
 1. **Sidebar** (`AppLayout.tsx`): el link "Administración" solo se agrega al array `links` si `me?.rol === ROL_SYSADMIN`.
 2. **TicketDetail**: en el `<Select>` de estado, la opción "CERRADO" tiene `disabled={!puedeCerrarTickets(me?.rol)}`, con una leyenda debajo ("Solo puede ser cerrado por un administrador") cuando está deshabilitada.
+3. **Edición del ticket**: cualquier usuario autenticado puede completar o corregir los datos funcionales (contacto, empresa, motivo y resumen). Los datos técnicos como hora, audio, notificación y fechas de límite/resolución no se exponen en ese formulario; cuando una operación técnica existe en modo administrativo, el backend vuelve a exigir SysAdmin + `x-admin-key`.
 
-En ambos casos es **solo UX** — la fuente de verdad de la restricción es el backend (`403`/`404` según corresponda); si el rol falla acá, el peor caso es un botón visible que el servidor va a rechazar igual.
+En todos los casos la restricción visual es **solo UX** — la fuente de verdad es el backend (`403`/`404` según corresponda); si la UI falla, el servidor rechaza igualmente una operación no autorizada.
 
 ## Páginas
 
@@ -114,20 +119,27 @@ En ambos casos es **solo UX** — la fuente de verdad de la restricción es el b
 KPIs (sin revisar, en proceso, vencidos, resueltos), distribución por estado (barra segmentada), gauge de tasa de resolución, ranking de motivos (usa `getMotivoCategoriaConfig` de `lib/motivos.ts` para color y label), gráfico de barras por prioridad (Recharts), tabla de vencidos y feed de actividad reciente. El selector **Todo / Semana actual / Mes actual / Período personalizado** envía el mismo rango a los hooks `useGetDashboardStats`, `useGetActividadReciente`, `useGetTicketsVencidos` y `useGetMotivoStats`; el rango personalizado se aplica recién al confirmar fechas válidas. Todos los paneles de tickets usan la misma cohorte por fecha de creación; actividad usa la fecha real de cada evento. Dentro de una cohorte, “Resueltos” cuenta los que actualmente están resueltos o cerrados. `Todo` conserva el comportamiento histórico y “Resueltos hoy”.
 
 ### `TicketList.tsx`
-El listado principal (ruta `/tickets`). Filtros: búsqueda libre, estado, prioridad, **categoría de motivo** (`MOTIVO_CATEGORIA_OPTIONS`), rango de fechas, rango de horas, empresa, y el switch de "Vencidos". Cada control conserva un prefijo visible (`Estado:`, `Prioridad:`, `Categoría:`, `Fecha:`, `Hora:`, `Empresa:` y `Plazo:`), de modo que los valores default `Todos/Todas` nunca quedan sin contexto. En escritorio usa tres filas estables: búsqueda amplia con estado y prioridad; categoría con fecha y hora; empresa con plazo y limpiar. En resoluciones menores cada grupo se apila sin depender de cortes automáticos. Encabezado de columna "Fecha y Hora" clickeable para alternar `order` (asc/desc, default desc — más recientes primero). Paginación con selector de tamaño (10/25/50/100) y botones Anterior/Siguiente; **cualquier cambio de filtro, orden o tamaño de página vuelve a la página 1** (`useEffect` que resetea `page`). Cada fila muestra un badge de categoría de motivo además del texto original y una columna **Asignado**, que presenta `asignado_a` o `Sin asignar`. La columna Contacto presenta nombre y empresa; si nombre y apellido están vacíos usa la leyenda visual `Sin nombre proporcionado` sin alterar el registro recibido.
+El listado principal (ruta `/tickets`). Filtros: búsqueda libre, estado, prioridad, **categoría de motivo** (`MOTIVO_CATEGORIA_OPTIONS`, incluida `Embargos`), rango de fechas, rango de horas, empresa y switch de "Vencidos". Cada control conserva un prefijo visible (`Estado:`, `Prioridad:`, `Categoría:`, `Fecha:`, `Hora:`, `Empresa:` y `Plazo:`), de modo que los valores default `Todos/Todas` nunca quedan sin contexto. En escritorio usa tres filas estables: búsqueda amplia con estado y prioridad; categoría con fecha y hora; empresa con plazo, exportación y limpiar. En resoluciones menores cada grupo se apila sin depender de cortes automáticos.
 
-### `TicketDetail.tsx` (ruta `/tickets/:id`)
+Todos los encabezados de datos son ordenables mediante `SortableTableHead`: el frontend envía `sort_by`/`order` y el backend ordena el conjunto completo antes de paginar, con indicadores ascendente/descendente y retorno a página 1 al cambiar el criterio. La paginación conserva tamaños 10/25/50/100. Cada fila muestra categoría, texto original, responsable (`Sin asignar` como fallback) y nombre/empresa (`Sin nombre proporcionado` cuando corresponde).
+
+El botón **Exportar CSV**, junto a los filtros de plazo, conserva filtros y orden activos pero no la paginación: descarga todos los tickets operativos coincidentes. Mientras se genera bloquea dobles clics y comunica éxito/error con los toasts de la aplicación.
+
+### `TicketDetail.tsx` (rutas `/tickets/:id` y `/admin/tickets/:id`)
 - Header con motivo, badge de vencido, fecha de creación, asignado.
 - Datos del contacto con filas fijas de teléfono y email. Cada una muestra el valor cuando existe o `Teléfono no proporcionado` / `Email no proporcionado` cuando el llamante no lo indicó; nombre también mantiene su fallback visual.
+- Botón con lápiz **Editar datos**: abre `TicketDataEditDialog` para nombre, apellido, teléfono, DNI/CUIT, empresa, email, motivo y resumen. Genera un PATCH mínimo, normaliza opcionales vacíos a `null` y recalcula la categoría al cambiar motivo/resumen. La interfaz avisa que cada corrección quedará registrada.
 - Tracker visual de progreso (0–100%) con 5 pasos fijos que corresponden a los 5 estados.
-- Dialog "Editar Estado": estado (con el bloqueo de "Cerrado" según rol), prioridad, progreso (slider), fecha límite (`datetime-local`, ver conversión abajo), notas internas.
+- Dialog "Editar Estado": estado (con el bloqueo de "Cerrado" según rol), prioridad, progreso (slider) y notas internas. La fecha límite es un campo técnico: solo se presenta en el detalle administrativo y requiere SysAdmin + llave.
 - Reproductor `<audio>` nativo si el ticket tiene `audio_url`.
-- Timeline de seguimientos + textarea para agregar uno nuevo (el `autor` no se manda desde acá — lo pone el backend).
+- Timeline de seguimientos + textarea para agregar uno nuevo (el `autor` no se manda desde acá — lo pone el backend). Desde v0.5 la línea de tiempo distingue cambios de estado, prioridad, asignación y nombres legibles de los campos editados; no muestra un historial anterior inexistente.
 - **Fecha límite**: si el usuario no tocó el control, el campo no se reenvía en el `PATCH` (preserva segundos/milisegundos originales que `datetime-local` no puede representar). Si el control queda vacío pero antes tenía valor, se bloquea el guardado con un toast — el contrato actual no permite null-ear `fecha_limite`.
+- En `/admin/tickets/:id`, `adminMode` agrega `incluir_vacios=true` y `x-admin-key`, permite abrir/corregir un registro en cuarentena y vuelve a Administración. Sin llave no intenta mostrar datos protegidos.
 
 ### `Admin.tsx` (ruta `/admin`, solo SysAdmin)
 Tres tabs:
 - **Registros**: tabla CRUD completa (busca, pagina, crea, edita, elimina cualquier ticket) — es la única vía de alta manual del sistema (`POST /api/admin/tickets`).
+- La tabla de Registros muestra ID, fecha/hora, conversation ID, contacto (con teléfono/email), empresa, categoría/motivo, estado, prioridad, asignado y vencimiento. Todas las columnas de datos son ordenables en el servidor; la tabla usa scroll horizontal controlado y mantiene las acciones visibles. Además de editar/eliminar, cada fila se puede abrir en el detalle administrativo, incluidos los registros en cuarentena.
 - **Importar CSV**: al elegir un archivo corre automáticamente un `dry_run` y muestra el resumen (columnas detectadas, a insertar/ya existentes/inválidos) antes de escribir nada; botón para confirmar la importación real.
 - **Zona peligrosa**: truncate de toda la base, con doble seguro — hay que tipear literalmente `BORRAR` para habilitar el botón, y el backend además exige `{ confirmar: true }`.
 
@@ -146,7 +158,7 @@ Dos tabs, cada uno con su propia paginación/búsqueda/filtros:
 const es = new EventSource('/api/events');
 es.onmessage = (e) => {
   const data = JSON.parse(e.data);
-  queryClient.invalidateQueries();      // refresca TODO: listado, dashboard, sidebar
+  queryClient.invalidateQueries();      // refresca TODO: listado, dashboard, detalle, sidebar
   if (data.tipo === 'ticket_creado') toast({ variant: 'info', title: 'Nuevo llamado recibido', ... });
   if (data.tipo === 'tickets_importados') toast({ variant: 'info', title: 'Importación disponible', ... });
 };
@@ -185,7 +197,9 @@ El transporte real (`customFetch`) vive en `lib/api-client-react/src/custom-fetc
 - **`error-messages.ts`** — mensajes seguros para login, administración y mutaciones; solo inspecciona campos estructurados del error y aplica traducciones conocidas.
 - **`dashboard-period.ts`** — rangos calendario de semana/mes, validación del período personalizado y etiquetas de presentación.
 - **`asignacion.ts`** — normalización visual del responsable y fallback `Sin asignar`.
-- **`motivos.ts`** — espejo en el frontend del catálogo de `lib/ingesta/src/motivos.ts` del backend, pero con estilos (`color`, `badgeClass`) en vez de solo lógica de clasificación. Incluye la categoría `legales` para cartas documento, telegramas laborales, consultas jurídicas, contacto explícito con abogados, SECLO, intimaciones y otros indicadores legales concretos. `getMotivoCategoriaConfig(categoria)` devuelve un fallback razonable (label capitalizado desde el código) si llega una categoría que el frontend no conoce todavía — para no romper si el backend agrega una categoría nueva antes que se actualice este archivo.
+- **`motivos.ts`** — espejo visual del catálogo de `lib/ingesta/src/motivos.ts`, con estilos (`color`, `badgeClass`). Incluye `legales` y la nueva categoría `embargos`; `getMotivoCategoriaConfig(categoria)` devuelve un fallback razonable si llega una categoría todavía desconocida.
+- **`ticket-edit.ts`** — define los ocho campos funcionales editables, compara formulario/ticket para construir un PATCH mínimo y traduce los nombres técnicos del historial a etiquetas legibles.
+- **`ticket-list-controls.ts`** — mantiene en un solo lugar los parámetros de filtros/orden que comparten la consulta paginada y el export CSV.
 - **`utils-tickets.tsx`** — `EstadoBadge`/`PrioridadBadge` (los puntos de color + texto que aparecen en todas las tablas), `formatDate` (formato `es-AR`), `isVencido` (fecha límite pasada y el ticket no está resuelto/cerrado).
 - **`datetime-local.ts`** — `toDateTimeLocalValue`/`dateTimeLocalValueToIso`: convierten entre un ISO string y el formato que espera `<input type="datetime-local">`, **en la zona horaria del navegador** (no UTC). `dateTimeLocalValueToIso` rechaza (devuelve `null`) fechas imposibles o horas inexistentes por cambio de horario de verano, en vez de dejar que `Date` las normalice silenciosamente.
 

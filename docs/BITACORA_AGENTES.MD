@@ -2,6 +2,71 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-07-22 — Paquete local v0.5: clasificación, SLA, auditoría y gestión ampliada
+
+**Agente:** Codex
+**Estado:** implementación y validación local completas. Por indicación explícita del usuario, este paquete todavía no se considera publicado y no se realizó commit ni push.
+
+### Categoría Embargos y migración conservadora
+
+- Se agregó `embargos` al catálogo estable compartido entre schema, clasificador, OpenAPI y frontend, con la etiqueta visible **Embargos**.
+- Las reglas se evalúan antes de `legales` y de categorías generales. Captan variantes de embargo/desembargo, retenciones o descuentos judiciales y órdenes/oficios relacionados; la expresión “sin embargo” se excluye explícitamente para evitar falsos positivos.
+- La migración `0008_add_embargos_category.sql` hace un primer backfill conservador. Después, antes de abrir el puerto, una reconciliación idempotente compara todos los históricos con el clasificador vigente y actualiza únicamente `motivo_categoria`. Esto cubre casos donde un motivo genérico había quedado categorizado antiguamente desde el resumen, mantiene la prioridad del motivo explícito y conserva `motivo`/`resumen` byte a byte.
+
+### Prioridad automática según horas hábiles
+
+- El cálculo compartido de SLA ahora también determina las horas hábiles firmadas que faltan. Sábados y domingos siguen sin consumir tiempo; los feriados continúan contando como hábiles.
+- Los tickets visibles, con fecha límite y sin estado final, suben a `alta` al quedar 24 horas hábiles o menos y a `urgente` al quedar 12 horas hábiles o menos o estar vencidos. El proceso nunca degrada una prioridad superior.
+- El backend ejecuta una pasada antes de abrir el puerto y luego cada 5 minutos. `PRIORIDAD_AUTOMATICA_INTERVAL_MS` permite configurar el intervalo (mínimo 10 segundos); el runner impide solapamientos y un error de revisión queda logueado sin detener el servidor.
+- Cada promoción usa comparación condicional para no pisar cambios concurrentes. Ticket y seguimiento de autor `Sistema` se escriben dentro de la misma transacción y el evento SSE se emite después del commit.
+- No se recalculan vencimientos históricos: la automatización evalúa la `fecha_limite` ya existente en cada ticket elegible.
+
+### Auditoría estructurada desde v0.5
+
+- La migración `0007_v05_auditoria_ticket.sql` amplía `seguimientos` con prioridad anterior/nueva, asignación anterior/nueva (ID y snapshot legible) y `campos_editados`.
+- `PATCH /api/tickets/:id` relee el estado autoritativo, persiste únicamente diferencias reales y crea un único seguimiento dentro de la misma transacción. Estado, prioridad y asignación guardan sus valores anterior/nuevo; los demás cambios guardan nombres de campos, no copias de valores sensibles.
+- La identidad del autor y la autoasignación se derivan de la sesión. Las notas manuales aceptan solo la nota: el cliente no puede falsificar autor, estado ni snapshots de auditoría.
+- Al reabrir un ticket resuelto/cerrado se limpia `fecha_resolucion`; si vuelve a resolverse se registra un instante nuevo. Pasar de resuelto a cerrado conserva la fecha de resolución existente.
+- La nueva trazabilidad empieza con v0.5. La migración preserva los seguimientos existentes y no inventa cambios de estado, prioridad o responsable anteriores.
+
+### Exportación y ordenamiento server-side
+
+- `GET /api/tickets/export.csv` reutiliza exactamente los filtros y el orden del listado, pero omite la paginación para exportar todos los tickets operativos coincidentes. El archivo usa UTF-8 con BOM, separador `;`, CRLF, celdas entre comillas y mitigación de fórmulas de planilla.
+- El botón **Exportar CSV** quedó junto a los filtros de Tickets y conserva el criterio activo; informa progreso y resultado mediante toasts.
+- El listado acepta `sort_by`/`order` sobre una whitelist cerrada. El orden se resuelve en SQL antes de paginar, incluye reglas semánticas para estado/prioridad, ubica vacíos al final y usa ID como desempate estable. Los nombres de columna del cliente nunca se interpolan en SQL.
+- Tickets y Administración usan encabezados ordenables accesibles; cambiar orden o filtros vuelve a la primera página.
+
+### Administración, cuarentena y detalle editable
+
+- La tabla de Administración se amplió con ID, fecha/hora, conversation ID, contacto (teléfono/email), empresa, categoría/motivo, estado, prioridad, asignado y vencimiento. Conserva paginación, scroll horizontal controlado y acciones accesibles.
+- Cada registro puede abrirse en `/admin/tickets/:id`. Esa variante del detalle envía `incluir_vacios=true` y `x-admin-key`, por lo que un SysAdmin puede inspeccionar y completar tickets en cuarentena sin hacerlos visibles para la operación hasta que dejen de cumplir la condición de vacío.
+- En el detalle normal se agregó un lápiz junto a **Datos del Contacto** para editar nombre, apellido, teléfono, DNI/CUIT, empresa, email, motivo y resumen. El formulario genera un PATCH mínimo, convierte opcionales vacíos a `null` y vuelve a clasificar al cambiar motivo/resumen.
+- Los campos funcionales anteriores están disponibles para cualquier sesión autenticada. Hora, notificación, audio, fecha límite y fecha de resolución quedan protegidos como datos técnicos y requieren SysAdmin + `x-admin-key`; la seguridad se valida en el backend además de la UI.
+- La línea de tiempo muestra cambios de estado, prioridad, asignación y campos editados con etiquetas legibles. Teléfono y email mantienen sus filas fijas y fallbacks cuando no existe dato.
+
+### Validación de entradas y autenticación documentada
+
+- El contrato OpenAPI declara la cookie `gsb_session` como seguridad global. Health y login son públicos; el webhook usa exclusivamente `x-api-key`; las 12 operaciones administrativas requieren sesión y `x-admin-key` simultáneamente (AND).
+- Los emails editados se validan en frontend, contrato y backend. Un email vacío se normaliza a `null`; un formato inválido responde 400 sin persistir cambios.
+- `fecha_limite` y `fecha_resolucion` se validan sobre el JSON crudo antes de la coerción Zod. PATCH, webhook y alta administrativa rechazan `null`, booleanos, números, fechas imposibles o sin zona y aceptan únicamente date-time RFC3339 con zona.
+- Una pestaña SSE desconectada se elimina del conjunto de clientes y no puede transformar en error HTTP una gestión ya confirmada en SQLite.
+
+### Archivos principales
+
+- Backend: `backend/src/routes/tickets.ts`, `backend/src/lib/ticket-query.ts`, `backend/src/lib/ticket-csv.ts`, `backend/src/lib/prioridad-automatica.ts`, `backend/src/lib/prioridad-automatica-runner.ts`, `backend/src/lib/reclasificar-motivos.ts` y `backend/src/index.ts`.
+- Frontend: `frontend/src/pages/TicketList.tsx`, `frontend/src/pages/Admin.tsx`, `frontend/src/pages/TicketDetail.tsx`, `frontend/src/components/SortableTableHead.tsx`, `frontend/src/components/tickets/TicketDataEditDialog.tsx`, `frontend/src/lib/ticket-edit.ts` y `frontend/src/lib/ticket-list-controls.ts`.
+- Contrato/datos: `lib/api-spec/openapi.yaml`, clientes generados, schemas Drizzle, `lib/ingesta/src/motivos.ts`, `lib/ingesta/src/sla.ts` y migraciones `0007`/`0008`.
+- Documentación: `README.md`, `backend/README_BACKEND.md`, `frontend/README_FRONTEND.md`, `docs/FLUJO.md` y esta bitácora.
+
+### Validación final local
+
+- 128 pruebas correctas: backend 42, base de datos 7, ingesta 46 y frontend 33. Cubren transacción/rollback de auditoría, desconexión SSE, concurrencia de promociones, no degradación, selección de tickets elegibles, runner, reconciliación, entradas RFC3339, exportación y ordenamiento.
+- `pnpm run typecheck`, codegen OpenAPI y `pnpm run build`: correctos. Vite conserva únicamente sus advertencias conocidas de sourcemaps de componentes UI y tamaño del bundle; no son fallos de compilación.
+- Cadena completa de migraciones probada desde una base vacía y smoke HTTP real aprobado: login/cookie, doble protección SysAdmin, webhook, Embargos, listado/orden, CSV, edición, autoasignación, historial, escalado automático a Urgente y logout.
+- La base local fue respaldada en `backups/tickets-pre-v0.5-2026-07-22.db`, actualizada mediante Drizzle e iniciada una vez con v0.5. `PRAGMA integrity_check` devolvió `ok`; se compararon los 12 registros preexistentes contra el backup y `motivo`/`resumen` permanecieron byte a byte intactos.
+- QA visual aprobado en 1440×1000 y 1024×900 para detalle operativo, detalle Admin, registro en cuarentena, historial/asignación y ambos editores: sin overflow, recortes ni errores de consola/red.
+- Higiene final: temporales de migración, smoke y QA eliminados. No se realizó commit ni push.
+
 ## 2026-07-21 — Ajuste visual final de los filtros de Tickets
 
 **Agente:** Codex
@@ -554,6 +619,26 @@ Archivos afectados: `backend/src/routes/tickets.ts` y `lib/api-spec/openapi.yaml
 ### Pendiente
 
 - Cambios sin commitear a la espera del OK del usuario tras la prueba local.
+
+## 2026-07-23 — Ordenamiento múltiple en Tickets y Administrador
+
+**Agente:** Codex
+
+- Las tablas de Tickets y Administrador ahora admiten varios criterios ordenados por prioridad.
+- Un clic normal conserva el comportamiento simple: selecciona una única columna o invierte su dirección. `Shift + clic` agrega otra columna o invierte una ya seleccionada sin perder las demás.
+- Cada encabezado activo muestra su dirección y un número (`1`, `2`, etc.) que identifica la prioridad.
+- El botón `Restablecer orden` limpia la combinación y vuelve a `Fecha de llegada` descendente, con los tickets más recientes primero, tanto en Tickets como en Administrador.
+- El backend aplica todos los criterios antes de paginar mediante el parámetro compatible `sort=columna:direccion,...`; `sort_by` y `order` se mantienen para clientes anteriores.
+- La exportación CSV utiliza exactamente los mismos filtros y el mismo orden compuesto que la tabla.
+- El desempate técnico por ID se agrega una sola vez al final, evitando que anule los criterios secundarios.
+
+### Validaciones ejecutadas
+
+- Backend: 48/48 pruebas correctas, incluidos orden secundario antes de paginar, CSV, parámetros inválidos y compatibilidad anterior.
+- Frontend: 36/36 pruebas correctas, incluidos reemplazo, combinación, inversión, serialización y reutilización en CSV.
+- Typecheck y build completo del workspace: correctos.
+- Backend y frontend reiniciados localmente en los puertos `5000` y `3000`, ambos con respuesta HTTP `200`.
+- Cambios locales en `version/0.5`, sin commit ni push.
 
 ## 2026-07-17 — Persistencia de llave, visibilidad de secretos y categoría Legales
 

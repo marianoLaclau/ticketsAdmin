@@ -34,6 +34,11 @@ export const MOTIVO_CATEGORIAS = {
     color: '#dc2626',
     badgeClass: 'border-red-200 bg-red-50 text-red-700',
   },
+  embargos: {
+    label: 'Embargos',
+    color: '#be123c',
+    badgeClass: 'border-rose-200 bg-rose-50 text-rose-700',
+  },
   legales: {
     label: 'Legales',
     color: '#4f46e5',

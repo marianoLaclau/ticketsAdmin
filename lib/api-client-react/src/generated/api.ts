@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * GSB Ticket Management System API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.5.0
  */
 import {
   useMutation,
@@ -35,14 +35,18 @@ import type {
   AdminUserPasswordInput,
   AdminUserUpdate,
   AuthUser,
+  CreateSeguimientoParams,
   DashboardStats,
+  ExportTicketsCsvParams,
   GetActividadRecienteParams,
   GetDashboardStatsParams,
   GetMotivoStatsParams,
+  GetTicketParams,
   GetTicketsVencidosParams,
   HealthStatus,
   ListAdminRolesParams,
   ListAdminUsersParams,
+  ListSeguimientosParams,
   ListTicketsParams,
   LoginInput,
   MotivoStat,
@@ -53,7 +57,8 @@ import type {
   TicketIngestResult,
   TicketInput,
   TicketListResponse,
-  TicketUpdate
+  TicketUpdate,
+  UpdateTicketParams
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -233,6 +238,90 @@ export function useListTickets<TData = Awaited<ReturnType<typeof listTickets>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListTicketsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getExportTicketsCsvUrl = (params?: ExportTicketsCsvParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/tickets/export.csv?${stringifiedParams}` : `/api/tickets/export.csv`
+}
+
+/**
+ * @summary Exportar todos los tickets operativos que coinciden con los filtros
+ */
+export const exportTicketsCsv = async (params?: ExportTicketsCsvParams, options?: RequestInit): Promise<string> => {
+
+  return customFetch<string>(getExportTicketsCsvUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportTicketsCsvQueryKey = (params?: ExportTicketsCsvParams,) => {
+    return [
+    `/api/tickets/export.csv`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getExportTicketsCsvQueryOptions = <TData = Awaited<ReturnType<typeof exportTicketsCsv>>, TError = ErrorType<unknown>>(params?: ExportTicketsCsvParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportTicketsCsv>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportTicketsCsvQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportTicketsCsv>>> = ({ signal }) => exportTicketsCsv(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportTicketsCsv>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportTicketsCsvQueryResult = NonNullable<Awaited<ReturnType<typeof exportTicketsCsv>>>
+export type ExportTicketsCsvQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Exportar todos los tickets operativos que coinciden con los filtros
+ */
+
+export function useExportTicketsCsv<TData = Awaited<ReturnType<typeof exportTicketsCsv>>, TError = ErrorType<unknown>>(
+ params?: ExportTicketsCsvParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportTicketsCsv>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportTicketsCsvQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -1353,20 +1442,29 @@ export const useResetAdminUserPassword = <TError = ErrorType<void>,
       return useMutation(getResetAdminUserPasswordMutationOptions(options));
     }
 
-export const getGetTicketUrl = (id: number,) => {
+export const getGetTicketUrl = (id: number,
+    params?: GetTicketParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/tickets/${id}`
+  return stringifiedParams.length > 0 ? `/api/tickets/${id}?${stringifiedParams}` : `/api/tickets/${id}`
 }
 
 /**
  * @summary Get ticket details
  */
-export const getTicket = async (id: number, options?: RequestInit): Promise<TicketDetail> => {
+export const getTicket = async (id: number,
+    params?: GetTicketParams, options?: RequestInit): Promise<TicketDetail> => {
 
-  return customFetch<TicketDetail>(getGetTicketUrl(id),
+  return customFetch<TicketDetail>(getGetTicketUrl(id,params),
   {
     ...options,
     method: 'GET'
@@ -1379,23 +1477,25 @@ export const getTicket = async (id: number, options?: RequestInit): Promise<Tick
 
 
 
-export const getGetTicketQueryKey = (id: number,) => {
+export const getGetTicketQueryKey = (id: number,
+    params?: GetTicketParams,) => {
     return [
-    `/api/tickets/${id}`
+    `/api/tickets/${id}`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetTicketQueryOptions = <TData = Awaited<ReturnType<typeof getTicket>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicket>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetTicketQueryOptions = <TData = Awaited<ReturnType<typeof getTicket>>, TError = ErrorType<void>>(id: number,
+    params?: GetTicketParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicket>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetTicketQueryKey(id);
+  const queryKey =  queryOptions?.queryKey ?? getGetTicketQueryKey(id,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTicket>>> = ({ signal }) => getTicket(id, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTicket>>> = ({ signal }) => getTicket(id,params, { signal, ...requestOptions });
 
 
 
@@ -1413,11 +1513,12 @@ export type GetTicketQueryError = ErrorType<void>
  */
 
 export function useGetTicket<TData = Awaited<ReturnType<typeof getTicket>>, TError = ErrorType<void>>(
- id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicket>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ id: number,
+    params?: GetTicketParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicket>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetTicketQueryOptions(id,options)
+  const queryOptions = getGetTicketQueryOptions(id,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -1430,25 +1531,34 @@ export function useGetTicket<TData = Awaited<ReturnType<typeof getTicket>>, TErr
 
 
 
-export const getUpdateTicketUrl = (id: number,) => {
+export const getUpdateTicketUrl = (id: number,
+    params?: UpdateTicketParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/tickets/${id}`
+  return stringifiedParams.length > 0 ? `/api/tickets/${id}?${stringifiedParams}` : `/api/tickets/${id}`
 }
 
 /**
- * Las actualizaciones operativas (estado, prioridad, notas, progreso y
- * fecha limite) requieren una sesion valida. La edicion administrativa
- * de los datos de origen/contacto requiere ademas rol SysAdmin y el
- * header x-admin-key.
+ * Las actualizaciones operativas y el enriquecimiento de contacto,
+ * motivo o resumen requieren una sesión válida. Los campos técnicos y
+ * el acceso a registros en cuarentena requieren además rol SysAdmin y
+ * el header x-admin-key.
  * @summary Update a ticket
  */
 export const updateTicket = async (id: number,
-    ticketUpdate: TicketUpdate, options?: RequestInit): Promise<Ticket> => {
+    ticketUpdate: TicketUpdate,
+    params?: UpdateTicketParams, options?: RequestInit): Promise<Ticket> => {
 
-  return customFetch<Ticket>(getUpdateTicketUrl(id),
+  return customFetch<Ticket>(getUpdateTicketUrl(id,params),
   {
     ...options,
     method: 'PATCH',
@@ -1462,8 +1572,8 @@ export const updateTicket = async (id: number,
 
 
 export const getUpdateTicketMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>;params?: UpdateTicketParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>;params?: UpdateTicketParams}, TContext> => {
 
 const mutationKey = ['updateTicket'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -1475,10 +1585,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTicket>>, {id: number;data: BodyType<TicketUpdate>}> = (props) => {
-          const {id,data} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTicket>>, {id: number;data: BodyType<TicketUpdate>;params?: UpdateTicketParams}> = (props) => {
+          const {id,data,params} = props ?? {};
 
-          return  updateTicket(id,data,requestOptions)
+          return  updateTicket(id,data,params,requestOptions)
         }
 
 
@@ -1496,11 +1606,11 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
  * @summary Update a ticket
  */
 export const useUpdateTicket = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>;params?: UpdateTicketParams}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateTicket>>,
         TError,
-        {id: number;data: BodyType<TicketUpdate>},
+        {id: number;data: BodyType<TicketUpdate>;params?: UpdateTicketParams},
         TContext
       > => {
       return useMutation(getUpdateTicketMutationOptions(options));
@@ -1578,20 +1688,29 @@ export const useDeleteTicket = <TError = ErrorType<void>,
       return useMutation(getDeleteTicketMutationOptions(options));
     }
 
-export const getListSeguimientosUrl = (id: number,) => {
+export const getListSeguimientosUrl = (id: number,
+    params?: ListSeguimientosParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/tickets/${id}/seguimientos`
+  return stringifiedParams.length > 0 ? `/api/tickets/${id}/seguimientos?${stringifiedParams}` : `/api/tickets/${id}/seguimientos`
 }
 
 /**
  * @summary List follow-ups for a ticket
  */
-export const listSeguimientos = async (id: number, options?: RequestInit): Promise<Seguimiento[]> => {
+export const listSeguimientos = async (id: number,
+    params?: ListSeguimientosParams, options?: RequestInit): Promise<Seguimiento[]> => {
 
-  return customFetch<Seguimiento[]>(getListSeguimientosUrl(id),
+  return customFetch<Seguimiento[]>(getListSeguimientosUrl(id,params),
   {
     ...options,
     method: 'GET'
@@ -1604,23 +1723,25 @@ export const listSeguimientos = async (id: number, options?: RequestInit): Promi
 
 
 
-export const getListSeguimientosQueryKey = (id: number,) => {
+export const getListSeguimientosQueryKey = (id: number,
+    params?: ListSeguimientosParams,) => {
     return [
-    `/api/tickets/${id}/seguimientos`
+    `/api/tickets/${id}/seguimientos`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListSeguimientosQueryOptions = <TData = Awaited<ReturnType<typeof listSeguimientos>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSeguimientos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListSeguimientosQueryOptions = <TData = Awaited<ReturnType<typeof listSeguimientos>>, TError = ErrorType<unknown>>(id: number,
+    params?: ListSeguimientosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSeguimientos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListSeguimientosQueryKey(id);
+  const queryKey =  queryOptions?.queryKey ?? getListSeguimientosQueryKey(id,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSeguimientos>>> = ({ signal }) => listSeguimientos(id, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSeguimientos>>> = ({ signal }) => listSeguimientos(id,params, { signal, ...requestOptions });
 
 
 
@@ -1638,11 +1759,12 @@ export type ListSeguimientosQueryError = ErrorType<unknown>
  */
 
 export function useListSeguimientos<TData = Awaited<ReturnType<typeof listSeguimientos>>, TError = ErrorType<unknown>>(
- id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSeguimientos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ id: number,
+    params?: ListSeguimientosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSeguimientos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListSeguimientosQueryOptions(id,options)
+  const queryOptions = getListSeguimientosQueryOptions(id,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -1655,21 +1777,30 @@ export function useListSeguimientos<TData = Awaited<ReturnType<typeof listSeguim
 
 
 
-export const getCreateSeguimientoUrl = (id: number,) => {
+export const getCreateSeguimientoUrl = (id: number,
+    params?: CreateSeguimientoParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/tickets/${id}/seguimientos`
+  return stringifiedParams.length > 0 ? `/api/tickets/${id}/seguimientos?${stringifiedParams}` : `/api/tickets/${id}/seguimientos`
 }
 
 /**
  * @summary Add a follow-up to a ticket
  */
 export const createSeguimiento = async (id: number,
-    seguimientoInput: SeguimientoInput, options?: RequestInit): Promise<Seguimiento> => {
+    seguimientoInput: SeguimientoInput,
+    params?: CreateSeguimientoParams, options?: RequestInit): Promise<Seguimiento> => {
 
-  return customFetch<Seguimiento>(getCreateSeguimientoUrl(id),
+  return customFetch<Seguimiento>(getCreateSeguimientoUrl(id,params),
   {
     ...options,
     method: 'POST',
@@ -1683,8 +1814,8 @@ export const createSeguimiento = async (id: number,
 
 
 export const getCreateSeguimientoMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSeguimiento>>, TError,{id: number;data: BodyType<SeguimientoInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof createSeguimiento>>, TError,{id: number;data: BodyType<SeguimientoInput>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSeguimiento>>, TError,{id: number;data: BodyType<SeguimientoInput>;params?: CreateSeguimientoParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSeguimiento>>, TError,{id: number;data: BodyType<SeguimientoInput>;params?: CreateSeguimientoParams}, TContext> => {
 
 const mutationKey = ['createSeguimiento'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -1696,10 +1827,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSeguimiento>>, {id: number;data: BodyType<SeguimientoInput>}> = (props) => {
-          const {id,data} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSeguimiento>>, {id: number;data: BodyType<SeguimientoInput>;params?: CreateSeguimientoParams}> = (props) => {
+          const {id,data,params} = props ?? {};
 
-          return  createSeguimiento(id,data,requestOptions)
+          return  createSeguimiento(id,data,params,requestOptions)
         }
 
 
@@ -1717,11 +1848,11 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
  * @summary Add a follow-up to a ticket
  */
 export const useCreateSeguimiento = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSeguimiento>>, TError,{id: number;data: BodyType<SeguimientoInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSeguimiento>>, TError,{id: number;data: BodyType<SeguimientoInput>;params?: CreateSeguimientoParams}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createSeguimiento>>,
         TError,
-        {id: number;data: BodyType<SeguimientoInput>},
+        {id: number;data: BodyType<SeguimientoInput>;params?: CreateSeguimientoParams},
         TContext
       > => {
       return useMutation(getCreateSeguimientoMutationOptions(options));

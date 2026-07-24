@@ -15,6 +15,7 @@ services:
       ADMIN_API_KEY: ${ADMIN_API_KEY:?ADMIN_API_KEY is required — export it or set it in a .env next to this file}
       TICKETS_DB_PATH: /data/tickets.db
       TZ: ${TZ:-America/Argentina/Buenos_Aires}
+      PRIORIDAD_AUTOMATICA_INTERVAL_MS: ${PRIORIDAD_AUTOMATICA_INTERVAL_MS:-300000}
     volumes:
       - tickets_data:/data
     healthcheck:

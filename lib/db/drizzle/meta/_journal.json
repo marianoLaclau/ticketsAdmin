@@ -50,6 +50,20 @@
       "when": 1784318351542,
       "tag": "0006_add_legales_category",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1784759507328,
+      "tag": "0007_v05_auditoria_ticket",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1784759532058,
+      "tag": "0008_add_embargos_category",
+      "breakpoints": true
     }
   ]
 }

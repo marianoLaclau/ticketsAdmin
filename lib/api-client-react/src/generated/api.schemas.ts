@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * GSB Ticket Management System API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.5.0
  */
 export interface LoginInput {
   /** Nombre de usuario asignado al crear la cuenta (no el email) */
@@ -207,6 +207,7 @@ export const MotivoCategoria = {
   empleo_postulaciones: 'empleo_postulaciones',
   contacto_general: 'contacto_general',
   reclamos: 'reclamos',
+  embargos: 'embargos',
   legales: 'legales',
   sin_clasificar: 'sin_clasificar',
 } as const;
@@ -291,6 +292,32 @@ export interface HealthStatus {
   status: string;
 }
 
+/**
+ * @nullable
+ */
+export type SeguimientoPrioridadAnterior = typeof SeguimientoPrioridadAnterior[keyof typeof SeguimientoPrioridadAnterior] | null;
+
+
+export const SeguimientoPrioridadAnterior = {
+  baja: 'baja',
+  media: 'media',
+  alta: 'alta',
+  urgente: 'urgente',
+} as const;
+
+/**
+ * @nullable
+ */
+export type SeguimientoPrioridadNueva = typeof SeguimientoPrioridadNueva[keyof typeof SeguimientoPrioridadNueva] | null;
+
+
+export const SeguimientoPrioridadNueva = {
+  baja: 'baja',
+  media: 'media',
+  alta: 'alta',
+  urgente: 'urgente',
+} as const;
+
 export interface Seguimiento {
   id: number;
   ticket_id: number;
@@ -299,6 +326,20 @@ export interface Seguimiento {
   estado_anterior?: string | null;
   /** @nullable */
   estado_nuevo?: string | null;
+  /** @nullable */
+  prioridad_anterior?: SeguimientoPrioridadAnterior;
+  /** @nullable */
+  prioridad_nueva?: SeguimientoPrioridadNueva;
+  /** @nullable */
+  asignado_anterior_usuario_id?: number | null;
+  /** @nullable */
+  asignado_anterior?: string | null;
+  /** @nullable */
+  asignado_nuevo_usuario_id?: number | null;
+  /** @nullable */
+  asignado_nuevo?: string | null;
+  /** @nullable */
+  campos_editados?: string[] | null;
   /** @nullable */
   autor?: string | null;
   fecha_creacion: string;
@@ -388,16 +429,22 @@ export interface TicketUpdate {
   hora?: string;
   nombre?: string;
   apellido?: string;
-  telefono?: string;
-  dni?: string;
-  empresa?: string;
-  email?: string;
+  /** @nullable */
+  telefono?: string | null;
+  /** @nullable */
+  dni?: string | null;
+  /** @nullable */
+  empresa?: string | null;
+  /** @nullable */
+  email?: string | null;
   motivo?: string;
-  resumen?: string;
+  /** @nullable */
+  resumen?: string | null;
   notificado?: boolean;
   estado?: TicketUpdateEstado;
   prioridad?: TicketUpdatePrioridad;
-  audio_url?: string;
+  /** @nullable */
+  audio_url?: string | null;
   notas?: string;
   /** Ajuste manual explícito del vencimiento */
   fecha_limite?: string;
@@ -411,10 +458,25 @@ export interface TicketUpdate {
 
 export interface SeguimientoInput {
   nota: string;
-  estado_anterior?: string;
-  estado_nuevo?: string;
-  autor?: string;
 }
+
+export type TicketSortBy = typeof TicketSortBy[keyof typeof TicketSortBy];
+
+
+export const TicketSortBy = {
+  id: 'id',
+  fecha_creacion: 'fecha_creacion',
+  conversation_id: 'conversation_id',
+  contacto: 'contacto',
+  empresa: 'empresa',
+  motivo_categoria: 'motivo_categoria',
+  motivo: 'motivo',
+  estado: 'estado',
+  prioridad: 'prioridad',
+  asignado_a: 'asignado_a',
+  progreso: 'progreso',
+  fecha_limite: 'fecha_limite',
+} as const;
 
 export interface EstadoStat {
   estado: string;
@@ -486,9 +548,18 @@ vencidos?: boolean;
  */
 incluir_vacios?: boolean;
 /**
+ * Columna de ordenamiento aplicada sobre el conjunto completo antes de paginar
+ */
+sort_by?: TicketSortBy;
+/**
  * Orden compuesto por día de creación y, dentro de cada día, por hora del llamado
  */
 order?: ListTicketsOrder;
+/**
+ * Ordenamiento múltiple priorizado, separado por comas y expresado como columna:dirección. Ejemplo: fecha_creacion:desc,contacto:asc. Cuando se informa, reemplaza a sort_by y order.
+ * @maxLength 512
+ */
+sort?: string;
 /**
  * @minimum 1
  */
@@ -529,6 +600,56 @@ export const ListTicketsOrder = {
   desc: 'desc',
 } as const;
 
+export type ExportTicketsCsvParams = {
+estado?: ExportTicketsCsvEstado;
+prioridad?: ExportTicketsCsvPrioridad;
+fecha_desde?: string;
+fecha_hasta?: string;
+hora_desde?: string;
+hora_hasta?: string;
+empresa?: string;
+motivo?: string;
+motivo_categoria?: MotivoCategoria;
+search?: string;
+vencidos?: boolean;
+sort_by?: TicketSortBy;
+order?: ExportTicketsCsvOrder;
+/**
+ * Ordenamiento múltiple priorizado, separado por comas y expresado como columna:dirección. Cuando se informa, reemplaza a sort_by y order.
+ * @maxLength 512
+ */
+sort?: string;
+};
+
+export type ExportTicketsCsvEstado = typeof ExportTicketsCsvEstado[keyof typeof ExportTicketsCsvEstado];
+
+
+export const ExportTicketsCsvEstado = {
+  nuevo: 'nuevo',
+  en_proceso: 'en_proceso',
+  pendiente: 'pendiente',
+  resuelto: 'resuelto',
+  cerrado: 'cerrado',
+} as const;
+
+export type ExportTicketsCsvPrioridad = typeof ExportTicketsCsvPrioridad[keyof typeof ExportTicketsCsvPrioridad];
+
+
+export const ExportTicketsCsvPrioridad = {
+  baja: 'baja',
+  media: 'media',
+  alta: 'alta',
+  urgente: 'urgente',
+} as const;
+
+export type ExportTicketsCsvOrder = typeof ExportTicketsCsvOrder[keyof typeof ExportTicketsCsvOrder];
+
+
+export const ExportTicketsCsvOrder = {
+  asc: 'asc',
+  desc: 'desc',
+} as const;
+
 export type ListAdminRolesParams = {
 search?: string;
 /**
@@ -558,6 +679,34 @@ page?: number;
  * @maximum 100
  */
 limit?: number;
+};
+
+export type GetTicketParams = {
+/**
+ * Permite abrir registros en cuarentena; requiere SysAdmin y x-admin-key
+ */
+incluir_vacios?: boolean;
+};
+
+export type UpdateTicketParams = {
+/**
+ * Permite modificar registros en cuarentena; requiere SysAdmin y x-admin-key
+ */
+incluir_vacios?: boolean;
+};
+
+export type ListSeguimientosParams = {
+/**
+ * Permite consultar un registro en cuarentena desde Admin
+ */
+incluir_vacios?: boolean;
+};
+
+export type CreateSeguimientoParams = {
+/**
+ * Permite agregar seguimiento a un registro en cuarentena desde Admin
+ */
+incluir_vacios?: boolean;
 };
 
 export type GetDashboardStatsParams = {

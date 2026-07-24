@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * GSB Ticket Management System API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.5.0
  */
 
 export type MotivoCategoria = typeof MotivoCategoria[keyof typeof MotivoCategoria];
@@ -17,6 +17,7 @@ export const MotivoCategoria = {
   empleo_postulaciones: 'empleo_postulaciones',
   contacto_general: 'contacto_general',
   reclamos: 'reclamos',
+  embargos: 'embargos',
   legales: 'legales',
   sin_clasificar: 'sin_clasificar',
 } as const;
