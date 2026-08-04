@@ -2,9 +2,13 @@ import { db, rolesTable, sesionesTable, usuariosTable } from "@workspace/db";
 import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "./passwords";
 import { logger } from "./logger";
-import { ROL_SYSADMIN, ROL_ADMINISTRADOR, ROL_OPERADOR } from "./auth";
+import { ROL_SYSADMIN, ROL_ADMINISTRADOR, ROL_OPERADOR } from "./rbac";
 
 const ROLES_BASE: Array<{ nombre: string; descripcion: string }> = [
+  {
+    nombre: ROL_SYSADMIN,
+    descripcion: "Usuario Dios: acceso total al sistema",
+  },
   {
     nombre: ROL_ADMINISTRADOR,
     descripcion:
@@ -38,9 +42,10 @@ interface SeedHeredado {
 interface ResultadoSeed {
   accionCuenta: AccionCuenta;
   usuarioIds: number[];
-  rolRenombrado: boolean;
   usuarioRenombrado: boolean;
+  usuarioPromovido: boolean;
   rolesCreados: string[];
+  rolesReactivados: string[];
 }
 
 function leerPasswordBootstrap(): string {
@@ -130,31 +135,10 @@ export async function ensureAdminSeed(): Promise<void> {
   // Todas las mutaciones del seed son atómicas. En particular, una rotación
   // nunca confirma el hash nuevo si no pudo revocar también sus sesiones.
   const resultado = db.transaction((tx): ResultadoSeed => {
-    let rolRenombrado = false;
     let usuarioRenombrado = false;
+    let usuarioPromovido = false;
     const rolesCreados: string[] = [];
-
-    const rolSysAdmin = tx
-      .select()
-      .from(rolesTable)
-      .where(eq(rolesTable.nombre, ROL_SYSADMIN))
-      .get();
-    const rolViejo = tx
-      .select()
-      .from(rolesTable)
-      .where(eq(rolesTable.nombre, "Administrador"))
-      .get();
-    if (rolViejo && !rolSysAdmin) {
-      tx.update(rolesTable)
-        .set({
-          nombre: ROL_SYSADMIN,
-          descripcion: "Usuario Dios: acceso total al sistema",
-          fecha_actualizacion: new Date(),
-        })
-        .where(eq(rolesTable.id, rolViejo.id))
-        .run();
-      rolRenombrado = true;
-    }
+    const rolesReactivados: string[] = [];
 
     const userSysadmin = tx
       .select({ id: usuariosTable.id })
@@ -166,6 +150,7 @@ export async function ensureAdminSeed(): Promise<void> {
       .from(usuariosTable)
       .where(eq(usuariosTable.email, "admin"))
       .get();
+    const usuarioSeedCanonicoId = userSysadmin?.id ?? userViejo?.id ?? null;
     if (userViejo && !userSysadmin) {
       tx.update(usuariosTable)
         .set({
@@ -185,13 +170,53 @@ export async function ensureAdminSeed(): Promise<void> {
 
     for (const base of ROLES_BASE) {
       const existe = tx
-        .select({ id: rolesTable.id })
+        .select({ id: rolesTable.id, activo: rolesTable.activo })
         .from(rolesTable)
         .where(eq(rolesTable.nombre, base.nombre))
         .get();
       if (!existe) {
         tx.insert(rolesTable).values(base).run();
         rolesCreados.push(base.nombre);
+      } else if (!existe.activo) {
+        tx.update(rolesTable)
+          .set({ activo: true, fecha_actualizacion: new Date() })
+          .where(eq(rolesTable.id, existe.id))
+          .run();
+        rolesReactivados.push(base.nombre);
+      }
+    }
+
+    const rolSysAdmin = tx
+      .select({ id: rolesTable.id })
+      .from(rolesTable)
+      .where(eq(rolesTable.nombre, ROL_SYSADMIN))
+      .get();
+    if (!rolSysAdmin) {
+      throw new Error("No se pudo garantizar el rol base SysAdmin");
+    }
+
+    // Solo la identidad canónica del seed recibe SysAdmin. Una instalación
+    // antigua puede haber cambiado su contraseña antes de incorporar el rol
+    // nuevo; en ese caso también hay que migrarla sin promover al resto de
+    // usuarios de Administrador ni a homónimos que coexistan con sysadmin.
+    if (usuarioSeedCanonicoId !== null) {
+      const usuarioCanonico = tx
+        .select({ roleId: usuariosTable.role_id })
+        .from(usuariosTable)
+        .where(eq(usuariosTable.id, usuarioSeedCanonicoId))
+        .get();
+      if (usuarioCanonico && usuarioCanonico.roleId !== rolSysAdmin.id) {
+        tx.update(usuariosTable)
+          .set({
+            role_id: rolSysAdmin.id,
+            fecha_actualizacion: new Date(),
+          })
+          .where(eq(usuariosTable.id, usuarioSeedCanonicoId))
+          .run();
+        tx.delete(sesionesTable)
+          .where(eq(sesionesTable.usuario_id, usuarioSeedCanonicoId))
+          .run();
+        usuarioPromovido = true;
       }
     }
 
@@ -224,9 +249,10 @@ export async function ensureAdminSeed(): Promise<void> {
       return {
         accionCuenta: "rotada",
         usuarioIds: rotaciones.map(({ id }) => id),
-        rolRenombrado,
         usuarioRenombrado,
+        usuarioPromovido,
         rolesCreados,
+        rolesReactivados,
       };
     }
 
@@ -234,9 +260,10 @@ export async function ensureAdminSeed(): Promise<void> {
       return {
         accionCuenta: "ninguna",
         usuarioIds: [],
-        rolRenombrado,
         usuarioRenombrado,
+        usuarioPromovido,
         rolesCreados,
+        rolesReactivados,
       };
     }
 
@@ -252,9 +279,10 @@ export async function ensureAdminSeed(): Promise<void> {
       return {
         accionCuenta: "ninguna",
         usuarioIds: [],
-        rolRenombrado,
         usuarioRenombrado,
+        usuarioPromovido,
         rolesCreados,
+        rolesReactivados,
       };
     }
 
@@ -312,20 +340,26 @@ export async function ensureAdminSeed(): Promise<void> {
     return {
       accionCuenta: "inicializada",
       usuarioIds: [usuarioId],
-      rolRenombrado,
       usuarioRenombrado,
+      usuarioPromovido,
       rolesCreados,
+      rolesReactivados,
     };
   });
 
-  if (resultado.rolRenombrado) {
-    logger.info(`Rol "Administrador" renombrado a "${ROL_SYSADMIN}"`);
-  }
   if (resultado.usuarioRenombrado) {
     logger.info('Usuario "admin" renombrado a "sysadmin"');
   }
+  if (resultado.usuarioPromovido) {
+    logger.warn(
+      "La identidad histórica del seed fue asignada al rol SysAdmin y sus sesiones fueron revocadas",
+    );
+  }
   for (const rol of resultado.rolesCreados) {
     logger.info({ rol }, "Rol base creado");
+  }
+  for (const rol of resultado.rolesReactivados) {
+    logger.warn({ rol }, "Rol base reactivado por la política RBAC");
   }
   if (resultado.accionCuenta === "inicializada") {
     logger.info(

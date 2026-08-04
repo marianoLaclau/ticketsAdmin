@@ -1,5 +1,6 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { addEventClient } from "../lib/events";
+import { getSessionUser, SESSION_COOKIE, type SessionUser } from "../lib/auth";
 
 const router = Router();
 
@@ -8,6 +9,13 @@ const router = Router();
 // o se importan registros. Fuera del contrato OpenAPI a propósito: es un
 // stream, no un request/response que Orval pueda modelar.
 router.get("/events", (req, res) => {
+  const user = res.locals.authUser as SessionUser;
+  const sessionToken = (
+    req as Request & {
+      cookies?: Record<string, string>;
+    }
+  ).cookies?.[SESSION_COOKIE];
+
   res.set({
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
@@ -19,11 +27,31 @@ router.get("/events", (req, res) => {
   // Si se corta la conexión, el navegador reintenta a los 5s
   res.write("retry: 5000\n\n");
 
-  addEventClient(res);
+  addEventClient(res, { usuarioId: user.id, sessionToken });
 
-  // Heartbeat para que proxies intermedios no cierren la conexión por inactividad
-  const heartbeat = setInterval(() => res.write(": ping\n\n"), 25_000);
-  req.on("close", () => clearInterval(heartbeat));
+  // Cada heartbeat revalida la cookie. Así una sesión vencida o revocada no
+  // puede conservar indefinidamente un stream que se abrió cuando era válida.
+  let validando = false;
+  const heartbeat = setInterval(() => {
+    if (validando || res.destroyed || res.writableEnded) return;
+    validando = true;
+    void getSessionUser(req)
+      .then((session) => {
+        if (!session || session.id !== user.id) {
+          res.end();
+          return;
+        }
+        if (res.destroyed || res.writableEnded) return;
+        res.write(": ping\n\n");
+      })
+      .catch(() => res.end())
+      .finally(() => {
+        validando = false;
+      });
+  }, 25_000);
+  const stopHeartbeat = () => clearInterval(heartbeat);
+  req.on("close", stopHeartbeat);
+  res.on("close", stopHeartbeat);
 });
 
 export default router;

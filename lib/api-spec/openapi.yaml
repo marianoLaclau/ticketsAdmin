@@ -474,7 +474,7 @@ paths:
         "401":
           description: Clave de administracion invalida
         "409":
-          description: Ya existe un rol con ese nombre
+          description: El nombre ya existe o está reservado para un rol del sistema
 
   /admin/roles/{id}:
     patch:
@@ -511,7 +511,7 @@ paths:
         "404":
           description: Rol no encontrado
         "409":
-          description: Ya existe un rol con ese nombre
+          description: El nombre ya existe/está reservado o el rol del sistema no admite ese cambio
 
     delete:
       operationId: deleteAdminRole
@@ -537,7 +537,7 @@ paths:
         "404":
           description: Rol no encontrado
         "409":
-          description: El rol tiene usuarios asignados
+          description: El rol está protegido o tiene usuarios asignados
 
   /admin/users:
     get:
@@ -611,7 +611,7 @@ paths:
         "401":
           description: Clave de administracion invalida
         "409":
-          description: Ya existe un usuario con ese email
+          description: El email/username ya existe o el rol indicado está inactivo
 
   /admin/users/{id}:
     patch:
@@ -649,7 +649,7 @@ paths:
         "404":
           description: Usuario o rol no encontrado
         "409":
-          description: Ya existe un usuario con ese email
+          description: El email/username ya existe, el rol está inactivo o el cambio eliminaría al último SysAdmin utilizable
 
   /admin/users/{id}/password:
     post:

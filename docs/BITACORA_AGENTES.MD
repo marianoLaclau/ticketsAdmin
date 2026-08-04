@@ -2,6 +2,21 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-04 — Invariantes RBAC y roles protegidos
+
+**Agente:** Codex
+**Estado:** segunda remediación de la auditoría técnica, implementada y validada localmente.
+
+- Se centralizó la política de roles del backend en `backend/src/lib/rbac.ts`: `SysAdmin`, `Administrador` y `Operador` son roles base reservados, con comparación normalizada y una única definición de capacidades.
+- Los roles base ya no pueden renombrarse, desactivarse ni eliminarse desde la API. Sus descripciones siguen siendo editables. Tampoco se puede crear o renombrar un rol personalizado usando un nombre reservado, incluso con diferencias de mayúsculas o espacios.
+- El seed crea o reactiva los tres roles base sin renombrar masivamente `Administrador` a `SysAdmin`. La migración de la identidad histórica queda limitada a la cuenta semilla correspondiente y no promueve a otros administradores.
+- El login y la validación de cada request rechazan usuarios o roles inactivos. Desactivar un usuario o rol revoca en la misma transacción todas las sesiones afectadas y cierra sus streams SSE; reactivarlo no revive cookies anteriores. El heartbeat del stream revalida además la sesión cada 25 segundos.
+- El backend impide desactivar o degradar al último SysAdmin activo con identidad de acceso y hash de contraseña utilizable. Un hash nulo, vacío o malformado no cuenta como cuenta de recuperación.
+- Las altas y cambios de rol solo aceptan roles activos. La pantalla de Roles y usuarios refleja las mismas restricciones, deshabilita las acciones imposibles y explica por qué están protegidas; el backend continúa siendo la autoridad final.
+- Se agregaron pruebas integradas para los guards de roles, revocación real de sesiones y SSE, asignaciones a roles inactivos, preservación del último SysAdmin y migración segura del seed, más pruebas unitarias del espejo de capacidades y mensajes de error en frontend.
+- Archivos principales: `backend/src/lib/rbac.ts`, `backend/src/lib/auth.ts`, `backend/src/lib/events.ts`, `backend/src/lib/seed.ts`, `backend/src/routes/auth.ts`, `backend/src/routes/events.ts`, `backend/src/routes/admin.ts`, `backend/test/rbac-routes.test.ts`, `frontend/src/lib/roles.ts` y `frontend/src/pages/AdminRolesUsers.tsx`.
+- Validaciones ejecutadas antes del commit: 174 pruebas correctas (backend 74, frontend 44, base de datos 8 e ingesta 48), typecheck completo, generación OpenAPI, build de producción y `git diff --check`. El build conserva únicamente las advertencias ya auditadas de sourcemaps y tamaño del bundle, fuera del alcance de este commit.
+
 ## 2026-08-04 — Bootstrap seguro del SysAdmin
 
 **Agente:** Codex
@@ -633,7 +648,7 @@ Archivos afectados: `backend/src/routes/tickets.ts` y `lib/api-spec/openapi.yaml
 ### Cambio realizado
 
 - **Fix previo (loop infinito)**: el handler global de 401 invalidaba `/auth/me` incluso cuando la que fallaba era `/auth/me` misma → refetch → 401 → loop (~3.900 requests) y pantalla en blanco. Ahora esa query queda excluida del handler.
-- **Seed renombrado**: rol `Administrador` → `SysAdmin` y usuario `admin` → `sysadmin` (nombre visible "SysAdmin"). La migración de nombres es idempotente y corre al arrancar el backend, así llega sola a las bases ya desplegadas. Login: **sysadmin / admin**.
+- **Comportamiento histórico, reemplazado el 2026-08-04**: esta intervención renombraba el rol `Administrador` → `SysAdmin` y mantenía una credencial semilla pública. La remediación actual crea roles separados, migra únicamente la identidad histórica cuando corresponde y exige `BOOTSTRAP_SYSADMIN_PASSWORD`; `admin/admin` y `sysadmin/admin` ya no son credenciales válidas del producto.
 - **Backend**: middleware `requireSysAdmin` — `/api/admin/*` exige rol SysAdmin (403 sin él) además de la sesión y de `x-admin-key`. Tres candados: sesión + rol + clave.
 - **Frontend**: el link «Administración» del sidebar solo se renderiza para `me.rol === 'SysAdmin'`; las rutas `/admin` y `/admin/roles-usuarios` muestran NotFound para cualquier otro rol (guard `SoloSysAdmin`). Constante compartida en `frontend/src/lib/roles.ts`, espejo de `backend/src/lib/auth.ts`.
 
@@ -647,10 +662,9 @@ Archivos afectados: `backend/src/routes/tickets.ts` y `lib/api-spec/openapi.yaml
   - **el usuario común recibe 403 en `/api/admin/*` aunque presente la x-admin-key correcta** — la clave sola no alcanza, el rol manda;
   - usuario y rol de prueba eliminados al final (base limpia: solo sysadmin/SysAdmin).
 
-### Pendiente conocido
+### Pendiente conocido (resuelto el 2026-08-04)
 
-- Un SysAdmin podría renombrar o desactivar su propio rol desde el catálogo y perder acceso al panel; la fase de permisos con checkboxes debe contemplar esa protección.
-- Cambios sin commitear a la espera del OK del usuario tras la prueba local (nueva regla de trabajo).
+- Los roles base ahora están protegidos contra renombre, desactivación y borrado, y no se permite degradar ni desactivar al último SysAdmin utilizable.
 
 ## 2026-07-17 — Roles Operador/Administrador, reset de contraseña y leyenda de la llave
 

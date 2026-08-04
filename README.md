@@ -42,6 +42,8 @@ Todo el sistema exige sesión iniciada. Las únicas rutas públicas son `GET /ap
 | **Administrador** | Gestión completa de tickets — incluido pasarlos a **Cerrado** — pero sin acceso al panel de administración |
 | **Operador** | Gestión básica de tickets; **no puede cerrarlos** (la opción queda deshabilitada en la UI y el backend la rechaza igual) |
 
+Los tres roles base son identidades protegidas: no se renombran, desactivan ni eliminan. Los roles personalizados inactivos cortan login y sesiones y no pueden recibir nuevas asignaciones. El backend impide además desactivar o degradar al último SysAdmin con credenciales utilizables.
+
 Detalle completo (sesiones, hash de contraseñas, seed inicial, doble verificación del panel admin) en [backend/README_BACKEND.md](backend/README_BACKEND.md#autenticación-y-autorización).
 
 ## Estructura del repo

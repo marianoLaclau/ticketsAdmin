@@ -65,6 +65,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { adminErrorMessage, useAdminAccess } from '@/hooks/use-admin-access';
 import { useToast } from '@/hooks/use-toast';
 import { formatDate } from '@/lib/utils-tickets';
+import { esRolSistema } from '@/lib/roles';
 
 type UserFormState = {
   nombre: string;
@@ -371,6 +372,7 @@ export default function AdminRolesUsers() {
   const [editingRole, setEditingRole] = useState<AdminRole | null>(null);
   const [roleToDelete, setRoleToDelete] = useState<AdminRole | null>(null);
   const [roleForm, setRoleForm] = useState<RoleFormState>(emptyRoleForm);
+  const editingSystemRole = Boolean(editingRole && esRolSistema(editingRole.nombre));
 
   const visibleRoles = useMemo(() => {
     const search = roleSearch.trim().toLocaleLowerCase('es');
@@ -445,6 +447,7 @@ export default function AdminRolesUsers() {
   };
 
   const toggleRole = (role: AdminRole) => {
+    if (esRolSistema(role.nombre)) return;
     updateRole.mutate(
       { id: role.id, data: { activo: !role.activo } },
       {
@@ -463,7 +466,7 @@ export default function AdminRolesUsers() {
   };
 
   const confirmDeleteRole = () => {
-    if (!roleToDelete) return;
+    if (!roleToDelete || esRolSistema(roleToDelete.nombre)) return;
     deleteRole.mutate(
       { id: roleToDelete.id },
       {
@@ -549,9 +552,7 @@ export default function AdminRolesUsers() {
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Necesitás un rol activo</AlertTitle>
-              <AlertDescription>
-                Creá o activá un rol para habilitar la creación de usuarios.
-              </AlertDescription>
+              <AlertDescription>Creá o activá un rol para habilitar la creación de usuarios.</AlertDescription>
             </Alert>
           )}
 
@@ -769,7 +770,16 @@ export default function AdminRolesUsers() {
                     visibleRoles.map((role) => (
                       <TableRow key={role.id}>
                         <TableCell className="tabular-nums text-muted-foreground">{role.id}</TableCell>
-                        <TableCell className="font-medium">{role.nombre}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span>{role.nombre}</span>
+                            {esRolSistema(role.nombre) && (
+                              <Badge variant="outline" className="text-[10px] font-medium uppercase tracking-wide">
+                                Sistema protegido
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="max-w-xl text-muted-foreground">{role.descripcion || '—'}</TableCell>
                         <TableCell>
                           <StatusBadge active={role.activo} />
@@ -782,9 +792,21 @@ export default function AdminRolesUsers() {
                             <Switch
                               checked={role.activo}
                               onCheckedChange={() => toggleRole(role)}
-                              disabled={updateRole.isPending}
-                              aria-label={role.activo ? 'Desactivar rol' : 'Activar rol'}
-                              title={role.activo ? 'Desactivar rol' : 'Activar rol'}
+                              disabled={updateRole.isPending || esRolSistema(role.nombre)}
+                              aria-label={
+                                esRolSistema(role.nombre)
+                                  ? `${role.nombre}: rol del sistema protegido, permanece activo`
+                                  : role.activo
+                                    ? 'Desactivar rol'
+                                    : 'Activar rol'
+                              }
+                              title={
+                                esRolSistema(role.nombre)
+                                  ? 'Los roles del sistema deben permanecer activos'
+                                  : role.activo
+                                    ? 'Desactivar rol'
+                                    : 'Activar rol'
+                              }
                             />
                             <Button
                               variant="ghost"
@@ -800,7 +822,17 @@ export default function AdminRolesUsers() {
                               size="icon"
                               className="h-8 w-8 text-red-600 hover:text-red-700"
                               onClick={() => setRoleToDelete(role)}
-                              title="Eliminar rol"
+                              disabled={esRolSistema(role.nombre)}
+                              aria-label={
+                                esRolSistema(role.nombre)
+                                  ? `${role.nombre}: rol del sistema protegido, no se puede eliminar`
+                                  : `Eliminar rol ${role.nombre}`
+                              }
+                              title={
+                                esRolSistema(role.nombre)
+                                  ? 'Los roles del sistema no se pueden eliminar'
+                                  : 'Eliminar rol'
+                              }
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -819,10 +851,7 @@ export default function AdminRolesUsers() {
         </TabsContent>
       </Tabs>
 
-      <Dialog
-        open={userDialogOpen}
-        onOpenChange={(open) => (open ? setUserDialogOpen(true) : closeUserDialog())}
-      >
+      <Dialog open={userDialogOpen} onOpenChange={(open) => (open ? setUserDialogOpen(true) : closeUserDialog())}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingUser ? 'Editar usuario' : 'Nuevo usuario'}</DialogTitle>
@@ -996,7 +1025,13 @@ export default function AdminRolesUsers() {
                   }))
                 }
                 maxLength={100}
+                disabled={editingSystemRole}
               />
+              {editingSystemRole && (
+                <p className="text-xs text-muted-foreground">
+                  El nombre de un rol del sistema es parte de la política de acceso y no se puede modificar.
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="role-description">Descripción</Label>
@@ -1016,12 +1051,17 @@ export default function AdminRolesUsers() {
             <div className="flex items-center justify-between rounded-md border p-3">
               <div>
                 <Label htmlFor="role-active">Rol activo</Label>
-                <p className="text-xs text-muted-foreground">Los roles inactivos no se ofrecen a nuevos usuarios.</p>
+                <p className="text-xs text-muted-foreground">
+                  {editingSystemRole
+                    ? 'Los roles del sistema deben permanecer activos.'
+                    : 'Los roles inactivos no permiten iniciar ni conservar una sesión.'}
+                </p>
               </div>
               <Switch
                 id="role-active"
                 checked={roleForm.activo}
                 onCheckedChange={(activo) => setRoleForm((form) => ({ ...form, activo }))}
+                disabled={editingSystemRole}
               />
             </div>
           </div>
@@ -1069,8 +1109,8 @@ export default function AdminRolesUsers() {
               Reestablecer contraseña
             </DialogTitle>
             <DialogDescription>
-              {passwordUser ? `${passwordUser.nombre} ${passwordUser.apellido ?? ''} (${passwordUser.email})` : ''}.
-              Al guardar, sus sesiones abiertas se cierran y deberá entrar con la clave nueva.
+              {passwordUser ? `${passwordUser.nombre} ${passwordUser.apellido ?? ''} (${passwordUser.email})` : ''}. Al
+              guardar, sus sesiones abiertas se cierran y deberá entrar con la clave nueva.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
@@ -1104,11 +1144,7 @@ export default function AdminRolesUsers() {
             </Button>
             <Button
               onClick={savePassword}
-              disabled={
-                resetPassword.isPending ||
-                passwordNueva.length < 6 ||
-                passwordNueva !== passwordRepetida
-              }
+              disabled={resetPassword.isPending || passwordNueva.length < 6 || passwordNueva !== passwordRepetida}
             >
               {resetPassword.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Guardar contraseña

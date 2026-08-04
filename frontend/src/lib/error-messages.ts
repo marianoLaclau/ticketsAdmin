@@ -1,6 +1,5 @@
 const DEFAULT_ERROR_MESSAGE = 'No pudimos completar la operación. Intentá nuevamente.';
-const CONNECTION_ERROR_MESSAGE =
-  'No pudimos conectar con el servidor. Verificá tu conexión e intentá nuevamente.';
+const CONNECTION_ERROR_MESSAGE = 'No pudimos conectar con el servidor. Verificá tu conexión e intentá nuevamente.';
 
 type ErrorRecord = Record<string, unknown>;
 
@@ -22,9 +21,7 @@ export function getApiErrorStatus(error: unknown): number | undefined {
   }
 
   const response = asRecord(record.response);
-  return typeof response?.status === 'number' && Number.isInteger(response.status)
-    ? response.status
-    : undefined;
+  return typeof response?.status === 'number' && Number.isInteger(response.status) ? response.status : undefined;
 }
 
 function getServerErrorText(error: unknown): string {
@@ -63,6 +60,20 @@ function knownBusinessMessage(error: unknown): string | undefined {
   if (message.includes('ya existe un rol')) {
     return 'Ya existe un rol con ese nombre.';
   }
+  if (message.includes('nombre') && message.includes('reservado') && message.includes('rol')) {
+    return 'Ese nombre está reservado para un rol del sistema.';
+  }
+  if (message.includes('roles del sistema')) {
+    if (message.includes('renombrar')) return 'Los roles del sistema no se pueden renombrar.';
+    if (message.includes('permanecer activos')) return 'Los roles del sistema deben permanecer activos.';
+    if (message.includes('eliminar')) return 'Los roles del sistema no se pueden eliminar.';
+  }
+  if (message.includes('asignar un rol inactivo')) {
+    return 'El rol seleccionado está inactivo. Elegí o activá otro rol.';
+  }
+  if (message.includes('permanecer al menos un sysadmin')) {
+    return 'Debe quedar al menos un SysAdmin activo con credenciales utilizables.';
+  }
   if (message.includes('rol con usuarios asignados')) {
     return 'No se puede eliminar un rol que tiene usuarios asignados. Podés desactivarlo.';
   }
@@ -92,10 +103,7 @@ function knownBusinessMessage(error: unknown): string | undefined {
   return undefined;
 }
 
-export function getUserErrorMessage(
-  error: unknown,
-  fallback = DEFAULT_ERROR_MESSAGE,
-): string {
+export function getUserErrorMessage(error: unknown, fallback = DEFAULT_ERROR_MESSAGE): string {
   const businessMessage = knownBusinessMessage(error);
   if (businessMessage) return businessMessage;
 

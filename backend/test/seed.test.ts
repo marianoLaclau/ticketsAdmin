@@ -168,7 +168,10 @@ describe("bootstrap seguro del SysAdmin", () => {
       .prepare(
         "SELECT id, password_hash FROM usuarios WHERE username = 'sysadmin'",
       )
-      .get() as { id: number; password_hash: string };
+      .get() as {
+      id: number;
+      password_hash: string;
+    };
 
     delete process.env.BOOTSTRAP_SYSADMIN_PASSWORD;
     await ensureAdminSeed();
@@ -180,7 +183,10 @@ describe("bootstrap seguro del SysAdmin", () => {
       .prepare(
         "SELECT id, password_hash FROM usuarios WHERE username = 'sysadmin'",
       )
-      .get() as { id: number; password_hash: string };
+      .get() as {
+      id: number;
+      password_hash: string;
+    };
     assert.deepEqual(actual, anterior);
     assert.equal(verifyPassword(passwordInicial, actual.password_hash), true);
     assert.equal(
@@ -199,7 +205,9 @@ describe("bootstrap seguro del SysAdmin", () => {
 
     const actual = sqlite
       .prepare("SELECT password_hash FROM usuarios WHERE id = ?")
-      .get(heredado.id) as { password_hash: string };
+      .get(heredado.id) as {
+      password_hash: string;
+    };
     assert.equal(actual.password_hash, heredado.passwordHash);
     assert.equal(
       sqlite
@@ -263,15 +271,24 @@ describe("bootstrap seguro del SysAdmin", () => {
     await ensureAdminSeed();
     const segundaEjecucion = sqlite
       .prepare("SELECT password_hash FROM usuarios WHERE id = ?")
-      .get(heredado.id) as { password_hash: string };
+      .get(heredado.id) as {
+      password_hash: string;
+    };
     assert.equal(segundaEjecucion.password_hash, hashRotado);
   });
 
-  it("asegura el admin histórico aunque coexista con un sysadmin seguro", async () => {
+  it("rota un admin heredado sin promoverlo cuando ya existe el sysadmin canónico", async () => {
     const heredado = crearSeedHeredado("admin");
     const roleId = sqlite
       .prepare("SELECT id FROM roles WHERE nombre = 'SysAdmin'")
       .get()!.id;
+    const operadorRoleId = Number(
+      sqlite.prepare("INSERT INTO roles (nombre) VALUES ('Operador')").run()
+        .lastInsertRowid,
+    );
+    sqlite
+      .prepare("UPDATE usuarios SET role_id = ? WHERE id = ?")
+      .run(operadorRoleId, heredado.id);
     const hashSeguro = hashPassword(passwordDiferente);
     const sysadminSeguro = sqlite
       .prepare(
@@ -290,13 +307,22 @@ describe("bootstrap seguro del SysAdmin", () => {
     process.env.BOOTSTRAP_SYSADMIN_PASSWORD = passwordInicial;
     await ensureAdminSeed();
 
-    const hashHeredadoRotado = sqlite
-      .prepare("SELECT password_hash FROM usuarios WHERE id = ?")
-      .get(heredado.id)!.password_hash;
+    const adminRotado = sqlite
+      .prepare(
+        `SELECT u.password_hash, r.nombre AS rol
+         FROM usuarios u
+         JOIN roles r ON r.id = u.role_id
+         WHERE u.id = ?`,
+      )
+      .get(heredado.id) as { password_hash: string; rol: string };
     const hashSeguroActual = sqlite
       .prepare("SELECT password_hash FROM usuarios WHERE id = ?")
       .get(sysadminSeguro.lastInsertRowid)!.password_hash;
-    assert.equal(verifyPassword(passwordInicial, hashHeredadoRotado), true);
+    assert.equal(
+      verifyPassword(passwordInicial, adminRotado.password_hash),
+      true,
+    );
+    assert.equal(adminRotado.rol, "Operador");
     assert.equal(hashSeguroActual, hashSeguro);
     assert.equal(
       sqlite
@@ -338,6 +364,129 @@ describe("bootstrap seguro del SysAdmin", () => {
     );
   });
 
+  it("migra solo la identidad histórica sin promover a los demás administradores", async () => {
+    const roleId = Number(
+      sqlite
+        .prepare("INSERT INTO roles (nombre) VALUES ('Administrador')")
+        .run().lastInsertRowid,
+    );
+    const hashHeredado = hashPassword(passwordHeredado);
+    const hashSeguro = hashPassword(passwordDiferente);
+    const seed = sqlite
+      .prepare(
+        `INSERT INTO usuarios
+         (nombre, username, email, password_hash, role_id)
+         VALUES ('Admin histórico', NULL, 'admin', ?, ?)`,
+      )
+      .run(hashHeredado, roleId);
+    const colega = sqlite
+      .prepare(
+        `INSERT INTO usuarios
+         (nombre, username, email, password_hash, role_id)
+         VALUES ('Colega', 'colega', 'colega@example.test', ?, ?)`,
+      )
+      .run(hashSeguro, roleId);
+
+    process.env.BOOTSTRAP_SYSADMIN_PASSWORD = passwordInicial;
+    await ensureAdminSeed();
+
+    const asignaciones = sqlite
+      .prepare(
+        `SELECT u.id, r.nombre AS rol
+         FROM usuarios u
+         JOIN roles r ON r.id = u.role_id
+         WHERE u.id IN (?, ?)
+         ORDER BY u.id`,
+      )
+      .all(seed.lastInsertRowid, colega.lastInsertRowid);
+    assert.deepEqual(asignaciones, [
+      { id: Number(seed.lastInsertRowid), rol: "SysAdmin" },
+      { id: Number(colega.lastInsertRowid), rol: "Administrador" },
+    ]);
+    const rolOriginal = sqlite
+      .prepare("SELECT nombre FROM roles WHERE id = ?")
+      .get(roleId) as { nombre: string };
+    assert.equal(rolOriginal.nombre, "Administrador");
+  });
+
+  it("migra al SysAdmin una identidad histórica con contraseña ya asegurada", async () => {
+    const roleId = Number(
+      sqlite
+        .prepare("INSERT INTO roles (nombre) VALUES ('Administrador')")
+        .run().lastInsertRowid,
+    );
+    const hashSeguro = hashPassword(passwordDiferente);
+    const usuario = sqlite
+      .prepare(
+        `INSERT INTO usuarios
+         (nombre, username, email, password_hash, role_id)
+         VALUES ('Admin histórico', NULL, 'admin', ?, ?)`,
+      )
+      .run(hashSeguro, roleId);
+    sqlite
+      .prepare(
+        `INSERT INTO sesiones (token, usuario_id, fecha_expiracion)
+         VALUES ('sesion-admin-seguro', ?, ?)`,
+      )
+      .run(usuario.lastInsertRowid, Date.now() + 60_000);
+
+    await ensureAdminSeed();
+
+    const migrado = sqlite
+      .prepare(
+        `SELECT u.username, u.email, u.password_hash, r.nombre AS rol
+         FROM usuarios u
+         JOIN roles r ON r.id = u.role_id
+         WHERE u.id = ?`,
+      )
+      .get(usuario.lastInsertRowid) as {
+      username: string;
+      email: string;
+      password_hash: string;
+      rol: string;
+    };
+    assert.deepEqual(
+      {
+        username: migrado.username,
+        email: migrado.email,
+        rol: migrado.rol,
+      },
+      { username: "sysadmin", email: "sysadmin", rol: "SysAdmin" },
+    );
+    assert.equal(migrado.password_hash, hashSeguro);
+    assert.equal(
+      sqlite
+        .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?")
+        .get(usuario.lastInsertRowid)!.total,
+      0,
+    );
+  });
+
+  it("reactiva los roles base sin modificar contraseñas seguras", async () => {
+    process.env.BOOTSTRAP_SYSADMIN_PASSWORD = passwordInicial;
+    await ensureAdminSeed();
+    const hashAnterior = sqlite
+      .prepare("SELECT password_hash FROM usuarios WHERE username = 'sysadmin'")
+      .get()!.password_hash;
+    sqlite.prepare("UPDATE roles SET activo = 0").run();
+    delete process.env.BOOTSTRAP_SYSADMIN_PASSWORD;
+
+    await ensureAdminSeed();
+
+    const roles = sqlite
+      .prepare("SELECT nombre, activo FROM roles ORDER BY nombre")
+      .all();
+    assert.deepEqual(roles, [
+      { nombre: "Administrador", activo: 1 },
+      { nombre: "Operador", activo: 1 },
+      { nombre: "SysAdmin", activo: 1 },
+    ]);
+    const hashActual = sqlite
+      .prepare("SELECT password_hash FROM usuarios WHERE username = 'sysadmin'")
+      .get()!.password_hash;
+    assert.equal(hashActual, hashAnterior);
+  });
+
   it("revierte el hash si no puede revocar las sesiones", async () => {
     const heredado = crearSeedHeredado();
     sqlite.exec(`
@@ -358,7 +507,9 @@ describe("bootstrap seguro del SysAdmin", () => {
 
     const actual = sqlite
       .prepare("SELECT password_hash FROM usuarios WHERE id = ?")
-      .get(heredado.id) as { password_hash: string };
+      .get(heredado.id) as {
+      password_hash: string;
+    };
     assert.equal(actual.password_hash, heredado.passwordHash);
     assert.equal(verifyPassword(passwordHeredado, actual.password_hash), true);
     assert.equal(

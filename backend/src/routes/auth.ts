@@ -10,6 +10,7 @@ import {
   getSessionUser,
   purgeExpiredSessions,
 } from "../lib/auth";
+import { closeEventClientsForSession } from "../lib/events";
 
 const router = Router();
 
@@ -36,13 +37,19 @@ router.post("/auth/login", async (req, res) => {
       password_hash: usuariosTable.password_hash,
       activo: usuariosTable.activo,
       rol: rolesTable.nombre,
+      rol_activo: rolesTable.activo,
     })
     .from(usuariosTable)
     .innerJoin(rolesTable, eq(usuariosTable.role_id, rolesTable.id))
     .where(eq(usuariosTable.username, usuarioNormalizado));
 
   // Mensaje genérico a propósito: no revelar si el usuario existe o no
-  if (!user || !user.activo || !verifyPassword(parsed.data.password, user.password_hash)) {
+  if (
+    !user ||
+    !user.activo ||
+    !user.rol_activo ||
+    !verifyPassword(parsed.data.password, user.password_hash)
+  ) {
     res.status(401).json({ error: "Usuario o contraseña incorrectos" });
     return;
   }
@@ -56,7 +63,10 @@ router.post("/auth/login", async (req, res) => {
     fecha_expiracion: new Date(Date.now() + SESSION_TTL_MS),
   });
 
-  res.cookie(SESSION_COOKIE, token, { ...cookieOptions, maxAge: SESSION_TTL_MS });
+  res.cookie(SESSION_COOKIE, token, {
+    ...cookieOptions,
+    maxAge: SESSION_TTL_MS,
+  });
   res.json({
     id: user.id,
     nombre: user.nombre,
@@ -67,9 +77,11 @@ router.post("/auth/login", async (req, res) => {
 });
 
 router.post("/auth/logout", async (req, res) => {
-  const token = (req as Request & { cookies?: Record<string, string> }).cookies?.[SESSION_COOKIE];
+  const token = (req as Request & { cookies?: Record<string, string> })
+    .cookies?.[SESSION_COOKIE];
   if (token) {
     await db.delete(sesionesTable).where(eq(sesionesTable.token, token));
+    closeEventClientsForSession(token);
   }
   res.clearCookie(SESSION_COOKIE, cookieOptions);
   res.status(204).end();

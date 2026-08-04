@@ -131,12 +131,13 @@ Todas bajo el prefijo `/api`. ✅ = requiere sesión (candado global). 🔑 = ad
 
 ## Autenticación y autorización
 
-Todo vive en [`src/lib/auth.ts`](src/lib/auth.ts).
+La política de roles vive en `src/lib/rbac.ts`; sesiones y middlewares, en [`src/lib/auth.ts`](src/lib/auth.ts).
 
 ### Sesiones
 
 - Login exitoso → se genera un token aleatorio (`crypto.randomBytes(32)`), se guarda una fila en la tabla `sesiones` con expiración a **7 días**, y se setea como cookie `gsb_session` (`httpOnly`, `SameSite=Lax`, `path: /`).
-- Cada request autenticado busca la cookie, hace join `sesiones → usuarios → roles`, valida que no haya expirado y que el usuario siga `activo`. Si algo falla, `401`.
+- Cada request autenticado busca la cookie, hace join `sesiones → usuarios → roles`, valida que no haya expirado y que tanto el usuario como su rol sigan activos. Si cualquiera fue desactivado, elimina esa sesión y responde `401`.
+- Desactivar un usuario o un rol desde Administración elimina en la misma transacción todas las sesiones afectadas y cierra sus conexiones SSE abiertas. Reactivarlo no revive cookies anteriores. El heartbeat del stream vuelve a validar la cookie cada 25 segundos como defensa adicional ante expiraciones o revocaciones externas.
 - `purgeExpiredSessions()` se invoca en cada login (barrido perezoso, no hay cron).
 - Logout borra la fila de `sesiones` y limpia la cookie.
 - **Reset de contraseña revoca todas las sesiones del usuario** (`DELETE FROM sesiones WHERE usuario_id = ...`): si estaba logueado en otro navegador, queda afuera al instante.
@@ -147,7 +148,7 @@ Todo vive en [`src/lib/auth.ts`](src/lib/auth.ts).
 
 ### Roles
 
-Tres roles fijos por nombre (constantes en `auth.ts`, espejadas en `frontend/src/lib/roles.ts`):
+Tres roles base por nombre (constantes en `rbac.ts`, espejadas en `frontend/src/lib/roles.ts`):
 
 | Constante | Valor | Regla |
 |---|---|---|
@@ -155,7 +156,9 @@ Tres roles fijos por nombre (constantes en `auth.ts`, espejadas en `frontend/src
 | `ROL_ADMINISTRADOR` | `"Administrador"` | `puedeCerrarTickets()` devuelve `true` |
 | `ROL_OPERADOR` | `"Operador"` | `puedeCerrarTickets()` devuelve `false` — el `PATCH /tickets/:id` con `estado: "cerrado"` le responde `403` |
 
-> Los roles se verifican **por nombre** hoy. Cuando exista el sistema de permisos con checkboxes (roadmap), esto pasa a resolverse por permiso individual, no por nombre fijo — ver `docs/BITACORA_AGENTES.MD` para el historial de la decisión.
+Los tres nombres quedan reservados sin distinguir mayúsculas: esos roles no se pueden renombrar, desactivar ni eliminar, aunque sí se puede corregir su descripción. Los roles personalizados conservan su CRUD; uno inactivo no admite nuevas asignaciones y revoca las sesiones y streams de sus usuarios. El backend también impide desactivar o degradar al último SysAdmin activo que tenga username y un hash scrypt utilizable.
+
+> La autorización todavía se resuelve **por nombre protegido**. Un futuro catálogo de capacidades podrá reemplazar esta decisión sin depender de IDs locales.
 
 ### Doble verificación en `/admin/*`
 
@@ -177,8 +180,8 @@ Dos capas encima de la sesión: primero el rol (`403` si no es SysAdmin), despu�
 
 Se ejecuta una vez en cada arranque del backend (`await ensureAdminSeed()` en `index.ts`, antes de abrir el puerto):
 
-1. **Migración de nombres** (idempotente): si existe un rol `"Administrador"` pero no `"SysAdmin"`, lo renombra. Si existe un usuario `email: "admin"` pero no `"sysadmin"`, lo renombra. Esto es histórico — el seed original usaba esos nombres y se corrigió después; la migración deja las bases viejas (incluido el servidor de testing) al día solas.
-2. **Roles base**: crea `Administrador` y `Operador` si no existen (siempre, en cada arranque).
+1. **Roles base**: crea `SysAdmin`, `Administrador` y `Operador` si faltan y reactiva cualquiera que hubiese quedado inactivo. Nunca renombra `Administrador` a `SysAdmin`, porque eso promovería también a todos sus usuarios.
+2. **Compatibilidad de identidad**: si existe el usuario histórico `admin` y no existe `sysadmin`, normaliza únicamente esa identidad. Al rotar el seed heredado le asigna el rol `SysAdmin` canónico; los demás usuarios de `Administrador` permanecen en su rol.
 3. **Alta inicial segura**: si ningún usuario tiene `password_hash`, exige `BOOTSTRAP_SYSADMIN_PASSWORD` (16 a 128 caracteres), crea el rol `SysAdmin` y guarda únicamente el hash scrypt. La validación ocurre antes de modificar filas y el backend no abre el puerto si falta o es inválida.
 4. **Upgrade seguro**: detecta exclusivamente si `sysadmin` —o el nombre histórico `admin`— todavía conserva la credencial pública del seed anterior. En ese caso exige el mismo secreto externo, rota el hash y revoca sus sesiones dentro de una transacción.
 5. **Sin resets implícitos**: cualquier contraseña distinta de la credencial heredada queda intacta. Cambiar o conservar `BOOTSTRAP_SYSADMIN_PASSWORD` no modifica una cuenta ya asegurada.

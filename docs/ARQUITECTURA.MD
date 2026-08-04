@@ -287,10 +287,17 @@ Es la auditoría temporal del ticket. Registra notas manuales, alta automática 
 
 ### `roles`, `usuarios` y `sesiones`
 
-- `roles` define el catálogo de perfiles.
+- `roles` define el catálogo de perfiles. Los nombres base `SysAdmin`, `Administrador` y `Operador` son identidades reservadas y activas; los perfiles personalizados sí admiten ciclo de vida propio.
 - `usuarios` contiene identidad, credenciales hash, rol y estado activo.
 - `sesiones` persiste el token de cookie `gsb_session`, su usuario y expiración; permite revocar sesiones y sobrevivir reinicios.
 - `password_hash` usa scrypt; nunca se almacena la contraseña en texto plano.
+
+Invariantes de RBAC aplicadas en backend y reflejadas en la UI:
+
+- un rol inactivo no permite login ni nuevas asignaciones; al desactivarlo se revocan atómicamente las sesiones de sus usuarios y se cierran sus streams SSE;
+- los tres roles base no se renombran, desactivan ni eliminan;
+- una actualización de usuarios no puede dejar el sistema sin al menos un SysAdmin activo, con username y hash scrypt utilizable;
+- el seed crea/reactiva roles canónicos y migra solo la identidad histórica: nunca convierte en masa el rol `Administrador` en `SysAdmin`.
 
 ## 6. Seguridad y autorización
 

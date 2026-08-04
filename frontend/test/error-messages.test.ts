@@ -37,6 +37,22 @@ test('traduce conflictos de negocio conocidos sin copiar la respuesta cruda', ()
     getUserErrorMessage(apiError(409, 'No se puede eliminar un rol con usuarios asignados')),
     'No se puede eliminar un rol que tiene usuarios asignados. Podés desactivarlo.',
   );
+  assert.equal(
+    getUserErrorMessage(apiError(409, 'Ese nombre está reservado para un rol del sistema')),
+    'Ese nombre está reservado para un rol del sistema.',
+  );
+  assert.equal(
+    getUserErrorMessage(apiError(409, 'Los roles del sistema deben permanecer activos')),
+    'Los roles del sistema deben permanecer activos.',
+  );
+  assert.equal(
+    getUserErrorMessage(apiError(409, 'No se puede asignar un rol inactivo')),
+    'El rol seleccionado está inactivo. Elegí o activá otro rol.',
+  );
+  assert.equal(
+    getUserErrorMessage(apiError(409, 'Debe permanecer al menos un SysAdmin activo con credenciales')),
+    'Debe quedar al menos un SysAdmin activo con credenciales utilizables.',
+  );
 });
 
 test('las acciones administrativas explican la clave inválida sin datos HTTP', () => {

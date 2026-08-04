@@ -2,6 +2,14 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
 import { db, sesionesTable, usuariosTable, rolesTable } from "@workspace/db";
 import { eq, lt } from "drizzle-orm";
+import { ROL_SYSADMIN } from "./rbac";
+
+export {
+  ROL_SYSADMIN,
+  ROL_ADMINISTRADOR,
+  ROL_OPERADOR,
+  puedeCerrarTickets,
+} from "./rbac";
 
 export function safeEquals(a: string, b: string): boolean {
   const hashA = createHash("sha256").update(a).digest();
@@ -11,10 +19,16 @@ export function safeEquals(a: string, b: string): boolean {
 
 // Webhook (n8n): la clave es OBLIGATORIA — si no está configurada en el
 // servidor, la ingesta queda cerrada (503) hasta que se configure.
-export function requireWebhookKey(req: Request, res: Response, next: NextFunction) {
+export function requireWebhookKey(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   const configuredKey = process.env.WEBHOOK_API_KEY;
   if (!configuredKey) {
-    res.status(503).json({ error: "WEBHOOK_API_KEY no está configurada en el servidor" });
+    res
+      .status(503)
+      .json({ error: "WEBHOOK_API_KEY no está configurada en el servidor" });
     return;
   }
   const providedKey = req.header("x-api-key");
@@ -32,19 +46,6 @@ export function requireWebhookKey(req: Request, res: Response, next: NextFunctio
 export const SESSION_COOKIE = "gsb_session";
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 días
 
-// Roles del sistema. Cuando llegue el sistema de permisos con checkboxes,
-// estas verificaciones pasarán a ser por permiso y no por nombre de rol.
-// - SysAdmin: usuario Dios — todo, incluido el panel de administración.
-// - Administrador: todo sobre tickets (incluye cerrarlos), sin panel admin.
-// - Operador: gestión básica — no puede cerrar tickets.
-export const ROL_SYSADMIN = "SysAdmin";
-export const ROL_ADMINISTRADOR = "Administrador";
-export const ROL_OPERADOR = "Operador";
-
-export function puedeCerrarTickets(rol: string | undefined): boolean {
-  return rol === ROL_SYSADMIN || rol === ROL_ADMINISTRADOR;
-}
-
 export interface SessionUser {
   id: number;
   nombre: string;
@@ -53,8 +54,11 @@ export interface SessionUser {
   rol: string;
 }
 
-export async function getSessionUser(req: Request): Promise<SessionUser | null> {
-  const token = (req as Request & { cookies?: Record<string, string> }).cookies?.[SESSION_COOKIE];
+export async function getSessionUser(
+  req: Request,
+): Promise<SessionUser | null> {
+  const token = (req as Request & { cookies?: Record<string, string> })
+    .cookies?.[SESSION_COOKIE];
   if (!token) return null;
 
   const [row] = await db
@@ -66,6 +70,7 @@ export async function getSessionUser(req: Request): Promise<SessionUser | null> 
       email: usuariosTable.email,
       activo: usuariosTable.activo,
       rol: rolesTable.nombre,
+      rol_activo: rolesTable.activo,
     })
     .from(sesionesTable)
     .innerJoin(usuariosTable, eq(sesionesTable.usuario_id, usuariosTable.id))
@@ -77,8 +82,11 @@ export async function getSessionUser(req: Request): Promise<SessionUser | null> 
     await db.delete(sesionesTable).where(eq(sesionesTable.token, token));
     return null;
   }
-  // Un usuario desactivado pierde el acceso aunque su sesión siga viva
-  if (!row.activo) return null;
+  // Desactivar al usuario o a su rol revoca la sesión en la primera consulta.
+  if (!row.activo || !row.rol_activo) {
+    await db.delete(sesionesTable).where(eq(sesionesTable.token, token));
+    return null;
+  }
 
   return {
     id: row.usuario_id,
@@ -90,7 +98,11 @@ export async function getSessionUser(req: Request): Promise<SessionUser | null> 
 }
 
 // Candado global: toda ruta montada después de este middleware exige sesión.
-export async function requireSession(req: Request, res: Response, next: NextFunction) {
+export async function requireSession(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   const user = await getSessionUser(req);
   if (!user) {
     res.status(401).json({ error: "Sesión requerida" });
@@ -102,12 +114,18 @@ export async function requireSession(req: Request, res: Response, next: NextFunc
 
 // Limpieza perezosa de sesiones vencidas (se invoca en cada login)
 export async function purgeExpiredSessions(): Promise<void> {
-  await db.delete(sesionesTable).where(lt(sesionesTable.fecha_expiracion, new Date()));
+  await db
+    .delete(sesionesTable)
+    .where(lt(sesionesTable.fecha_expiracion, new Date()));
 }
 
 // Solo usuarios con el rol SysAdmin pueden operar el panel de administración.
 // Corre después de requireSession, así que res.locals.authUser ya está.
-export function requireSysAdmin(_req: Request, res: Response, next: NextFunction) {
+export function requireSysAdmin(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   const user = res.locals.authUser as SessionUser | undefined;
   if (!user || user.rol !== ROL_SYSADMIN) {
     res.status(403).json({ error: "Requiere rol SysAdmin" });
@@ -119,10 +137,16 @@ export function requireSysAdmin(_req: Request, res: Response, next: NextFunction
 // Admin: la clave es obligatoria y falla de forma cerrada. Una configuración
 // ausente o vacía nunca debe convertir accidentalmente una ruta protegida en
 // pública; el servidor devuelve 503 hasta que ADMIN_API_KEY sea configurada.
-export function requireAdminKey(req: Request, res: Response, next: NextFunction) {
+export function requireAdminKey(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   const configuredKey = process.env.ADMIN_API_KEY;
   if (!configuredKey?.trim()) {
-    res.status(503).json({ error: "ADMIN_API_KEY no está configurada en el servidor" });
+    res
+      .status(503)
+      .json({ error: "ADMIN_API_KEY no está configurada en el servidor" });
     return;
   }
   const providedKey = req.header("x-admin-key");

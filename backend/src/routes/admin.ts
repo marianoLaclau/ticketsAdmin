@@ -9,7 +9,7 @@ import {
   usuariosTable,
   sesionesTable,
 } from "@workspace/db";
-import { and, asc, count, eq, like, or, type SQL } from "drizzle-orm";
+import { and, asc, count, eq, inArray, like, or, type SQL } from "drizzle-orm";
 import {
   CreateAdminTicketBody,
   ImportCsvBody,
@@ -34,9 +34,10 @@ import {
   clasificarMotivo,
 } from "@workspace/ingesta";
 import { requireAdminKey, requireSysAdmin } from "../lib/auth";
-import { hashPassword } from "../lib/passwords";
-import { broadcastEvent } from "../lib/events";
+import { hashPassword, isUsablePasswordHash } from "../lib/passwords";
+import { broadcastEvent, closeEventClientsForUsers } from "../lib/events";
 import { findInvalidRfc3339DateTimeField } from "../lib/rfc3339";
+import { esNombreRolReservado, esRolSistema, ROL_SYSADMIN } from "../lib/rbac";
 
 const router = Router();
 
@@ -66,6 +67,9 @@ const normalizeUsername = (value: string): string => value.trim().toLowerCase();
 const hasOwn = (value: object, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, key);
 
+const hasLoginIdentity = (value: string | null): value is string =>
+  typeof value === "string" && value.trim().length > 0;
+
 // Nunca devolver password_hash en una respuesta HTTP — ni siquiera hasheada,
 // una contraseña no tiene por qué viajar de vuelta al cliente.
 const PUBLIC_USER_COLUMNS = {
@@ -93,10 +97,9 @@ const hasSqliteConstraint = (error: unknown, constraint: string): boolean => {
 // Alta manual de un registro (el flujo normal sigue siendo el webhook)
 router.post("/admin/tickets", async (req, res) => {
   if (req.body && typeof req.body === "object" && !Array.isArray(req.body)) {
-    const invalidDateField = findInvalidRfc3339DateTimeField(
-      req.body,
-      ["fecha_limite"] as const,
-    );
+    const invalidDateField = findInvalidRfc3339DateTimeField(req.body, [
+      "fecha_limite",
+    ] as const);
     if (invalidDateField) {
       res.status(400).json({
         error: `${invalidDateField} debe ser una fecha RFC3339 válida con zona horaria`,
@@ -229,6 +232,12 @@ router.post("/admin/roles", async (req, res) => {
     res.status(400).json({ error: "El nombre del rol es obligatorio" });
     return;
   }
+  if (esNombreRolReservado(nombre)) {
+    res.status(409).json({
+      error: "Ese nombre está reservado para un rol del sistema",
+    });
+    return;
+  }
 
   try {
     const [role] = await db
@@ -263,13 +272,14 @@ router.patch("/admin/roles/:id", async (req, res) => {
   }
 
   const [existing] = await db
-    .select({ id: rolesTable.id })
+    .select({ id: rolesTable.id, nombre: rolesTable.nombre })
     .from(rolesTable)
     .where(eq(rolesTable.id, params.data.id));
   if (!existing) {
     res.status(404).json({ error: "Rol no encontrado" });
     return;
   }
+  const rolSistema = esRolSistema(existing.nombre);
 
   const updates: Partial<typeof rolesTable.$inferInsert> = {
     fecha_actualizacion: new Date(),
@@ -280,20 +290,65 @@ router.patch("/admin/roles/:id", async (req, res) => {
       res.status(400).json({ error: "El nombre del rol es obligatorio" });
       return;
     }
+    if (rolSistema && nombre !== existing.nombre) {
+      res
+        .status(409)
+        .json({ error: "Los roles del sistema no se pueden renombrar" });
+      return;
+    }
+    if (!rolSistema && esNombreRolReservado(nombre)) {
+      res.status(409).json({
+        error: "Ese nombre está reservado para un rol del sistema",
+      });
+      return;
+    }
     updates.nombre = nombre;
   }
   if (hasOwn(body.data, "descripcion")) {
     updates.descripcion = normalizeOptionalText(body.data.descripcion);
   }
-  if (body.data.activo !== undefined) updates.activo = body.data.activo;
+  if (body.data.activo !== undefined) {
+    if (rolSistema && !body.data.activo) {
+      res.status(409).json({
+        error: "Los roles del sistema deben permanecer activos",
+      });
+      return;
+    }
+    updates.activo = body.data.activo;
+  }
 
   try {
-    const [role] = await db
-      .update(rolesTable)
-      .set(updates)
-      .where(eq(rolesTable.id, params.data.id))
-      .returning();
-    res.json(role);
+    const result = db.transaction((tx) => {
+      const role = tx
+        .update(rolesTable)
+        .set(updates)
+        .where(eq(rolesTable.id, params.data.id))
+        .returning()
+        .get();
+      if (!role) return { kind: "not_found" } as const;
+
+      const revokedUserIds =
+        updates.activo === false
+          ? tx
+              .select({ id: usuariosTable.id })
+              .from(usuariosTable)
+              .where(eq(usuariosTable.role_id, role.id))
+              .all()
+              .map(({ id }) => id)
+          : [];
+      if (revokedUserIds.length > 0) {
+        tx.delete(sesionesTable)
+          .where(inArray(sesionesTable.usuario_id, revokedUserIds))
+          .run();
+      }
+      return { kind: "updated", role, revokedUserIds } as const;
+    });
+    if (result.kind === "not_found") {
+      res.status(404).json({ error: "Rol no encontrado" });
+      return;
+    }
+    closeEventClientsForUsers(result.revokedUserIds);
+    res.json(result.role);
   } catch (error) {
     if (hasSqliteConstraint(error, "UNIQUE")) {
       res.status(409).json({ error: "Ya existe un rol con ese nombre" });
@@ -311,11 +366,17 @@ router.delete("/admin/roles/:id", async (req, res) => {
   }
 
   const [role] = await db
-    .select({ id: rolesTable.id })
+    .select({ id: rolesTable.id, nombre: rolesTable.nombre })
     .from(rolesTable)
     .where(eq(rolesTable.id, parsed.data.id));
   if (!role) {
     res.status(404).json({ error: "Rol no encontrado" });
+    return;
+  }
+  if (esRolSistema(role.nombre)) {
+    res
+      .status(409)
+      .json({ error: "Los roles del sistema no se pueden eliminar" });
     return;
   }
 
@@ -411,49 +472,77 @@ router.post("/admin/users", async (req, res) => {
   const email = normalizeEmail(parsed.data.email);
   const username = normalizeUsername(parsed.data.username);
   if (!nombre || !email || !username) {
-    res.status(400).json({ error: "Nombre, nombre de usuario y email son obligatorios" });
+    res
+      .status(400)
+      .json({ error: "Nombre, nombre de usuario y email son obligatorios" });
     return;
   }
 
-  const [role] = await db
-    .select({ id: rolesTable.id })
-    .from(rolesTable)
-    .where(eq(rolesTable.id, parsed.data.role_id));
-  if (!role) {
-    res.status(400).json({ error: "El rol indicado no existe" });
-    return;
-  }
-
-  // Chequeos proactivos: dos columnas UNIQUE (email, username) no permiten
-  // distinguir cuál fue con un catch genérico, así que se valida antes.
-  const [emailEnUso] = await db.select({ id: usuariosTable.id }).from(usuariosTable).where(eq(usuariosTable.email, email));
-  if (emailEnUso) {
-    res.status(409).json({ error: "Ya existe un usuario con ese email" });
-    return;
-  }
-  const [usernameEnUso] = await db.select({ id: usuariosTable.id }).from(usuariosTable).where(eq(usuariosTable.username, username));
-  if (usernameEnUso) {
-    res.status(409).json({ error: "Ya existe un usuario con ese nombre de usuario" });
-    return;
-  }
-
+  const passwordHash = hashPassword(parsed.data.password);
   try {
-    const [user] = await db
-      .insert(usuariosTable)
-      .values({
-        nombre,
-        apellido: normalizeOptionalText(parsed.data.apellido),
-        username,
-        password_hash: hashPassword(parsed.data.password),
-        email,
-        role_id: parsed.data.role_id,
-        activo: parsed.data.activo,
-      })
-      .returning(PUBLIC_USER_COLUMNS);
-    res.status(201).json(user);
+    const result = db.transaction((tx) => {
+      const role = tx
+        .select({ activo: rolesTable.activo })
+        .from(rolesTable)
+        .where(eq(rolesTable.id, parsed.data.role_id))
+        .get();
+      if (!role) return { kind: "role_not_found" } as const;
+      if (!role.activo) return { kind: "role_inactive" } as const;
+
+      // Estos chequeos distinguen las dos restricciones UNIQUE; la base sigue
+      // siendo la última defensa si dos procesos intentan el alta a la vez.
+      const emailEnUso = tx
+        .select({ id: usuariosTable.id })
+        .from(usuariosTable)
+        .where(eq(usuariosTable.email, email))
+        .get();
+      if (emailEnUso) return { kind: "email_exists" } as const;
+      const usernameEnUso = tx
+        .select({ id: usuariosTable.id })
+        .from(usuariosTable)
+        .where(eq(usuariosTable.username, username))
+        .get();
+      if (usernameEnUso) return { kind: "username_exists" } as const;
+
+      const user = tx
+        .insert(usuariosTable)
+        .values({
+          nombre,
+          apellido: normalizeOptionalText(parsed.data.apellido),
+          username,
+          password_hash: passwordHash,
+          email,
+          role_id: parsed.data.role_id,
+          activo: parsed.data.activo,
+        })
+        .returning(PUBLIC_USER_COLUMNS)
+        .get();
+      return { kind: "created", user } as const;
+    });
+    if (result.kind === "role_not_found") {
+      res.status(400).json({ error: "El rol indicado no existe" });
+      return;
+    }
+    if (result.kind === "role_inactive") {
+      res.status(409).json({ error: "No se puede asignar un rol inactivo" });
+      return;
+    }
+    if (result.kind === "email_exists") {
+      res.status(409).json({ error: "Ya existe un usuario con ese email" });
+      return;
+    }
+    if (result.kind === "username_exists") {
+      res
+        .status(409)
+        .json({ error: "Ya existe un usuario con ese nombre de usuario" });
+      return;
+    }
+    res.status(201).json(result.user);
   } catch (error) {
     if (hasSqliteConstraint(error, "UNIQUE")) {
-      res.status(409).json({ error: "Ya existe un usuario con ese email o nombre de usuario" });
+      res.status(409).json({
+        error: "Ya existe un usuario con ese email o nombre de usuario",
+      });
       return;
     }
     if (hasSqliteConstraint(error, "FOREIGNKEY")) {
@@ -475,26 +564,6 @@ router.patch("/admin/users/:id", async (req, res) => {
   ) {
     res.status(400).json({ error: "Invalid id or body" });
     return;
-  }
-
-  const [existing] = await db
-    .select({ id: usuariosTable.id })
-    .from(usuariosTable)
-    .where(eq(usuariosTable.id, params.data.id));
-  if (!existing) {
-    res.status(404).json({ error: "Usuario no encontrado" });
-    return;
-  }
-
-  if (body.data.role_id !== undefined) {
-    const [role] = await db
-      .select({ id: rolesTable.id })
-      .from(rolesTable)
-      .where(eq(rolesTable.id, body.data.role_id));
-    if (!role) {
-      res.status(404).json({ error: "Rol no encontrado" });
-      return;
-    }
   }
 
   const updates: Partial<typeof usuariosTable.$inferInsert> = {
@@ -525,15 +594,118 @@ router.patch("/admin/users/:id", async (req, res) => {
   if (body.data.activo !== undefined) updates.activo = body.data.activo;
 
   try {
-    const [user] = await db
-      .update(usuariosTable)
-      .set(updates)
-      .where(eq(usuariosTable.id, params.data.id))
-      .returning(PUBLIC_USER_COLUMNS);
-    res.json(user);
+    const result = db.transaction((tx) => {
+      const current = tx
+        .select({
+          id: usuariosTable.id,
+          activo: usuariosTable.activo,
+          username: usuariosTable.username,
+          passwordHash: usuariosTable.password_hash,
+          rol: rolesTable.nombre,
+          rolActivo: rolesTable.activo,
+        })
+        .from(usuariosTable)
+        .innerJoin(rolesTable, eq(usuariosTable.role_id, rolesTable.id))
+        .where(eq(usuariosTable.id, params.data.id))
+        .get();
+      if (!current) return { kind: "not_found" } as const;
+
+      let rolDestino = { nombre: current.rol, activo: current.rolActivo };
+      if (body.data.role_id !== undefined) {
+        const role = tx
+          .select({ nombre: rolesTable.nombre, activo: rolesTable.activo })
+          .from(rolesTable)
+          .where(eq(rolesTable.id, body.data.role_id))
+          .get();
+        if (!role) return { kind: "role_not_found" } as const;
+        if (!role.activo) return { kind: "role_inactive" } as const;
+        rolDestino = role;
+      }
+
+      const eraSysAdminAutenticable =
+        current.activo &&
+        current.rolActivo &&
+        current.rol === ROL_SYSADMIN &&
+        hasLoginIdentity(current.username) &&
+        isUsablePasswordHash(current.passwordHash);
+      const seguiraSiendoSysAdminAutenticable =
+        (updates.activo ?? current.activo) &&
+        rolDestino.activo &&
+        rolDestino.nombre === ROL_SYSADMIN &&
+        hasLoginIdentity(
+          (updates.username as string | null | undefined) ?? current.username,
+        ) &&
+        isUsablePasswordHash(current.passwordHash);
+
+      if (eraSysAdminAutenticable && !seguiraSiendoSysAdminAutenticable) {
+        const otros = tx
+          .select({
+            id: usuariosTable.id,
+            username: usuariosTable.username,
+            passwordHash: usuariosTable.password_hash,
+          })
+          .from(usuariosTable)
+          .innerJoin(rolesTable, eq(usuariosTable.role_id, rolesTable.id))
+          .where(
+            and(
+              eq(usuariosTable.activo, true),
+              eq(rolesTable.nombre, ROL_SYSADMIN),
+              eq(rolesTable.activo, true),
+            ),
+          )
+          .all()
+          .filter((usuario) => usuario.id !== current.id);
+        const existeReemplazo = otros.some(
+          (usuario) =>
+            hasLoginIdentity(usuario.username) &&
+            isUsablePasswordHash(usuario.passwordHash),
+        );
+        if (!existeReemplazo) {
+          return { kind: "last_sysadmin" } as const;
+        }
+      }
+
+      const user = tx
+        .update(usuariosTable)
+        .set(updates)
+        .where(eq(usuariosTable.id, current.id))
+        .returning(PUBLIC_USER_COLUMNS)
+        .get();
+      if (updates.activo === false) {
+        tx.delete(sesionesTable)
+          .where(eq(sesionesTable.usuario_id, current.id))
+          .run();
+      }
+      return { kind: "updated", user } as const;
+    });
+
+    if (result.kind === "not_found") {
+      res.status(404).json({ error: "Usuario no encontrado" });
+      return;
+    }
+    if (result.kind === "role_not_found") {
+      res.status(404).json({ error: "Rol no encontrado" });
+      return;
+    }
+    if (result.kind === "role_inactive") {
+      res.status(409).json({ error: "No se puede asignar un rol inactivo" });
+      return;
+    }
+    if (result.kind === "last_sysadmin") {
+      res.status(409).json({
+        error: "Debe permanecer al menos un SysAdmin activo con credenciales",
+      });
+      return;
+    }
+    if (updates.activo === false) {
+      closeEventClientsForUsers([params.data.id]);
+    }
+    res.json(result.user);
   } catch (error) {
     if (hasSqliteConstraint(error, "UNIQUE")) {
-      res.status(409).json({ error: "Ya existe un usuario con ese email o nombre de usuario" });
+      res.status(409).json({
+        error: "Ya existe un usuario con ese email o nombre de usuario",
+      });
       return;
     }
     if (hasSqliteConstraint(error, "FOREIGNKEY")) {
@@ -563,11 +735,20 @@ router.post("/admin/users/:id/password", async (req, res) => {
     return;
   }
 
-  await db
-    .update(usuariosTable)
-    .set({ password_hash: hashPassword(body.data.password), fecha_actualizacion: new Date() })
-    .where(eq(usuariosTable.id, params.data.id));
-  await db.delete(sesionesTable).where(eq(sesionesTable.usuario_id, params.data.id));
+  const passwordHash = hashPassword(body.data.password);
+  db.transaction((tx) => {
+    tx.update(usuariosTable)
+      .set({
+        password_hash: passwordHash,
+        fecha_actualizacion: new Date(),
+      })
+      .where(eq(usuariosTable.id, params.data.id))
+      .run();
+    tx.delete(sesionesTable)
+      .where(eq(sesionesTable.usuario_id, params.data.id))
+      .run();
+  });
+  closeEventClientsForUsers([params.data.id]);
 
   res.status(204).end();
 });

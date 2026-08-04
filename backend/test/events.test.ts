@@ -1,17 +1,35 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Response } from "express";
-import { addEventClient, broadcastEvent } from "../src/lib/events.ts";
+import {
+  addEventClient,
+  broadcastEvent,
+  closeEventClientsForSession,
+  closeEventClientsForUsers,
+} from "../src/lib/events.ts";
 
 function fakeResponse(write: (payload: string) => void): Response {
-  return {
+  let closeListener: (() => void) | undefined;
+  const response = {
     destroyed: false,
     writableEnded: false,
-    on() {
+    on(event: string, listener: () => void) {
+      if (event === "close") closeListener = listener;
       return this;
     },
     write,
-  } as unknown as Response;
+    end() {
+      this.writableEnded = true;
+      closeListener?.();
+      return this;
+    },
+    destroy() {
+      this.destroyed = true;
+      closeListener?.();
+      return this;
+    },
+  };
+  return response as unknown as Response;
 }
 
 test("un cliente SSE desconectado no interrumpe la notificación de los demás", () => {
@@ -28,10 +46,31 @@ test("un cliente SSE desconectado no interrumpe la notificación de los demás",
   addEventClient(failed);
   addEventClient(healthy);
 
-  assert.doesNotThrow(() => broadcastEvent("ticket_actualizado", { ticket_id: 7 }));
+  assert.doesNotThrow(() =>
+    broadcastEvent("ticket_actualizado", { ticket_id: 7 }),
+  );
   broadcastEvent("datos_actualizados");
 
-  assert.equal(failedWrites, 1, "el cliente fallido debe quitarse del conjunto");
+  assert.equal(
+    failedWrites,
+    1,
+    "el cliente fallido debe quitarse del conjunto",
+  );
   assert.equal(received.length, 2);
   assert.match(received[0] ?? "", /"ticket_id":7/);
+  healthy.end();
+});
+
+test("cierra de inmediato los streams de una sesión o un usuario revocados", () => {
+  const userOne = fakeResponse(() => undefined);
+  const userTwo = fakeResponse(() => undefined);
+  addEventClient(userOne, { usuarioId: 1, sessionToken: "sesion-1" });
+  addEventClient(userTwo, { usuarioId: 2, sessionToken: "sesion-2" });
+
+  assert.equal(closeEventClientsForUsers([1]), 1);
+  assert.equal(userOne.writableEnded, true);
+  assert.equal(userTwo.writableEnded, false);
+  assert.equal(closeEventClientsForSession("sesion-2"), 1);
+  assert.equal(userTwo.writableEnded, true);
+  assert.equal(closeEventClientsForSession("sesion-2"), 0);
 });
