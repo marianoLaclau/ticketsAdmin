@@ -28,6 +28,10 @@ node_modules
 !.vscode/launch.json
 !.vscode/extensions.json
 
+# Herramientas locales de asistencia
+/.agents/
+/.claude/
+
 # misc
 /.sass-cache
 /connect.lock
@@ -49,4 +53,5 @@ Thumbs.db
 /data/
 /backups/
 .env
-/.claude/settings.local.json
+*.db-shm
+*.db-wal

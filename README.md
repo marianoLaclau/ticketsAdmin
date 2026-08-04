@@ -13,6 +13,8 @@ Llamada telefónica → ElevenLabs (agente de voz) → n8n → POST /api/webhook
 🛠️ **Backend en detalle** (API, auth, roles, base de datos, migraciones): [backend/README_BACKEND.md](backend/README_BACKEND.md)
 🎨 **Frontend en detalle** (páginas, routing, estado, componentes): [frontend/README_FRONTEND.md](frontend/README_FRONTEND.md)
 📓 **Bitácora de cambios técnicos**: [docs/BITACORA_AGENTES.MD](docs/BITACORA_AGENTES.MD)
+🧭 **Mapa de documentación y mantenimiento**: [docs/README.md](docs/README.md)
+🏗️ **Arquitectura de software y modelo de datos**: [docs/ARQUITECTURA.MD](docs/ARQUITECTURA.MD)
 
 > **Versión v0.5:** integra las mejoras de gestión, auditoría, clasificación y prioridad descritas abajo, junto con el estado laboral recibido desde Serin.
 
@@ -55,10 +57,12 @@ lib/
   api-zod/          → schemas Zod generados
 scripts/    → utilidades CLI (importador histórico, backup SQLite)
 data/       → base SQLite (gitignoreado, solo en desarrollo local)
-docs/       → FLUJO.md, DEPLOY.md, BITACORA_AGENTES.MD
+docs/       → README.md, ARQUITECTURA.MD, FLUJO.md, DEPLOY.md, BITACORA_AGENTES.MD
 Dockerfile.backend, Dockerfile.frontend, docker-compose.yml → despliegue en contenedores
 .github/workflows/deploy.yml → CI/CD: build + redeploy en cada push a main (self-hosted runner)
 ```
+
+Las carpetas `data/`, `backups/`, `tmp/`, `node_modules/`, `dist/` y `.pnpm-store/` son locales o generadas y están ignoradas por Git. El código versionado se concentra en `backend/`, `frontend/`, `lib/`, `scripts/`, `docs/` y la configuración de la raíz.
 
 ## Quickstart (desarrollo local)
 
@@ -78,13 +82,14 @@ Abrir http://localhost:3000 — el primer arranque del backend crea el usuario s
 - `pnpm --filter @workspace/backend run dev` — API (puerto 5000, configurable con `PORT` en `.env`)
 - `pnpm --filter @workspace/frontend run dev` — frontend (puerto 3000)
 - `pnpm run typecheck` — typecheck completo del workspace
+- `pnpm test` — ejecuta las pruebas de todos los paquetes que tienen suite
 - `pnpm run build` — typecheck + build de todos los paquetes
-- `pnpm --filter @workspace/api-spec run codegen` — regenera hooks y schemas Zod desde el spec OpenAPI
+- `pnpm run codegen` — regenera hooks y schemas Zod desde el spec OpenAPI
 - `pnpm --filter @workspace/db run push` — aplica cambios de schema a la base SQLite (dev only)
 - `pnpm --filter @workspace/scripts run import-excel -- <archivo.xlsx|csv> [--dry-run] [--sheet <nombre>]` — importa el histórico de llamadas (idempotente por conversation_id)
 - `pnpm run backup:db -- --output ./backups/tickets-AAAA-MM-DD.db` — backup SQLite consistente con WAL, verifica integridad y no sobrescribe archivos
 - `pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts` — genera el SQL de migración tras cambiar el schema (commitear el resultado)
-- `WEBHOOK_API_KEY=... docker compose up -d --build` — levanta el stack completo en contenedores (ver [docs/DEPLOY.md](docs/DEPLOY.md))
+- `WEBHOOK_API_KEY=... ADMIN_API_KEY=... docker compose up -d --build` — levanta el stack completo en contenedores (ver [docs/DEPLOY.md](docs/DEPLOY.md))
 
 ## Configuración
 

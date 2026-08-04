@@ -1,0 +1,439 @@
+# Arquitectura de GSB Tickets
+
+## 1. Resumen ejecutivo
+
+GSB Tickets es una aplicación web fullstack para recibir llamados telefónicos, convertirlos en tickets y gestionar su resolución con trazabilidad.
+
+La arquitectura elegida es un **monolito modular fullstack**:
+
+- **Frontend SPA:** React + Vite, servido por Nginx en producción.
+- **Backend HTTP:** Node.js + Express, con una API REST bajo `/api`.
+- **Persistencia:** SQLite en modo WAL. El acceso operativo usa Drizzle ORM; el backup verificado usa directamente el driver `better-sqlite3`.
+- **Paquetes compartidos:** contrato OpenAPI, clientes generados, validadores Zod y lógica de ingesta/SLA.
+- **Actualización en vivo:** Server-Sent Events (SSE), sin un broker externo.
+- **Despliegue:** Docker Compose ejecutado por GitHub Actions sobre un runner self-hosted.
+
+No es una arquitectura de microservicios. El sistema se despliega como una unidad operativa —frontend, backend y una base SQLite persistente— porque el volumen, el contexto y la operación actual no justifican la complejidad de separar servicios o administrar un servidor de base de datos independiente.
+
+```mermaid
+flowchart LR
+    caller[Persona que llama] --> voice[Agente de voz]
+    voice --> n8n[n8n: normaliza el JSON]
+    n8n -->|POST /api/webhooks/ticket + x-api-key| api[Backend Express]
+    browser[Navegador] --> ui[Frontend React/Vite]
+    ui -->|HTTP + cookie de sesión| api
+    api --> db[(SQLite<br/>data/tickets.db)]
+    api -->|SSE| ui
+    api --> serin[Datos de Serin<br/>recibidos en el webhook]
+```
+
+## 2. Estilo arquitectónico
+
+### Monolito modular
+
+El repositorio contiene varios paquetes, pero la aplicación se ejecuta como dos procesos principales:
+
+1. El frontend, responsable de la experiencia de usuario.
+2. El backend, responsable de autenticación, reglas de negocio y persistencia.
+
+Los paquetes de `lib/` son módulos reutilizables dentro del mismo workspace; no son servicios independientes. Esta separación permite mantener límites claros sin introducir llamadas de red entre módulos internos.
+
+### Capas del backend
+
+El backend tiene una separación por responsabilidades **parcial y en evolución**. Las reglas reutilizables ya están extraídas, pero varios handlers todavía combinan transporte HTTP, consultas y coordinación transaccional. El diagrama representa las dependencias actuales, no una separación ideal ya terminada:
+
+```mermaid
+flowchart TB
+    http[HTTP / Express]
+    routes[Rutas y middlewares<br/>backend/src/routes]
+    app[Servicios y reglas extraídas<br/>SLA, prioridad, clasificación, visibilidad]
+    shared[Paquetes compartidos<br/>@workspace/ingesta<br/>@workspace/api-zod]
+    persistence[Persistencia<br/>@workspace/db + Drizzle]
+    sqlite[(SQLite)]
+
+    http --> routes
+    routes --> app
+    routes --> persistence
+    app --> shared
+    app --> persistence
+    persistence --> sqlite
+```
+
+#### Transporte y seguridad
+
+`backend/src/app.ts` configura logging HTTP, CORS, cookies y parseo del body. `backend/src/routes/index.ts` monta las rutas bajo `/api` en este orden:
+
+1. `health`: health check público.
+2. `webhooks`: ingesta pública protegida por `x-api-key`.
+3. `auth`: login público; logout y sesión actual requieren sesión.
+4. `requireSession`: candado global para el resto de la API.
+5. Tickets, dashboard, administración y SSE.
+
+La API valida entrada con schemas generados desde OpenAPI/Zod. Las operaciones de administración suman una segunda verificación: rol `SysAdmin` y `x-admin-key`.
+
+#### Reglas de negocio
+
+Las reglas importantes viven fuera de los handlers cuando pueden reutilizarse:
+
+- `lib/ingesta/src/motivos.ts`: clasificación estable del motivo.
+- `lib/ingesta/src/sla.ts`: 48 horas hábiles, pausando sábados y domingos.
+- `backend/src/lib/prioridad-automatica.ts`: promoción de prioridad a `alta`/`urgente`.
+- `backend/src/lib/prioridad-automatica-runner.ts`: ejecución al arranque y periódica.
+- `backend/src/lib/ticket-query.ts`: filtros y orden server-side.
+- `backend/src/lib/reclasificar-motivos.ts`: reconciliación conservadora de Embargos.
+- `lib/db/src/ticket-visibility.ts`: regla compartida para cuarentena de registros vacíos.
+
+#### Persistencia
+
+`lib/db` crea una única conexión SQLite con:
+
+- modo `WAL`, para mejorar concurrencia entre lecturas y escrituras;
+- `foreign_keys = ON`, para respetar cascadas y restricciones;
+- Drizzle ORM como acceso tipado de la aplicación;
+- migraciones ejecutadas por el migrador de Drizzle en producción.
+
+La excepción deliberada es el backup online: usa la API nativa de `better-sqlite3` para copiar una base en WAL y ejecutar `PRAGMA integrity_check` antes de publicar el archivo resultante.
+
+El backend es intencionalmente de instancia única respecto del archivo SQLite. Escalar horizontalmente varios contenedores contra el mismo archivo no forma parte del diseño actual.
+
+### Frontend SPA
+
+El frontend usa React, Wouter y TanStack Query:
+
+```mermaid
+flowchart TB
+    entry[index.html + main.tsx]
+    app[App.tsx]
+    auth[PublicEntry / AuthGate]
+    layout[AppLayout: sidebar, sesión y navegación]
+    pages[Pantallas]
+    query[TanStack Query]
+    client[Cliente React generado]
+    api[API Express]
+
+    entry --> app --> auth --> layout --> pages
+    pages --> query --> client --> api
+    api --> query
+```
+
+`AuthGate` evita renderizar pantallas protegidas sin una sesión válida. La raíz (`/`) es la entrada del login; cuando existe sesión, redirige a `/dashboard`.
+
+Las pantallas principales son:
+
+- `/dashboard`: KPIs, estados, prioridades, motivos y actividad.
+- `/tickets`: listado filtrable, paginado, ordenable y exportable.
+- `/tickets/:id`: detalle, edición, audio y seguimiento.
+- `/admin`: CRUD, importación, cuarentena y zona peligrosa.
+- `/admin/roles-usuarios`: gestión de usuarios y roles para SysAdmin.
+
+El estado remoto se invalida después de mutaciones y también por eventos SSE. Los errores de sesión (`401`) vuelven a la entrada; los errores de servidor muestran una pantalla recuperable.
+
+## 3. Contrato y paquetes compartidos
+
+El flujo es **contract-first**:
+
+```mermaid
+flowchart LR
+    spec[lib/api-spec/openapi.yaml]
+    orval[Orval / codegen]
+    react[api-client-react<br/>hooks y tipos]
+    zod[api-zod<br/>validadores y tipos]
+    backend[Backend valida requests]
+    frontend[Frontend consume hooks]
+
+    spec --> orval
+    orval --> react
+    orval --> zod
+    react --> frontend
+    zod --> backend
+```
+
+La fuente editable es `lib/api-spec/openapi.yaml`. Los archivos en `lib/api-client-react/src/generated/` y `lib/api-zod/src/generated/` son artefactos derivados: no deben editarse manualmente.
+
+El comando oficial para regenerarlos es:
+
+```text
+pnpm run codegen
+```
+
+Otros paquetes compartidos:
+
+| Paquete | Responsabilidad |
+|---|---|
+| `@workspace/db` | Schema Drizzle, conexión SQLite, migraciones y visibilidad de tickets |
+| `@workspace/ingesta` | Motivos, categorías, SLA, prioridad y origen Serin |
+| `@workspace/api-spec` | OpenAPI y configuración de Orval |
+| `@workspace/api-client-react` | Hooks React Query y tipos de consumo |
+| `@workspace/api-zod` | Schemas Zod consumidos por el backend |
+| `@workspace/scripts` | Importador histórico y backup de SQLite |
+
+## 4. Flujo de una llamada
+
+```mermaid
+sequenceDiagram
+    participant N as n8n
+    participant W as Webhook Express
+    participant V as Zod / reglas
+    participant D as Drizzle
+    participant S as SQLite
+    participant E as SSE
+    participant B as Navegadores
+
+    N->>W: POST /api/webhooks/ticket + x-api-key
+    W->>V: valida payload y fechas
+    V-->>W: datos normalizados
+    W->>D: transacción de ticket
+    D->>S: INSERT idempotente por conversation_id
+    alt empresa informada
+        D->>S: seguimiento inicial de Serin
+    end
+    S-->>D: ticket persistido
+    D-->>W: created=true / created=false
+    W->>E: ticket_creado o datos_actualizados
+    E-->>B: refresco en vivo
+```
+
+El webhook es idempotente: un reintento con el mismo `conversation_id` devuelve el ticket existente y no duplica el seguimiento inicial de Serin.
+
+## 5. Modelo de datos
+
+La base contiene cinco tablas principales. Las fechas se almacenan como timestamp Unix en milisegundos; Drizzle las expone como `Date`.
+
+```mermaid
+erDiagram
+    ROLES ||--o{ USUARIOS : posee
+    USUARIOS ||--o{ SESIONES : inicia
+    USUARIOS o|--o{ TICKETS : asigna
+    USUARIOS o|--o{ SEGUIMIENTOS : referencia
+    TICKETS ||--o{ SEGUIMIENTOS : registra
+
+    ROLES {
+        integer id PK
+        text nombre UK
+        text descripcion
+        boolean activo
+        timestamp fecha_creacion
+        timestamp fecha_actualizacion
+    }
+    USUARIOS {
+        integer id PK
+        text username UK
+        text email UK
+        text password_hash
+        integer role_id FK
+        boolean activo
+        timestamp fecha_creacion
+        timestamp fecha_actualizacion
+    }
+    SESIONES {
+        text token PK
+        integer usuario_id FK
+        timestamp fecha_expiracion
+        timestamp fecha_creacion
+    }
+    TICKETS {
+        integer id PK
+        text conversation_id UK
+        text nombre
+        text apellido
+        text dni
+        text empresa
+        text estado_empleado
+        text motivo
+        text motivo_categoria
+        text estado
+        text prioridad
+        integer asignado_usuario_id FK
+        timestamp fecha_creacion
+        timestamp fecha_limite
+        timestamp fecha_resolucion
+    }
+    SEGUIMIENTOS {
+        integer id PK
+        integer ticket_id FK
+        text nota
+        text estado_anterior
+        text estado_nuevo
+        text prioridad_anterior
+        text prioridad_nueva
+        integer asignado_anterior_usuario_id FK
+        integer asignado_nuevo_usuario_id FK
+        json campos_editados
+        text autor
+        timestamp fecha_creacion
+    }
+```
+
+### `tickets`
+
+Es la entidad operativa principal:
+
+- `conversation_id` es único y funciona como clave de idempotencia de n8n.
+- `motivo` y `resumen` conservan el texto recibido.
+- `motivo_categoria` es una columna derivada; actualmente incluye `embargos`, `legales` y categorías operativas generales.
+- `estado_empleado` admite `Activo` o `Inactivo` cuando existe una empresa asociada y proviene del dato recibido desde Serin.
+- `estado` sigue el flujo `nuevo → en_proceso → pendiente → resuelto → cerrado`.
+- `prioridad` admite `baja`, `media`, `alta` y `urgente`; el runner puede promoverla, pero nunca degradarla automáticamente.
+- `asignado_usuario_id` es la identidad autoritativa. `asignado_a` conserva un snapshot legible y compatibilidad con datos históricos.
+- `fecha_limite` representa el vencimiento SLA; `fecha_resolucion` se completa al resolver/cerrar y se limpia al reabrir.
+
+Los registros completamente vacíos permanecen almacenados para auditoría, pero se excluyen de Tickets y Dashboard mediante una condición AND. SysAdmin puede abrirlos desde Administración.
+
+### `seguimientos`
+
+Es la auditoría temporal del ticket. Registra notas manuales, alta automática desde Serin, transiciones de estado, cambios de prioridad, reasignaciones y campos editados. La asignación guarda tanto IDs como snapshots legibles para que el historial siga siendo entendible aunque un usuario sea desactivado o eliminado.
+
+`campos_editados` contiene únicamente nombres de campos, no una copia de valores sensibles.
+
+### `roles`, `usuarios` y `sesiones`
+
+- `roles` define el catálogo de perfiles.
+- `usuarios` contiene identidad, credenciales hash, rol y estado activo.
+- `sesiones` persiste el token de cookie `gsb_session`, su usuario y expiración; permite revocar sesiones y sobrevivir reinicios.
+- `password_hash` usa scrypt; nunca se almacena la contraseña en texto plano.
+
+## 6. Seguridad y autorización
+
+```mermaid
+flowchart TD
+    request[Request]
+    public{Ruta pública?}
+    session{Sesión válida?}
+    admin{SysAdmin + x-admin-key?}
+    allow[Ejecutar operación]
+    reject401[401 / login]
+    reject403[403 / acceso denegado]
+    reject503[503 / configuración ausente]
+
+    request --> public
+    public -->|health, login, webhook con su clave| allow
+    public -->|resto| session
+    session -->|no| reject401
+    session -->|sí| admin
+    admin -->|ruta normal| allow
+    admin -->|administración| admin
+    admin -->|no es SysAdmin| reject403
+    admin -->|clave ausente| reject503
+    admin -->|clave inválida| reject401
+```
+
+La protección se aplica en dos lugares:
+
+1. El frontend oculta y bloquea pantallas según la sesión para mejorar la experiencia.
+2. El backend vuelve a validar sesión, rol y clave en cada operación sensible. La UI nunca es la única barrera.
+
+Credenciales:
+
+- `WEBHOOK_API_KEY`: autentica a n8n.
+- Cookie `gsb_session`: autentica usuarios del panel.
+- `ADMIN_API_KEY`: segunda credencial para operaciones SysAdmin.
+
+Las claves se entregan por variables de entorno o secretos del runner. No deben entrar al repositorio ni a la base de datos.
+
+## 7. Estados, SLA y auditoría
+
+```mermaid
+stateDiagram-v2
+    [*] --> nuevo
+    nuevo --> en_proceso: primera gestión
+    en_proceso --> pendiente: fue contactado
+    pendiente --> en_proceso: retomar gestión
+    en_proceso --> resuelto: resolver
+    pendiente --> resuelto: resolver
+    resuelto --> cerrado: cierre autorizado
+    resuelto --> en_proceso: reabrir
+    cerrado --> en_proceso: reabrir
+```
+
+Reglas complementarias:
+
+- El primer cambio desde `nuevo` autoasigna el ticket al usuario autenticado.
+- Cada cambio posterior de estado lo asigna al último usuario que lo modificó.
+- A 24 horas hábiles del vencimiento, la prioridad mínima pasa a `alta`.
+- A 12 horas hábiles o con vencimiento superado, pasa a `urgente`.
+- Sábados y domingos no consumen horas SLA; los feriados actualmente sí cuentan.
+- Ticket, asignación y seguimiento se persisten en una misma transacción cuando corresponde.
+
+## 8. Tiempo real y consistencia
+
+El backend mantiene clientes SSE en memoria. Después de confirmar una escritura en SQLite, emite eventos como `ticket_creado`, `ticket_actualizado`, `datos_actualizados` o `actividad_actualizada`.
+
+```mermaid
+sequenceDiagram
+    participant U as Usuario
+    participant API as Backend
+    participant DB as SQLite
+    participant SSE as Registro SSE
+    participant O as Otros navegadores
+
+    U->>API: PATCH /api/tickets/:id
+    API->>DB: transacción ticket + seguimiento
+    DB-->>API: commit confirmado
+    API->>SSE: broadcastEvent()
+    SSE-->>O: evento de actualización
+    O->>API: invalida queries y refresca
+```
+
+Si una auditoría falla, la transacción se revierte. Si un cliente SSE se desconecta, se elimina sin afectar la operación HTTP que ya fue confirmada.
+
+## 9. Despliegue y migraciones
+
+```mermaid
+flowchart LR
+    git[Push a main]
+    actions[GitHub Actions]
+    runner[Runner self-hosted]
+    images[Docker Compose build]
+    backendc[Contenedor backend]
+    frontendc[Contenedor frontend / Nginx]
+    volume[(tickets_data volume)]
+
+    git --> actions --> runner --> images
+    images --> backendc
+    images --> frontendc
+    backendc -->|dist/migrate.mjs al arrancar| volume
+    frontendc -->|depende del backend saludable| backendc
+```
+
+En local se usa `drizzle-kit push` para iterar rápidamente. En Docker, el backend ejecuta `dist/migrate.mjs` antes de escuchar tráfico. Las migraciones versionadas actuales mantienen una secuencia lineal:
+
+```text
+0000 ... 0006  → schema base y categorías iniciales
+0007            → estado_empleado
+0008            → auditoría de seguimientos de v0.5
+0009            → backfill conservador de Embargos
+```
+
+Cada migración nueva debe:
+
+1. partir del schema actual;
+2. tener snapshot y entrada en `_journal.json`;
+3. probar una base vacía y una actualización desde producción;
+4. preservar los datos existentes cuando el cambio sea aditivo;
+5. ser revisada antes de hacer push a `main`.
+
+## 10. Estructura de directorios
+
+```text
+backend/                 API Express, auth, rutas y reglas específicas del servidor
+frontend/                SPA React, pantallas, layout y componentes
+lib/api-spec/             OpenAPI, fuente del contrato
+lib/api-client-react/     cliente React Query generado
+lib/api-zod/              validadores Zod generados
+lib/db/                   schema Drizzle, SQLite, migraciones y visibilidad
+lib/ingesta/              clasificación, SLA y normalización compartida
+scripts/                  importador histórico y backup de SQLite
+docs/                    arquitectura, flujo, deploy y bitácora
+.github/workflows/        deploy automático a partir de main
+data/                     base local ignorada por Git
+backups/                  copias locales ignoradas por Git
+tmp/                      temporales de tests y desarrollo, ignorados
+```
+
+## 11. Decisiones y límites conocidos
+
+- **SQLite en vez de PostgreSQL:** simplifica la operación local y el servidor de testing; el volumen actual no requiere un servicio externo.
+- **SSE en vez de WebSockets:** solo necesitamos notificaciones servidor → navegador; las mutaciones siguen siendo HTTP normal.
+- **OpenAPI como contrato:** evita que backend y frontend diverjan, a cambio de exigir regenerar artefactos después de cambiar el YAML.
+- **Monolito modular en vez de microservicios:** reduce despliegues, observabilidad y puntos de fallo mientras el dominio siga siendo acotado.
+- **Una instancia backend:** es una limitación deliberada de SQLite y del registro SSE en memoria. Si el volumen exige alta disponibilidad, habrá que migrar persistencia y eventos antes de escalar horizontalmente.
