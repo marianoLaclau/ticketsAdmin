@@ -109,25 +109,30 @@ sudo ./svc.sh status
 
 5. Verificar en GitHub (**Settings → Actions → Runners**) que el nuevo runner aparece como **Idle** (verde), junto a los de los otros proyectos.
 
-## 3. Configurar el secreto de la API key
+## 3. Configurar los secretos
 
-El workflow necesita `WEBHOOK_API_KEY` para levantar el backend. Se guarda como secreto de GitHub, **nunca** en el repo:
+El workflow recibe las credenciales desde GitHub Actions, **nunca** desde el repositorio:
 
-1. Generar una clave (podés reusar la misma del `.env` local o generar una nueva):
+1. Generar valores largos e independientes:
    ```bash
-   openssl rand -hex 32
+   openssl rand -hex 32  # WEBHOOK_API_KEY
+   openssl rand -hex 32  # ADMIN_API_KEY
+   openssl rand -hex 24  # BOOTSTRAP_SYSADMIN_PASSWORD
    ```
-2. En GitHub: **Settings → Secrets and variables → Actions → New repository secret**
-   - Name: `WEBHOOK_API_KEY`
-   - Value: la clave generada
+2. En GitHub: **Settings → Secrets and variables → Actions → New repository secret**. Crear:
+   - `WEBHOOK_API_KEY`: autentica la ingesta de n8n.
+   - `ADMIN_API_KEY`: segunda verificación de operaciones SysAdmin.
+   - `BOOTSTRAP_SYSADMIN_PASSWORD`: obligatoria si el volumen contiene una base sin hashes o la credencial pública del seed histórico.
 
-GitHub inyecta ese secreto solo durante el job. Para ejecutar manualmente comandos que crean o recrean servicios (`up`, `create`, un `run` normal), guardar las variables en un archivo fuera del repo y con permisos restringidos, por ejemplo `/etc/ticketsadmin/compose.env`, y usar:
+El bootstrap crea o asegura `sysadmin`, persiste solamente el hash scrypt y luego se vuelve un no-op. Si detecta el seed histórico también revoca sus sesiones anteriores. Después de verificar el login seguro, retirar `BOOTSTRAP_SYSADMIN_PASSWORD` de GitHub Actions y ejecutar otro deploy para recrear el backend sin el secreto en su entorno. Dejarlo configurado no resetea una cuenta ya asegurada, pero retirarlo reduce exposición innecesaria.
+
+GitHub inyecta esos secretos solo durante el job. Para ejecutar manualmente comandos que crean o recrean servicios (`up`, `create`, un `run` normal), guardar las variables en un archivo fuera del repo y con permisos restringidos, por ejemplo `/etc/ticketsadmin/compose.env`, y usar:
 
 ```bash
 docker compose --env-file /etc/ticketsadmin/compose.env up -d
 ```
 
-El archivo debe definir `WEBHOOK_API_KEY` y `ADMIN_API_KEY`, y puede definir `TZ`; no se commitea. Ambas claves fallan cerradas si faltan. Para comandos que solo inspeccionan o actúan sobre contenedores existentes (`ps`, `logs`, `exec`, `cp`), Compose igualmente exige interpolar las variables, pero se puede usar un placeholder porque no cambia el entorno del contenedor ya creado:
+El archivo debe definir `WEBHOOK_API_KEY` y `ADMIN_API_KEY`; para una base sin hashes o con el seed histórico también debe definir `BOOTSTRAP_SYSADMIN_PASSWORD`. Puede definir `TZ` y no se commitea. Las dos API keys fallan cerradas si faltan. Para comandos que solo inspeccionan o actúan sobre contenedores existentes (`ps`, `logs`, `exec`, `cp`), Compose igualmente exige interpolar las API keys, pero se puede usar un placeholder porque no cambia el entorno del contenedor ya creado:
 
 ```bash
 WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose ps
@@ -137,7 +142,7 @@ No usar ese placeholder con `up`, `create` ni para iniciar la API.
 
 ## 4. Primer despliegue
 
-Con el runner instalado y el secreto configurado, cualquier push a `main` dispara el deploy. Para forzar el primero sin esperar un push:
+Con el runner instalado y los secretos configurados, cualquier push a `main` dispara el deploy. Para forzar el primero sin esperar un push:
 
 - En GitHub: **Actions → Deploy → Run workflow** (el trigger `workflow_dispatch` está habilitado para esto), o
 - Hacer un push cualquiera a `main`.

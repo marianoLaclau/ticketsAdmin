@@ -327,8 +327,9 @@ Credenciales:
 - `WEBHOOK_API_KEY`: autentica a n8n.
 - Cookie `gsb_session`: autentica usuarios del panel.
 - `ADMIN_API_KEY`: segunda credencial para operaciones SysAdmin.
+- `BOOTSTRAP_SYSADMIN_PASSWORD`: secreto exclusivo del bootstrap para crear `sysadmin` cuando no hay hashes o rotar la credencial semilla heredada.
 
-Las claves se entregan por variables de entorno o secretos del runner. No deben entrar al repositorio ni a la base de datos.
+Las API keys y el secreto bootstrap se entregan por variables de entorno o secretos del runner y no deben entrar al repositorio. Las API keys no se persisten en la base; del secreto bootstrap solo se guarda un hash scrypt. Una credencial ya asegurada se conserva: la variable no funciona como mecanismo de reset. La rotación de compatibilidad actualiza el hash y revoca las sesiones del seed histórico en una única transacción.
 
 ## 7. Estados, SLA y auditoría
 

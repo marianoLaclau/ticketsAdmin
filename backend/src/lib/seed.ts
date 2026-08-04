@@ -1,100 +1,341 @@
-import { db, rolesTable, usuariosTable } from "@workspace/db";
-import { eq, isNotNull, isNull, sql } from "drizzle-orm";
-import { hashPassword } from "./passwords";
+import { db, rolesTable, sesionesTable, usuariosTable } from "@workspace/db";
+import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { hashPassword, verifyPassword } from "./passwords";
 import { logger } from "./logger";
 import { ROL_SYSADMIN, ROL_ADMINISTRADOR, ROL_OPERADOR } from "./auth";
 
-// Roles base del sistema: se crean si faltan (idempotente, corre en cada
-// arranque, así llegan solos a las bases ya desplegadas).
 const ROLES_BASE: Array<{ nombre: string; descripcion: string }> = [
-  { nombre: ROL_ADMINISTRADOR, descripcion: "Gestión completa de tickets (puede cerrarlos); sin acceso al panel de administración" },
-  { nombre: ROL_OPERADOR, descripcion: "Gestión básica de tickets; no puede cerrar tickets" },
+  {
+    nombre: ROL_ADMINISTRADOR,
+    descripcion:
+      "Gestión completa de tickets (puede cerrarlos); sin acceso al panel de administración",
+  },
+  {
+    nombre: ROL_OPERADOR,
+    descripcion: "Gestión básica de tickets; no puede cerrar tickets",
+  },
 ];
 
+const BOOTSTRAP_PASSWORD_ENV = "BOOTSTRAP_SYSADMIN_PASSWORD";
+const BOOTSTRAP_PASSWORD_MIN_LENGTH = 16;
+const BOOTSTRAP_PASSWORD_MAX_LENGTH = 128;
+const LEGACY_SEED_PASSWORD = "admin";
+const BOOTSTRAP_PASSWORDS_BLOQUEADAS = new Set([
+  "adminadminadminadmin",
+  "sysadminsysadmin",
+  "passwordpassword",
+  "changemechangeme",
+  "generar-una-clave-inicial-larga-y-unica",
+]);
+
+type AccionCuenta = "ninguna" | "inicializada" | "rotada";
+
+interface SeedHeredado {
+  id: number;
+  passwordHash: string;
+}
+
+interface ResultadoSeed {
+  accionCuenta: AccionCuenta;
+  usuarioIds: number[];
+  rolRenombrado: boolean;
+  usuarioRenombrado: boolean;
+  rolesCreados: string[];
+}
+
+function leerPasswordBootstrap(): string {
+  const password = process.env[BOOTSTRAP_PASSWORD_ENV];
+
+  if (!password) {
+    throw new Error(
+      `${BOOTSTRAP_PASSWORD_ENV} es obligatoria para inicializar o asegurar el usuario semilla`,
+    );
+  }
+
+  if (password !== password.trim()) {
+    throw new Error(
+      `${BOOTSTRAP_PASSWORD_ENV} no puede comenzar ni terminar con espacios`,
+    );
+  }
+
+  if (
+    password.length < BOOTSTRAP_PASSWORD_MIN_LENGTH ||
+    password.length > BOOTSTRAP_PASSWORD_MAX_LENGTH
+  ) {
+    throw new Error(
+      `${BOOTSTRAP_PASSWORD_ENV} debe tener entre ${BOOTSTRAP_PASSWORD_MIN_LENGTH} y ${BOOTSTRAP_PASSWORD_MAX_LENGTH} caracteres`,
+    );
+  }
+
+  if (BOOTSTRAP_PASSWORDS_BLOQUEADAS.has(password.toLocaleLowerCase("en-US"))) {
+    throw new Error(
+      `${BOOTSTRAP_PASSWORD_ENV} no puede ser una clave conocida o de ejemplo`,
+    );
+  }
+
+  return password;
+}
+
+function buscarSeedsHeredados(): SeedHeredado[] {
+  return db
+    .select({
+      id: usuariosTable.id,
+      passwordHash: usuariosTable.password_hash,
+    })
+    .from(usuariosTable)
+    .where(
+      or(
+        inArray(usuariosTable.email, ["sysadmin", "admin"]),
+        inArray(usuariosTable.username, ["sysadmin", "admin"]),
+      ),
+    )
+    .all()
+    .filter(
+      (candidato): candidato is SeedHeredado =>
+        Boolean(candidato.passwordHash) &&
+        verifyPassword(LEGACY_SEED_PASSWORD, candidato.passwordHash),
+    );
+}
+
 /**
- * Garantiza que exista el usuario "Dios" del sistema (SysAdmin).
+ * Mantiene los roles base y garantiza un bootstrap seguro del SysAdmin.
  *
- * - Migra el seed viejo si existe: rol "Administrador" → "SysAdmin" y
- *   usuario "admin" → "sysadmin" (así el renombre llega solo a las bases
- *   ya desplegadas, local y servidor).
- * - Si NINGÚN usuario tiene contraseña asignada (primer arranque), crea el
- *   rol SysAdmin y el usuario "sysadmin" con clave "admin". Si ya hay algún
- *   usuario con contraseña, no crea nada — así no revive la cuenta si más
- *   adelante la reemplazan por cuentas propias, y evita el lockout total.
+ * Una base nueva exige BOOTSTRAP_SYSADMIN_PASSWORD. La misma variable rota
+ * exclusivamente la credencial conocida creada por versiones antiguas y
+ * revoca sus sesiones. Cualquier otra contraseña existente queda intacta.
  */
 export async function ensureAdminSeed(): Promise<void> {
-  // --- Migración de nombres del seed anterior (idempotente) ---
-  const [rolSysAdmin] = await db.select().from(rolesTable).where(eq(rolesTable.nombre, ROL_SYSADMIN));
-  const [rolViejo] = await db.select().from(rolesTable).where(eq(rolesTable.nombre, "Administrador"));
-  if (rolViejo && !rolSysAdmin) {
-    await db
-      .update(rolesTable)
-      .set({ nombre: ROL_SYSADMIN, descripcion: "Usuario Dios: acceso total al sistema", fecha_actualizacion: new Date() })
-      .where(eq(rolesTable.id, rolViejo.id));
+  const existePassword = Boolean(
+    db
+      .select({ id: usuariosTable.id })
+      .from(usuariosTable)
+      .where(isNotNull(usuariosTable.password_hash))
+      .limit(1)
+      .get(),
+  );
+  const seedsHeredados = buscarSeedsHeredados();
+  const requiereBootstrap = !existePassword || seedsHeredados.length > 0;
+  const bootstrapPassword = requiereBootstrap ? leerPasswordBootstrap() : null;
+  const hashInicial =
+    !existePassword && bootstrapPassword
+      ? hashPassword(bootstrapPassword)
+      : null;
+  const rotaciones = bootstrapPassword
+    ? seedsHeredados.map((seed) => ({
+        ...seed,
+        nuevoHash: hashPassword(bootstrapPassword),
+      }))
+    : [];
+
+  // Todas las mutaciones del seed son atómicas. En particular, una rotación
+  // nunca confirma el hash nuevo si no pudo revocar también sus sesiones.
+  const resultado = db.transaction((tx): ResultadoSeed => {
+    let rolRenombrado = false;
+    let usuarioRenombrado = false;
+    const rolesCreados: string[] = [];
+
+    const rolSysAdmin = tx
+      .select()
+      .from(rolesTable)
+      .where(eq(rolesTable.nombre, ROL_SYSADMIN))
+      .get();
+    const rolViejo = tx
+      .select()
+      .from(rolesTable)
+      .where(eq(rolesTable.nombre, "Administrador"))
+      .get();
+    if (rolViejo && !rolSysAdmin) {
+      tx.update(rolesTable)
+        .set({
+          nombre: ROL_SYSADMIN,
+          descripcion: "Usuario Dios: acceso total al sistema",
+          fecha_actualizacion: new Date(),
+        })
+        .where(eq(rolesTable.id, rolViejo.id))
+        .run();
+      rolRenombrado = true;
+    }
+
+    const userSysadmin = tx
+      .select({ id: usuariosTable.id })
+      .from(usuariosTable)
+      .where(eq(usuariosTable.email, "sysadmin"))
+      .get();
+    const userViejo = tx
+      .select({ id: usuariosTable.id })
+      .from(usuariosTable)
+      .where(eq(usuariosTable.email, "admin"))
+      .get();
+    if (userViejo && !userSysadmin) {
+      tx.update(usuariosTable)
+        .set({
+          email: "sysadmin",
+          nombre: "SysAdmin",
+          fecha_actualizacion: new Date(),
+        })
+        .where(eq(usuariosTable.id, userViejo.id))
+        .run();
+      usuarioRenombrado = true;
+    }
+
+    tx.update(usuariosTable)
+      .set({ username: sql`${usuariosTable.email}` })
+      .where(isNull(usuariosTable.username))
+      .run();
+
+    for (const base of ROLES_BASE) {
+      const existe = tx
+        .select({ id: rolesTable.id })
+        .from(rolesTable)
+        .where(eq(rolesTable.nombre, base.nombre))
+        .get();
+      if (!existe) {
+        tx.insert(rolesTable).values(base).run();
+        rolesCreados.push(base.nombre);
+      }
+    }
+
+    if (rotaciones.length > 0) {
+      for (const rotacion of rotaciones) {
+        const actualizacion = tx
+          .update(usuariosTable)
+          .set({
+            password_hash: rotacion.nuevoHash,
+            fecha_actualizacion: new Date(),
+          })
+          .where(
+            and(
+              eq(usuariosTable.id, rotacion.id),
+              eq(usuariosTable.password_hash, rotacion.passwordHash),
+            ),
+          )
+          .run();
+        if (actualizacion.changes !== 1) {
+          throw new Error(
+            "Una credencial heredada cambió durante el bootstrap; no se aplicó una rotación parcial",
+          );
+        }
+
+        tx.delete(sesionesTable)
+          .where(eq(sesionesTable.usuario_id, rotacion.id))
+          .run();
+      }
+
+      return {
+        accionCuenta: "rotada",
+        usuarioIds: rotaciones.map(({ id }) => id),
+        rolRenombrado,
+        usuarioRenombrado,
+        rolesCreados,
+      };
+    }
+
+    if (!hashInicial) {
+      return {
+        accionCuenta: "ninguna",
+        usuarioIds: [],
+        rolRenombrado,
+        usuarioRenombrado,
+        rolesCreados,
+      };
+    }
+
+    // Defensa ante una inicialización concurrente entre la lectura y el
+    // comienzo de la transacción: nunca se pisa una contraseña recién creada.
+    const passwordActual = tx
+      .select({ id: usuariosTable.id })
+      .from(usuariosTable)
+      .where(isNotNull(usuariosTable.password_hash))
+      .limit(1)
+      .get();
+    if (passwordActual) {
+      return {
+        accionCuenta: "ninguna",
+        usuarioIds: [],
+        rolRenombrado,
+        usuarioRenombrado,
+        rolesCreados,
+      };
+    }
+
+    let rol = tx
+      .select()
+      .from(rolesTable)
+      .where(eq(rolesTable.nombre, ROL_SYSADMIN))
+      .get();
+    if (!rol) {
+      rol = tx
+        .insert(rolesTable)
+        .values({
+          nombre: ROL_SYSADMIN,
+          descripcion: "Usuario Dios: acceso total al sistema",
+        })
+        .returning()
+        .get();
+      rolesCreados.push(ROL_SYSADMIN);
+    }
+
+    const existente = tx
+      .select({ id: usuariosTable.id })
+      .from(usuariosTable)
+      .where(eq(usuariosTable.email, "sysadmin"))
+      .get();
+    let usuarioId: number;
+    if (existente) {
+      tx.update(usuariosTable)
+        .set({
+          username: "sysadmin",
+          password_hash: hashInicial,
+          activo: true,
+          role_id: rol.id,
+          fecha_actualizacion: new Date(),
+        })
+        .where(eq(usuariosTable.id, existente.id))
+        .run();
+      usuarioId = existente.id;
+    } else {
+      const creado = tx
+        .insert(usuariosTable)
+        .values({
+          nombre: "SysAdmin",
+          apellido: null,
+          username: "sysadmin",
+          email: "sysadmin",
+          role_id: rol.id,
+          password_hash: hashInicial,
+        })
+        .returning({ id: usuariosTable.id })
+        .get();
+      usuarioId = creado.id;
+    }
+
+    return {
+      accionCuenta: "inicializada",
+      usuarioIds: [usuarioId],
+      rolRenombrado,
+      usuarioRenombrado,
+      rolesCreados,
+    };
+  });
+
+  if (resultado.rolRenombrado) {
     logger.info(`Rol "Administrador" renombrado a "${ROL_SYSADMIN}"`);
   }
-
-  const [userSysadmin] = await db.select({ id: usuariosTable.id }).from(usuariosTable).where(eq(usuariosTable.email, "sysadmin"));
-  const [userViejo] = await db.select({ id: usuariosTable.id }).from(usuariosTable).where(eq(usuariosTable.email, "admin"));
-  if (userViejo && !userSysadmin) {
-    await db
-      .update(usuariosTable)
-      .set({ email: "sysadmin", nombre: "SysAdmin", fecha_actualizacion: new Date() })
-      .where(eq(usuariosTable.id, userViejo.id));
+  if (resultado.usuarioRenombrado) {
     logger.info('Usuario "admin" renombrado a "sysadmin"');
   }
-
-  // --- Backfill de username (columna agregada después) ---
-  // Cualquier usuario creado antes de este campo queda sin username; se le
-  // asigna su email (ya único) para que el login no se corte. Corre en cada
-  // arranque pero es un no-op una vez que todos los usuarios lo tienen.
-  await db
-    .update(usuariosTable)
-    .set({ username: sql`${usuariosTable.email}` })
-    .where(isNull(usuariosTable.username));
-
-  // --- Roles base (siempre, idempotente) ---
-  for (const base of ROLES_BASE) {
-    const [existe] = await db.select({ id: rolesTable.id }).from(rolesTable).where(eq(rolesTable.nombre, base.nombre));
-    if (!existe) {
-      await db.insert(rolesTable).values(base);
-      logger.info(`Rol base "${base.nombre}" creado`);
-    }
+  for (const rol of resultado.rolesCreados) {
+    logger.info({ rol }, "Rol base creado");
   }
-
-  // --- Alta inicial (solo si nadie puede loguearse todavía) ---
-  const conPassword = await db
-    .select({ id: usuariosTable.id })
-    .from(usuariosTable)
-    .where(isNotNull(usuariosTable.password_hash))
-    .limit(1);
-  if (conPassword.length > 0) return;
-
-  let [rol] = await db.select().from(rolesTable).where(eq(rolesTable.nombre, ROL_SYSADMIN));
-  if (!rol) {
-    [rol] = await db
-      .insert(rolesTable)
-      .values({ nombre: ROL_SYSADMIN, descripcion: "Usuario Dios: acceso total al sistema" })
-      .returning();
+  if (resultado.accionCuenta === "inicializada") {
+    logger.info(
+      { usuarioId: resultado.usuarioIds[0] },
+      'Usuario semilla "sysadmin" inicializado con una clave externa',
+    );
+  } else if (resultado.accionCuenta === "rotada") {
+    logger.warn(
+      { usuarioIds: resultado.usuarioIds },
+      "Credenciales heredadas del seed rotadas y sesiones anteriores revocadas",
+    );
   }
-
-  const passwordHash = hashPassword("admin");
-  const [existente] = await db.select({ id: usuariosTable.id }).from(usuariosTable).where(eq(usuariosTable.email, "sysadmin"));
-  if (existente) {
-    await db
-      .update(usuariosTable)
-      .set({ username: "sysadmin", password_hash: passwordHash, activo: true, role_id: rol.id, fecha_actualizacion: new Date() })
-      .where(eq(usuariosTable.id, existente.id));
-  } else {
-    await db.insert(usuariosTable).values({
-      nombre: "SysAdmin",
-      apellido: null,
-      username: "sysadmin",
-      email: "sysadmin",
-      role_id: rol.id,
-      password_hash: passwordHash,
-    });
-  }
-
-  logger.warn('Usuario semilla "sysadmin" con clave "admin" disponible — cambiar la clave apenas se pueda');
 }

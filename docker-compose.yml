@@ -13,13 +13,21 @@ services:
       WEBHOOK_API_KEY: ${WEBHOOK_API_KEY:?WEBHOOK_API_KEY is required — export it or set it in a .env next to this file}
       # Obligatoria: segunda credencial de las operaciones SysAdmin
       ADMIN_API_KEY: ${ADMIN_API_KEY:?ADMIN_API_KEY is required — export it or set it in a .env next to this file}
+      # Solo inicializa una base sin hashes o asegura el seed heredado.
+      BOOTSTRAP_SYSADMIN_PASSWORD: ${BOOTSTRAP_SYSADMIN_PASSWORD:-}
       TICKETS_DB_PATH: /data/tickets.db
       TZ: ${TZ:-America/Argentina/Buenos_Aires}
       PRIORIDAD_AUTOMATICA_INTERVAL_MS: ${PRIORIDAD_AUTOMATICA_INTERVAL_MS:-300000}
     volumes:
       - tickets_data:/data
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/api/healthz', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:5000/api/healthz', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
       interval: 10s
       timeout: 3s
       retries: 5

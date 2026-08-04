@@ -179,7 +179,9 @@ Se ejecuta una vez en cada arranque del backend (`await ensureAdminSeed()` en `i
 
 1. **Migración de nombres** (idempotente): si existe un rol `"Administrador"` pero no `"SysAdmin"`, lo renombra. Si existe un usuario `email: "admin"` pero no `"sysadmin"`, lo renombra. Esto es histórico — el seed original usaba esos nombres y se corrigió después; la migración deja las bases viejas (incluido el servidor de testing) al día solas.
 2. **Roles base**: crea `Administrador` y `Operador` si no existen (siempre, en cada arranque).
-3. **Alta inicial**: **solo si ningún usuario tiene `password_hash`**, crea el rol `SysAdmin` y el usuario `sysadmin` con clave `admin`. Si ya existe algún usuario con contraseña, no toca nada — así no revive la cuenta semilla si ya la reemplazaron por cuentas propias, y a la vez garantiza que el sistema nunca arranque sin que nadie pueda loguearse (evita el lockout total).
+3. **Alta inicial segura**: si ningún usuario tiene `password_hash`, exige `BOOTSTRAP_SYSADMIN_PASSWORD` (16 a 128 caracteres), crea el rol `SysAdmin` y guarda únicamente el hash scrypt. La validación ocurre antes de modificar filas y el backend no abre el puerto si falta o es inválida.
+4. **Upgrade seguro**: detecta exclusivamente si `sysadmin` —o el nombre histórico `admin`— todavía conserva la credencial pública del seed anterior. En ese caso exige el mismo secreto externo, rota el hash y revoca sus sesiones dentro de una transacción.
+5. **Sin resets implícitos**: cualquier contraseña distinta de la credencial heredada queda intacta. Cambiar o conservar `BOOTSTRAP_SYSADMIN_PASSWORD` no modifica una cuenta ya asegurada.
 
 ## Base de datos
 
@@ -329,6 +331,7 @@ Ver también la tabla en el [README raíz](../README.md#configuración). Las que
 | `PORT` | `index.ts` | Default `5000` |
 | `WEBHOOK_API_KEY` | `requireWebhookKey` | El webhook responde `503` (cerrado) |
 | `ADMIN_API_KEY` | `requireAdminKey` | Las operaciones administrativas responden `503` (cerradas) |
+| `BOOTSTRAP_SYSADMIN_PASSWORD` | `ensureAdminSeed` | En una base sin hashes o con el seed heredado, el arranque falla antes de escuchar tráfico; una cuenta ya asegurada no depende de ella |
 | `TICKETS_DB_PATH` | `lib/db/src/db-path.ts` | Default `<repo>/data/tickets.db` (busca la raíz del monorepo por `pnpm-workspace.yaml`) |
 | `PRIORIDAD_AUTOMATICA_INTERVAL_MS` | `prioridad-automatica-runner.ts` | Default `300000` (5 min); acepta enteros desde `10000` ms |
 | `TZ` | proceso Node (filtros de fecha) | Zona del sistema; en Docker se fija `America/Argentina/Buenos_Aires` por default |

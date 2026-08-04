@@ -27,6 +27,10 @@ jobs:
 
       - name: Restart containers
         run: docker compose up -d --remove-orphans
+        env:
+          # Inicializa una base sin hashes o asegura el seed heredado. Una
+          # credencial ya cambiada ignora el valor y nunca se resetea.
+          BOOTSTRAP_SYSADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_SYSADMIN_PASSWORD }}
 
       - name: Clean up dangling images
         run: docker image prune -f

@@ -68,14 +68,14 @@ Las carpetas `data/`, `backups/`, `tmp/`, `node_modules/`, `dist/` y `.pnpm-stor
 
 ```bash
 pnpm install
-cp .env.example .env        # completar WEBHOOK_API_KEY como mínimo
+cp .env.example .env        # completar las claves; en una base nueva, también el bootstrap
 pnpm --filter @workspace/db run push   # crea/actualiza el schema en data/tickets.db
 
 pnpm --filter @workspace/backend run dev    # API en :5000
 pnpm --filter @workspace/frontend run dev   # UI en :3000
 ```
 
-Abrir http://localhost:3000 — el primer arranque del backend crea el usuario semilla **`sysadmin` / clave `admin`** (cambiarla apenas se pueda, desde Administración → Roles y usuarios → llavesita de reset).
+Abrir http://localhost:3000. En una base nueva, el primer arranque crea el usuario `sysadmin` con el valor de `BOOTSTRAP_SYSADMIN_PASSWORD`. La clave debe tener entre 16 y 128 caracteres; solo se guarda su hash. La misma protección detecta exclusivamente la credencial pública de versiones antiguas, la rota y revoca sus sesiones. Cualquier contraseña que ya haya sido cambiada se conserva aunque la variable siga configurada.
 
 ## Comandos
 
@@ -89,7 +89,7 @@ Abrir http://localhost:3000 — el primer arranque del backend crea el usuario s
 - `pnpm --filter @workspace/scripts run import-excel -- <archivo.xlsx|csv> [--dry-run] [--sheet <nombre>]` — importa el histórico de llamadas (idempotente por conversation_id)
 - `pnpm run backup:db -- --output ./backups/tickets-AAAA-MM-DD.db` — backup SQLite consistente con WAL, verifica integridad y no sobrescribe archivos
 - `pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts` — genera el SQL de migración tras cambiar el schema (commitear el resultado)
-- `WEBHOOK_API_KEY=... ADMIN_API_KEY=... docker compose up -d --build` — levanta el stack completo en contenedores (ver [docs/DEPLOY.md](docs/DEPLOY.md))
+- `WEBHOOK_API_KEY=... ADMIN_API_KEY=... BOOTSTRAP_SYSADMIN_PASSWORD=... docker compose up -d --build` — levanta una instalación nueva en contenedores (ver [docs/DEPLOY.md](docs/DEPLOY.md)); el tercer valor deja de ser necesario después del bootstrap
 
 ## Configuración
 
@@ -101,6 +101,7 @@ Copiar `.env.example` a `.env` en la raíz:
 | `HOST_IP` | IP de esta máquina en la red interna — la usa n8n para llegar al webhook (solo referencia, no la lee el código) |
 | `WEBHOOK_API_KEY` | Clave que n8n manda en `x-api-key` al crear tickets (requerida para el webhook) |
 | `ADMIN_API_KEY` | Segunda credencial obligatoria de las operaciones administrativas del SysAdmin; si falta, esas operaciones responden `503` |
+| `BOOTSTRAP_SYSADMIN_PASSWORD` | Secreto exclusivo del bootstrap: crea `sysadmin` en una base sin hashes o rota la credencial semilla heredada; nunca modifica una contraseña ya asegurada |
 | `TICKETS_DB_PATH` | Ruta del archivo SQLite (opcional, default `data/tickets.db`) |
 | `PRIORIDAD_AUTOMATICA_INTERVAL_MS` | Intervalo opcional de revisión de prioridades en milisegundos (default 300000 = 5 minutos; mínimo aceptado 10000) |
 | `TZ` | Timezone del proceso backend — en Docker por default `America/Argentina/Buenos_Aires`; los filtros por día calendario usan esta zona |

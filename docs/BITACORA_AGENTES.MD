@@ -2,6 +2,19 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-04 — Bootstrap seguro del SysAdmin
+
+**Agente:** Codex
+**Estado:** primera remediación de la auditoría técnica, implementada y validada localmente.
+
+- Se eliminó la contraseña fija del usuario semilla. Una base sin `password_hash` ahora exige `BOOTSTRAP_SYSADMIN_PASSWORD`, con una longitud de 16 a 128 caracteres y validación previa a cualquier mutación.
+- El secreto se usa únicamente para calcular el hash scrypt: no se guarda en texto plano, no se imprime y no viaja al frontend. El arranque falla antes de abrir el puerto si una instalación nueva no provee una clave válida.
+- Para actualizar instalaciones antiguas, el seed detecta exclusivamente la credencial pública heredada de `sysadmin`/`admin`, exige el secreto externo, rota el hash y revoca sus sesiones en una única transacción. Cualquier contraseña ya cambiada queda intacta.
+- El secreto quedó vacío en `.env.example` y su antiguo placeholder se rechaza explícitamente, evitando inicializar una cuenta con un valor público copiado desde el repositorio.
+- Se incorporó la variable opcional al contenedor y al paso de despliegue, y se actualizaron `.env.example`, README, documentación de backend, flujo, arquitectura y despliegue.
+- Se agregó una suite integrada que comprueba: rechazo sin secreto y sin mutaciones parciales, rechazo de valores inválidos, creación con hash verificable, no sobrescritura posterior, rotación heredada, revocación selectiva de sesiones, idempotencia y rollback ante fallos.
+- Validaciones ejecutadas: test específico del seed y typecheck del backend; antes del commit también se ejecutó la suite completa del workspace y el build de producción.
+
 ## 2026-07-24 — Integración de la versión 0.5 con estado laboral y Serin
 
 **Agente:** Codex
