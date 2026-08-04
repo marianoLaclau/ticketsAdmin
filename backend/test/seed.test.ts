@@ -54,7 +54,7 @@ const passwordInicial = "Bootstrap-2026-muy-seguro";
 const passwordDiferente = "Otra-clave-2026-muy-segura";
 const passwordHeredado = "admin";
 
-function crearSeedHeredado(email = "sysadmin") {
+async function crearSeedHeredado(email = "sysadmin") {
   const roleExistente = sqlite
     .prepare("SELECT id FROM roles WHERE nombre = 'SysAdmin'")
     .get() as { id: number } | undefined;
@@ -64,7 +64,7 @@ function crearSeedHeredado(email = "sysadmin") {
         sqlite.prepare("INSERT INTO roles (nombre) VALUES ('SysAdmin')").run()
           .lastInsertRowid,
       );
-  const passwordHash = hashPassword(passwordHeredado);
+  const passwordHash = await hashPassword(passwordHeredado);
   const usuario = sqlite
     .prepare(
       `INSERT INTO usuarios
@@ -157,7 +157,10 @@ describe("bootstrap seguro del SysAdmin", () => {
     assert.equal(usuario.email, "sysadmin");
     assert.equal(usuario.rol, "SysAdmin");
     assert.notEqual(usuario.password_hash, passwordInicial);
-    assert.equal(verifyPassword(passwordInicial, usuario.password_hash), true);
+    assert.equal(
+      await verifyPassword(passwordInicial, usuario.password_hash),
+      true,
+    );
   });
 
   it("no exige la variable ni sobrescribe una credencial existente", async () => {
@@ -188,15 +191,18 @@ describe("bootstrap seguro del SysAdmin", () => {
       password_hash: string;
     };
     assert.deepEqual(actual, anterior);
-    assert.equal(verifyPassword(passwordInicial, actual.password_hash), true);
     assert.equal(
-      verifyPassword(passwordDiferente, actual.password_hash),
+      await verifyPassword(passwordInicial, actual.password_hash),
+      true,
+    );
+    assert.equal(
+      await verifyPassword(passwordDiferente, actual.password_hash),
       false,
     );
   });
 
   it("exige el secreto para una credencial semilla heredada", async () => {
-    const heredado = crearSeedHeredado();
+    const heredado = await crearSeedHeredado();
 
     await assert.rejects(
       ensureAdminSeed(),
@@ -218,11 +224,11 @@ describe("bootstrap seguro del SysAdmin", () => {
   });
 
   it("rota la credencial heredada, revoca solo sus sesiones y es idempotente", async () => {
-    const heredado = crearSeedHeredado("admin");
+    const heredado = await crearSeedHeredado("admin");
     const roleId = sqlite
       .prepare("SELECT id FROM roles WHERE nombre = 'SysAdmin'")
       .get()!.id;
-    const otroHash = hashPassword("Operador-2026-clave-segura");
+    const otroHash = await hashPassword("Operador-2026-clave-segura");
     const otroUsuario = sqlite
       .prepare(
         `INSERT INTO usuarios
@@ -251,8 +257,14 @@ describe("bootstrap seguro del SysAdmin", () => {
     };
     assert.equal(rotado.username, "sysadmin");
     assert.equal(rotado.email, "sysadmin");
-    assert.equal(verifyPassword(passwordHeredado, rotado.password_hash), false);
-    assert.equal(verifyPassword(passwordInicial, rotado.password_hash), true);
+    assert.equal(
+      await verifyPassword(passwordHeredado, rotado.password_hash),
+      false,
+    );
+    assert.equal(
+      await verifyPassword(passwordInicial, rotado.password_hash),
+      true,
+    );
     assert.equal(
       sqlite
         .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?")
@@ -278,7 +290,7 @@ describe("bootstrap seguro del SysAdmin", () => {
   });
 
   it("rota un admin heredado sin promoverlo cuando ya existe el sysadmin canónico", async () => {
-    const heredado = crearSeedHeredado("admin");
+    const heredado = await crearSeedHeredado("admin");
     const roleId = sqlite
       .prepare("SELECT id FROM roles WHERE nombre = 'SysAdmin'")
       .get()!.id;
@@ -289,7 +301,7 @@ describe("bootstrap seguro del SysAdmin", () => {
     sqlite
       .prepare("UPDATE usuarios SET role_id = ? WHERE id = ?")
       .run(operadorRoleId, heredado.id);
-    const hashSeguro = hashPassword(passwordDiferente);
+    const hashSeguro = await hashPassword(passwordDiferente);
     const sysadminSeguro = sqlite
       .prepare(
         `INSERT INTO usuarios
@@ -319,7 +331,7 @@ describe("bootstrap seguro del SysAdmin", () => {
       .prepare("SELECT password_hash FROM usuarios WHERE id = ?")
       .get(sysadminSeguro.lastInsertRowid)!.password_hash;
     assert.equal(
-      verifyPassword(passwordInicial, adminRotado.password_hash),
+      await verifyPassword(passwordInicial, adminRotado.password_hash),
       true,
     );
     assert.equal(adminRotado.rol, "Operador");
@@ -339,8 +351,8 @@ describe("bootstrap seguro del SysAdmin", () => {
   });
 
   it("rota todas las identidades heredadas que coexisten", async () => {
-    const admin = crearSeedHeredado("admin");
-    const sysadmin = crearSeedHeredado("sysadmin");
+    const admin = await crearSeedHeredado("admin");
+    const sysadmin = await crearSeedHeredado("sysadmin");
     process.env.BOOTSTRAP_SYSADMIN_PASSWORD = passwordInicial;
 
     await ensureAdminSeed();
@@ -351,8 +363,8 @@ describe("bootstrap seguro del SysAdmin", () => {
           .prepare("SELECT password_hash FROM usuarios WHERE id = ?")
           .get(id)!.password_hash,
     );
-    assert.equal(verifyPassword(passwordInicial, hashes[0]), true);
-    assert.equal(verifyPassword(passwordInicial, hashes[1]), true);
+    assert.equal(await verifyPassword(passwordInicial, hashes[0]), true);
+    assert.equal(await verifyPassword(passwordInicial, hashes[1]), true);
     assert.notEqual(
       hashes[0],
       hashes[1],
@@ -370,8 +382,8 @@ describe("bootstrap seguro del SysAdmin", () => {
         .prepare("INSERT INTO roles (nombre) VALUES ('Administrador')")
         .run().lastInsertRowid,
     );
-    const hashHeredado = hashPassword(passwordHeredado);
-    const hashSeguro = hashPassword(passwordDiferente);
+    const hashHeredado = await hashPassword(passwordHeredado);
+    const hashSeguro = await hashPassword(passwordDiferente);
     const seed = sqlite
       .prepare(
         `INSERT INTO usuarios
@@ -415,7 +427,7 @@ describe("bootstrap seguro del SysAdmin", () => {
         .prepare("INSERT INTO roles (nombre) VALUES ('Administrador')")
         .run().lastInsertRowid,
     );
-    const hashSeguro = hashPassword(passwordDiferente);
+    const hashSeguro = await hashPassword(passwordDiferente);
     const usuario = sqlite
       .prepare(
         `INSERT INTO usuarios
@@ -488,7 +500,7 @@ describe("bootstrap seguro del SysAdmin", () => {
   });
 
   it("revierte el hash si no puede revocar las sesiones", async () => {
-    const heredado = crearSeedHeredado();
+    const heredado = await crearSeedHeredado();
     sqlite.exec(`
       CREATE TRIGGER bloquear_revocacion
       BEFORE DELETE ON sesiones
@@ -511,7 +523,10 @@ describe("bootstrap seguro del SysAdmin", () => {
       password_hash: string;
     };
     assert.equal(actual.password_hash, heredado.passwordHash);
-    assert.equal(verifyPassword(passwordHeredado, actual.password_hash), true);
+    assert.equal(
+      await verifyPassword(passwordHeredado, actual.password_hash),
+      true,
+    );
     assert.equal(
       sqlite
         .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?")

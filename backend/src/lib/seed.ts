@@ -81,8 +81,8 @@ function leerPasswordBootstrap(): string {
   return password;
 }
 
-function buscarSeedsHeredados(): SeedHeredado[] {
-  return db
+async function buscarSeedsHeredados(): Promise<SeedHeredado[]> {
+  const candidatos = db
     .select({
       id: usuariosTable.id,
       passwordHash: usuariosTable.password_hash,
@@ -94,12 +94,21 @@ function buscarSeedsHeredados(): SeedHeredado[] {
         inArray(usuariosTable.username, ["sysadmin", "admin"]),
       ),
     )
-    .all()
-    .filter(
-      (candidato): candidato is SeedHeredado =>
+    .all();
+  const evaluados = await Promise.all(
+    candidatos.map(async (candidato) => ({
+      candidato,
+      heredado:
         Boolean(candidato.passwordHash) &&
-        verifyPassword(LEGACY_SEED_PASSWORD, candidato.passwordHash),
-    );
+        (await verifyPassword(LEGACY_SEED_PASSWORD, candidato.passwordHash)),
+    })),
+  );
+  return evaluados
+    .filter(({ heredado }) => heredado)
+    .map(({ candidato }) => ({
+      id: candidato.id,
+      passwordHash: candidato.passwordHash!,
+    }));
 }
 
 /**
@@ -118,18 +127,20 @@ export async function ensureAdminSeed(): Promise<void> {
       .limit(1)
       .get(),
   );
-  const seedsHeredados = buscarSeedsHeredados();
+  const seedsHeredados = await buscarSeedsHeredados();
   const requiereBootstrap = !existePassword || seedsHeredados.length > 0;
   const bootstrapPassword = requiereBootstrap ? leerPasswordBootstrap() : null;
   const hashInicial =
     !existePassword && bootstrapPassword
-      ? hashPassword(bootstrapPassword)
+      ? await hashPassword(bootstrapPassword)
       : null;
   const rotaciones = bootstrapPassword
-    ? seedsHeredados.map((seed) => ({
-        ...seed,
-        nuevoHash: hashPassword(bootstrapPassword),
-      }))
+    ? await Promise.all(
+        seedsHeredados.map(async (seed) => ({
+          ...seed,
+          nuevoHash: await hashPassword(bootstrapPassword),
+        })),
+      )
     : [];
 
   // Todas las mutaciones del seed son atómicas. En particular, una rotación

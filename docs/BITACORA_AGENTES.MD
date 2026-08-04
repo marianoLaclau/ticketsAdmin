@@ -2,6 +2,19 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-04 — Scrypt asíncrono y hashes versionados
+
+**Agente:** Codex
+**Estado:** tercera remediación de la auditoría técnica, implementada y validada localmente.
+
+- Se reemplazó `scryptSync` por `crypto.scrypt` asíncrono en login, alta/reset de usuarios y bootstrap. Los hashes se calculan antes de entrar a las transacciones SQLite, por lo que el trabajo criptográfico no bloquea el event loop ni mantiene locks de base innecesarios.
+- El formato nuevo declara versión y parámetros: `scrypt$v1$16384$8$1$<salt>$<hash>`. El lector conserva compatibilidad con `scrypt:<salt>:<hash>` y marca únicamente ese formato válido como candidato a rehash.
+- Un login correcto con hash legado deriva una sal nueva y migra la credencial. La creación de la sesión y el rehash ocurren dentro de una transacción que relee usuario, rol y hash; si una desactivación o reset cambió el registro durante el KDF, la contraseña anterior no obtiene una sesión. Dos logins simultáneos revalidan una sola vez el hash migrado para no rechazar una clave que continúa vigente.
+- El login ejecuta el mismo trabajo scrypt también para usuarios inexistentes o hashes ausentes/malformados mediante un hash dummy válido. Todos esos casos conservan el mismo estado y cuerpo `401`, reduciendo la enumeración temporal de cuentas.
+- Se agregaron pruebas de formato actual, sales independientes, compatibilidad/rehash legado, rechazo de formatos inseguros, hash dummy, avance del event loop, comportamiento HTTP uniforme, logins simultáneos, login contra reset concurrente y rollback de rehash/sesión. También se adaptaron las suites de seed/RBAC al contrato asíncrono.
+- Archivos principales: `backend/src/lib/passwords.ts`, `backend/src/lib/seed.ts`, `backend/src/routes/auth.ts`, `backend/src/routes/admin.ts`, `backend/test/passwords.test.ts`, `backend/test/seed.test.ts` y `backend/test/rbac-routes.test.ts`.
+- Validaciones ejecutadas antes del commit: 183 pruebas correctas (backend 83, frontend 44, base de datos 8 e ingesta 48), typecheck completo, build de producción, `git diff --check` y revisión cruzada del diff. El build conserva únicamente las advertencias ya auditadas de sourcemaps y tamaño del bundle, fuera del alcance de este commit.
+
 ## 2026-08-04 — Invariantes RBAC y roles protegidos
 
 **Agente:** Codex

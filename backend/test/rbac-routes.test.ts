@@ -3,6 +3,7 @@ import { after, beforeEach, describe, it } from "node:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { AddressInfo } from "node:net";
+import { scryptSync } from "node:crypto";
 import Database from "better-sqlite3";
 import cookieParser from "cookie-parser";
 import express from "express";
@@ -52,7 +53,7 @@ const [
   { default: authRouter },
   { default: adminRouter },
   { requireSession },
-  { hashPassword },
+  { hashPassword, needsPasswordRehash, verifyPassword },
   { sqlite },
 ] = await Promise.all([
   import("../src/routes/auth.ts"),
@@ -127,8 +128,8 @@ function adminRequest(
   return requestWithSession(path, cookie, { ...init, headers });
 }
 
-beforeEach(() => {
-  const passwordHash = hashPassword(password);
+beforeEach(async () => {
+  const passwordHash = await hashPassword(password);
   sqlite.exec("DELETE FROM sesiones; DELETE FROM usuarios; DELETE FROM roles;");
   sqlite
     .prepare(
@@ -180,6 +181,150 @@ after(async () => {
   });
   sqlite.close();
   rmSync(databasePath, { force: true });
+});
+
+describe("autenticación uniforme", () => {
+  it("devuelve el mismo error para usuario inexistente, inactivo o clave incorrecta", async () => {
+    const responses = await Promise.all([
+      login("no-existe"),
+      login("rolinactivo"),
+      fetch(`${baseUrl}/auth/login`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ usuario: "sysadmin", password: "incorrecta" }),
+      }),
+    ]);
+
+    for (const response of responses) {
+      assert.equal(response.status, 401);
+      assert.deepEqual(await response.json(), {
+        error: "Usuario o contraseña incorrectos",
+      });
+    }
+    const sessions = sqlite
+      .prepare("SELECT count(*) AS total FROM sesiones")
+      .get() as { total: number };
+    assert.equal(sessions.total, 0);
+  });
+
+  it("rehasea el formato legado después de un login correcto", async () => {
+    const salt = "0123456789abcdef0123456789abcdef";
+    const legacy = `scrypt:${salt}:${scryptSync(password, salt, 64).toString("hex")}`;
+    sqlite
+      .prepare("UPDATE usuarios SET password_hash = ? WHERE id = 1")
+      .run(legacy);
+
+    const response = await login("sysadmin");
+    assert.equal(response.status, 200);
+    const stored = sqlite
+      .prepare("SELECT password_hash FROM usuarios WHERE id = 1")
+      .get() as { password_hash: string };
+    assert.notEqual(stored.password_hash, legacy);
+    assert.equal(needsPasswordRehash(stored.password_hash), false);
+    assert.equal(await verifyPassword(password, stored.password_hash), true);
+  });
+
+  it("acepta dos logins simultáneos mientras migra un hash legado", async () => {
+    const salt = "fedcba9876543210fedcba9876543210";
+    const legacy = `scrypt:${salt}:${scryptSync(password, salt, 64).toString("hex")}`;
+    sqlite
+      .prepare("UPDATE usuarios SET password_hash = ? WHERE id = 1")
+      .run(legacy);
+
+    const responses = await Promise.all([login("sysadmin"), login("sysadmin")]);
+    assert.deepEqual(
+      responses.map(({ status }) => status),
+      [200, 200],
+    );
+
+    const stored = sqlite
+      .prepare("SELECT password_hash FROM usuarios WHERE id = 1")
+      .get() as { password_hash: string };
+    const sessions = sqlite
+      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 1")
+      .get() as { total: number };
+    assert.equal(needsPasswordRehash(stored.password_hash), false);
+    assert.equal(await verifyPassword(password, stored.password_hash), true);
+    assert.equal(sessions.total, 2);
+  });
+
+  it("revierte el rehash si no puede crear la sesión", async () => {
+    const salt = "00112233445566778899aabbccddeeff";
+    const legacy = `scrypt:${salt}:${scryptSync(password, salt, 64).toString("hex")}`;
+    sqlite
+      .prepare("UPDATE usuarios SET password_hash = ? WHERE id = 1")
+      .run(legacy);
+    sqlite.exec(`
+      CREATE TRIGGER bloquear_sesion_sysadmin
+      BEFORE INSERT ON sesiones
+      WHEN NEW.usuario_id = 1
+      BEGIN
+        SELECT RAISE(ABORT, 'sesión bloqueada por prueba');
+      END;
+    `);
+
+    let response: Response;
+    try {
+      response = await login("sysadmin");
+    } finally {
+      sqlite.exec("DROP TRIGGER bloquear_sesion_sysadmin");
+    }
+
+    assert.equal(response.status, 500);
+    const stored = sqlite
+      .prepare("SELECT password_hash FROM usuarios WHERE id = 1")
+      .get() as { password_hash: string };
+    const sessions = sqlite
+      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 1")
+      .get() as { total: number };
+    assert.equal(stored.password_hash, legacy);
+    assert.equal(sessions.total, 0);
+  });
+
+  it("no conserva una sesión creada mientras se resetea la contraseña", async () => {
+    const salt = "ffeeddccbbaa99887766554433221100";
+    const legacy = `scrypt:${salt}:${scryptSync(password, salt, 64).toString("hex")}`;
+    const newPassword = "Clave-RBAC-2026-reemplazada";
+    sqlite
+      .prepare("UPDATE usuarios SET password_hash = ? WHERE id = 2")
+      .run(legacy);
+    const cookie = await adminSession();
+
+    const [loginResponse, resetResponse] = await Promise.all([
+      login("operadora"),
+      adminRequest("/admin/users/2/password", cookie, {
+        method: "POST",
+        body: JSON.stringify({ password: newPassword }),
+      }),
+    ]);
+
+    assert.equal(resetResponse.status, 204);
+    assert.ok(
+      loginResponse.status === 200 || loginResponse.status === 401,
+      "el login puede ganar o perder la carrera, pero no fallar de otra forma",
+    );
+    if (loginResponse.status === 200) {
+      const me = await requestWithSession(
+        "/auth/me",
+        sessionCookie(loginResponse),
+      );
+      assert.equal(
+        me.status,
+        401,
+        "el reset debe revocar la sesión recién creada",
+      );
+    }
+
+    const stored = sqlite
+      .prepare("SELECT password_hash FROM usuarios WHERE id = 2")
+      .get() as { password_hash: string };
+    const sessions = sqlite
+      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
+      .get() as { total: number };
+    assert.equal(sessions.total, 0);
+    assert.equal(await verifyPassword(password, stored.password_hash), false);
+    assert.equal(await verifyPassword(newPassword, stored.password_hash), true);
+  });
 });
 
 describe("roles base protegidos", () => {
@@ -381,13 +526,14 @@ describe("último SysAdmin autenticable", () => {
   });
 
   it("permite desactivar uno cuando queda otro SysAdmin utilizable", async () => {
+    const backupHash = await hashPassword(password);
     sqlite
       .prepare(
         `INSERT INTO usuarios
          (nombre, username, email, password_hash, role_id, activo)
          VALUES ('Respaldo', 'respaldo', 'respaldo@example.test', ?, 1, 1)`,
       )
-      .run(hashPassword(password));
+      .run(backupHash);
     const cookie = await adminSession();
     const response = await adminRequest("/admin/users/1", cookie, {
       method: "PATCH",

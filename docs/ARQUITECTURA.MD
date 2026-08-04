@@ -290,7 +290,7 @@ Es la auditoría temporal del ticket. Registra notas manuales, alta automática 
 - `roles` define el catálogo de perfiles. Los nombres base `SysAdmin`, `Administrador` y `Operador` son identidades reservadas y activas; los perfiles personalizados sí admiten ciclo de vida propio.
 - `usuarios` contiene identidad, credenciales hash, rol y estado activo.
 - `sesiones` persiste el token de cookie `gsb_session`, su usuario y expiración; permite revocar sesiones y sobrevivir reinicios.
-- `password_hash` usa scrypt; nunca se almacena la contraseña en texto plano.
+- `password_hash` usa scrypt asíncrono y versionado (`scrypt$v1$N$r$p$salt$hash`); nunca se almacena la contraseña en texto plano. El lector mantiene compatibilidad con el formato legado y lo rehashea con una sal nueva tras un login válido.
 
 Invariantes de RBAC aplicadas en backend y reflejadas en la UI:
 

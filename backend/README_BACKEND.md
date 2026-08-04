@@ -174,7 +174,9 @@ Dos capas encima de la sesión: primero el rol (`403` si no es SysAdmin), despu�
 
 ### Contraseñas
 
-`src/lib/passwords.ts` usa **scrypt** del módulo `crypto` nativo de Node (sin dependencias externas como bcrypt/argon2, lo que simplifica el build de Docker). Formato guardado: `scrypt:<salt-hex>:<hash-hex>`. `verifyPassword` compara con `timingSafeEqual`.
+`src/lib/passwords.ts` usa **scrypt asíncrono** del módulo `crypto` nativo de Node (sin dependencias externas como bcrypt/argon2), con parámetros explícitos `N=16384`, `r=8`, `p=1` y `maxmem=64 MiB`. El trabajo se ejecuta en el pool de libuv y no bloquea el event loop del servidor.
+
+El formato actual es `scrypt$v1$16384$8$1$<salt-hex>$<hash-hex>`. Se siguen verificando los hashes históricos `scrypt:<salt-hex>:<hash-hex>` y, tras un login correcto, se reemplazan automáticamente por el formato versionado con una sal nueva. Antes de emitir la sesión se releen usuario, rol y hash dentro de una transacción; un reset concurrente impide autenticar la contraseña anterior. Dos logins simultáneos que verificaron el mismo hash legado revalidan una sola vez el hash migrado, por lo que ambos pueden crear su sesión si la clave continúa siendo válida. `verifyPassword` compara con `timingSafeEqual` y el login deriva una clave dummy equivalente cuando la identidad o el hash no existen, evitando enumeración por una diferencia obvia de costo criptográfico.
 
 ### Seed inicial (`src/lib/seed.ts`)
 

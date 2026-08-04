@@ -478,7 +478,7 @@ router.post("/admin/users", async (req, res) => {
     return;
   }
 
-  const passwordHash = hashPassword(parsed.data.password);
+  const passwordHash = await hashPassword(parsed.data.password);
   try {
     const result = db.transaction((tx) => {
       const role = tx
@@ -735,7 +735,7 @@ router.post("/admin/users/:id/password", async (req, res) => {
     return;
   }
 
-  const passwordHash = hashPassword(body.data.password);
+  const passwordHash = await hashPassword(body.data.password);
   db.transaction((tx) => {
     tx.update(usuariosTable)
       .set({

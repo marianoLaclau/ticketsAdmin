@@ -22,8 +22,8 @@ export const usuariosTable = sqliteTable("usuarios", {
   // el email al arrancar, así que en la práctica siempre queda seteado.
   username: text("username").unique(),
   email: text("email").notNull().unique(),
-  // Hash scrypt con formato "scrypt:<salt>:<hash>". Nullable: un usuario del
-  // catálogo sin contraseña asignada todavía no puede iniciar sesión.
+  // Hash scrypt versionado; el lector conserva compatibilidad con el formato
+  // legado. Nullable: un usuario sin contraseña aún no puede iniciar sesión.
   password_hash: text("password_hash"),
   role_id: integer("role_id")
     .notNull()
