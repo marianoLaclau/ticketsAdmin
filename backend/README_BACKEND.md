@@ -333,6 +333,8 @@ El `PATCH` de tickets aplica la misma garantía transaccional: toma un snapshot 
 
 El diálogo operativo del frontend captura un baseline al abrirse y envía únicamente estado, prioridad, progreso, notas o fecha límite que el usuario modificó. Si llega un evento SSE mientras permanece abierto, un campo intacto no vuelve al servidor como parte de un snapshot viejo. Elegir un estado propone inmediatamente su progreso canónico en el slider y un ajuste manual posterior permanece explícito; los conflictos simultáneos sobre el mismo campo quedan reservados para el control optimista por versión.
 
+El editor de datos de contacto aplica el mismo principio con dos objetos separados: baseline de apertura y draft local. Su `useMemo` compara esos formularios inmutables, nunca el `ticket` vivo; por eso un teléfono o empresa corregidos por otra sesión durante la edición no reaparecen en el PATCH salvo que el usuario realmente haya tocado ese campo.
+
 En las respuestas de `Ticket` y `Seguimiento`, una columna nullable siempre conserva su propiedad y usa `null` cuando no hay valor; no se representa como propiedad ausente. OpenAPI marca esos campos como requeridos + nullable, `TicketDetail.seguimientos` siempre es un array y el codegen refleja la forma real de Drizzle en TypeScript y Zod.
 
 ## Ingesta y CSV compartidos

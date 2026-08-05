@@ -4,7 +4,7 @@ import type { Ticket } from '@workspace/api-client-react';
 import {
   applyTicketManagementState,
   buildTicketManagementUpdate,
-  buildFunctionalTicketUpdate,
+  buildFunctionalTicketUpdateFromBaseline,
   getFunctionalFieldLabel,
   isValidOptionalEmail,
   ticketToFunctionalForm,
@@ -39,14 +39,15 @@ const ticket = {
 } as Ticket;
 
 test('construye un PATCH mínimo y normaliza opcionales vacíos a null', () => {
-  const form = ticketToFunctionalForm(ticket);
+  const baseline = ticketToFunctionalForm(ticket);
+  const form = { ...baseline };
   form.nombre = ' Ana '; // mismo valor normalizado
   form.telefono = ' 11 5555-0000 ';
   form.dni = '   ';
   form.empresa = ' GSB ';
   form.resumen = 'Dato completado';
 
-  assert.deepEqual(buildFunctionalTicketUpdate(ticket, form), {
+  assert.deepEqual(buildFunctionalTicketUpdateFromBaseline(baseline, form), {
     telefono: '11 5555-0000',
     dni: null,
     empresa: 'GSB',
@@ -55,7 +56,27 @@ test('construye un PATCH mínimo y normaliza opcionales vacíos a null', () => {
 });
 
 test('omite todos los campos cuando no hubo cambios reales', () => {
-  assert.deepEqual(buildFunctionalTicketUpdate(ticket, ticketToFunctionalForm(ticket)), {});
+  const baseline = ticketToFunctionalForm(ticket);
+  assert.deepEqual(
+    buildFunctionalTicketUpdateFromBaseline(baseline, { ...baseline }),
+    {},
+  );
+});
+
+test('datos funcionales comparan contra el baseline de apertura, no contra SSE', () => {
+  const baseline = ticketToFunctionalForm(ticket);
+  const form = { ...baseline, email: 'nuevo@example.com' };
+
+  // Representa una actualización remota recibida mientras el diálogo estaba
+  // abierto. No forma parte del baseline ni del draft local.
+  const ticketRefreshedBySse = { ...ticket, telefono: '11 9999-0000' };
+  assert.equal(
+    ticketToFunctionalForm(ticketRefreshedBySse).telefono,
+    '11 9999-0000',
+  );
+  assert.deepEqual(buildFunctionalTicketUpdateFromBaseline(baseline, form), {
+    email: 'nuevo@example.com',
+  });
 });
 
 test('gestión envía solo los campos realmente modificados', () => {

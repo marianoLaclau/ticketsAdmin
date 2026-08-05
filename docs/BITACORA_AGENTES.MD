@@ -2,6 +2,19 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — Baseline inmutable para datos de contacto
+
+**Agente:** Codex
+**Estado:** decimoséptima remediación de la auditoría técnica, implementada localmente.
+
+- `TicketDataEditDialog` dejó de comparar el formulario contra el objeto `ticket` vivo. Al abrir crea dos objetos separados: baseline autoritativo y draft editable; el PATCH se calcula únicamente entre ambos.
+- Si SSE actualiza teléfono, DNI, empresa, email, motivo u otro dato mientras el diálogo está abierto, ese valor remoto no se interpreta como una edición inversa del usuario y no vuelve al backend desde un formulario stale.
+- El baseline se renueva al abrir o cambiar de ticket, pero deliberadamente permanece congelado durante la edición. El submit también rechaza programáticamente un no-op además de mantener el botón deshabilitado.
+- Se eliminó el helper ambiguo que aceptaba un `Ticket` vivo y quedó una única API explícita `buildFunctionalTicketUpdateFromBaseline`.
+- Se agregó una regresión pura que reproduce un teléfono actualizado por SSE mientras el draft cambia solo el email y exige un PATCH exclusivo de email.
+- Archivos principales: diálogo de datos, helper/test de edición y documentación.
+- Validaciones: 275 pruebas correctas (backend 145, frontend 66, base de datos 11, política compartida 4, ingesta 48 y scripts 1), typecheck y build completos. El build conserva los avisos ya registrados de sourcemaps en cuatro componentes UI y del bundle frontend mayor a 500 kB.
+
 ## 2026-08-05 — PATCH mínimo para la gestión del ticket
 
 **Agente:** Codex

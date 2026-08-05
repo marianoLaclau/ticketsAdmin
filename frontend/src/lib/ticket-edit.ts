@@ -139,8 +139,8 @@ export function buildTicketManagementUpdate(
  * Genera un PATCH mínimo. Los opcionales vacíos se expresan como null para no
  * dejar espacios como datos aparentes y los campos no modificados se omiten.
  */
-export function buildFunctionalTicketUpdate(
-  ticket: Ticket,
+export function buildFunctionalTicketUpdateFromBaseline(
+  baseline: TicketFunctionalForm,
   form: TicketFunctionalForm,
 ): TicketUpdate {
   const update: TicketUpdate = {};
@@ -148,14 +148,14 @@ export function buildFunctionalTicketUpdate(
   const requiredFields = ['nombre', 'apellido', 'motivo'] as const;
   for (const field of requiredFields) {
     const nextValue = cleanRequired(form[field]);
-    const currentValue = cleanRequired(ticket[field] ?? '');
+    const currentValue = cleanRequired(baseline[field]);
     if (nextValue !== currentValue) update[field] = nextValue;
   }
 
   const optionalFields = ['telefono', 'dni', 'empresa', 'email', 'resumen'] as const;
   for (const field of optionalFields) {
     const nextValue = cleanOptional(form[field]);
-    const currentValue = cleanOptional(ticket[field]);
+    const currentValue = cleanOptional(baseline[field]);
     if (nextValue !== currentValue) update[field] = nextValue;
   }
 

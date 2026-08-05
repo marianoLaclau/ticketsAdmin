@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  buildFunctionalTicketUpdate,
+  buildFunctionalTicketUpdateFromBaseline,
   isValidOptionalEmail,
   ticketToFunctionalForm,
   type TicketFunctionalForm,
@@ -47,19 +47,31 @@ export function TicketDataEditDialog({
   isSaving,
   onSave,
 }: TicketDataEditDialogProps) {
-  const [form, setForm] = useState<TicketFunctionalForm>(() => ticketToFunctionalForm(ticket));
+  const initialForm = ticketToFunctionalForm(ticket);
+  const [baseline, setBaseline] =
+    useState<TicketFunctionalForm>(initialForm);
+  const [form, setForm] = useState<TicketFunctionalForm>(initialForm);
   const [validationError, setValidationError] = useState('');
 
   useEffect(() => {
     if (!open) return;
-    setForm(ticketToFunctionalForm(ticket));
+    const snapshot = ticketToFunctionalForm(ticket);
+    setBaseline(snapshot);
+    setForm({ ...snapshot });
     setValidationError('');
+    // Los demás campos de ticket se excluyen a propósito: un SSE recibido con
+    // el diálogo abierto no debe mover el baseline capturado al abrirlo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, ticket.id]);
 
-  const update = useMemo(() => buildFunctionalTicketUpdate(ticket, form), [ticket, form]);
+  const update = useMemo(
+    () => buildFunctionalTicketUpdateFromBaseline(baseline, form),
+    [baseline, form],
+  );
   const hasChanges = Object.keys(update).length > 0;
 
   const submit = () => {
+    if (!hasChanges) return;
     if (!form.motivo.trim()) {
       setValidationError('El motivo no puede quedar vacío.');
       return;
