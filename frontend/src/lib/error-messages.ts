@@ -41,6 +41,26 @@ export function getServerErrorCode(error: unknown): string {
   return typeof payload?.code === 'string' ? payload.code : '';
 }
 
+function getRetryAfterSeconds(error: unknown): number | undefined {
+  const payload = asRecord(asRecord(error)?.data);
+  const value = payload?.retry_after_seconds;
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? Math.ceil(value)
+    : undefined;
+}
+
+function getLoginRateLimitMessage(error: unknown): string {
+  const seconds = getRetryAfterSeconds(error);
+  if (seconds === undefined) {
+    return 'Demasiados intentos. Esperá un momento antes de volver a probar.';
+  }
+  if (seconds >= 60) {
+    const minutes = Math.ceil(seconds / 60);
+    return `Demasiados intentos. Volvé a probar en ${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}.`;
+  }
+  return `Demasiados intentos. Volvé a probar en ${seconds} ${seconds === 1 ? 'segundo' : 'segundos'}.`;
+}
+
 function normalize(value: string): string {
   return value
     .normalize('NFD')
@@ -172,7 +192,7 @@ export function getLoginErrorMessage(error: unknown): string {
     case 403:
       return 'Tu usuario no tiene permitido ingresar al sistema.';
     case 429:
-      return 'Demasiados intentos. Esperá un momento antes de volver a probar.';
+      return getLoginRateLimitMessage(error);
     case 500:
     case 502:
     case 503:

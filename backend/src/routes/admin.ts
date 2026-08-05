@@ -39,6 +39,7 @@ import { broadcastEvent, closeEventClientsForUsers } from "../lib/events";
 import { findInvalidRfc3339DateTimeField } from "../lib/rfc3339";
 import { esNombreRolReservado, esRolSistema, ROL_SYSADMIN } from "../lib/rbac";
 import { getNewPasswordPolicyError } from "../lib/new-password-policy";
+import { loginAttemptLimiter } from "../lib/login-rate-limit";
 
 const router = Router();
 
@@ -552,6 +553,7 @@ router.post("/admin/users", async (req, res) => {
         .json({ error: "Ya existe un usuario con ese nombre de usuario" });
       return;
     }
+    loginAttemptLimiter.reset(username);
     res.status(201).json(result.user);
   } catch (error) {
     if (hasSqliteConstraint(error, "UNIQUE")) {
@@ -691,7 +693,11 @@ router.patch("/admin/users/:id", async (req, res) => {
           .where(eq(sesionesTable.usuario_id, current.id))
           .run();
       }
-      return { kind: "updated", user } as const;
+      return {
+        kind: "updated",
+        user,
+        previousUsername: current.username,
+      } as const;
     });
 
     if (result.kind === "not_found") {
@@ -714,6 +720,12 @@ router.patch("/admin/users/:id", async (req, res) => {
     }
     if (updates.activo === false) {
       closeEventClientsForUsers([params.data.id]);
+    }
+    if (updates.username !== undefined) {
+      if (result.previousUsername) {
+        loginAttemptLimiter.reset(result.previousUsername);
+      }
+      if (result.user.username) loginAttemptLimiter.reset(result.user.username);
     }
     res.json(result.user);
   } catch (error) {
@@ -752,17 +764,15 @@ router.post("/admin/users/:id/password", async (req, res) => {
     return;
   }
 
-  const [existing] = await db
-    .select({ id: usuariosTable.id })
-    .from(usuariosTable)
-    .where(eq(usuariosTable.id, params.data.id));
-  if (!existing) {
-    res.status(404).json({ error: "Usuario no encontrado" });
-    return;
-  }
-
   const passwordHash = await hashPassword(body.data.password);
   const updated = db.transaction((tx) => {
+    const current = tx
+      .select({ username: usuariosTable.username })
+      .from(usuariosTable)
+      .where(eq(usuariosTable.id, params.data.id))
+      .get();
+    if (!current) return { kind: "not_found" } as const;
+
     const result = tx
       .update(usuariosTable)
       .set({
@@ -772,17 +782,18 @@ router.post("/admin/users/:id/password", async (req, res) => {
       })
       .where(eq(usuariosTable.id, params.data.id))
       .run();
-    if (result.changes !== 1) return false;
+    if (result.changes !== 1) return { kind: "not_found" } as const;
     tx.delete(sesionesTable)
       .where(eq(sesionesTable.usuario_id, params.data.id))
       .run();
-    return true;
+    return { kind: "updated", username: current.username } as const;
   });
-  if (!updated) {
+  if (updated.kind === "not_found") {
     res.status(404).json({ error: "Usuario no encontrado" });
     return;
   }
   closeEventClientsForUsers([params.data.id]);
+  if (updated.username) loginAttemptLimiter.reset(updated.username);
 
   res.status(204).end();
 });

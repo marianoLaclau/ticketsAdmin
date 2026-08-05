@@ -48,6 +48,7 @@ backend/
     migrate.ts              → entrypoint separado: aplica migraciones y termina (usado en Docker)
     lib/
       auth.ts                → sesiones y guards de autenticación, cambio pendiente, roles y API keys
+      login-rate-limit.ts    → ventana deslizante por identidad y admisión acotada de scrypt
       new-password-policy.ts → adaptación HTTP de la política compartida de contraseñas nuevas
       passwords.ts            → hash y verificación con scrypt
       seed.ts                  → crea/migra el usuario y rol semilla al arrancar
@@ -104,7 +105,7 @@ Todas bajo el prefijo `/api`. ✅ = requiere sesión (candado global). 🔑 = ad
 |---|---|---|
 | `GET /healthz` | Chequeo de vida | público |
 | `POST /webhooks/ticket` | Ingesta de una llamada desde n8n. Idempotente por `conversation_id`: si ya existe, `200 { created: false, ticket }`; si no, `201 { created: true, ticket }`. Si llega una empresa real, crea atómicamente el primer seguimiento indicando que los datos fueron extraídos y persistidos desde Serin mediante el DNI proporcionado. Si no viene `fecha_limite`, se preestablece a **48 horas hábiles de lunes a viernes**; si viene, debe ser RFC3339 con zona (no se coercionan `null`/booleanos/números). Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío. | `x-api-key: WEBHOOK_API_KEY` |
-| `POST /auth/login` | Body `{ usuario, password }` (`usuario` = el `username` asignado al crear la cuenta, no el email; se normaliza a minúsculas). Devuelve `AuthUser` y setea la cookie `gsb_session`. Mensaje de error genérico a propósito (no revela si el usuario existe). | público |
+| `POST /auth/login` | Body `{ usuario, password }` (`usuario` = el `username` asignado al crear la cuenta, no el email; se normaliza a minúsculas). Devuelve `AuthUser` y setea la cookie `gsb_session`. Mensaje de error genérico a propósito (no revela si el usuario existe). Después de diez credenciales rechazadas para la misma identidad en 15 minutos responde `429` con `Retry-After`. | público |
 | `POST /auth/logout` | Revoca la sesión actual (borra la fila) y limpia la cookie. `204`. | ✅ (no falla si no hay cookie) |
 | `GET /auth/me` | Devuelve el `AuthUser` de la sesión activa, o `401`. | ✅ |
 | `POST /auth/password` | Cambia la contraseña propia con `{ password_actual, password_nueva }`. La actual conserva el contrato histórico de 1–128; la nueva aplica la política compartida y debe ser distinta. En una transacción limpia `debe_cambiar_password`, revoca todas las sesiones y crea una nueva para el navegador actual. | ✅, incluso con cambio pendiente |
@@ -146,6 +147,16 @@ La política de roles vive en `src/lib/rbac.ts`; sesiones y middlewares, en [`sr
 - **Alta, reset y bootstrap emiten credenciales temporales**: guardan `usuarios.debe_cambiar_password = true`. Mientras siga pendiente, `/auth/me`, `/auth/logout` y `/auth/password` continúan disponibles, pero tickets, dashboard, administración y SSE responden `403` con `code: "PASSWORD_CHANGE_REQUIRED"`.
 - **Reset de contraseña revoca todas las sesiones del usuario** (`DELETE FROM sesiones WHERE usuario_id = ...`): si estaba logueado en otro navegador, queda afuera al instante y el próximo login exige reemplazar la clave temporal.
 - **Cambio propio rota la sesión**: verifica la contraseña actual, genera el hash fuera de la transacción y luego compara el hash observado antes de actualizarlo. En una sola transacción limpia el flag, elimina todos los tokens y crea uno nuevo; por eso dos cambios concurrentes no pueden confirmar ambos ni dejar un estado parcial.
+
+### Protección del login
+
+`src/lib/login-rate-limit.ts` reserva cada intento **antes** de consultar la contraseña. La clave es un SHA-256 con separación de dominio del `username` normalizado, nunca el nombre en claro. Una reserva pendiente evita que solicitudes paralelas atraviesen juntas el cupo, pero solo se confirma como fallo después de que el KDF rechazó las credenciales. Diez fallos dentro de una ventana deslizante de 15 minutos hacen que la siguiente solicitud active un bloqueo de 15 minutos y devuelva `429 LOGIN_RATE_LIMITED`, `Retry-After`, `retry_after_seconds` y `Cache-Control: no-store`. Usuario inexistente, inactivo, rol inactivo y contraseña incorrecta recorren el mismo contador y conservan el mismo error genérico.
+
+Un login confirmado elimina el contador de su identidad. Crear o renombrar una cuenta y restablecer su contraseña también limpian los buckets pertinentes, por lo que la recuperación administrativa no deja al usuario esperando un bloqueo anterior. Las solicitudes que no consiguen lugar para verificar credenciales o terminan en `5xx` reembolsan su reserva y no se convierten en fallos de contraseña. Cortar la conexión no cancela una verificación ya admitida: su resultado real cierra la reserva, evitando que un cliente pueda eludir el límite mediante abortos deliberados.
+
+La admisión criptográfica combina un token bucket global con ráfaga inicial de 30 KDF y reposición de 30 por minuto, cuatro trabajos scrypt simultáneos y hasta ocho en espera; el excedente recibe el mismo `429` con la espera calculada. Esto acota tanto la ráfaga como el consumo público sostenido aunque se roten nombres de usuario. El mapa admite hasta 20.000 identidades, guarda solo hashes y elimina entradas vencidas o de menor actividad al llegar al tope sin expulsar cuentas bloqueadas ni reservas en vuelo.
+
+Ambos controles viven en memoria porque el despliegue soportado tiene una sola instancia backend. Un reinicio o redeploy limpia los contadores; si el sistema se replica, hay que reemplazar este store por uno compartido y conservar la misma interfaz. No se usa `X-Forwarded-For`: Nginx lo envía, pero el puerto 5000 también está publicado y confiarlo sin restringir el proxy permitiría falsificar el origen. La defensa principal se asocia a la cuenta, como recomienda OWASP, y la cola global protege el recurso criptográfico.
 
 ### El candado global
 

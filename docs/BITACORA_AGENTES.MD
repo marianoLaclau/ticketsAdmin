@@ -2,6 +2,19 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-04 — Rate limit y capacidad acotada del login
+
+**Agente:** Codex
+**Estado:** sexta remediación de la auditoría técnica, implementada y validada localmente.
+
+- `POST /api/auth/login` reserva ahora cada intento por el SHA-256 del username normalizado antes de consultar credenciales o iniciar scrypt. Solo un rechazo real confirma el fallo: diez fallos de una ventana deslizante de 15 minutos hacen que la siguiente solicitud bloquee la identidad por 15 minutos y responda `429 LOGIN_RATE_LIMITED`, `Retry-After`, `retry_after_seconds` y `Cache-Control: no-store`.
+- Usuarios inexistentes, inactivos, roles inactivos y claves incorrectas comparten la misma mecánica y el mismo mensaje genérico, sin introducir una señal nueva de enumeración. Un login confirmado borra el bucket; crear o renombrar una cuenta y restablecer su contraseña también lo limpian para que el camino de recuperación administrativa sea inmediato.
+- Se agregó una compuerta global para el trabajo criptográfico público: token bucket con ráfaga inicial de 30 KDF y reposición de 30 por minuto, como máximo cuatro simultáneos y ocho en cola. El exceso recibe el mismo `429`; si una solicitud no consigue capacidad, pierde una carrera administrativa o termina en `5xx`, su reserva de cuenta se reembolsa. Una desconexión no cancela trabajo ya admitido y el resultado de la verificación igualmente cierra la reserva, evitando eludir el límite mediante abortos. Esto limita ráfaga y consumo sostenido aunque el atacante rote identidades.
+- El store mantiene solo hashes, admite hasta 20.000 identidades y hace limpieza/evicción perezosa sin priorizar la expulsión de bloqueos activos. Es estado local de la única instancia backend actual: un reinicio lo limpia y una futura topología horizontal deberá reemplazarlo por un store compartido. No se confía en `X-Forwarded-For` porque el puerto 5000 sigue expuesto directamente.
+- OpenAPI documenta los errores reales `400`, `401` y el nuevo `429`, incluido su header y espera estructurada. Orval regeneró el cliente y `LoginMutationError` dejó de ser `void`. El frontend usa `retry_after_seconds` para diferenciar una saturación breve de los 15 minutos de un bloqueo de cuenta, sin mostrar datos técnicos.
+- Archivos principales: `backend/src/lib/login-rate-limit.ts`, `backend/src/routes/auth.ts`, `backend/src/routes/admin.ts`, `lib/api-spec/openapi.yaml`, artefactos generados, pruebas backend/frontend y documentación operativa/arquitectónica.
+- Validaciones ejecutadas antes del commit: 231 pruebas correctas (backend 116, frontend 53, base de datos 10, política compartida 4 e ingesta 48), incluidas carreras de renombre/reset, saturación y aborto deliberado del cliente; además, codegen, typecheck completo, build de producción y `git diff --check`. El build conserva únicamente las advertencias ya auditadas de sourcemaps y del bundle frontend de ~942 kB, reservadas para la etapa específica de optimización.
+
 ## 2026-08-04 — Cambio obligatorio de contraseña temporal
 
 **Agente:** Codex

@@ -128,6 +128,8 @@ El bootstrap crea o asegura `sysadmin`, persiste solamente el hash scrypt y lueg
 
 La migración `0010_require_password_change.sql` se aplica automáticamente antes de arrancar la API. Mantiene habilitados a los usuarios existentes (`debe_cambiar_password=false`), mientras que toda alta o rotación posterior queda en estado temporal hasta que la propia persona defina su nueva contraseña.
 
+El backend limita el login por identidad: diez credenciales rechazadas dentro de 15 minutos hacen que la siguiente solicitud active un bloqueo de 15 minutos (`429` más `Retry-After`). Un login válido o un alta, cambio de username o reset de contraseña desde SysAdmin libera esa identidad; errores internos y rechazos por capacidad no suman fallos. Los contadores no están en SQLite: viven hasheados y acotados en la memoria de la única instancia, por lo que un redeploy los reinicia. Esto es esperado en la topología actual; no levantar una segunda réplica sin migrar el rate limit a un store compartido. La protección de scrypt admite una ráfaga inicial de 30 trabajos públicos y repone 30 por minuto, con cuatro activos y ocho en espera, para conservar capacidad durante ráfagas y ataques sostenidos.
+
 GitHub inyecta esos secretos solo durante el job. Para ejecutar manualmente comandos que crean o recrean servicios (`up`, `create`, un `run` normal), guardar las variables en un archivo fuera del repo y con permisos restringidos, por ejemplo `/etc/ticketsadmin/compose.env`, y usar:
 
 ```bash

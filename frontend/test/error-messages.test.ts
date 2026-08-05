@@ -9,10 +9,19 @@ import {
   getUserErrorMessage,
 } from '../src/lib/error-messages.ts';
 
-function apiError(status: number, serverError: string, technicalMessage = 'detalle técnico') {
+function apiError(
+  status: number,
+  serverError: string,
+  technicalMessage = 'detalle técnico',
+  retryAfterSeconds?: number,
+) {
   return Object.assign(new Error(`HTTP ${status}: ${technicalMessage}`), {
     status,
-    data: { error: serverError, details: [{ path: ['password'], code: 'too_small' }] },
+    data: {
+      error: serverError,
+      details: [{ path: ['password'], code: 'too_small' }],
+      ...(retryAfterSeconds === undefined ? {} : { retry_after_seconds: retryAfterSeconds }),
+    },
   });
 }
 
@@ -115,6 +124,18 @@ test('el login diferencia credenciales inválidas y problemas de conexión', () 
 test('el login no presenta una validación HTTP como un problema de conexión', () => {
   assert.match(getLoginErrorMessage(apiError(400, 'Invalid body')), /Revisá el usuario/i);
   assert.match(getLoginErrorMessage(apiError(403, 'Cuenta bloqueada')), /no tiene permitido/i);
+  assert.equal(
+    getLoginErrorMessage(apiError(429, 'LOGIN_RATE_LIMITED')),
+    'Demasiados intentos. Esperá un momento antes de volver a probar.',
+  );
+  assert.equal(
+    getLoginErrorMessage(apiError(429, 'LOGIN_RATE_LIMITED', 'detalle', 1)),
+    'Demasiados intentos. Volvé a probar en 1 segundo.',
+  );
+  assert.equal(
+    getLoginErrorMessage(apiError(429, 'LOGIN_RATE_LIMITED', 'detalle', 900)),
+    'Demasiados intentos. Volvé a probar en 15 minutos.',
+  );
 });
 
 test('el cambio de contraseña usa códigos estables sin filtrar el servidor', () => {

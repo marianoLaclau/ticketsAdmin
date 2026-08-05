@@ -38,6 +38,24 @@ export interface PasswordChangeError {
   error: string;
 }
 
+export interface LoginError {
+  error: string;
+}
+
+export type LoginRateLimitErrorCode = typeof LoginRateLimitErrorCode[keyof typeof LoginRateLimitErrorCode];
+
+
+export const LoginRateLimitErrorCode = {
+  LOGIN_RATE_LIMITED: 'LOGIN_RATE_LIMITED',
+} as const;
+
+export interface LoginRateLimitError {
+  code: LoginRateLimitErrorCode;
+  error: string;
+  /** @minimum 1 */
+  retry_after_seconds: number;
+}
+
 /**
  * Contraseña nueva sin caracteres de control, espacios exteriores ni claves comunes, repetitivas o de ejemplo. Se persiste únicamente como hash.
  * @minLength 16

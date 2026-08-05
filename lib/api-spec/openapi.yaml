@@ -265,8 +265,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthUser"
+        "400":
+          description: Cuerpo de login inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginError"
         "401":
           description: Credenciales inválidas o usuario inactivo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginError"
+        "429":
+          description: Demasiados intentos de inicio de sesión
+          headers:
+            Retry-After:
+              description: Segundos que faltan para volver a intentar
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginRateLimitError"
 
   /auth/password:
     post:
@@ -1069,6 +1091,30 @@ components:
             - SESSION_CHANGED
         error:
           type: string
+
+    LoginError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+
+    LoginRateLimitError:
+      type: object
+      required:
+        - code
+        - error
+        - retry_after_seconds
+      properties:
+        code:
+          type: string
+          enum: [LOGIN_RATE_LIMITED]
+        error:
+          type: string
+        retry_after_seconds:
+          type: integer
+          minimum: 1
 
     NewPassword:
       type: string

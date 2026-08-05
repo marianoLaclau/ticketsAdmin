@@ -56,6 +56,14 @@ const [
   { default: productionRouter },
   { requirePasswordChangeCompleted, requireSession },
   { hashPassword, needsPasswordRehash, verifyPassword },
+  {
+    LOGIN_ACCOUNT_MAX_ATTEMPTS,
+    LOGIN_KDF_MAX_CONCURRENT,
+    LOGIN_KDF_MAX_QUEUED,
+    loginAttemptLimiter,
+    loginKdfGate,
+    loginKdfThroughputLimiter,
+  },
   { sqlite },
 ] = await Promise.all([
   import("../src/routes/auth.ts"),
@@ -63,6 +71,7 @@ const [
   import("../src/routes/index.ts"),
   import("../src/lib/auth.ts"),
   import("../src/lib/passwords.ts"),
+  import("../src/lib/login-rate-limit.ts"),
   import("@workspace/db"),
 ]);
 
@@ -153,7 +162,25 @@ function changeOwnPassword(
   });
 }
 
+async function waitFor(
+  predicate: () => boolean,
+  message: string,
+  delayMs = 0,
+): Promise<void> {
+  for (let attempt = 0; attempt < 500; attempt += 1) {
+    if (predicate()) return;
+    if (delayMs > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+    } else {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+  }
+  assert.fail(message);
+}
+
 beforeEach(async () => {
+  loginAttemptLimiter.resetAll();
+  loginKdfThroughputLimiter.resetAll();
   const passwordHash = await hashPassword(password);
   sqlite.exec("DELETE FROM sesiones; DELETE FROM usuarios; DELETE FROM roles;");
   sqlite
@@ -230,6 +257,232 @@ describe("autenticación uniforme", () => {
       .prepare("SELECT count(*) AS total FROM sesiones")
       .get() as { total: number };
     assert.equal(sessions.total, 0);
+  });
+
+  it("limita por usuario normalizado sin crear sesiones ni revelar la cuenta", async () => {
+    const variants = ["operadora", " OPERADORA "];
+    for (let index = 0; index < LOGIN_ACCOUNT_MAX_ATTEMPTS; index += 1) {
+      const response = await login(
+        variants[index % variants.length],
+        `incorrecta-${index}`,
+      );
+      assert.equal(response.status, 401);
+      assert.deepEqual(await response.json(), {
+        error: "Usuario o contraseña incorrectos",
+      });
+    }
+
+    const blocked = await login("Operadora", password);
+    assert.equal(blocked.status, 429);
+    assert.equal(blocked.headers.get("retry-after"), "900");
+    assert.equal(blocked.headers.get("cache-control"), "no-store");
+    assert.equal(blocked.headers.get("set-cookie"), null);
+    assert.deepEqual(await blocked.json(), {
+      code: "LOGIN_RATE_LIMITED",
+      error:
+        "Demasiados intentos de inicio de sesión. Esperá unos minutos e intentá nuevamente.",
+      retry_after_seconds: 900,
+    });
+    const sessions = sqlite
+      .prepare("SELECT count(*) AS total FROM sesiones")
+      .get() as { total: number };
+    assert.equal(sessions.total, 0);
+
+    // El bloqueo de una identidad no afecta a las demás.
+    assert.equal((await login("sysadmin")).status, 200);
+  });
+
+  it("aplica el mismo límite a identidades inexistentes", async () => {
+    for (let index = 0; index < LOGIN_ACCOUNT_MAX_ATTEMPTS; index += 1) {
+      assert.equal(
+        (await login("no-existe", `incorrecta-${index}`)).status,
+        401,
+      );
+    }
+    const blocked = await login(" NO-EXISTE ");
+    assert.equal(blocked.status, 429);
+    assert.equal(
+      ((await blocked.json()) as { code: string }).code,
+      "LOGIN_RATE_LIMITED",
+    );
+  });
+
+  it("la saturación criptográfica reembolsa reservas sin bloquear la cuenta", async () => {
+    let releaseAll: (() => void) | undefined;
+    const hold = new Promise<void>((resolve) => {
+      releaseAll = resolve;
+    });
+    const blockers = Array.from(
+      { length: LOGIN_KDF_MAX_CONCURRENT + LOGIN_KDF_MAX_QUEUED },
+      () => loginKdfGate.run(() => hold),
+    );
+    await waitFor(
+      () =>
+        loginKdfGate.activeCount === LOGIN_KDF_MAX_CONCURRENT &&
+        loginKdfGate.queuedCount === LOGIN_KDF_MAX_QUEUED,
+      "la compuerta KDF no llego a saturarse",
+    );
+
+    try {
+      for (let index = 0; index <= LOGIN_ACCOUNT_MAX_ATTEMPTS; index += 1) {
+        const response = await login("operadora");
+        assert.equal(response.status, 429);
+        assert.equal(response.headers.get("retry-after"), "1");
+      }
+    } finally {
+      releaseAll?.();
+      await Promise.all(blockers);
+    }
+
+    assert.equal((await login("operadora")).status, 200);
+  });
+
+  it("un cliente abortado no elude un fallo de credenciales ya admitido", async () => {
+    for (let index = 0; index < LOGIN_ACCOUNT_MAX_ATTEMPTS - 1; index += 1) {
+      const attempt = loginAttemptLimiter.reserve("operadora");
+      assert.equal(attempt.allowed, true);
+      if (!attempt.allowed) assert.fail("el intento debia reservarse");
+      loginAttemptLimiter.confirmFailure(attempt.reservation);
+    }
+
+    const releases: Array<() => void> = [];
+    const blockers = Array.from({ length: LOGIN_KDF_MAX_CONCURRENT }, () =>
+      loginKdfGate.run(
+        () => new Promise<void>((resolve) => releases.push(resolve)),
+      ),
+    );
+    await waitFor(
+      () => loginKdfGate.activeCount === LOGIN_KDF_MAX_CONCURRENT,
+      "la compuerta KDF no llego a ocuparse",
+    );
+
+    const controller = new AbortController();
+    const abortedLogin = fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        usuario: "operadora",
+        password: "incorrecta-abortada",
+      }),
+      signal: controller.signal,
+    });
+    try {
+      await waitFor(
+        () => loginKdfGate.queuedCount === 1,
+        "el login abortable no quedo esperando en la compuerta",
+      );
+      controller.abort();
+      await assert.rejects(abortedLogin, { name: "AbortError" });
+    } finally {
+      controller.abort();
+      for (const release of releases) release();
+      await Promise.all(blockers);
+    }
+    await waitFor(
+      () =>
+        loginKdfGate.activeCount === 0 && loginKdfGate.queuedCount === 0,
+      "la verificacion abortada no termino de procesarse",
+      10,
+    );
+
+    const blocked = await login("operadora");
+    assert.equal(blocked.status, 429);
+    assert.equal(blocked.headers.get("retry-after"), "900");
+  });
+
+  it("un reset administrativo libera el límite de la cuenta", async () => {
+    for (let index = 0; index < LOGIN_ACCOUNT_MAX_ATTEMPTS; index += 1) {
+      assert.equal(
+        (await login("operadora", `incorrecta-${index}`)).status,
+        401,
+      );
+    }
+    assert.equal((await login("operadora")).status, 429);
+
+    const adminCookie = await adminSession();
+    const newPassword = "Clave operadora restablecida 2026";
+    const reset = await adminRequest("/admin/users/2/password", adminCookie, {
+      method: "POST",
+      body: JSON.stringify({ password: newPassword }),
+    });
+    assert.equal(reset.status, 204);
+    assert.equal((await login("operadora", newPassword)).status, 200);
+  });
+
+  it("alta y renombre no heredan un bloqueo previo de esa identidad", async () => {
+    const exhaust = (identity: string) => {
+      for (let index = 0; index < LOGIN_ACCOUNT_MAX_ATTEMPTS; index += 1) {
+        const attempt = loginAttemptLimiter.reserve(identity);
+        assert.equal(attempt.allowed, true);
+        if (!attempt.allowed) assert.fail("el intento debia reservarse");
+        loginAttemptLimiter.confirmFailure(attempt.reservation);
+      }
+      assert.equal(loginAttemptLimiter.reserve(identity).allowed, false);
+    };
+    exhaust("cuenta-nueva");
+    exhaust("cuenta-renombrada");
+
+    const adminCookie = await adminSession();
+    const createdPassword = "Clave segura para cuenta nueva 2026";
+    const created = await adminRequest("/admin/users", adminCookie, {
+      method: "POST",
+      body: JSON.stringify({
+        nombre: "Cuenta nueva",
+        username: "cuenta-nueva",
+        password: createdPassword,
+        email: "cuenta-nueva@example.test",
+        role_id: 5,
+        activo: true,
+      }),
+    });
+    assert.equal(created.status, 201);
+    assert.equal((await login("cuenta-nueva", createdPassword)).status, 200);
+
+    const renamed = await adminRequest("/admin/users/2", adminCookie, {
+      method: "PATCH",
+      body: JSON.stringify({ username: "cuenta-renombrada" }),
+    });
+    assert.equal(renamed.status, 200);
+    assert.equal((await login("cuenta-renombrada")).status, 200);
+  });
+
+  it("un login en espera no sobrevive al renombre de su identidad", async () => {
+    const adminCookie = await adminSession();
+    const releases: Array<() => void> = [];
+    const blockers = Array.from({ length: LOGIN_KDF_MAX_CONCURRENT }, () =>
+      loginKdfGate.run(
+        () => new Promise<void>((resolve) => releases.push(resolve)),
+      ),
+    );
+    await waitFor(
+      () => loginKdfGate.activeCount === LOGIN_KDF_MAX_CONCURRENT,
+      "la compuerta KDF no llego a ocuparse",
+    );
+
+    const pendingLogin = login("operadora");
+    await waitFor(
+      () => loginKdfGate.queuedCount === 1,
+      "el login no quedo esperando en la compuerta",
+    );
+
+    try {
+      const renamed = await adminRequest("/admin/users/2", adminCookie, {
+        method: "PATCH",
+        body: JSON.stringify({ username: "operadora-renombrada" }),
+      });
+      assert.equal(renamed.status, 200);
+    } finally {
+      for (const release of releases) release();
+      await Promise.all(blockers);
+    }
+
+    const response = await pendingLogin;
+    assert.equal(response.status, 401);
+    const sessions = sqlite
+      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
+      .get() as { total: number };
+    assert.equal(sessions.total, 0);
+    assert.equal((await login("operadora-renombrada")).status, 200);
   });
 
   it("rehasea el formato legado después de un login correcto", async () => {
@@ -321,6 +574,11 @@ describe("autenticación uniforme", () => {
       .get() as { total: number };
     assert.equal(stored.password_hash, legacy);
     assert.equal(sessions.total, 0);
+    assert.equal(
+      loginAttemptLimiter.size,
+      0,
+      "un 5xx no debe conservar una reserva como fallo de contraseña",
+    );
   });
 
   it("no conserva una sesión creada mientras se resetea la contraseña", async () => {

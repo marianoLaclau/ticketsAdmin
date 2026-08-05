@@ -49,7 +49,9 @@ import type {
   ListAdminUsersParams,
   ListSeguimientosParams,
   ListTicketsParams,
+  LoginError,
   LoginInput,
+  LoginRateLimitError,
   MotivoStat,
   OwnPasswordChangeInput,
   PasswordChangeError,
@@ -364,7 +366,7 @@ export const login = async (loginInput: LoginInput, options?: RequestInit): Prom
 
 
 
-export const getLoginMutationOptions = <TError = ErrorType<void>,
+export const getLoginMutationOptions = <TError = ErrorType<LoginError | LoginRateLimitError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<LoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<LoginInput>}, TContext> => {
 
@@ -393,12 +395,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type LoginMutationResult = NonNullable<Awaited<ReturnType<typeof login>>>
     export type LoginMutationBody = BodyType<LoginInput>
-    export type LoginMutationError = ErrorType<void>
+    export type LoginMutationError = ErrorType<LoginError | LoginRateLimitError>
 
     /**
  * @summary Iniciar sesión
  */
-export const useLogin = <TError = ErrorType<void>,
+export const useLogin = <TError = ErrorType<LoginError | LoginRateLimitError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: BodyType<LoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof login>>,
