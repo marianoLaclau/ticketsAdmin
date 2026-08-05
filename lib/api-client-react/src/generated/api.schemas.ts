@@ -262,7 +262,7 @@ export interface AdminTruncateResult {
 }
 
 /**
- * Estado laboral informado; solo se presenta cuando el ticket tiene una empresa asociada
+ * Estado laboral informado; usa null sin empresa y la interfaz solo muestra el valor cuando existe una empresa asociada
  * @nullable
  */
 export type TicketEstadoEmpleado = typeof TicketEstadoEmpleado[keyof typeof TicketEstadoEmpleado] | null;
@@ -317,22 +317,22 @@ export interface Ticket {
   nombre: string;
   apellido: string;
   /** @nullable */
-  telefono?: string | null;
+  telefono: string | null;
   /** @nullable */
-  dni?: string | null;
+  dni: string | null;
   /** @nullable */
-  empresa?: string | null;
+  empresa: string | null;
   /**
-     * Estado laboral informado; solo se presenta cuando el ticket tiene una empresa asociada
+     * Estado laboral informado; usa null sin empresa y la interfaz solo muestra el valor cuando existe una empresa asociada
      * @nullable
      */
-  estado_empleado?: TicketEstadoEmpleado;
+  estado_empleado: TicketEstadoEmpleado;
   /** @nullable */
-  email?: string | null;
+  email: string | null;
   motivo: string;
   motivo_categoria: MotivoCategoria;
   /** @nullable */
-  resumen?: string | null;
+  resumen: string | null;
   notificado: boolean;
   estado: TicketEstado;
   prioridad: TicketPrioridad;
@@ -340,29 +340,29 @@ export interface Ticket {
      * Identidad autoritativa del usuario asignado; la establece el backend al cambiar el estado
      * @nullable
      */
-  asignado_usuario_id?: number | null;
+  asignado_usuario_id: number | null;
   /**
      * Nombre visible del responsable o valor histórico/importado
      * @nullable
      */
-  asignado_a?: string | null;
+  asignado_a: string | null;
   /** @nullable */
-  audio_url?: string | null;
+  audio_url: string | null;
   /** @nullable */
-  notas?: string | null;
+  notas: string | null;
   fecha_creacion: string;
   /**
      * Vencimiento; el default automático suma 48 horas hábiles de lunes a viernes
      * @nullable
      */
-  fecha_limite?: string | null;
+  fecha_limite: string | null;
   /** @nullable */
-  fecha_resolucion?: string | null;
+  fecha_resolucion: string | null;
   /**
      * @minimum 0
      * @maximum 100
      */
-  progreso?: number;
+  progreso: number;
 }
 
 export interface TicketIngestResult {
@@ -405,30 +405,30 @@ export interface Seguimiento {
   ticket_id: number;
   nota: string;
   /** @nullable */
-  estado_anterior?: string | null;
+  estado_anterior: string | null;
   /** @nullable */
-  estado_nuevo?: string | null;
+  estado_nuevo: string | null;
   /** @nullable */
-  prioridad_anterior?: SeguimientoPrioridadAnterior;
+  prioridad_anterior: SeguimientoPrioridadAnterior;
   /** @nullable */
-  prioridad_nueva?: SeguimientoPrioridadNueva;
+  prioridad_nueva: SeguimientoPrioridadNueva;
   /** @nullable */
-  asignado_anterior_usuario_id?: number | null;
+  asignado_anterior_usuario_id: number | null;
   /** @nullable */
-  asignado_anterior?: string | null;
+  asignado_anterior: string | null;
   /** @nullable */
-  asignado_nuevo_usuario_id?: number | null;
+  asignado_nuevo_usuario_id: number | null;
   /** @nullable */
-  asignado_nuevo?: string | null;
+  asignado_nuevo: string | null;
   /** @nullable */
-  campos_editados?: string[] | null;
+  campos_editados: string[] | null;
   /** @nullable */
-  autor?: string | null;
+  autor: string | null;
   fecha_creacion: string;
 }
 
 export type TicketDetail = Ticket & {
-  seguimientos?: Seguimiento[];
+  seguimientos: Seguimiento[];
 };
 
 export interface TicketListResponse {
@@ -540,7 +540,8 @@ export interface TicketUpdate {
   prioridad?: TicketUpdatePrioridad;
   /** @nullable */
   audio_url?: string | null;
-  notas?: string;
+  /** @nullable */
+  notas?: string | null;
   /** Ajuste manual explícito del vencimiento */
   fecha_limite?: string;
   fecha_resolucion?: string;

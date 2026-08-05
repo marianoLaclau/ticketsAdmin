@@ -505,7 +505,9 @@ router.patch(
       if (body.estado !== undefined) requested.estado = body.estado;
       if (body.prioridad !== undefined) requested.prioridad = body.prioridad;
       if (body.audio_url !== undefined) requested.audio_url = normalizeNullableText(body.audio_url);
-      if (body.notas !== undefined) requested.notas = body.notas.trim();
+      if (body.notas !== undefined) {
+        requested.notas = normalizeNullableText(body.notas);
+      }
       if (body.progreso !== undefined) requested.progreso = body.progreso;
       if (body.fecha_limite !== undefined) {
         requested.fecha_limite = new Date(body.fecha_limite.getTime());

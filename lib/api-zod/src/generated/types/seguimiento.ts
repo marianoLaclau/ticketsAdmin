@@ -13,24 +13,24 @@ export interface Seguimiento {
   ticket_id: number;
   nota: string;
   /** @nullable */
-  estado_anterior?: string | null;
+  estado_anterior: string | null;
   /** @nullable */
-  estado_nuevo?: string | null;
+  estado_nuevo: string | null;
   /** @nullable */
-  prioridad_anterior?: SeguimientoPrioridadAnterior;
+  prioridad_anterior: SeguimientoPrioridadAnterior;
   /** @nullable */
-  prioridad_nueva?: SeguimientoPrioridadNueva;
+  prioridad_nueva: SeguimientoPrioridadNueva;
   /** @nullable */
-  asignado_anterior_usuario_id?: number | null;
+  asignado_anterior_usuario_id: number | null;
   /** @nullable */
-  asignado_anterior?: string | null;
+  asignado_anterior: string | null;
   /** @nullable */
-  asignado_nuevo_usuario_id?: number | null;
+  asignado_nuevo_usuario_id: number | null;
   /** @nullable */
-  asignado_nuevo?: string | null;
+  asignado_nuevo: string | null;
   /** @nullable */
-  campos_editados?: string[] | null;
+  campos_editados: string[] | null;
   /** @nullable */
-  autor?: string | null;
+  autor: string | null;
   fecha_creacion: Date;
 }

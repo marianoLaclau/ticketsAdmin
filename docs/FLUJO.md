@@ -186,6 +186,8 @@ La fuente de verdad de la API. De ahí, `pnpm --filter @workspace/api-spec run c
 
 Si se cambia la API: primero se edita el yaml, se corre codegen, y después se implementa. Los dos lados quedan sincronizados por construcción.
 
+Los campos nullable de las respuestas de tickets y seguimientos siempre están presentes: cuando no existe un dato, la API devuelve `null`, no omite la propiedad. El detalle siempre contiene `seguimientos`, aunque sea un array vacío. En edición, `notas: null` o una nota vacía borra el valor y lo persiste como `NULL`; las fechas técnicas no aceptan `null` porque resolución y reapertura tienen reglas propias del backend.
+
 El contrato declara `gsb_session` como seguridad global. `healthz`, login y el logout idempotente son públicos, el webhook usa solo `x-api-key`, y cada operación administrativa declara sesión + `x-admin-key` en un mismo requisito (AND). Orval está fijado a la salida compatible con Zod 3.25 para no generar constructores exclusivos de Zod 4.
 
 ## 3. Cómo se guardan los datos

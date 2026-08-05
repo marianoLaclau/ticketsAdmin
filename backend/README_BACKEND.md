@@ -329,7 +329,9 @@ Antes de abrir el puerto, `index.ts` ejecuta una primera revisión de tickets el
 
 El cálculo usa horas hábiles firmadas y excluye sábados y domingos igual que el SLA. El intervalo se puede ajustar con `PRIORIDAD_AUTOMATICA_INTERVAL_MS`; valores menores a 10 segundos o inválidos vuelven al default seguro.
 
-El `PATCH` de tickets aplica la misma garantía transaccional: toma un snapshot autoritativo, persiste solo diferencias reales y registra estado, prioridad, asignación y nombres de campos editados. Esta trazabilidad comienza con v0.5; las migraciones preservan los seguimientos antiguos tal como existen y no inventan responsables ni cambios históricos.
+El `PATCH` de tickets aplica la misma garantía transaccional: toma un snapshot autoritativo, persiste solo diferencias reales y registra estado, prioridad, asignación y nombres de campos editados. `notas: null` y una nota compuesta solo por espacios se normalizan a `NULL`, de modo que el campo puede borrarse sin guardar un string vacío; las fechas técnicas continúan rechazando `null` porque su ciclo de vida lo controla el backend. Esta trazabilidad comienza con v0.5; las migraciones preservan los seguimientos antiguos tal como existen y no inventan responsables ni cambios históricos.
+
+En las respuestas de `Ticket` y `Seguimiento`, una columna nullable siempre conserva su propiedad y usa `null` cuando no hay valor; no se representa como propiedad ausente. OpenAPI marca esos campos como requeridos + nullable, `TicketDetail.seguimientos` siempre es un array y el codegen refleja la forma real de Drizzle en TypeScript y Zod.
 
 ## Ingesta y CSV compartidos
 

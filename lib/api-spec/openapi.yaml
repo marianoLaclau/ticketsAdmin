@@ -1495,12 +1495,25 @@ components:
         - hora
         - nombre
         - apellido
-        - estado
-        - prioridad
+        - telefono
+        - dni
+        - empresa
+        - estado_empleado
+        - email
         - motivo
         - motivo_categoria
-        - fecha_creacion
+        - resumen
         - notificado
+        - estado
+        - prioridad
+        - asignado_usuario_id
+        - asignado_a
+        - audio_url
+        - notas
+        - fecha_creacion
+        - fecha_limite
+        - fecha_resolucion
+        - progreso
       properties:
         id:
           type: integer
@@ -1521,7 +1534,7 @@ components:
         estado_empleado:
           type: ["string", "null"]
           enum: [Activo, Inactivo, null]
-          description: Estado laboral informado; solo se presenta cuando el ticket tiene una empresa asociada
+          description: Estado laboral informado; usa null sin empresa y la interfaz solo muestra el valor cuando existe una empresa asociada
         email:
           type: ["string", "null"]
         motivo:
@@ -1567,6 +1580,8 @@ components:
       allOf:
         - $ref: "#/components/schemas/Ticket"
         - type: object
+          required:
+            - seguimientos
           properties:
             seguimientos:
               type: array
@@ -1686,7 +1701,7 @@ components:
         audio_url:
           type: ["string", "null"]
         notas:
-          type: string
+          type: ["string", "null"]
         fecha_limite:
           type: string
           format: date-time
@@ -1705,6 +1720,16 @@ components:
         - id
         - ticket_id
         - nota
+        - estado_anterior
+        - estado_nuevo
+        - prioridad_anterior
+        - prioridad_nueva
+        - asignado_anterior_usuario_id
+        - asignado_anterior
+        - asignado_nuevo_usuario_id
+        - asignado_nuevo
+        - campos_editados
+        - autor
         - fecha_creacion
       properties:
         id:

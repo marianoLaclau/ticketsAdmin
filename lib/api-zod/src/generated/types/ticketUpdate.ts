@@ -28,7 +28,8 @@ export interface TicketUpdate {
   prioridad?: TicketUpdatePrioridad;
   /** @nullable */
   audio_url?: string | null;
-  notas?: string;
+  /** @nullable */
+  notas?: string | null;
   /** Ajuste manual explícito del vencimiento */
   fecha_limite?: Date;
   fecha_resolucion?: Date;

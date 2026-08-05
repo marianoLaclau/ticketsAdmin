@@ -5,6 +5,11 @@ import { join } from "node:path";
 import type { AddressInfo } from "node:net";
 import Database from "better-sqlite3";
 import express from "express";
+import {
+  GetTicketResponse,
+  ListSeguimientosResponse,
+  UpdateTicketBody,
+} from "@workspace/api-zod";
 
 const testDirectory = join(process.cwd(), "tmp", "backend-route-tests");
 const databasePath = join(testDirectory, `tickets-${process.pid}.db`);
@@ -150,6 +155,20 @@ function jsonRequest(
     method,
     body: JSON.stringify(body),
   });
+}
+
+function assertOwnProperties(
+  value: unknown,
+  properties: readonly string[],
+): asserts value is Record<string, unknown> {
+  assert.ok(value && typeof value === "object" && !Array.isArray(value));
+  for (const property of properties) {
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(value, property),
+      true,
+      `la respuesta debe incluir ${property}`,
+    );
+  }
 }
 
 beforeEach(() => {
@@ -323,6 +342,113 @@ describe("acceso a registros en cuarentena", () => {
       { role: "SysAdmin", userId: 2 },
     );
     assert.equal(followUpWithoutKey.status, 401);
+  });
+});
+
+describe("contrato nullable de tickets", () => {
+  it("mantiene presentes las propiedades nullable del ticket y su historial", async () => {
+    sqlite
+      .prepare(
+        "INSERT INTO seguimientos (ticket_id, nota, fecha_creacion) VALUES (?, ?, ?)",
+      )
+      .run(1, "Seguimiento mínimo", Date.now());
+
+    const response = await request("/tickets/1");
+    assert.equal(response.status, 200);
+    const detail = (await response.json()) as Record<string, unknown>;
+    const parsedDetail = GetTicketResponse.safeParse(detail);
+    assert.equal(
+      parsedDetail.success,
+      true,
+      parsedDetail.success
+        ? undefined
+        : JSON.stringify(parsedDetail.error.issues),
+    );
+    assertOwnProperties(detail, [
+      "telefono",
+      "dni",
+      "empresa",
+      "estado_empleado",
+      "email",
+      "resumen",
+      "asignado_usuario_id",
+      "asignado_a",
+      "audio_url",
+      "notas",
+      "fecha_limite",
+      "fecha_resolucion",
+      "progreso",
+      "seguimientos",
+    ]);
+
+    const detailWithoutPhone = { ...detail };
+    delete detailWithoutPhone.telefono;
+    assert.equal(GetTicketResponse.safeParse(detailWithoutPhone).success, false);
+
+    const detailWithoutHistory = { ...detail };
+    delete detailWithoutHistory.seguimientos;
+    assert.equal(GetTicketResponse.safeParse(detailWithoutHistory).success, false);
+
+    const history = detail.seguimientos;
+    assert.ok(Array.isArray(history));
+    assert.equal(ListSeguimientosResponse.safeParse(history).success, true);
+    assertOwnProperties(history[0], [
+      "estado_anterior",
+      "estado_nuevo",
+      "prioridad_anterior",
+      "prioridad_nueva",
+      "asignado_anterior_usuario_id",
+      "asignado_anterior",
+      "asignado_nuevo_usuario_id",
+      "asignado_nuevo",
+      "campos_editados",
+      "autor",
+    ]);
+
+    const historyWithoutAuthor = [{ ...history[0] }];
+    delete historyWithoutAuthor[0]?.autor;
+    assert.equal(
+      ListSeguimientosResponse.safeParse(historyWithoutAuthor).success,
+      false,
+    );
+  });
+
+  it("borra notas con null o texto vacío y conserva la auditoría", async () => {
+    sqlite.prepare("UPDATE tickets SET notas = ? WHERE id = 1").run("Interna");
+
+    assert.equal(UpdateTicketBody.safeParse({ notas: null }).success, true);
+    const cleared = await jsonRequest("/tickets/1", "PATCH", { notas: null });
+    assert.equal(cleared.status, 200);
+    assert.equal(((await cleared.json()) as { notas: string | null }).notas, null);
+
+    const restored = await jsonRequest("/tickets/1", "PATCH", {
+      notas: "  Nueva nota  ",
+    });
+    assert.equal(restored.status, 200);
+    assert.equal(
+      ((await restored.json()) as { notas: string | null }).notas,
+      "Nueva nota",
+    );
+
+    const blank = await jsonRequest("/tickets/1", "PATCH", { notas: "   " });
+    assert.equal(blank.status, 200);
+    assert.equal(((await blank.json()) as { notas: string | null }).notas, null);
+
+    const stored = sqlite
+      .prepare("SELECT notas FROM tickets WHERE id = 1")
+      .get() as { notas: string | null };
+    assert.equal(stored.notas, null);
+
+    const audits = sqlite
+      .prepare(
+        "SELECT campos_editados FROM seguimientos WHERE ticket_id = 1 ORDER BY id",
+      )
+      .all() as Array<{ campos_editados: string | null }>;
+    assert.equal(audits.length, 3);
+    assert.deepEqual(
+      audits.map(({ campos_editados }) => JSON.parse(campos_editados ?? "null")),
+      [["notas"], ["notas"], ["notas"]],
+    );
   });
 });
 

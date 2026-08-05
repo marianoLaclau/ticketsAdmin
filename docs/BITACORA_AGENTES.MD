@@ -2,6 +2,18 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — Contrato nullable preciso para tickets
+
+**Agente:** Codex
+**Estado:** decimoquinta remediación de la auditoría técnica, implementada localmente.
+
+- OpenAPI distingue propiedades ausentes de valores nulos: todos los campos que Drizzle devuelve siempre en `Ticket` y `Seguimiento` quedaron requeridos, aunque su valor admita `null`; `TicketDetail.seguimientos` también es obligatorio.
+- El codegen eliminó los `?` y `.nullish()` incorrectos en respuestas. Frontend, validadores Zod y backend comparten ahora la forma real de la API sin inventar que `progreso`, fechas o datos de contacto pueden omitirse.
+- `TicketUpdate.notas` acepta `null`; tanto `null` como texto vacío se persisten como SQL `NULL` y cada cambio real continúa auditado. `fecha_limite` y `fecha_resolucion` deliberadamente siguen rechazando `null` para preservar las reglas automáticas de resolución y reapertura.
+- Se agregaron pruebas HTTP contra los schemas generados que exigen la presencia de cada propiedad nullable y del historial, además de borrado/restauración de notas y auditoría de las tres transiciones.
+- Archivos principales: contrato OpenAPI, artefactos generados, PATCH de tickets, pruebas y documentación.
+- Validaciones: 268 pruebas correctas (backend 145, frontend 59, base de datos 11, política compartida 4, ingesta 48 y scripts 1), codegen, typecheck y build completos. El build conserva los avisos ya registrados de sourcemaps en cuatro componentes UI y del bundle frontend mayor a 500 kB.
+
 ## 2026-08-05 — Cierre visible de sesiones revocadas
 
 **Agente:** Codex

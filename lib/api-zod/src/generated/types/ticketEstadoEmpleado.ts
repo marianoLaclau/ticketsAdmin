@@ -7,7 +7,7 @@
  */
 
 /**
- * Estado laboral informado; solo se presenta cuando el ticket tiene una empresa asociada
+ * Estado laboral informado; usa null sin empresa y la interfaz solo muestra el valor cuando existe una empresa asociada
  * @nullable
  */
 export type TicketEstadoEmpleado = typeof TicketEstadoEmpleado[keyof typeof TicketEstadoEmpleado] | null;

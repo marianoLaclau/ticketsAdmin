@@ -17,22 +17,22 @@ export interface Ticket {
   nombre: string;
   apellido: string;
   /** @nullable */
-  telefono?: string | null;
+  telefono: string | null;
   /** @nullable */
-  dni?: string | null;
+  dni: string | null;
   /** @nullable */
-  empresa?: string | null;
+  empresa: string | null;
   /**
-     * Estado laboral informado; solo se presenta cuando el ticket tiene una empresa asociada
+     * Estado laboral informado; usa null sin empresa y la interfaz solo muestra el valor cuando existe una empresa asociada
      * @nullable
      */
-  estado_empleado?: TicketEstadoEmpleado;
+  estado_empleado: TicketEstadoEmpleado;
   /** @nullable */
-  email?: string | null;
+  email: string | null;
   motivo: string;
   motivo_categoria: MotivoCategoria;
   /** @nullable */
-  resumen?: string | null;
+  resumen: string | null;
   notificado: boolean;
   estado: TicketEstado;
   prioridad: TicketPrioridad;
@@ -40,27 +40,27 @@ export interface Ticket {
      * Identidad autoritativa del usuario asignado; la establece el backend al cambiar el estado
      * @nullable
      */
-  asignado_usuario_id?: number | null;
+  asignado_usuario_id: number | null;
   /**
      * Nombre visible del responsable o valor histórico/importado
      * @nullable
      */
-  asignado_a?: string | null;
+  asignado_a: string | null;
   /** @nullable */
-  audio_url?: string | null;
+  audio_url: string | null;
   /** @nullable */
-  notas?: string | null;
+  notas: string | null;
   fecha_creacion: Date;
   /**
      * Vencimiento; el default automático suma 48 horas hábiles de lunes a viernes
      * @nullable
      */
-  fecha_limite?: Date | null;
+  fecha_limite: Date | null;
   /** @nullable */
-  fecha_resolucion?: Date | null;
+  fecha_resolucion: Date | null;
   /**
      * @minimum 0
      * @maximum 100
      */
-  progreso?: number;
+  progreso: number;
 }

@@ -9,5 +9,5 @@ import type { Seguimiento } from './seguimiento';
 import type { Ticket } from './ticket';
 
 export type TicketDetail = Ticket & {
-  seguimientos?: Seguimiento[];
+  seguimientos: Seguimiento[];
 };
