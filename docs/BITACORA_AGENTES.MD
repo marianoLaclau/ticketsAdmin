@@ -2,6 +2,19 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — PATCH mínimo en el CRUD administrativo
+
+**Agente:** Codex
+**Estado:** decimoctava remediación de la auditoría técnica, implementada localmente.
+
+- El formulario de tickets de Administración dejó de usar un `Record<string, string>` y casts `any`: altas, ediciones y nombres de campo comparten ahora un contrato tipado.
+- Al abrir una fila se captura un baseline independiente. La edición compara contra ese snapshot y envía únicamente hora, contacto, motivo, resumen, notas, audio, estado o prioridad que realmente cambiaron; `conversation_id` continúa deshabilitado y nunca entra en el PATCH.
+- Borrar teléfono, DNI, empresa, email, resumen, notas o audio produce `null`, no un string vacío ni una omisión accidental. Las altas manuales, por separado, recortan los requeridos y omiten opcionales vacíos.
+- Un refresco SSE del listado no modifica el baseline abierto. Guardar un formulario sin diferencias cierra el diálogo con una confirmación local y no genera request ni seguimiento espurio.
+- Se agregaron pruebas puras para alta determinista, normalización, limpieza explícita, PATCH mínimo, no-op e independencia frente a un ticket actualizado por SSE.
+- Archivos principales: formulario/helper de tickets administrativos, pantalla Admin, pruebas y documentación.
+- Validaciones: 281 pruebas correctas (backend 145, frontend 72, base de datos 11, política compartida 4, ingesta 48 y scripts 1), typecheck y build completos. El build conserva los avisos ya registrados de sourcemaps en cuatro componentes UI y del bundle frontend mayor a 500 kB.
+
 ## 2026-08-05 — Baseline inmutable para datos de contacto
 
 **Agente:** Codex

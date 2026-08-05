@@ -77,8 +77,20 @@ import {
   serializeTicketSort,
   type TicketSortRule,
 } from '@/lib/ticket-list-controls';
+import {
+  buildAdminTicketInput,
+  buildAdminTicketUpdate,
+  createEmptyAdminTicketForm,
+  ticketToAdminTicketForm,
+  type AdminTicketForm,
+  type AdminTicketTextField,
+} from '@/lib/admin-ticket-form';
 
-const CAMPOS_TEXTO: Array<{ campo: string; label: string; requerido?: boolean }> = [
+const CAMPOS_TEXTO: Array<{
+  campo: AdminTicketTextField;
+  label: string;
+  requerido?: boolean;
+}> = [
   { campo: 'conversation_id', label: 'Conversation ID', requerido: true },
   { campo: 'hora', label: 'Hora (HH:MM)', requerido: true },
   { campo: 'nombre', label: 'Nombre', requerido: true },
@@ -95,26 +107,6 @@ let adminTicketsQueryVersion = 0;
 function nextAdminTicketsQueryVersion(): number {
   adminTicketsQueryVersion += 1;
   return adminTicketsQueryVersion;
-}
-
-function formVacio() {
-  const now = new Date();
-  return {
-    conversation_id: `manual_${Date.now()}`,
-    hora: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
-    nombre: '',
-    apellido: '',
-    telefono: '',
-    dni: '',
-    empresa: '',
-    email: '',
-    motivo: '',
-    resumen: '',
-    notas: '',
-    audio_url: '',
-    estado: 'nuevo',
-    prioridad: 'media',
-  } as Record<string, string>;
 }
 
 export default function Admin() {
@@ -199,57 +191,39 @@ export default function Admin() {
 
   const [dialogAbierto, setDialogAbierto] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null);
-  const [form, setForm] = useState<Record<string, string>>(formVacio());
+  const [form, setForm] = useState<AdminTicketForm>(
+    createEmptyAdminTicketForm,
+  );
+  const [editBaseline, setEditBaseline] =
+    useState<AdminTicketForm | null>(null);
   const [aEliminar, setAEliminar] = useState<Ticket | null>(null);
+
+  const cambiarEstadoDialogo = (open: boolean) => {
+    setDialogAbierto(open);
+    if (!open) setEditBaseline(null);
+  };
 
   const abrirCrear = () => {
     setEditandoId(null);
-    setForm(formVacio());
+    setEditBaseline(null);
+    setForm(createEmptyAdminTicketForm());
     setDialogAbierto(true);
   };
 
   const abrirEditar = (t: Ticket) => {
+    const snapshot = ticketToAdminTicketForm(t);
     setEditandoId(t.id);
-    setForm({
-      conversation_id: t.conversation_id,
-      hora: t.hora,
-      nombre: t.nombre,
-      apellido: t.apellido,
-      telefono: t.telefono ?? '',
-      dni: t.dni ?? '',
-      empresa: t.empresa ?? '',
-      email: t.email ?? '',
-      motivo: t.motivo,
-      resumen: t.resumen ?? '',
-      notas: t.notas ?? '',
-      audio_url: t.audio_url ?? '',
-      estado: t.estado,
-      prioridad: t.prioridad,
-    });
+    setEditBaseline(snapshot);
+    setForm({ ...snapshot });
     setDialogAbierto(true);
   };
 
   const guardarRegistro = () => {
-    const comunes = {
-      hora: form.hora,
-      nombre: form.nombre,
-      apellido: form.apellido,
-      telefono: form.telefono || undefined,
-      dni: form.dni || undefined,
-      empresa: form.empresa || undefined,
-      email: form.email || undefined,
-      motivo: form.motivo,
-      resumen: form.resumen || undefined,
-      notas: form.notas || undefined,
-      audio_url: form.audio_url || undefined,
-      estado: form.estado as TicketEstado,
-      prioridad: form.prioridad as TicketPrioridad,
-    };
     const contacto = getContactDisplayName(form);
     const onOk =
       (titulo: string, dedupeCreated = false) =>
       (savedTicket: Ticket) => {
-        setDialogAbierto(false);
+        cambiarEstadoDialogo(false);
         refrescarTodo();
         toast({
           dedupeKey: dedupeCreated ? `ticket-created:${savedTicket.id}` : undefined,
@@ -260,12 +234,27 @@ export default function Admin() {
       };
     if (editandoId === null) {
       createTicket.mutate(
-        { data: { ...comunes, conversation_id: form.conversation_id } as any },
+        { data: buildAdminTicketInput(form) },
         { onSuccess: onOk('Ticket creado', true), onError: errorToast('No se pudo crear el ticket') },
       );
     } else {
+      if (!editBaseline) return;
+      const update = buildAdminTicketUpdate(editBaseline, form);
+      if (Object.keys(update).length === 0) {
+        cambiarEstadoDialogo(false);
+        toast({
+          variant: 'info',
+          title: 'Sin cambios para guardar',
+          description: `El registro #${editandoId} conserva sus datos actuales.`,
+        });
+        return;
+      }
       updateTicket.mutate(
-        { id: editandoId, data: comunes as any, params: { incluir_vacios: true } },
+        {
+          id: editandoId,
+          data: update,
+          params: { incluir_vacios: true },
+        },
         { onSuccess: onOk('Ticket actualizado'), onError: errorToast('No se pudo actualizar el ticket') },
       );
     }
@@ -863,14 +852,14 @@ export default function Admin() {
       </Tabs>
 
       {/* ------------------- DIALOG CREAR/EDITAR ------------------- */}
-      <Dialog open={dialogAbierto} onOpenChange={setDialogAbierto}>
+      <Dialog open={dialogAbierto} onOpenChange={cambiarEstadoDialogo}>
         <DialogContent className="sm:max-w-[640px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editandoId === null ? 'Nuevo registro' : `Editar registro #${editandoId}`}</DialogTitle>
             <DialogDescription>
               {editandoId === null
                 ? 'Alta manual directa en la base (el flujo normal es la ingesta automática por llamada).'
-                : 'Edición directa de todos los campos del registro.'}
+                : 'Edición directa de los campos habilitados del registro.'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
@@ -882,7 +871,12 @@ export default function Admin() {
                 </Label>
                 <Input
                   value={form[campo] ?? ''}
-                  onChange={(e) => setForm({ ...form, [campo]: e.target.value })}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      [campo]: event.target.value,
+                    }))
+                  }
                   disabled={campo === 'conversation_id' && editandoId !== null}
                   className="h-8 text-sm"
                 />
@@ -890,7 +884,15 @@ export default function Admin() {
             ))}
             <div className="space-y-1">
               <Label className="text-xs">Estado</Label>
-              <Select value={form.estado} onValueChange={(v) => setForm({ ...form, estado: v })}>
+              <Select
+                value={form.estado}
+                onValueChange={(estado) =>
+                  setForm((current) => ({
+                    ...current,
+                    estado: estado as AdminTicketForm['estado'],
+                  }))
+                }
+              >
                 <SelectTrigger className="h-8 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -905,7 +907,15 @@ export default function Admin() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Prioridad</Label>
-              <Select value={form.prioridad} onValueChange={(v) => setForm({ ...form, prioridad: v })}>
+              <Select
+                value={form.prioridad}
+                onValueChange={(prioridad) =>
+                  setForm((current) => ({
+                    ...current,
+                    prioridad: prioridad as AdminTicketForm['prioridad'],
+                  }))
+                }
+              >
                 <SelectTrigger className="h-8 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -924,7 +934,12 @@ export default function Admin() {
               </Label>
               <Input
                 value={form.motivo}
-                onChange={(e) => setForm({ ...form, motivo: e.target.value })}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    motivo: event.target.value,
+                  }))
+                }
                 className="h-8 text-sm"
               />
             </div>
@@ -932,7 +947,12 @@ export default function Admin() {
               <Label className="text-xs">Resumen</Label>
               <Textarea
                 value={form.resumen}
-                onChange={(e) => setForm({ ...form, resumen: e.target.value })}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    resumen: event.target.value,
+                  }))
+                }
                 className="h-20 text-sm"
               />
             </div>
@@ -940,13 +960,18 @@ export default function Admin() {
               <Label className="text-xs">Notas internas</Label>
               <Textarea
                 value={form.notas}
-                onChange={(e) => setForm({ ...form, notas: e.target.value })}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    notas: event.target.value,
+                  }))
+                }
                 className="h-16 text-sm"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogAbierto(false)}>
+            <Button variant="outline" onClick={() => cambiarEstadoDialogo(false)}>
               Cancelar
             </Button>
             <Button
@@ -954,10 +979,10 @@ export default function Admin() {
               disabled={
                 createTicket.isPending ||
                 updateTicket.isPending ||
-                !form.conversation_id ||
-                !form.hora ||
-                !form.nombre ||
-                !form.motivo
+                !form.conversation_id.trim() ||
+                !form.hora.trim() ||
+                !form.nombre.trim() ||
+                !form.motivo.trim()
               }
             >
               {createTicket.isPending || updateTicket.isPending ? 'Guardando...' : 'Guardar'}

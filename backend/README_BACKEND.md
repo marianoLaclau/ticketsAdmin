@@ -335,6 +335,8 @@ El diálogo operativo del frontend captura un baseline al abrirse y envía únic
 
 El editor de datos de contacto aplica el mismo principio con dos objetos separados: baseline de apertura y draft local. Su `useMemo` compara esos formularios inmutables, nunca el `ticket` vivo; por eso un teléfono o empresa corregidos por otra sesión durante la edición no reaparecen en el PATCH salvo que el usuario realmente haya tocado ese campo.
 
+El CRUD de tickets de Administración también conserva un baseline independiente al abrir cada fila. La edición omite `conversation_id`, envía un `TicketUpdate` mínimo y representa la limpieza deliberada de teléfono, DNI, empresa, email, resumen, notas o audio como `null`; cerrar sin cambios no llama a la API. En un alta manual, en cambio, recorta los campos obligatorios y omite los opcionales vacíos para que los defaults y la normalización sigan perteneciendo al backend.
+
 En las respuestas de `Ticket` y `Seguimiento`, una columna nullable siempre conserva su propiedad y usa `null` cuando no hay valor; no se representa como propiedad ausente. OpenAPI marca esos campos como requeridos + nullable, `TicketDetail.seguimientos` siempre es un array y el codegen refleja la forma real de Drizzle en TypeScript y Zod.
 
 ## Ingesta y CSV compartidos
