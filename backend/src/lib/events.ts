@@ -7,14 +7,14 @@ import type { Response } from "express";
 interface EventClient {
   res: Response;
   usuarioId?: number;
-  sessionToken?: string;
+  sessionTokenHash?: string;
 }
 
 const clients = new Map<Response, EventClient>();
 
 export interface EventClientIdentity {
   usuarioId?: number;
-  sessionToken?: string;
+  sessionTokenHash?: string;
 }
 
 export function addEventClient(
@@ -49,10 +49,12 @@ export function closeEventClientsForUsers(
   return closed;
 }
 
-export function closeEventClientsForSession(sessionToken: string): number {
+export function closeEventClientsForSessionHash(
+  sessionTokenHash: string,
+): number {
   let closed = 0;
   for (const client of clients.values()) {
-    if (client.sessionToken === sessionToken) {
+    if (client.sessionTokenHash === sessionTokenHash) {
       closeClient(client);
       closed += 1;
     }

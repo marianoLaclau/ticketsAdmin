@@ -4,7 +4,7 @@ import type { Response } from "express";
 import {
   addEventClient,
   broadcastEvent,
-  closeEventClientsForSession,
+  closeEventClientsForSessionHash,
   closeEventClientsForUsers,
 } from "../src/lib/events.ts";
 
@@ -64,13 +64,13 @@ test("un cliente SSE desconectado no interrumpe la notificación de los demás",
 test("cierra de inmediato los streams de una sesión o un usuario revocados", () => {
   const userOne = fakeResponse(() => undefined);
   const userTwo = fakeResponse(() => undefined);
-  addEventClient(userOne, { usuarioId: 1, sessionToken: "sesion-1" });
-  addEventClient(userTwo, { usuarioId: 2, sessionToken: "sesion-2" });
+  addEventClient(userOne, { usuarioId: 1, sessionTokenHash: "hash-1" });
+  addEventClient(userTwo, { usuarioId: 2, sessionTokenHash: "hash-2" });
 
   assert.equal(closeEventClientsForUsers([1]), 1);
   assert.equal(userOne.writableEnded, true);
   assert.equal(userTwo.writableEnded, false);
-  assert.equal(closeEventClientsForSession("sesion-2"), 1);
+  assert.equal(closeEventClientsForSessionHash("hash-2"), 1);
   assert.equal(userTwo.writableEnded, true);
-  assert.equal(closeEventClientsForSession("sesion-2"), 0);
+  assert.equal(closeEventClientsForSessionHash("hash-2"), 0);
 });

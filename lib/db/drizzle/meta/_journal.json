@@ -78,6 +78,13 @@
       "when": 1785934947249,
       "tag": "0010_require_password_change",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1785944312355,
+      "tag": "0011_invalidate_plaintext_sessions",
+      "breakpoints": true
     }
   ]
 }

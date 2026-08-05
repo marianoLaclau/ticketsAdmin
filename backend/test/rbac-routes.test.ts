@@ -7,6 +7,7 @@ import { scryptSync } from "node:crypto";
 import Database from "better-sqlite3";
 import cookieParser from "cookie-parser";
 import express from "express";
+import { hashSessionToken } from "../src/lib/session-cookie.ts";
 
 const testDirectory = join(process.cwd(), "tmp", "backend-rbac-tests");
 const databasePath = join(testDirectory, `rbac-${process.pid}.db`);
@@ -69,6 +70,7 @@ const [
     loginKdfThroughputLimiter,
   },
   { sqlite },
+  { purgeUnsafeStoredSessions },
 ] = await Promise.all([
   import("../src/routes/auth.ts"),
   import("../src/routes/admin.ts"),
@@ -77,6 +79,7 @@ const [
   import("../src/lib/passwords.ts"),
   import("../src/lib/login-rate-limit.ts"),
   import("@workspace/db"),
+  import("../src/lib/session-store.ts"),
 ]);
 
 const password = "Clave-RBAC-2026-segura";
@@ -273,6 +276,27 @@ describe("ciclo de la cookie de sesión", () => {
     assert.ok(attributes.includes("SameSite=Lax"));
     assert.equal(attributes.includes("Secure"), false);
     assert.equal(response.headers.get("cache-control"), "no-store");
+    const rawToken = sessionCookie(response).slice("gsb_session=".length);
+    const storedSession = sqlite
+      .prepare("SELECT token FROM sesiones")
+      .get() as { token: string };
+    assert.equal(storedSession.token, hashSessionToken(rawToken));
+    assert.notEqual(storedSession.token, rawToken);
+
+    const stolenDigest = await requestWithSession(
+      "/auth/me",
+      `gsb_session=${storedSession.token}`,
+    );
+    assert.equal(stolenDigest.status, 401);
+    assertClearedSessionCookie(stolenDigest);
+    assert.equal(
+      (
+        sqlite.prepare("SELECT count(*) AS total FROM sesiones").get() as {
+          total: number;
+        }
+      ).total,
+      1,
+    );
 
     const me = await requestWithSession("/auth/me", sessionCookie(response));
     assert.equal(me.status, 200);
@@ -313,15 +337,52 @@ describe("ciclo de la cookie de sesión", () => {
     const insert = sqlite.prepare(
       "INSERT INTO sesiones (token, usuario_id, fecha_expiracion) VALUES (?, 2, ?)",
     );
-    insert.run(exactToken, boundary.getTime());
-    insert.run(futureToken, boundary.getTime() + 1);
+    const exactTokenHash = hashSessionToken(exactToken);
+    const futureTokenHash = hashSessionToken(futureToken);
+    insert.run(exactTokenHash, boundary.getTime());
+    insert.run(futureTokenHash, boundary.getTime() + 1);
 
     await purgeExpiredSessions(boundary);
 
     const storedTokens = sqlite
       .prepare("SELECT token FROM sesiones ORDER BY token")
       .all() as Array<{ token: string }>;
-    assert.deepEqual(storedTokens, [{ token: futureToken }]);
+    assert.deepEqual(storedTokens, [{ token: futureTokenHash }]);
+  });
+
+  it("sanea almacenamiento legado y conserva únicamente hashes válidos", async () => {
+    const boundary = new Date("2031-02-03T04:05:06.000Z");
+    const validFuture = hashSessionToken("e".repeat(64));
+    const validExpired = hashSessionToken("f".repeat(64));
+    const insert = sqlite.prepare(
+      "INSERT INTO sesiones (token, usuario_id, fecha_expiracion) VALUES (?, 2, ?)",
+    );
+    for (const invalid of [
+      "1".repeat(64),
+      `sha256:${"A".repeat(64)}`,
+      `sha256:${"2".repeat(63)}`,
+      `sha256:${"g".repeat(64)}`,
+    ]) {
+      insert.run(invalid, boundary.getTime() + 1);
+    }
+    insert.run(validFuture, boundary.getTime() + 1);
+    insert.run(validExpired, boundary.getTime());
+
+    assert.equal(await purgeUnsafeStoredSessions(), 4);
+    assert.equal(await purgeUnsafeStoredSessions(), 0);
+
+    let storedTokens = sqlite
+      .prepare("SELECT token FROM sesiones ORDER BY token")
+      .all() as Array<{ token: string }>;
+    assert.deepEqual(storedTokens, [validFuture, validExpired]
+      .sort()
+      .map((token) => ({ token })));
+
+    await purgeExpiredSessions(boundary);
+    storedTokens = sqlite
+      .prepare("SELECT token FROM sesiones ORDER BY token")
+      .all() as Array<{ token: string }>;
+    assert.deepEqual(storedTokens, [{ token: validFuture }]);
   });
 
   it("elimina cookies malformadas, desconocidas y vencidas", async () => {
@@ -339,7 +400,7 @@ describe("ciclo de la cookie de sesión", () => {
       .prepare(
         "INSERT INTO sesiones (token, usuario_id, fecha_expiracion) VALUES (?, 2, ?)",
       )
-      .run(expiredToken, Date.now() - 1);
+      .run(hashSessionToken(expiredToken), Date.now() - 1);
     const expired = await requestWithSession(
       "/auth/me",
       `gsb_session=${expiredToken}`,
@@ -348,7 +409,7 @@ describe("ciclo de la cookie de sesión", () => {
     assertClearedSessionCookie(expired);
     const stored = sqlite
       .prepare("SELECT count(*) AS total FROM sesiones WHERE token = ?")
-      .get(expiredToken) as { total: number };
+      .get(hashSessionToken(expiredToken)) as { total: number };
     assert.equal(stored.total, 0);
   });
 
@@ -371,6 +432,37 @@ describe("ciclo de la cookie de sesión", () => {
     assert.equal(response.status, 204);
     assertClearedSessionCookie(response);
     assert.equal(response.headers.get("cache-control"), "no-store");
+  });
+
+  it("cierra por el mismo hash el stream SSE de la sesión", async () => {
+    const cookie = sessionCookie(await login("operadora"));
+    const stream = await requestWithSession("/api/events", cookie);
+    assert.equal(stream.status, 200);
+    assert.ok(stream.body);
+    const reader = stream.body.getReader();
+
+    try {
+      const initial = await reader.read();
+      assert.equal(initial.done, false);
+
+      const logout = await requestWithSession("/auth/logout", cookie, {
+        method: "POST",
+      });
+      assert.equal(logout.status, 204);
+
+      const closed = await Promise.race([
+        reader.read(),
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(
+            () => reject(new Error("el stream SSE no se cerró al revocar")),
+            1_000,
+          ),
+        ),
+      ]);
+      assert.equal(closed.done, true);
+    } finally {
+      await reader.cancel();
+    }
   });
 });
 
@@ -670,16 +762,25 @@ describe("autenticación uniforme", () => {
       responses.map(({ status }) => status),
       [200, 200],
     );
+    const rawTokens = responses.map((response) =>
+      sessionCookie(response).slice("gsb_session=".length),
+    );
 
     const stored = sqlite
       .prepare("SELECT password_hash FROM usuarios WHERE id = 1")
       .get() as { password_hash: string };
     const sessions = sqlite
-      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 1")
-      .get() as { total: number };
+      .prepare("SELECT token FROM sesiones WHERE usuario_id = 1 ORDER BY token")
+      .all() as Array<{ token: string }>;
     assert.equal(needsPasswordRehash(stored.password_hash), false);
     assert.equal(await verifyPassword(password, stored.password_hash), true);
-    assert.equal(sessions.total, 2);
+    assert.deepEqual(
+      sessions.map(({ token }) => token),
+      rawTokens.map(hashSessionToken).sort(),
+    );
+    for (const rawToken of rawTokens) {
+      assert.equal(sessions.some(({ token }) => token === rawToken), false);
+    }
   });
 
   it("revierte el rehash si no puede crear la sesión", async () => {
@@ -813,6 +914,15 @@ describe("cambio obligatorio de contraseña", () => {
       true,
     );
     const cookie = sessionCookie(response);
+    const storedTokenHash = (
+      sqlite
+        .prepare("SELECT token FROM sesiones WHERE usuario_id = 1")
+        .get() as { token: string }
+    ).token;
+    assert.equal(
+      storedTokenHash,
+      hashSessionToken(cookie.slice("gsb_session=".length)),
+    );
 
     const me = await requestWithSession("/auth/me", cookie);
     assert.equal(me.status, 200);
@@ -839,6 +949,14 @@ describe("cambio obligatorio de contraseña", () => {
       method: "POST",
     });
     assert.equal(logout.status, 204);
+    assert.equal(
+      (
+        sqlite
+          .prepare("SELECT count(*) AS total FROM sesiones WHERE token = ?")
+          .get(storedTokenHash) as { total: number }
+      ).total,
+      0,
+    );
     assert.equal((await requestWithSession("/auth/me", cookie)).status, 401);
   });
 
@@ -991,14 +1109,20 @@ describe("cambio obligatorio de contraseña", () => {
       )
       .get() as { password_hash: string; debe_cambiar_password: number };
     const sessions = sqlite
-      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
-      .get() as { total: number };
+      .prepare("SELECT token FROM sesiones WHERE usuario_id = 2")
+      .all() as Array<{ token: string }>;
     assert.equal(
       await verifyPassword(definitivePassword, stored.password_hash),
       true,
     );
     assert.equal(stored.debe_cambiar_password, 0);
-    assert.equal(sessions.total, 1);
+    assert.deepEqual(sessions, [
+      {
+        token: hashSessionToken(
+          rotatedCookie.slice("gsb_session=".length),
+        ),
+      },
+    ]);
     assert.equal((await login("operadora", password)).status, 401);
     assert.equal((await login("operadora", definitivePassword)).status, 200);
   });
@@ -1009,6 +1133,11 @@ describe("cambio obligatorio de contraseña", () => {
       .run();
     const loginResponse = await login("operadora");
     const cookie = sessionCookie(loginResponse);
+    const tokenHashBefore = (
+      sqlite
+        .prepare("SELECT token FROM sesiones WHERE usuario_id = 2")
+        .get() as { token: string }
+    ).token;
     const before = sqlite
       .prepare(
         `
@@ -1043,10 +1172,10 @@ describe("cambio obligatorio de contraseña", () => {
       )
       .get() as { password_hash: string; debe_cambiar_password: number };
     const sessions = sqlite
-      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
-      .get() as { total: number };
+      .prepare("SELECT token FROM sesiones WHERE usuario_id = 2")
+      .all() as Array<{ token: string }>;
     assert.deepEqual(after, before);
-    assert.equal(sessions.total, 1);
+    assert.deepEqual(sessions, [{ token: tokenHashBefore }]);
     assert.equal((await requestWithSession("/auth/me", cookie)).status, 200);
   });
 
@@ -1070,6 +1199,7 @@ describe("cambio obligatorio de contraseña", () => {
       [200, 401],
     );
     const winner = responses.findIndex(({ status }) => status === 200);
+    const winnerCookie = sessionCookie(responses[winner]);
     const stored = sqlite
       .prepare(
         `
@@ -1079,14 +1209,20 @@ describe("cambio obligatorio de contraseña", () => {
       )
       .get() as { password_hash: string; debe_cambiar_password: number };
     const sessions = sqlite
-      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
-      .get() as { total: number };
+      .prepare("SELECT token FROM sesiones WHERE usuario_id = 2")
+      .all() as Array<{ token: string }>;
     assert.equal(
       await verifyPassword(candidates[winner], stored.password_hash),
       true,
     );
     assert.equal(stored.debe_cambiar_password, 0);
-    assert.equal(sessions.total, 1);
+    assert.deepEqual(sessions, [
+      {
+        token: hashSessionToken(
+          winnerCookie.slice("gsb_session=".length),
+        ),
+      },
+    ]);
   });
 
   it("un reset administrativo concurrente siempre conserva su clave temporal", async () => {

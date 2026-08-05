@@ -5,6 +5,7 @@ import { ensureAdminSeed } from "./lib/seed";
 import { crearRunnerPrioridadAutomatica } from "./lib/prioridad-automatica-runner";
 import { reconciliarCategoriasMotivo } from "./lib/reclasificar-motivos";
 import { validateServiceSecrets } from "./lib/service-secrets";
+import { purgeUnsafeStoredSessions } from "./lib/session-store";
 
 const port = Number(process.env["PORT"] ?? 5000);
 
@@ -15,6 +16,17 @@ if (Number.isNaN(port) || port <= 0) {
 // Un backend sin credenciales entre servicios no debe abrir el puerto ni
 // reportarse saludable. Los valores nunca se incluyen en el error.
 validateServiceSecrets();
+
+// La migración de digest revoca las sesiones una vez. Repetir esta limpieza
+// en cada arranque cubre también un eventual rollback que haya creado nuevos
+// bearer crudos en la columna histórica antes de volver a esta versión.
+const unsafeSessionsRevoked = await purgeUnsafeStoredSessions();
+if (unsafeSessionsRevoked > 0) {
+  logger.warn(
+    { total: unsafeSessionsRevoked },
+    "Sesiones legadas o inválidas revocadas al arrancar",
+  );
+}
 
 // Garantiza que exista un usuario capaz de loguearse antes de abrir el puerto
 await ensureAdminSeed();

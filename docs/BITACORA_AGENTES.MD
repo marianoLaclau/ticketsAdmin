@@ -2,6 +2,18 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — Hash no reutilizable para sesiones en reposo
+
+**Agente:** Codex
+**Estado:** novena remediación de la auditoría técnica, implementada localmente.
+
+- La cookie conserva un bearer aleatorio de 256 bits, pero login, lookup, cambio propio, logout y SSE derivan un hash SHA-256 versionado con separación de dominio. SQLite y el registro en memoria de SSE ya no conservan el raw reutilizable.
+- El valor persistido usa `sha256:<64 hex>`: aunque se copie desde la base, el extractor estricto no lo acepta como cookie. La columna física histórica `token` se mantiene para rollback estructural y Drizzle la expone como `token_hash` para impedir confusiones en código.
+- `0011_invalidate_plaintext_sessions.sql` revoca una sola vez las sesiones anteriores. `purgeUnsafeStoredSessions()` corre antes del seed y del puerto, elimina raws, prefijos falsos, mayúsculas, longitudes y caracteres inválidos, y cubre un rollback seguido de roll-forward sin imprimir valores.
+- La transición obliga a un único re-login, no admite binarios viejos/nuevos simultáneos y fija `06db746` como piso de rollback seguro por su extractor estricto. Backups anteriores pueden contener bearer históricos y deben tratarse como secretos; TLS sigue siendo un frente separado.
+- Archivos principales: `backend/src/lib/session-cookie.ts`, `backend/src/lib/session-store.ts`, autenticación/SSE, schema Drizzle, migración `0011`, pruebas y documentación operativa.
+- Validaciones: 250 pruebas correctas (backend 134, frontend 53, base de datos 11, política compartida 4 e ingesta 48), typecheck y build completos. El build conserva los avisos ya registrados de sourcemaps en cuatro componentes UI y del bundle frontend mayor a 500 kB, pendientes del tramo de route splitting.
+
 ## 2026-08-05 — Ciclo estricto de la cookie de sesión
 
 **Agente:** Codex

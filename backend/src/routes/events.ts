@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { addEventClient } from "../lib/events";
 import { getSessionUser, type SessionUser } from "../lib/auth";
-import { getSessionToken } from "../lib/session-cookie";
+import { getSessionToken, hashSessionToken } from "../lib/session-cookie";
 
 const router = Router();
 
@@ -11,7 +11,10 @@ const router = Router();
 // stream, no un request/response que Orval pueda modelar.
 router.get("/events", (req, res) => {
   const user = res.locals.authUser as SessionUser;
-  const sessionToken = getSessionToken(req) ?? undefined;
+  const sessionToken = getSessionToken(req);
+  const sessionTokenHash = sessionToken
+    ? hashSessionToken(sessionToken)
+    : undefined;
 
   res.set({
     "Content-Type": "text/event-stream",
@@ -24,7 +27,7 @@ router.get("/events", (req, res) => {
   // Si se corta la conexión, el navegador reintenta a los 5s
   res.write("retry: 5000\n\n");
 
-  addEventClient(res, { usuarioId: user.id, sessionToken });
+  addEventClient(res, { usuarioId: user.id, sessionTokenHash });
 
   // Cada heartbeat revalida la cookie. Así una sesión vencida o revocada no
   // puede conservar indefinidamente un stream que se abrió cuando era válida.

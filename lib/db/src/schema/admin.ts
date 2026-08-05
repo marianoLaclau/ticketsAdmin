@@ -57,10 +57,14 @@ export const usuariosTable = sqliteTable(
   ],
 );
 
-// Sesiones de login (cookie httpOnly con el token). Respaldadas en la base
-// para poder revocarlas y para que sobrevivan a reinicios del backend.
+// Sesiones de login respaldadas en la base para poder revocarlas y para que
+// sobrevivan a reinicios. La cookie conserva el token aleatorio; SQLite guarda
+// únicamente su hash versionado con separación de dominio, nunca el bearer
+// reutilizable. La columna física conserva el nombre histórico `token` para
+// permitir rollback estructural; el prefijo impide confundir el digest con una
+// cookie válida incluso si se ejecuta temporalmente el binario anterior.
 export const sesionesTable = sqliteTable("sesiones", {
-  token: text("token").primaryKey(),
+  token_hash: text("token").primaryKey(),
   usuario_id: integer("usuario_id")
     .notNull()
     .references(() => usuariosTable.id, { onDelete: "cascade" }),

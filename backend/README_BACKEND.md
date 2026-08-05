@@ -141,10 +141,11 @@ La política de roles vive en `src/lib/rbac.ts`; sesiones y middlewares, en [`sr
 
 ### Sesiones
 
-- Login exitoso → se genera un token aleatorio de 64 caracteres hexadecimales (`crypto.randomBytes(32)`), se guarda una fila en la tabla `sesiones` con expiración absoluta a **7 días**, y se setea como cookie host-only `gsb_session` (`httpOnly`, `SameSite=Lax`, `path: /`). Sus opciones viven en un único helper usado también al rotarla y eliminarla.
-- Cada request autenticado acepta únicamente ese formato, hace join `sesiones → usuarios → roles`, considera vencido también el instante exacto del límite y valida que tanto el usuario como su rol sigan activos. Si la cookie está malformada, fue revocada, venció o la cuenta dejó de estar activa, elimina la fila cuando corresponde, expira la cookie y responde `401`; `/auth/me` y el candado global no generan un `Set-Cookie` cuando la petición nunca envió una cookie. Logout sí la expira siempre para conservar su semántica idempotente.
+- Login exitoso → se genera un bearer aleatorio de 64 caracteres hexadecimales (`crypto.randomBytes(32)`) y se setea como cookie host-only `gsb_session` (`httpOnly`, `SameSite=Lax`, `path: /`). La tabla `sesiones` guarda únicamente `sha256:<digest>` con separación de dominio y expiración absoluta a **7 días**: una copia de SQLite no contiene un valor que pueda reutilizarse directamente como cookie. Sus opciones HTTP viven en un único helper usado también al rotarla y eliminarla.
+- Cada request autenticado acepta únicamente el formato raw de la cookie, deriva el mismo hash una vez, hace join `sesiones → usuarios → roles`, considera vencido también el instante exacto del límite y valida que tanto el usuario como su rol sigan activos. Un digest robado de la base no pasa como cookie. Si la cookie está malformada, fue revocada, venció o la cuenta dejó de estar activa, elimina la fila cuando corresponde, expira la cookie y responde `401`; `/auth/me` y el candado global no generan un `Set-Cookie` cuando la petición nunca envió una cookie. Logout sí la expira siempre para conservar su semántica idempotente.
 - Desactivar un usuario o un rol desde Administración elimina en la misma transacción todas las sesiones afectadas y cierra sus conexiones SSE abiertas. Reactivarlo no revive cookies anteriores. El heartbeat del stream vuelve a validar la cookie cada 25 segundos como defensa adicional ante expiraciones o revocaciones externas.
 - `purgeExpiredSessions()` se invoca en cada login (barrido perezoso, no hay cron).
+- `0011_invalidate_plaintext_sessions.sql` revoca una sola vez las sesiones que versiones anteriores guardaban como bearer. En cada arranque, `purgeUnsafeStoredSessions()` elimina además cualquier valor que no cumpla exactamente `sha256:<64 hex minúsculas>`; esto cubre un rollback seguido de roll-forward sin registrar secretos.
 - Logout es idempotente: borra la fila de `sesiones` si existe y limpia la cookie. Todas las respuestas de `/auth/*` usan `Cache-Control: no-store`.
 - **Alta, reset y bootstrap emiten credenciales temporales**: guardan `usuarios.debe_cambiar_password = true`. Mientras siga pendiente, `/auth/me`, `/auth/logout` y `/auth/password` continúan disponibles, pero tickets, dashboard, administración y SSE responden `403` con `code: "PASSWORD_CHANGE_REQUIRED"`.
 - **Reset de contraseña revoca todas las sesiones del usuario** (`DELETE FROM sesiones WHERE usuario_id = ...`): si estaba logueado en otro navegador, queda afuera al instante y el próximo login exige reemplazar la clave temporal.
@@ -291,7 +292,7 @@ No se puede borrar un rol con usuarios asignados (`409`), aunque esté inactivo.
 
 | Columna | Tipo | Notas |
 |---|---|---|
-| `token` | text PK | El valor de la cookie `gsb_session` |
+| `token` | text PK | Nombre físico histórico; contiene solo `sha256:<64 hex>` del bearer, nunca el valor de `gsb_session` |
 | `usuario_id` | integer → `usuarios.id` | `onDelete: cascade` |
 | `fecha_expiracion` | integer (timestamp ms) | 7 días desde el login |
 | `fecha_creacion` | integer (timestamp ms) | |
@@ -301,7 +302,7 @@ No se puede borrar un rol con usuarios asignados (`409`), aunque esté inactivo.
 - **Desarrollo local**: `pnpm --filter @workspace/db run push` (drizzle-kit push, sin archivos de migración — rápido para iterar).
 - **Cambiar el schema para que llegue a Docker/producción**: después de editar `lib/db/src/schema/*.ts`, correr `pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts` y **commitear** el SQL generado en `lib/db/drizzle/`. El contenedor corre `backend/dist/migrate.mjs` (compilado desde `src/migrate.ts`) al arrancar, que aplica cualquier migración pendiente vía el migrator de drizzle-orm — idempotente, no rompe si ya estaban aplicadas.
 - Si se olvida generar la migración, el deploy en Docker arranca con el schema viejo (el volumen persiste entre deploys) y las columnas/tablas nuevas no existen ahí.
-- **v0.5**: después de `0007_add_estado_empleado.sql`, `0008_v05_auditoria_ticket.sql` agrega los campos de auditoría a `seguimientos` sin crear eventos retroactivos y `0009_add_embargos_category.sql` ejecuta un primer backfill conservador de Embargos. Después de migrar y antes de abrir el puerto, `reconciliarCategoriasMotivo()` promueve idempotentemente a Embargos los históricos que ahora cumplen la regla. Nunca modifica `motivo` ni `resumen` ni recalcula categorías ajenas a Embargos.
+- **v0.5 y hardening posterior**: después de `0007_add_estado_empleado.sql`, `0008_v05_auditoria_ticket.sql` agrega los campos de auditoría a `seguimientos`, `0009_add_embargos_category.sql` ejecuta el backfill conservador de Embargos, `0010_require_password_change.sql` incorpora credenciales temporales y `0011_invalidate_plaintext_sessions.sql` revoca los bearer que se persistían antes del hash de sesión. Esta última migración obliga a iniciar sesión una vez; no modifica usuarios, roles ni claves foráneas.
 
 ## Categorización de motivos
 

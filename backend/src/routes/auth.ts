@@ -16,12 +16,13 @@ import {
   SESSION_TTL_MS,
   clearSessionCookie,
   getSessionToken,
+  hashSessionToken,
   hasSessionCookie,
   isSessionExpired,
   setSessionCookie,
 } from "../lib/session-cookie";
 import {
-  closeEventClientsForSession,
+  closeEventClientsForSessionHash,
   closeEventClientsForUsers,
 } from "../lib/events";
 import { getNewPasswordPolicyError } from "../lib/new-password-policy";
@@ -159,6 +160,7 @@ router.post("/auth/login", async (req, res) => {
   await purgeExpiredSessions();
 
   const token = randomBytes(32).toString("hex");
+  const tokenHash = hashSessionToken(token);
   let candidate: LoginUserRecord = {
     ...user,
     password_hash: user.password_hash,
@@ -230,7 +232,7 @@ router.post("/auth/login", async (req, res) => {
       }
       tx.insert(sesionesTable)
         .values({
-          token,
+          token_hash: tokenHash,
           usuario_id: stableCurrent.id,
           fecha_expiracion: new Date(Date.now() + SESSION_TTL_MS),
         })
@@ -285,6 +287,7 @@ router.post("/auth/password", async (req, res) => {
       .json({ code: "SESSION_INVALID", error: "Sin sesión válida" });
     return;
   }
+  const tokenHash = hashSessionToken(token);
 
   const rawNewPassword =
     req.body && typeof req.body === "object" && !Array.isArray(req.body)
@@ -340,6 +343,7 @@ router.post("/auth/password", async (req, res) => {
 
   const observedHash = account.password_hash;
   const newToken = randomBytes(32).toString("hex");
+  const newTokenHash = hashSessionToken(newToken);
   const newPasswordHash = await hashPassword(parsed.data.password_nueva);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
@@ -353,7 +357,7 @@ router.post("/auth/password", async (req, res) => {
       .from(sesionesTable)
       .innerJoin(usuariosTable, eq(sesionesTable.usuario_id, usuariosTable.id))
       .innerJoin(rolesTable, eq(usuariosTable.role_id, rolesTable.id))
-      .where(eq(sesionesTable.token, token))
+      .where(eq(sesionesTable.token_hash, tokenHash))
       .get();
     if (
       !current ||
@@ -387,7 +391,7 @@ router.post("/auth/password", async (req, res) => {
       .run();
     tx.insert(sesionesTable)
       .values({
-        token: newToken,
+        token_hash: newTokenHash,
         usuario_id: current.id,
         fecha_expiracion: expiresAt,
       })
@@ -423,8 +427,11 @@ router.post("/auth/password", async (req, res) => {
 router.post("/auth/logout", async (req, res) => {
   const token = getSessionToken(req);
   if (token) {
-    await db.delete(sesionesTable).where(eq(sesionesTable.token, token));
-    closeEventClientsForSession(token);
+    const tokenHash = hashSessionToken(token);
+    await db
+      .delete(sesionesTable)
+      .where(eq(sesionesTable.token_hash, tokenHash));
+    closeEventClientsForSessionHash(tokenHash);
   }
   clearSessionCookie(res);
   res.status(204).end();

@@ -5,8 +5,11 @@ import {
   SESSION_COOKIE,
   SESSION_COOKIE_OPTIONS,
   SESSION_TTL_MS,
+  SESSION_TOKEN_HASH_PATTERN,
+  SESSION_TOKEN_PATTERN,
   clearSessionCookie,
   getSessionToken,
+  hashSessionToken,
   hasSessionCookie,
   isSessionExpired,
   setSessionCookie,
@@ -44,6 +47,20 @@ describe("token de cookie de sesión", () => {
 
     assert.equal(hasSessionCookie(requestWithCookie()), false);
     assert.equal(getSessionToken(requestWithCookie()), null);
+  });
+
+  it("deriva un hash versionado que no puede reutilizarse como cookie", () => {
+    const token = "a1".repeat(32);
+    const tokenHash = hashSessionToken(token);
+
+    assert.equal(
+      tokenHash,
+      "sha256:e2732a12a6b58fcdddd074a673d2d5338996d9c678154e345a7cd1669377f115",
+    );
+    assert.match(tokenHash, SESSION_TOKEN_HASH_PATTERN);
+    assert.doesNotMatch(tokenHash, SESSION_TOKEN_PATTERN);
+    assert.notEqual(tokenHash, token);
+    assert.throws(() => hashSessionToken("token-invalido"));
   });
 
   it("centraliza atributos idénticos al crear y eliminar la cookie", () => {

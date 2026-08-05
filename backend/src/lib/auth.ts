@@ -6,6 +6,7 @@ import { ROL_SYSADMIN } from "./rbac";
 import {
   clearSessionCookie,
   getSessionToken,
+  hashSessionToken,
   hasSessionCookie,
   isSessionExpired,
 } from "./session-cookie";
@@ -63,6 +64,7 @@ export async function getSessionUser(
 ): Promise<SessionUser | null> {
   const token = getSessionToken(req);
   if (!token) return null;
+  const tokenHash = hashSessionToken(token);
 
   const [row] = await db
     .select({
@@ -79,16 +81,20 @@ export async function getSessionUser(
     .from(sesionesTable)
     .innerJoin(usuariosTable, eq(sesionesTable.usuario_id, usuariosTable.id))
     .innerJoin(rolesTable, eq(usuariosTable.role_id, rolesTable.id))
-    .where(eq(sesionesTable.token, token));
+    .where(eq(sesionesTable.token_hash, tokenHash));
 
   if (!row) return null;
   if (isSessionExpired(row.expiracion)) {
-    await db.delete(sesionesTable).where(eq(sesionesTable.token, token));
+    await db
+      .delete(sesionesTable)
+      .where(eq(sesionesTable.token_hash, tokenHash));
     return null;
   }
   // Desactivar al usuario o a su rol revoca la sesión en la primera consulta.
   if (!row.activo || !row.rol_activo) {
-    await db.delete(sesionesTable).where(eq(sesionesTable.token, token));
+    await db
+      .delete(sesionesTable)
+      .where(eq(sesionesTable.token_hash, tokenHash));
     return null;
   }
 
