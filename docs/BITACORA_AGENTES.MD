@@ -2,6 +2,20 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — Apagado controlado del backend
+
+**Agente:** Codex
+**Estado:** vigesimosegunda remediación de la auditoría técnica, implementada localmente.
+
+- El proceso captura `SIGTERM` y `SIGINT` mediante un controlador idempotente: detiene nuevas revisiones automáticas, deja de aceptar conexiones HTTP, pone el registro SSE en drenaje irreversible y espera en paralelo los sockets y la revisión de prioridad que ya estaban activos. Un request SSE aceptado antes de la señal pero autenticado después recibe `503` y no puede reabrir el stream.
+- `server.close()` puede resolver aunque siga vivo un handler async cuyo cliente abortó. Por eso SQLite no se cierra ahí: queda registrado un cierre síncrono en `beforeExit`, cuando Node ya no tiene trabajos libuv capaces de reanudar esos handlers. La salida forzada nunca intenta cerrar una base potencialmente en uso.
+- El deadline de 20 segundos permanece referenciado durante el drenaje visible y luego pasa a `unref`: permite una salida natural, pero todavía fuerza sockets y código de error si un trabajo huérfano mantiene vivo el proceso. El log de ese camino se vacía con un fusible acotado antes de salir.
+- El runner de prioridad conserva ahora la promesa de la ejecución lanzada por su intervalo y expone una espera explícita; detener el timer ya no pierde el trabajo que estaba en curso.
+- El backend de larga vida reemplaza al shell mediante `exec`, por lo que recibe directamente la señal de Docker. Compose reserva 30 segundos antes de `SIGKILL`, dejando margen al deadline interno y al log final.
+- Se agregaron pruebas deterministas, sin señales reales ni esperas temporales como condición de éxito, para idempotencia, orden de drenaje, watchdog, `beforeExit`, cliente HTTP abortado, alta SSE tardía, wiring de señales, configuración Docker y espera del runner periódico.
+- Residual deliberado: durante `dist/migrate.mjs` el shell todavía es PID 1 y los handlers se instalan después del bootstrap de aplicación. Separar la migración en un servicio one-shot y hacer cancelable todo el startup requieren otro bloque; las migraciones SQLite actuales son transaccionales y este commit no mezcla esa reestructuración.
+- Validaciones: 18 pruebas focalizadas, 160 pruebas backend y 302 pruebas totales aprobadas; `pnpm run quality` también verificó codegen sin drift, cadena Drizzle, typecheck y builds de producción.
+
 ## 2026-08-05 — Quality gate reproducible antes del deploy
 
 **Agente:** Codex

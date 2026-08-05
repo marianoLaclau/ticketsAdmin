@@ -3,6 +3,7 @@ import test from "node:test";
 import type { Response } from "express";
 import {
   addEventClient,
+  beginEventClientShutdown,
   broadcastEvent,
   closeEventClientsForSessionHash,
   closeEventClientsForUsers,
@@ -14,11 +15,20 @@ function fakeResponse(write: (payload: string) => void): Response {
   const response = {
     destroyed: false,
     writableEnded: false,
+    headersSent: false,
+    statusCode: 200,
     on(event: string, listener: () => void) {
       if (event === "close") closeListener = listener;
       return this;
     },
     write,
+    status(statusCode: number) {
+      this.statusCode = statusCode;
+      return this;
+    },
+    set() {
+      return this;
+    },
     end() {
       this.writableEnded = true;
       closeListener?.();
@@ -105,4 +115,28 @@ test("avisa la revocación administrativa antes de cerrar cada stream", () => {
   assert.equal(revokeEventClientsForUsers([7]), 0);
 
   unrelated.end();
+});
+
+test("drena streams y rechaza silenciosamente un alta tardia", () => {
+  const received: string[] = [];
+  const first = fakeResponse((payload) => received.push(payload));
+  const second = fakeResponse((payload) => received.push(payload));
+  const aborted = fakeResponse((payload) => received.push(payload));
+  aborted.destroy();
+  assert.equal(addEventClient(aborted, { usuarioId: 99 }), false);
+
+  addEventClient(first, { usuarioId: 1 });
+  addEventClient(second, { usuarioId: 2 });
+
+  assert.equal(beginEventClientShutdown(), 2);
+  assert.equal(first.writableEnded, true);
+  assert.equal(second.writableEnded, true);
+
+  const late = fakeResponse((payload) => received.push(payload));
+  assert.equal(addEventClient(late, { usuarioId: 3 }), false);
+  assert.equal(late.writableEnded, true);
+  assert.equal(late.statusCode, 503);
+  assert.equal(beginEventClientShutdown(), 0);
+  broadcastEvent("datos_actualizados");
+  assert.deepEqual(received, []);
 });

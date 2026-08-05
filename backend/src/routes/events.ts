@@ -16,6 +16,12 @@ router.get("/events", (req, res) => {
     ? hashSessionToken(sessionToken)
     : undefined;
 
+  const registered = addEventClient(res, {
+    usuarioId: user.id,
+    sessionTokenHash,
+  });
+  if (!registered) return;
+
   res.set({
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
@@ -26,8 +32,6 @@ router.get("/events", (req, res) => {
   res.flushHeaders();
   // Si se corta la conexión, el navegador reintenta a los 5s
   res.write("retry: 5000\n\n");
-
-  addEventClient(res, { usuarioId: user.id, sessionTokenHash });
 
   // Cada heartbeat revalida la cookie. Así una sesión vencida o revocada no
   // puede conservar indefinidamente un stream que se abrió cuando era válida.

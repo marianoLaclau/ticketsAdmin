@@ -43,6 +43,7 @@ export interface RunnerPrioridadAutomatica {
   ): Promise<ResultadoPrioridadAutomatica | null>;
   iniciar(): TimerPrioridadAutomatica;
   detener(): void;
+  esperarEjecucionActiva(): Promise<void>;
 }
 
 interface OpcionesRunnerPrioridadAutomatica {
@@ -72,23 +73,17 @@ export function crearRunnerPrioridadAutomatica(
       ? process.env.PRIORIDAD_AUTOMATICA_INTERVAL_MS
       : String(opciones.intervaloMs),
   );
-  const programarIntervalo = opciones.programarIntervalo ??
-    programarIntervaloPredeterminado;
-  const cancelarIntervalo = opciones.cancelarIntervalo ??
-    cancelarIntervaloPredeterminado;
+  const programarIntervalo =
+    opciones.programarIntervalo ?? programarIntervaloPredeterminado;
+  const cancelarIntervalo =
+    opciones.cancelarIntervalo ?? cancelarIntervaloPredeterminado;
   let timer: TimerPrioridadAutomatica | null = null;
+  let ejecucionActiva: Promise<ResultadoPrioridadAutomatica | null> | null =
+    null;
 
-  const ejecutarAhora: RunnerPrioridadAutomatica["ejecutarAhora"] = async (
-    origen,
-  ) => {
-    if (servicio.estaEjecutando()) {
-      logger.debug?.(
-        { origen },
-        "Revision de prioridad omitida: ya hay una ejecucion activa",
-      );
-      return null;
-    }
-
+  const ejecutarCiclo = async (
+    origen: Parameters<RunnerPrioridadAutomatica["ejecutarAhora"]>[0],
+  ): Promise<ResultadoPrioridadAutomatica | null> => {
     try {
       const resultado = await servicio.ejecutar();
       const cantidad = resultado.promociones.length;
@@ -123,6 +118,26 @@ export function crearRunnerPrioridadAutomatica(
     }
   };
 
+  const ejecutarAhora: RunnerPrioridadAutomatica["ejecutarAhora"] = (
+    origen,
+  ) => {
+    if (servicio.estaEjecutando()) {
+      logger.debug?.(
+        { origen },
+        "Revision de prioridad omitida: ya hay una ejecucion activa",
+      );
+      return Promise.resolve(null);
+    }
+
+    const ejecucion = ejecutarCiclo(origen);
+    ejecucionActiva = ejecucion;
+    const liberar = () => {
+      if (ejecucionActiva === ejecucion) ejecucionActiva = null;
+    };
+    void ejecucion.then(liberar, liberar);
+    return ejecucion;
+  };
+
   return {
     ejecutarAhora,
     iniciar() {
@@ -142,6 +157,9 @@ export function crearRunnerPrioridadAutomatica(
       if (!timer) return;
       cancelarIntervalo(timer);
       timer = null;
+    },
+    async esperarEjecucionActiva() {
+      await ejecucionActiva;
     },
   };
 }

@@ -6,6 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     restart: unless-stopped
+    stop_grace_period: 30s
     ports:
       - "5000:5000"
     environment:

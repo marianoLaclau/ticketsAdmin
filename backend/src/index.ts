@@ -1,11 +1,18 @@
 import "./lib/load-env";
+import { sqlite } from "@workspace/db";
 import app from "./app";
+import { beginEventClientShutdown } from "./lib/events";
 import { logger } from "./lib/logger";
 import { ensureAdminSeed } from "./lib/seed";
 import { crearRunnerPrioridadAutomatica } from "./lib/prioridad-automatica-runner";
 import { reconciliarCategoriasMotivo } from "./lib/reclasificar-motivos";
 import { validateServiceSecrets } from "./lib/service-secrets";
 import { purgeUnsafeStoredSessions } from "./lib/session-store";
+import {
+  crearApagadoControlado,
+  registrarCierreAntesDeSalir,
+  registrarSenalesApagado,
+} from "./lib/server-lifecycle";
 
 const port = Number(process.env["PORT"] ?? 5000);
 
@@ -52,11 +59,25 @@ const runnerPrioridadAutomatica = crearRunnerPrioridadAutomatica();
 await runnerPrioridadAutomatica.ejecutarAhora("arranque");
 runnerPrioridadAutomatica.iniciar();
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
+const server = app.listen(port);
+const apagar = crearApagadoControlado({
+  server,
+  detenerTareas: () => runnerPrioridadAutomatica.detener(),
+  esperarTareas: () => runnerPrioridadAutomatica.esperarEjecucionActiva(),
+  cerrarStreams: beginEventClientShutdown,
+  logger,
+});
+registrarCierreAntesDeSalir(() => {
+  if (sqlite.open) sqlite.close();
+});
+registrarSenalesApagado(apagar);
 
+server.once("listening", () => {
   logger.info({ port }, "Server listening");
+});
+
+server.once("error", (err) => {
+  logger.error({ err, port }, "Error listening on port");
+  process.exitCode = 1;
+  void apagar("server_error");
 });

@@ -34,4 +34,4 @@ COPY --from=builder /app/lib/db/drizzle ./drizzle
 
 EXPOSE 5000
 # Aplica las migraciones pendientes (idempotente) y recién después levanta la API.
-CMD ["sh", "-c", "node dist/migrate.mjs && node --enable-source-maps dist/index.mjs"]
+CMD ["sh", "-c", "node dist/migrate.mjs && exec node --enable-source-maps dist/index.mjs"]

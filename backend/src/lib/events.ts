@@ -11,6 +11,7 @@ interface EventClient {
 }
 
 const clients = new Map<Response, EventClient>();
+let acceptingClients = true;
 
 const SESSION_REVOKED_EVENT = "sesion_revocada";
 
@@ -22,9 +23,30 @@ export interface EventClientIdentity {
 export function addEventClient(
   res: Response,
   identity: EventClientIdentity = {},
-): void {
+): boolean {
+  // La autenticacion previa es asincrona: el navegador puede abortar antes de
+  // que la ruta llegue hasta aqui y el evento close ya no volvera a emitirse.
+  if (res.destroyed || res.writableEnded) return false;
+
+  if (!acceptingClients) {
+    try {
+      if (res.headersSent) {
+        res.destroy();
+      } else {
+        res
+          .status(503)
+          .set({ "Cache-Control": "no-store", Connection: "close" })
+          .end();
+      }
+    } catch {
+      res.destroy();
+    }
+    return false;
+  }
+
   clients.set(res, { res, ...identity });
   res.on("close", () => clients.delete(res));
+  return true;
 }
 
 function serializeEvent(
@@ -63,8 +85,7 @@ export function closeEventClientsForUsers(
 ): number {
   const ids = new Set(usuarioIds);
   return closeMatchingClients(
-    (client) =>
-      client.usuarioId !== undefined && ids.has(client.usuarioId),
+    (client) => client.usuarioId !== undefined && ids.has(client.usuarioId),
   );
 }
 
@@ -78,8 +99,7 @@ export function revokeEventClientsForUsers(
 ): number {
   const ids = new Set(usuarioIds);
   return closeMatchingClients(
-    (client) =>
-      client.usuarioId !== undefined && ids.has(client.usuarioId),
+    (client) => client.usuarioId !== undefined && ids.has(client.usuarioId),
     SESSION_REVOKED_EVENT,
   );
 }
@@ -90,6 +110,15 @@ export function closeEventClientsForSessionHash(
   return closeMatchingClients(
     (client) => client.sessionTokenHash === sessionTokenHash,
   );
+}
+
+/**
+ * Impide nuevas altas y cierra los streams actuales. El latch es irreversible
+ * porque este proceso ya inició su apagado y no volverá a aceptar tráfico.
+ */
+export function beginEventClientShutdown(): number {
+  acceptingClients = false;
+  return closeMatchingClients(() => true);
 }
 
 export function broadcastEvent(

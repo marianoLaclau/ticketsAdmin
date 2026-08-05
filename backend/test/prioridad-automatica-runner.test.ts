@@ -56,7 +56,9 @@ describe("configuracion del runner de prioridad", () => {
     assert.equal(resolverIntervaloPrioridadAutomatica(""), 300_000);
     assert.equal(resolverIntervaloPrioridadAutomatica("abc"), 300_000);
     assert.equal(
-      resolverIntervaloPrioridadAutomatica(String(PRIORIDAD_AUTOMATICA_INTERVALO_MINIMO_MS - 1)),
+      resolverIntervaloPrioridadAutomatica(
+        String(PRIORIDAD_AUTOMATICA_INTERVALO_MINIMO_MS - 1),
+      ),
       300_000,
     );
     assert.equal(resolverIntervaloPrioridadAutomatica("60000"), 60_000);
@@ -161,5 +163,53 @@ describe("runner periodico de prioridad", () => {
     const siguiente = await runner.ejecutarAhora("manual");
     assert.equal(siguiente?.promociones.length, 0);
     assert.equal(intento, 2);
+  });
+
+  it("espera una ejecucion periodica activa despues de cancelar el timer", async () => {
+    let resolver!: (value: ResultadoPrioridadAutomatica) => void;
+    let activa = false;
+    const trabajo = new Promise<ResultadoPrioridadAutomatica>((resolve) => {
+      resolver = resolve;
+    });
+    const servicio: ServicioPrioridadAutomatica = {
+      estaEjecutando: () => activa,
+      ejecutar: () => {
+        activa = true;
+        return trabajo.finally(() => {
+          activa = false;
+        });
+      },
+    };
+    let callbackProgramado: (() => void) | undefined;
+    let cancelaciones = 0;
+    const { logger } = crearLoggerEspia();
+    const runner = crearRunnerPrioridadAutomatica({
+      servicio,
+      logger,
+      programarIntervalo(callback) {
+        callbackProgramado = callback;
+        return {};
+      },
+      cancelarIntervalo() {
+        cancelaciones += 1;
+      },
+    });
+
+    runner.iniciar();
+    callbackProgramado?.();
+    runner.detener();
+    assert.equal(cancelaciones, 1);
+
+    let drenado = false;
+    const drenaje = runner.esperarEjecucionActiva().then(() => {
+      drenado = true;
+    });
+    await Promise.resolve();
+    assert.equal(drenado, false);
+
+    resolver(resultado());
+    await drenaje;
+    assert.equal(drenado, true);
+    await runner.esperarEjecucionActiva();
   });
 });
