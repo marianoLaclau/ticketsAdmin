@@ -169,7 +169,7 @@ export const ChangeOwnPasswordResponse = zod.object({
 
 
 /**
- * Revoca la sesión actual y limpia la cookie.
+ * Revoca la sesión actual si existe y limpia la cookie de forma idempotente.
  * @summary Cerrar sesión
  */
 export const LogoutResponse = zod.void()

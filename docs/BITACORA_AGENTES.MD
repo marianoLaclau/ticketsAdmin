@@ -2,6 +2,18 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — Ciclo estricto de la cookie de sesión
+
+**Agente:** Codex
+**Estado:** octava remediación de la auditoría técnica, implementada localmente.
+
+- Se centralizaron creación y borrado de `gsb_session` con `HttpOnly`, `SameSite=Lax`, `Path=/`, alcance host-only y siete días de expiración absoluta. El borde acepta únicamente los 64 caracteres hexadecimales que genera `randomBytes(32)`.
+- Cookies malformadas, desconocidas, vencidas o asociadas a cuentas/roles inactivos reciben `401` y son eliminadas; `/auth/me` y el candado global no generan un borrado cuando nunca recibieron cookie. Logout sí la expira siempre para conservar su semántica idempotente. El instante exacto de expiración y fechas inválidas fallan cerrado.
+- Todas las respuestas de `/auth/*` incluyen `Cache-Control: no-store`; logout quedó explícitamente idempotente y público en OpenAPI. SSE reutiliza el extractor único en lugar de interpretar la cookie por separado.
+- `Secure` permanece deliberadamente desactivado porque el despliegue actual sirve HTTP: se activará junto con TLS para no romper las sesiones del navegador ni ofrecer una falsa sensación de cifrado.
+- Archivos principales: `backend/src/lib/session-cookie.ts`, `backend/src/lib/auth.ts`, `backend/src/routes/auth.ts`, `backend/src/routes/events.ts`, contrato generado, pruebas y documentación.
+- Validaciones: 246 pruebas correctas (backend 131, frontend 53, base de datos 10, política compartida 4 e ingesta 48), codegen, typecheck y build completos. El build conserva los avisos preexistentes de sourcemaps de cuatro componentes UI y del bundle frontend mayor a 500 kB; su reducción sigue en el tramo de route splitting del roadmap.
+
 ## 2026-08-05 — Validación temprana de secretos entre servicios
 
 **Agente:** Codex

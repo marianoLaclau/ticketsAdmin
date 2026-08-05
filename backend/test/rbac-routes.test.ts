@@ -54,7 +54,11 @@ const [
   { default: authRouter },
   { default: adminRouter },
   { default: productionRouter },
-  { requirePasswordChangeCompleted, requireSession },
+  {
+    purgeExpiredSessions,
+    requirePasswordChangeCompleted,
+    requireSession,
+  },
   { hashPassword, needsPasswordRehash, verifyPassword },
   {
     LOGIN_ACCOUNT_MAX_ATTEMPTS,
@@ -118,7 +122,27 @@ async function login(
 function sessionCookie(response: Response): string {
   const header = response.headers.get("set-cookie");
   assert.ok(header, "el login debe devolver la cookie de sesión");
-  return header.split(";", 1)[0];
+  const cookie = header.split(";", 1)[0];
+  assert.match(cookie, /^gsb_session=[0-9a-f]{64}$/);
+  return cookie;
+}
+
+function assertClearedSessionCookie(response: Response): void {
+  const header = response.headers.get("set-cookie");
+  assert.ok(header, "la respuesta debe eliminar la cookie inválida");
+  const attributes = header.split(";").map((part) => part.trim());
+  assert.equal(attributes[0], "gsb_session=");
+  assert.ok(attributes.includes("Path=/"));
+  assert.ok(attributes.includes("HttpOnly"));
+  assert.ok(attributes.includes("SameSite=Lax"));
+  const expires = attributes.find((attribute) =>
+    attribute.startsWith("Expires="),
+  );
+  assert.ok(expires, "la cookie eliminada debe incluir una expiración");
+  assert.ok(
+    Date.parse(expires.slice("Expires=".length)) < Date.now(),
+    "la expiración de la cookie eliminada debe estar en el pasado",
+  );
 }
 
 async function adminSession(): Promise<string> {
@@ -233,6 +257,121 @@ after(async () => {
   });
   sqlite.close();
   rmSync(databasePath, { force: true });
+});
+
+describe("ciclo de la cookie de sesión", () => {
+  it("emite atributos acotados y evita cachear respuestas de autenticación", async () => {
+    const response = await login("operadora");
+    assert.equal(response.status, 200);
+    const header = response.headers.get("set-cookie");
+    assert.ok(header);
+    const attributes = header.split(";").map((part) => part.trim());
+    assert.match(attributes[0] ?? "", /^gsb_session=[0-9a-f]{64}$/);
+    assert.ok(attributes.includes("Path=/"));
+    assert.ok(attributes.includes("Max-Age=604800"));
+    assert.ok(attributes.includes("HttpOnly"));
+    assert.ok(attributes.includes("SameSite=Lax"));
+    assert.equal(attributes.includes("Secure"), false);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+
+    const me = await requestWithSession("/auth/me", sessionCookie(response));
+    assert.equal(me.status, 200);
+    assert.equal(me.headers.get("cache-control"), "no-store");
+
+    const functional = await requestWithSession(
+      "/protected-test",
+      sessionCookie(response),
+    );
+    assert.equal(functional.status, 200);
+    assert.equal(functional.headers.get("cache-control"), null);
+  });
+
+  it("no crea una cookie de borrado cuando la sesión nunca fue enviada", async () => {
+    const response = await fetch(`${baseUrl}/auth/me`);
+    assert.equal(response.status, 401);
+    assert.equal(response.headers.get("set-cookie"), null);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+  });
+
+  it("limpia una cookie malformada también desde el candado global", async () => {
+    const missing = await fetch(`${baseUrl}/protected-test`);
+    assert.equal(missing.status, 401);
+    assert.equal(missing.headers.get("set-cookie"), null);
+
+    const malformed = await requestWithSession(
+      "/protected-test",
+      "gsb_session=no-es-un-token",
+    );
+    assert.equal(malformed.status, 401);
+    assertClearedSessionCookie(malformed);
+  });
+
+  it("purga el límite exacto y conserva las sesiones futuras", async () => {
+    const boundary = new Date("2030-01-02T03:04:05.000Z");
+    const exactToken = "c".repeat(64);
+    const futureToken = "d".repeat(64);
+    const insert = sqlite.prepare(
+      "INSERT INTO sesiones (token, usuario_id, fecha_expiracion) VALUES (?, 2, ?)",
+    );
+    insert.run(exactToken, boundary.getTime());
+    insert.run(futureToken, boundary.getTime() + 1);
+
+    await purgeExpiredSessions(boundary);
+
+    const storedTokens = sqlite
+      .prepare("SELECT token FROM sesiones ORDER BY token")
+      .all() as Array<{ token: string }>;
+    assert.deepEqual(storedTokens, [{ token: futureToken }]);
+  });
+
+  it("elimina cookies malformadas, desconocidas y vencidas", async () => {
+    for (const cookie of [
+      "gsb_session=no-es-un-token",
+      `gsb_session=${"a".repeat(64)}`,
+    ]) {
+      const response = await requestWithSession("/auth/me", cookie);
+      assert.equal(response.status, 401);
+      assertClearedSessionCookie(response);
+    }
+
+    const expiredToken = "b".repeat(64);
+    sqlite
+      .prepare(
+        "INSERT INTO sesiones (token, usuario_id, fecha_expiracion) VALUES (?, 2, ?)",
+      )
+      .run(expiredToken, Date.now() - 1);
+    const expired = await requestWithSession(
+      "/auth/me",
+      `gsb_session=${expiredToken}`,
+    );
+    assert.equal(expired.status, 401);
+    assertClearedSessionCookie(expired);
+    const stored = sqlite
+      .prepare("SELECT count(*) AS total FROM sesiones WHERE token = ?")
+      .get(expiredToken) as { total: number };
+    assert.equal(stored.total, 0);
+  });
+
+  it("elimina la cookie y la fila si la cuenta deja de estar activa", async () => {
+    const authenticated = await login("operadora");
+    const cookie = sessionCookie(authenticated);
+    sqlite.prepare("UPDATE usuarios SET activo = 0 WHERE id = 2").run();
+
+    const response = await requestWithSession("/auth/me", cookie);
+    assert.equal(response.status, 401);
+    assertClearedSessionCookie(response);
+    const sessions = sqlite
+      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
+      .get() as { total: number };
+    assert.equal(sessions.total, 0);
+  });
+
+  it("mantiene logout idempotente incluso sin sesión", async () => {
+    const response = await fetch(`${baseUrl}/auth/logout`, { method: "POST" });
+    assert.equal(response.status, 204);
+    assertClearedSessionCookie(response);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+  });
 });
 
 describe("autenticación uniforme", () => {

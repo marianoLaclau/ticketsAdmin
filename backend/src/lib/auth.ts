@@ -1,8 +1,14 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
 import { db, sesionesTable, usuariosTable, rolesTable } from "@workspace/db";
-import { eq, lt } from "drizzle-orm";
+import { eq, lte } from "drizzle-orm";
 import { ROL_SYSADMIN } from "./rbac";
+import {
+  clearSessionCookie,
+  getSessionToken,
+  hasSessionCookie,
+  isSessionExpired,
+} from "./session-cookie";
 
 export {
   ROL_SYSADMIN,
@@ -43,9 +49,6 @@ export function requireWebhookKey(
 // Sesiones de login (cookie httpOnly respaldada en la tabla `sesiones`)
 // ---------------------------------------------------------------------------
 
-export const SESSION_COOKIE = "gsb_session";
-export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 días
-
 export interface SessionUser {
   id: number;
   nombre: string;
@@ -53,12 +56,6 @@ export interface SessionUser {
   email: string;
   rol: string;
   debe_cambiar_password: boolean;
-}
-
-export function getSessionToken(req: Request): string | null {
-  const token = (req as Request & { cookies?: Record<string, string> })
-    .cookies?.[SESSION_COOKIE];
-  return typeof token === "string" && token.length > 0 ? token : null;
 }
 
 export async function getSessionUser(
@@ -85,7 +82,7 @@ export async function getSessionUser(
     .where(eq(sesionesTable.token, token));
 
   if (!row) return null;
-  if (row.expiracion < new Date()) {
+  if (isSessionExpired(row.expiracion)) {
     await db.delete(sesionesTable).where(eq(sesionesTable.token, token));
     return null;
   }
@@ -113,6 +110,7 @@ export async function requireSession(
 ) {
   const user = await getSessionUser(req);
   if (!user) {
+    if (hasSessionCookie(req)) clearSessionCookie(res);
     res.status(401).json({ error: "Sesión requerida" });
     return;
   }
@@ -140,10 +138,10 @@ export function requirePasswordChangeCompleted(
 }
 
 // Limpieza perezosa de sesiones vencidas (se invoca en cada login)
-export async function purgeExpiredSessions(): Promise<void> {
+export async function purgeExpiredSessions(now = new Date()): Promise<void> {
   await db
     .delete(sesionesTable)
-    .where(lt(sesionesTable.fecha_expiracion, new Date()));
+    .where(lte(sesionesTable.fecha_expiracion, now));
 }
 
 // Solo usuarios con el rol SysAdmin pueden operar el panel de administración.

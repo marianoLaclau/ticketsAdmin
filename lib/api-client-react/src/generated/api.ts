@@ -492,7 +492,7 @@ export const getLogoutUrl = () => {
 }
 
 /**
- * Revoca la sesión actual y limpia la cookie.
+ * Revoca la sesión actual si existe y limpia la cookie de forma idempotente.
  * @summary Cerrar sesión
  */
 export const logout = async ( options?: RequestInit): Promise<void> => {

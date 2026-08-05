@@ -1,6 +1,7 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
 import { addEventClient } from "../lib/events";
-import { getSessionUser, SESSION_COOKIE, type SessionUser } from "../lib/auth";
+import { getSessionUser, type SessionUser } from "../lib/auth";
+import { getSessionToken } from "../lib/session-cookie";
 
 const router = Router();
 
@@ -10,11 +11,7 @@ const router = Router();
 // stream, no un request/response que Orval pueda modelar.
 router.get("/events", (req, res) => {
   const user = res.locals.authUser as SessionUser;
-  const sessionToken = (
-    req as Request & {
-      cookies?: Record<string, string>;
-    }
-  ).cookies?.[SESSION_COOKIE];
+  const sessionToken = getSessionToken(req) ?? undefined;
 
   res.set({
     "Content-Type": "text/event-stream",

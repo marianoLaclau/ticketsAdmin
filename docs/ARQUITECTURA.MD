@@ -65,7 +65,7 @@ flowchart TB
 
 1. `health`: health check público.
 2. `webhooks`: ingesta pública protegida por `x-api-key`.
-3. `auth`: login público; logout y sesión actual requieren sesión.
+3. `auth`: login y logout idempotente son públicos; sesión actual y cambio propio validan la cookie dentro del router.
 4. `requireSession`: candado global para el resto de la API.
 5. Tickets, dashboard, administración y SSE.
 
@@ -292,7 +292,7 @@ Es la auditoría temporal del ticket. Registra notas manuales, alta automática 
 
 - `roles` define el catálogo de perfiles. Los nombres base `SysAdmin`, `Administrador` y `Operador` son identidades reservadas y activas; los perfiles personalizados sí admiten ciclo de vida propio.
 - `usuarios` contiene identidad, credenciales hash, rol, estado activo y el flag autoritativo `debe_cambiar_password`.
-- `sesiones` persiste el token de cookie `gsb_session`, su usuario y expiración; permite revocar sesiones y sobrevivir reinicios.
+- `sesiones` persiste el token de cookie `gsb_session`, su usuario y expiración absoluta; permite revocar sesiones y sobrevivir reinicios. El borde HTTP solo acepta el formato aleatorio emitido (64 hex), centraliza `HttpOnly`/`SameSite=Lax`/`Path=/`, elimina cookies malformadas, vencidas o revocadas y marca `/auth/*` como `no-store`. El instante exacto de expiración ya no es válido.
 - `password_hash` usa scrypt asíncrono y versionado (`scrypt$v1$N$r$p$salt$hash`); nunca se almacena la contraseña en texto plano. El lector mantiene compatibilidad con el formato legado y lo rehashea con una sal nueva tras un login válido.
 - Alta, reset y bootstrap validan con `@workspace/password-policy`: 16–128 unidades UTF-16, sin controles C0/DEL, whitespace exterior, placeholders públicos conocidos ni un único carácter repetido. OpenAPI reutiliza un único schema `NewPassword`; el paquete completa la blocklist contextual acotada. Se permiten frases con espacios interiores y no se recorta ni normaliza el secreto antes de hashearlo (NFKC/minúsculas se usan solo para comparar la blocklist y el patrón repetitivo).
 - Login acepta 1–128 unidades UTF-16 para preservar credenciales históricas y poder migrar su hash; esa compatibilidad no habilita nuevas claves fuera de política.
@@ -319,7 +319,7 @@ flowchart TD
     public{Ruta pública?}
     session{Sesión válida?}
     password{¿Cambio temporal pendiente?}
-    authOnly{¿me, logout o cambio propio?}
+    authOnly{¿me o cambio propio?}
     admin{SysAdmin + x-admin-key?}
     allow[Ejecutar operación]
     reject401[401 / login]
@@ -328,7 +328,7 @@ flowchart TD
     reject503[503 / configuración ausente]
 
     request --> public
-    public -->|health, login, webhook con su clave| allow
+    public -->|health, login, logout, webhook con su clave| allow
     public -->|resto| session
     session -->|no| reject401
     session -->|sí| password

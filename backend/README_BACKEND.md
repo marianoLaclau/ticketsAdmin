@@ -87,7 +87,7 @@ Dentro de `routes/index.ts`, el orden importa:
 ```ts
 router.use(healthRouter);      // público
 router.use(webhooksRouter);    // público (clave propia x-api-key)
-router.use(authRouter);        // público (login) / requiere sesión (logout, me)
+router.use(authRouter);        // login/logout públicos; password/me validan sesión dentro
 
 router.use(requireSession);    // 🔒 todo lo que sigue exige sesión
 router.use(requirePasswordChangeCompleted); // 🔒 bloquea credenciales temporales
@@ -108,7 +108,7 @@ Todas bajo el prefijo `/api`. ✅ = requiere sesión (candado global). 🔑 = ad
 | `GET /healthz` | Chequeo de vida | público |
 | `POST /webhooks/ticket` | Ingesta de una llamada desde n8n. Idempotente por `conversation_id`: si ya existe, `200 { created: false, ticket }`; si no, `201 { created: true, ticket }`. Si llega una empresa real, crea atómicamente el primer seguimiento indicando que los datos fueron extraídos y persistidos desde Serin mediante el DNI proporcionado. Si no viene `fecha_limite`, se preestablece a **48 horas hábiles de lunes a viernes**; si viene, debe ser RFC3339 con zona (no se coercionan `null`/booleanos/números). Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío. | `x-api-key: WEBHOOK_API_KEY` |
 | `POST /auth/login` | Body `{ usuario, password }` (`usuario` = el `username` asignado al crear la cuenta, no el email; se normaliza a minúsculas). Devuelve `AuthUser` y setea la cookie `gsb_session`. Mensaje de error genérico a propósito (no revela si el usuario existe). Después de diez credenciales rechazadas para la misma identidad en 15 minutos responde `429` con `Retry-After`. | público |
-| `POST /auth/logout` | Revoca la sesión actual (borra la fila) y limpia la cookie. `204`. | ✅ (no falla si no hay cookie) |
+| `POST /auth/logout` | Revoca la sesión actual si existe y limpia la cookie de forma idempotente. `204`. | público |
 | `GET /auth/me` | Devuelve el `AuthUser` de la sesión activa, o `401`. | ✅ |
 | `POST /auth/password` | Cambia la contraseña propia con `{ password_actual, password_nueva }`. La actual conserva el contrato histórico de 1–128; la nueva aplica la política compartida y debe ser distinta. En una transacción limpia `debe_cambiar_password`, revoca todas las sesiones y crea una nueva para el navegador actual. | ✅, incluso con cambio pendiente |
 | `GET /tickets` | Listado con filtros: `estado`, `prioridad`, `fecha_desde`/`fecha_hasta` (día calendario **local**, según `TZ`), `hora_desde`/`hora_hasta`, `empresa`, `motivo`, `motivo_categoria`, `search`, `vencidos`; orden server-side con `sort_by` sobre una lista cerrada de columnas y `order`; paginación `page`/`limit` (1–100). `incluir_vacios=true` agrega la cuarentena únicamente con acceso administrativo. | ✅ / ✅🔑🗝️ |
@@ -141,11 +141,11 @@ La política de roles vive en `src/lib/rbac.ts`; sesiones y middlewares, en [`sr
 
 ### Sesiones
 
-- Login exitoso → se genera un token aleatorio (`crypto.randomBytes(32)`), se guarda una fila en la tabla `sesiones` con expiración a **7 días**, y se setea como cookie `gsb_session` (`httpOnly`, `SameSite=Lax`, `path: /`).
-- Cada request autenticado busca la cookie, hace join `sesiones → usuarios → roles`, valida que no haya expirado y que tanto el usuario como su rol sigan activos. Si cualquiera fue desactivado, elimina esa sesión y responde `401`.
+- Login exitoso → se genera un token aleatorio de 64 caracteres hexadecimales (`crypto.randomBytes(32)`), se guarda una fila en la tabla `sesiones` con expiración absoluta a **7 días**, y se setea como cookie host-only `gsb_session` (`httpOnly`, `SameSite=Lax`, `path: /`). Sus opciones viven en un único helper usado también al rotarla y eliminarla.
+- Cada request autenticado acepta únicamente ese formato, hace join `sesiones → usuarios → roles`, considera vencido también el instante exacto del límite y valida que tanto el usuario como su rol sigan activos. Si la cookie está malformada, fue revocada, venció o la cuenta dejó de estar activa, elimina la fila cuando corresponde, expira la cookie y responde `401`; `/auth/me` y el candado global no generan un `Set-Cookie` cuando la petición nunca envió una cookie. Logout sí la expira siempre para conservar su semántica idempotente.
 - Desactivar un usuario o un rol desde Administración elimina en la misma transacción todas las sesiones afectadas y cierra sus conexiones SSE abiertas. Reactivarlo no revive cookies anteriores. El heartbeat del stream vuelve a validar la cookie cada 25 segundos como defensa adicional ante expiraciones o revocaciones externas.
 - `purgeExpiredSessions()` se invoca en cada login (barrido perezoso, no hay cron).
-- Logout borra la fila de `sesiones` y limpia la cookie.
+- Logout es idempotente: borra la fila de `sesiones` si existe y limpia la cookie. Todas las respuestas de `/auth/*` usan `Cache-Control: no-store`.
 - **Alta, reset y bootstrap emiten credenciales temporales**: guardan `usuarios.debe_cambiar_password = true`. Mientras siga pendiente, `/auth/me`, `/auth/logout` y `/auth/password` continúan disponibles, pero tickets, dashboard, administración y SSE responden `403` con `code: "PASSWORD_CHANGE_REQUIRED"`.
 - **Reset de contraseña revoca todas las sesiones del usuario** (`DELETE FROM sesiones WHERE usuario_id = ...`): si estaba logueado en otro navegador, queda afuera al instante y el próximo login exige reemplazar la clave temporal.
 - **Cambio propio rota la sesión**: verifica la contraseña actual, genera el hash fuera de la transacción y luego compara el hash observado antes de actualizarlo. En una sola transacción limpia el flag, elimina todos los tokens y crea uno nuevo; por eso dos cambios concurrentes no pueden confirmar ambos ni dejar un estado parcial.
@@ -162,7 +162,7 @@ Ambos controles viven en memoria porque el despliegue soportado tiene una sola i
 
 ### El candado global
 
-`requireSession` se monta una sola vez en `routes/index.ts`, después de las rutas públicas y de autenticación. A continuación se monta `requirePasswordChangeCompleted`, que falla cerrado si el flag falta o no es `false`. Cualquier router funcional montado después hereda ambos controles; las tres operaciones permitidas durante el cambio obligatorio se autentican dentro de `authRouter` y no atraviesan el segundo guard.
+`requireSession` se monta una sola vez en `routes/index.ts`, después de health, webhook y autenticación. Login y logout son públicos; `/auth/me` y `/auth/password` validan su cookie dentro de `authRouter`. A continuación se monta `requirePasswordChangeCompleted`, que falla cerrado si el flag falta o no es `false`. Cualquier router funcional montado después hereda ambos controles; las tres operaciones permitidas durante el cambio obligatorio se autentican dentro de `authRouter` y no atraviesan el segundo guard.
 
 El contrato OpenAPI tipa los códigos de `/auth/password` mediante `PasswordChangeError` y declara una respuesta `403` reutilizable para todas las operaciones detrás del segundo guard. El frontend invalida `/auth/me` al recibir `PASSWORD_CHANGE_REQUIRED`, por lo que una pestaña abierta también converge a la pantalla obligatoria si el estado cambió en el servidor.
 

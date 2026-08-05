@@ -23,7 +23,8 @@ tags:
   - name: auth
     description: >
       Autenticación por sesión. El login setea una cookie httpOnly; toda la API
-      (salvo healthz, el webhook de n8n y el propio login) exige esa sesión.
+      funcional exige esa sesión. Healthz, el webhook de n8n, login y el logout
+      idempotente son las únicas excepciones.
 
 security:
   - sessionCookie: []
@@ -335,7 +336,8 @@ paths:
       operationId: logout
       tags: [auth]
       summary: Cerrar sesión
-      description: Revoca la sesión actual y limpia la cookie.
+      security: []
+      description: Revoca la sesión actual si existe y limpia la cookie de forma idempotente.
       responses:
         "204":
           description: Sesión cerrada

@@ -9,12 +9,17 @@ import {
   verifyPasswordOrDummy,
 } from "../lib/passwords";
 import {
-  SESSION_COOKIE,
-  SESSION_TTL_MS,
-  getSessionToken,
   getSessionUser,
   purgeExpiredSessions,
 } from "../lib/auth";
+import {
+  SESSION_TTL_MS,
+  clearSessionCookie,
+  getSessionToken,
+  hasSessionCookie,
+  isSessionExpired,
+  setSessionCookie,
+} from "../lib/session-cookie";
 import {
   closeEventClientsForSession,
   closeEventClientsForUsers,
@@ -24,12 +29,6 @@ import { executeLoginKdf, loginAttemptLimiter } from "../lib/login-rate-limit";
 import { logger } from "../lib/logger";
 
 const router = Router();
-
-const cookieOptions = {
-  httpOnly: true,
-  sameSite: "lax" as const,
-  path: "/",
-};
 
 interface LoginUserRecord {
   id: number;
@@ -78,8 +77,12 @@ function sendLoginRateLimited(res: Response, retryAfterSeconds: number): void {
   });
 }
 
-router.post("/auth/login", async (req, res) => {
+router.use("/auth", (_req, res, next) => {
   res.set("Cache-Control", "no-store");
+  next();
+});
+
+router.post("/auth/login", async (req, res) => {
   const parsed = LoginBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid body" });
@@ -261,10 +264,7 @@ router.post("/auth/login", async (req, res) => {
   }
 
   resetSuccessfulIdentity();
-  res.cookie(SESSION_COOKIE, token, {
-    ...cookieOptions,
-    maxAge: SESSION_TTL_MS,
-  });
+  setSessionCookie(res, token);
   res.json({
     id: authenticatedUser.id,
     nombre: authenticatedUser.nombre,
@@ -279,7 +279,7 @@ router.post("/auth/password", async (req, res) => {
   const token = getSessionToken(req);
   const sessionUser = await getSessionUser(req);
   if (!token || !sessionUser) {
-    res.clearCookie(SESSION_COOKIE, cookieOptions);
+    clearSessionCookie(res);
     res
       .status(401)
       .json({ code: "SESSION_INVALID", error: "Sin sesión válida" });
@@ -317,7 +317,7 @@ router.post("/auth/password", async (req, res) => {
     // Si un reset revocó la sesión mientras se verificaba el hash observado,
     // no presentar esa carrera como una contraseña simplemente incorrecta.
     if (!(await getSessionUser(req))) {
-      res.clearCookie(SESSION_COOKIE, cookieOptions);
+      clearSessionCookie(res);
       res.status(401).json({
         code: "SESSION_CHANGED",
         error: "La sesión cambió mientras se verificaba la contraseña",
@@ -360,7 +360,7 @@ router.post("/auth/password", async (req, res) => {
       !current.password_hash ||
       !current.activo ||
       !current.rol_activo ||
-      current.session_expires_at < now ||
+      isSessionExpired(current.session_expires_at, now) ||
       current.password_hash !== observedHash
     ) {
       return { kind: "stale" } as const;
@@ -407,7 +407,7 @@ router.post("/auth/password", async (req, res) => {
   });
 
   if (result.kind === "stale") {
-    res.clearCookie(SESSION_COOKIE, cookieOptions);
+    clearSessionCookie(res);
     res.status(401).json({
       code: "SESSION_CHANGED",
       error: "La sesión cambió mientras se actualizaba la contraseña",
@@ -416,10 +416,7 @@ router.post("/auth/password", async (req, res) => {
   }
 
   closeEventClientsForUsers([result.user.id]);
-  res.cookie(SESSION_COOKIE, newToken, {
-    ...cookieOptions,
-    maxAge: SESSION_TTL_MS,
-  });
+  setSessionCookie(res, newToken);
   res.json(result.user);
 });
 
@@ -429,13 +426,14 @@ router.post("/auth/logout", async (req, res) => {
     await db.delete(sesionesTable).where(eq(sesionesTable.token, token));
     closeEventClientsForSession(token);
   }
-  res.clearCookie(SESSION_COOKIE, cookieOptions);
+  clearSessionCookie(res);
   res.status(204).end();
 });
 
 router.get("/auth/me", async (req, res) => {
   const user = await getSessionUser(req);
   if (!user) {
+    if (hasSessionCookie(req)) clearSessionCookie(res);
     res.status(401).json({ error: "Sin sesión válida" });
     return;
   }
