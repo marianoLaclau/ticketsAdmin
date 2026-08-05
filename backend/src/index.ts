@@ -4,12 +4,17 @@ import { logger } from "./lib/logger";
 import { ensureAdminSeed } from "./lib/seed";
 import { crearRunnerPrioridadAutomatica } from "./lib/prioridad-automatica-runner";
 import { reconciliarCategoriasMotivo } from "./lib/reclasificar-motivos";
+import { validateServiceSecrets } from "./lib/service-secrets";
 
 const port = Number(process.env["PORT"] ?? 5000);
 
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${process.env["PORT"]}"`);
 }
+
+// Un backend sin credenciales entre servicios no debe abrir el puerto ni
+// reportarse saludable. Los valores nunca se incluyen en el error.
+validateServiceSecrets();
 
 // Garantiza que exista un usuario capaz de loguearse antes de abrir el puerto
 await ensureAdminSeed();

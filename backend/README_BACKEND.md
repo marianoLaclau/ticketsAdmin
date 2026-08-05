@@ -2,6 +2,8 @@
 
 API REST en Express 5. Es el único componente que toca la base de datos: el frontend, n8n y el script de importación le hablan por HTTP, nunca acceden a SQLite directamente (salvo el CLI de backup/importación, que usa `@workspace/db` en proceso).
 
+Antes de ejecutar el seed o abrir el puerto, el proceso valida `WEBHOOK_API_KEY` y `ADMIN_API_KEY`: ambas son obligatorias, diferentes, de al menos 32 caracteres y no pueden ser placeholders, un único carácter repetido, controles ni tener espacios exteriores. La validación falla sin registrar los secretos, de modo que una configuración incompleta nunca queda marcada como saludable.
+
 > Para el panorama general del proyecto ver el [README.md](../README.md) de la raíz. Este documento es el detalle técnico de todo lo que vive en `backend/`.
 
 ## Índice

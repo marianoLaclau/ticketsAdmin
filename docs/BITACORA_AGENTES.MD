@@ -2,6 +2,17 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — Validación temprana de secretos entre servicios
+
+**Agente:** Codex
+**Estado:** séptima remediación de la auditoría técnica, implementada localmente.
+
+- El backend valida `WEBHOOK_API_KEY` y `ADMIN_API_KEY` antes del seed y antes de abrir el puerto: ambas deben existir, ser diferentes, tener al menos 32 caracteres y no usar controles, espacios exteriores, un único carácter repetido ni placeholders públicos conocidos.
+- Los errores identifican únicamente la variable y la regla incumplida; nunca incluyen el valor. Una configuración inválida aborta el proceso, por lo que `/healthz` no puede quedar verde con servicios administrativos o de ingesta inutilizables.
+- `.env.example` deja ambas claves vacías y documenta generación aleatoria con `openssl rand -hex 32`; copiar el ejemplo ya no satisface Compose con credenciales públicas.
+- Archivos principales: `.env.example`, `backend/src/lib/service-secrets.ts`, `backend/src/index.ts`, pruebas unitarias y documentación operativa/arquitectónica.
+- Validaciones: 236 pruebas correctas (backend 121, frontend 53, base de datos 10, política compartida 4 e ingesta 48), typecheck/build completos y comprobación no reveladora de que el entorno local cumple la política.
+
 ## 2026-08-04 — Rate limit y capacidad acotada del login
 
 **Agente:** Codex

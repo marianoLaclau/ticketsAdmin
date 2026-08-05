@@ -61,7 +61,7 @@ flowchart TB
 
 #### Transporte y seguridad
 
-`backend/src/app.ts` configura logging HTTP, CORS, cookies y parseo del body. `backend/src/routes/index.ts` monta las rutas bajo `/api` en este orden:
+`backend/src/index.ts` carga el entorno y valida los secretos entre servicios antes del seed y antes de abrir el puerto; una configuración incompleta no puede reportarse saludable. `backend/src/app.ts` configura logging HTTP, CORS, cookies y parseo del body. `backend/src/routes/index.ts` monta las rutas bajo `/api` en este orden:
 
 1. `health`: health check público.
 2. `webhooks`: ingesta pública protegida por `x-api-key`.
@@ -355,7 +355,7 @@ Credenciales:
 - `ADMIN_API_KEY`: segunda credencial para operaciones SysAdmin.
 - `BOOTSTRAP_SYSADMIN_PASSWORD`: secreto exclusivo del bootstrap para crear `sysadmin` cuando no hay hashes o rotar la credencial semilla heredada; la contraseña resultante es temporal.
 
-Las API keys y el secreto bootstrap se entregan por variables de entorno o secretos del runner y no deben entrar al repositorio. Las API keys no se persisten en la base; del secreto bootstrap solo se guarda un hash scrypt. Una credencial ya asegurada se conserva: la variable no funciona como mecanismo de reset. La rotación de compatibilidad actualiza el hash, activa el cambio obligatorio y revoca las sesiones del seed histórico en una única transacción.
+Las API keys y el secreto bootstrap se entregan por variables de entorno o secretos del runner y no deben entrar al repositorio. `WEBHOOK_API_KEY` y `ADMIN_API_KEY` se validan juntas al arrancar: deben existir, ser diferentes, tener al menos 32 caracteres y no usar controles, espacios exteriores, un único carácter repetido ni placeholders públicos; los errores solo identifican la variable, nunca su valor. Las API keys no se persisten en la base; del secreto bootstrap solo se guarda un hash scrypt. Una credencial ya asegurada se conserva: la variable no funciona como mecanismo de reset. La rotación de compatibilidad actualiza el hash, activa el cambio obligatorio y revoca las sesiones del seed histórico en una única transacción.
 
 ## 7. Estados, SLA y auditoría
 
