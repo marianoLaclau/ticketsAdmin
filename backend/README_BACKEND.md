@@ -61,6 +61,10 @@ backend/
       ticket-csv.ts                 → serialización segura del export completo
       prioridad-automatica.ts        → evaluación y promoción transaccional de prioridades
       prioridad-automatica-runner.ts  → pasada de arranque + ejecución periódica sin solapamientos
+      readiness.ts                     → estado monótono starting → ready → draining
+      runtime-readiness.ts              → control de readiness del proceso
+      sqlite-readiness.ts                → sonda barata del handle y schema mínimo de SQLite
+      server-lifecycle.ts                  → drenaje idempotente de HTTP, tareas y SSE
     routes/
       auth.ts     → login, sesión actual, logout y cambio de contraseña propia
       tickets.ts  → CRUD de tickets + seguimientos
@@ -68,7 +72,7 @@ backend/
       webhooks.ts → ingesta desde n8n
       admin.ts    → CRUD de tickets vía panel, roles, usuarios, import CSV, truncate
       events.ts   → GET /events (SSE)
-      health.ts   → GET /healthz
+      health.ts   → GET /healthz y GET /readyz
       index.ts    → ensambla todos los routers y aplica el orden de middlewares
 ```
 
@@ -86,55 +90,58 @@ Antes de montar middlewares desactiva `X-Powered-By`. La API no publica CORS: el
 Dentro de `routes/index.ts`, el orden importa:
 
 ```ts
-router.use(healthRouter);      // público
-router.use(webhooksRouter);    // público (clave propia x-api-key)
-router.use(authRouter);        // login/logout públicos; password/me validan sesión dentro
+router.use(healthRouter); // liveness/readiness públicos
+router.use(webhooksRouter); // público (clave propia x-api-key)
+router.use(authRouter); // login/logout públicos; password/me validan sesión dentro
 
-router.use(requireSession);    // 🔒 todo lo que sigue exige sesión
+router.use(requireSession); // 🔒 todo lo que sigue exige sesión
 router.use(requirePasswordChangeCompleted); // 🔒 bloquea credenciales temporales
 router.use(ticketsRouter);
 router.use(dashboardRouter);
-router.use(adminRouter);       // dentro, además: requireSysAdmin + requireAdminKey
-router.use(eventsRouter);      // SSE — también detrás del candado
+router.use(adminRouter); // dentro, además: requireSysAdmin + requireAdminKey
+router.use(eventsRouter); // SSE — también detrás del candado
 ```
 
 Cada handler individual sigue el mismo patrón: `safeParse` con el schema Zod generado → si falla, 400 → lógica → `res.json(...)`.
+
+El proceso nace en `starting`. Recién en el evento `listening` pasa a `ready`; en cada consulta valida que SQLite esté abierto y que pueda preparar/ejecutar una lectura acotada sobre `tickets.id` y `tickets.version`. Al recibir una señal cambia primero a `draining`, de forma irreversible, antes de logs, timers o cierres. Por eso un balanceador deja de enviar tráfico nuevo mientras las solicitudes existentes terminan. La sonda no ejecuta conteos, escrituras ni `integrity_check`, y nunca devuelve el error interno de SQLite.
 
 ## Rutas de la API
 
 Todas bajo el prefijo `/api`. ✅ = requiere sesión (candado global). 🔑 = además, rol SysAdmin. 🗝️ = además, `x-admin-key`.
 
-| Método y ruta | Qué hace | Acceso |
-|---|---|---|
-| `GET /healthz` | Chequeo de vida | público |
-| `POST /webhooks/ticket` | Ingesta de una llamada desde n8n. Idempotente por `conversation_id`: si ya existe, `200 { created: false, ticket }`; si no, `201 { created: true, ticket }`. Si llega una empresa real, crea atómicamente el primer seguimiento indicando que los datos fueron extraídos y persistidos desde Serin mediante el DNI proporcionado. Si no viene `fecha_limite`, se preestablece a **48 horas hábiles de lunes a viernes**; si viene, debe ser RFC3339 con zona (no se coercionan `null`/booleanos/números). Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío. | `x-api-key: WEBHOOK_API_KEY` |
-| `POST /auth/login` | Body `{ usuario, password }` (`usuario` = el `username` asignado al crear la cuenta, no el email; se normaliza a minúsculas). Devuelve `AuthUser` y setea la cookie `gsb_session`. Mensaje de error genérico a propósito (no revela si el usuario existe). Después de diez credenciales rechazadas para la misma identidad en 15 minutos responde `429` con `Retry-After`. | público |
-| `POST /auth/logout` | Revoca la sesión actual si existe y limpia la cookie de forma idempotente. `204`. | público |
-| `GET /auth/me` | Devuelve el `AuthUser` de la sesión activa, o `401`. | ✅ |
-| `POST /auth/password` | Cambia la contraseña propia con `{ password_actual, password_nueva }`. La actual conserva el contrato histórico de 1–128; la nueva aplica la política compartida y debe ser distinta. En una transacción limpia `debe_cambiar_password`, revoca todas las sesiones y crea una nueva para el navegador actual. | ✅, incluso con cambio pendiente |
-| `GET /tickets` | Listado con filtros: `estado`, `prioridad`, `fecha_desde`/`fecha_hasta` (día calendario **local**, según `TZ`), `hora_desde`/`hora_hasta`, `empresa`, `motivo`, `motivo_categoria`, `search`, `vencidos`; orden server-side con `sort_by` sobre una lista cerrada de columnas y `order`; paginación `page`/`limit` (1–100). `incluir_vacios=true` agrega la cuarentena únicamente con acceso administrativo. | ✅ / ✅🔑🗝️ |
-| `GET /tickets/export.csv` | Exporta **todos** los tickets operativos que coinciden con los mismos filtros y orden del listado, sin limitarse a la página visible. CSV UTF-8 con BOM, separador `;` y protección ante fórmulas. | ✅ |
-| `GET /tickets/:id` | Detalle + array de `seguimientos`. Admite `incluir_vacios=true` con acceso administrativo para abrir un registro en cuarentena. | ✅ / ✅🔑🗝️ |
-| `PATCH /tickets/:id` | Requiere `expected_version` y al menos un campo editable. Estado, prioridad, notas, progreso y datos funcionales requieren sesión; los campos técnicos (`hora`, `notificado`, `audio_url`, `fecha_resolucion`, `fecha_limite`) exigen SysAdmin + `x-admin-key`. Un cambio real incrementa `version` junto con la auditoría; una versión vieja devuelve `409 TICKET_VERSION_CONFLICT` sin escribir. Motivo/resumen reclasifican y una transición real autoasigna. | ✅ / ✅🔑🗝️ |
-| `DELETE /tickets/:id` | Borra el ticket (cascada sobre sus seguimientos). `204`. | ✅🔑🗝️ |
-| `GET /tickets/:id/seguimientos` | Historial ordenado por fecha; admite el acceso administrativo a cuarentena mediante `incluir_vacios=true`. | ✅ / ✅🔑🗝️ |
-| `POST /tickets/:id/seguimientos` | Crea una nota; admite el acceso administrativo a cuarentena. **El campo `autor` y el contexto se derivan en el backend desde la sesión y el ticket**, así el historial no es falsificable. | ✅ / ✅🔑🗝️ |
-| `GET /dashboard/stats` | Totales por estado/prioridad, vencidos, resueltos hoy/período, nuevos hoy/período y tiempo promedio. Admite `fecha_desde`/`fecha_hasta` inclusivas por fecha de creación; resueltos del período pertenece a esa misma cohorte. | ✅ |
-| `GET /dashboard/actividad-reciente` | Mezcla de tickets creados + seguimientos, ordenados por fecha, con `limit` y `fecha_desde`/`fecha_hasta`; el rango se aplica a la fecha real de cada evento. | ✅ |
-| `GET /dashboard/tickets-vencidos` | Los que pasaron `fecha_limite` sin llegar a `resuelto`/`cerrado`, hasta 20; admite rango inclusivo por fecha de creación. | ✅ |
-| `GET /dashboard/motivos` | Conteo por `motivo_categoria` (no por texto libre), con label y rango inclusivo por fecha de creación. | ✅ |
-| `POST /admin/tickets` | Alta manual (`409` si el `conversation_id` ya existe). Una `fecha_limite` explícita debe ser RFC3339 con zona. Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío. | ✅🔑🗝️ |
-| `GET /admin/roles` | Listado paginado de roles, con `search` sobre nombre/descripción. | ✅🔑🗝️ |
-| `POST /admin/roles` | Crea un rol (`409` si el nombre ya existe). | ✅🔑🗝️ |
-| `PATCH /admin/roles/:id` | Edita nombre/descripción/activo. | ✅🔑🗝️ |
-| `DELETE /admin/roles/:id` | Borra el rol; `409` si tiene usuarios asignados. | ✅🔑🗝️ |
-| `GET /admin/users` | Listado paginado con `search`, `role_id`, `activo`. Nunca incluye `password_hash` en la respuesta. | ✅🔑🗝️ |
-| `POST /admin/users` | Crea un usuario con `username` y `password` obligatorios (el SysAdmin define las credenciales y se las entrega). `409` si el email o el username ya existen; `400` si el rol no existe o la contraseña incumple la política compartida. | ✅🔑🗝️ |
-| `PATCH /admin/users/:id` | Edita nombre/apellido/username/email/rol/activo. No acepta contraseña — eso sigue yendo por el endpoint dedicado. | ✅🔑🗝️ |
-| `POST /admin/users/:id/password` | Establece/reestablece una contraseña conforme a la política compartida y **revoca todas las sesiones activas de ese usuario**. `204`. | ✅🔑🗝️ |
-| `POST /admin/import` | Importación masiva desde CSV (texto plano en el body). Con `dry_run: true` solo simula. Idempotente por `conversation_id` y atómica: un fallo revierte la tanda completa. Emite `tickets_importados` solo después del commit. | ✅🔑🗝️ |
-| `POST /admin/truncate` | Borra **todos** los tickets y seguimientos y reinicia los contadores autoincrement en una única transacción. Exige `{ confirmar: true }`. Emite `datos_actualizados` solo después del commit. | ✅🔑🗝️ |
-| `GET /events` | Stream SSE. Fuera del contrato OpenAPI a propósito (Orval no modela streams). | ✅ |
+| Método y ruta                       | Qué hace                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Acceso                           |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `GET /healthz`                      | Chequeo de vida                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | público                          |
+| `GET /readyz`                       | `200 { status: "ready" }` solo después de escuchar, con SQLite y schema mínimo disponibles; durante arranque, fallo de dependencia o drenaje devuelve `503 { status: "unavailable" }`.                                                                                                                                                                                                                                                                                                                                                                                                                                             | público                          |
+| `POST /webhooks/ticket`             | Ingesta de una llamada desde n8n. Idempotente por `conversation_id`: si ya existe, `200 { created: false, ticket }`; si no, `201 { created: true, ticket }`. Si llega una empresa real, crea atómicamente el primer seguimiento indicando que los datos fueron extraídos y persistidos desde Serin mediante el DNI proporcionado. Si no viene `fecha_limite`, se preestablece a **48 horas hábiles de lunes a viernes**; si viene, debe ser RFC3339 con zona (no se coercionan `null`/booleanos/números). Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío. | `x-api-key: WEBHOOK_API_KEY`     |
+| `POST /auth/login`                  | Body `{ usuario, password }` (`usuario` = el `username` asignado al crear la cuenta, no el email; se normaliza a minúsculas). Devuelve `AuthUser` y setea la cookie `gsb_session`. Mensaje de error genérico a propósito (no revela si el usuario existe). Después de diez credenciales rechazadas para la misma identidad en 15 minutos responde `429` con `Retry-After`.                                                                                                                                                                                                                                                         | público                          |
+| `POST /auth/logout`                 | Revoca la sesión actual si existe y limpia la cookie de forma idempotente. `204`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | público                          |
+| `GET /auth/me`                      | Devuelve el `AuthUser` de la sesión activa, o `401`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | ✅                               |
+| `POST /auth/password`               | Cambia la contraseña propia con `{ password_actual, password_nueva }`. La actual conserva el contrato histórico de 1–128; la nueva aplica la política compartida y debe ser distinta. En una transacción limpia `debe_cambiar_password`, revoca todas las sesiones y crea una nueva para el navegador actual.                                                                                                                                                                                                                                                                                                                      | ✅, incluso con cambio pendiente |
+| `GET /tickets`                      | Listado con filtros: `estado`, `prioridad`, `fecha_desde`/`fecha_hasta` (día calendario **local**, según `TZ`), `hora_desde`/`hora_hasta`, `empresa`, `motivo`, `motivo_categoria`, `search`, `vencidos`; orden server-side con `sort_by` sobre una lista cerrada de columnas y `order`; paginación `page`/`limit` (1–100). `incluir_vacios=true` agrega la cuarentena únicamente con acceso administrativo.                                                                                                                                                                                                                       | ✅ / ✅🔑🗝️                      |
+| `GET /tickets/export.csv`           | Exporta **todos** los tickets operativos que coinciden con los mismos filtros y orden del listado, sin limitarse a la página visible. CSV UTF-8 con BOM, separador `;` y protección ante fórmulas.                                                                                                                                                                                                                                                                                                                                                                                                                                 | ✅                               |
+| `GET /tickets/:id`                  | Detalle + array de `seguimientos`. Admite `incluir_vacios=true` con acceso administrativo para abrir un registro en cuarentena.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | ✅ / ✅🔑🗝️                      |
+| `PATCH /tickets/:id`                | Requiere `expected_version` y al menos un campo editable. Estado, prioridad, notas, progreso y datos funcionales requieren sesión; los campos técnicos (`hora`, `notificado`, `audio_url`, `fecha_resolucion`, `fecha_limite`) exigen SysAdmin + `x-admin-key`. Un cambio real incrementa `version` junto con la auditoría; una versión vieja devuelve `409 TICKET_VERSION_CONFLICT` sin escribir. Motivo/resumen reclasifican y una transición real autoasigna.                                                                                                                                                                   | ✅ / ✅🔑🗝️                      |
+| `DELETE /tickets/:id`               | Borra el ticket (cascada sobre sus seguimientos). `204`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | ✅🔑🗝️                           |
+| `GET /tickets/:id/seguimientos`     | Historial ordenado por fecha; admite el acceso administrativo a cuarentena mediante `incluir_vacios=true`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | ✅ / ✅🔑🗝️                      |
+| `POST /tickets/:id/seguimientos`    | Crea una nota; admite el acceso administrativo a cuarentena. **El campo `autor` y el contexto se derivan en el backend desde la sesión y el ticket**, así el historial no es falsificable.                                                                                                                                                                                                                                                                                                                                                                                                                                         | ✅ / ✅🔑🗝️                      |
+| `GET /dashboard/stats`              | Totales por estado/prioridad, vencidos, resueltos hoy/período, nuevos hoy/período y tiempo promedio. Admite `fecha_desde`/`fecha_hasta` inclusivas por fecha de creación; resueltos del período pertenece a esa misma cohorte.                                                                                                                                                                                                                                                                                                                                                                                                     | ✅                               |
+| `GET /dashboard/actividad-reciente` | Mezcla de tickets creados + seguimientos, ordenados por fecha, con `limit` y `fecha_desde`/`fecha_hasta`; el rango se aplica a la fecha real de cada evento.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | ✅                               |
+| `GET /dashboard/tickets-vencidos`   | Los que pasaron `fecha_limite` sin llegar a `resuelto`/`cerrado`, hasta 20; admite rango inclusivo por fecha de creación.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | ✅                               |
+| `GET /dashboard/motivos`            | Conteo por `motivo_categoria` (no por texto libre), con label y rango inclusivo por fecha de creación.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | ✅                               |
+| `POST /admin/tickets`               | Alta manual (`409` si el `conversation_id` ya existe). Una `fecha_limite` explícita debe ser RFC3339 con zona. Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío.                                                                                                                                                                                                                                                                                                                                                                                            | ✅🔑🗝️                           |
+| `GET /admin/roles`                  | Listado paginado de roles, con `search` sobre nombre/descripción.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | ✅🔑🗝️                           |
+| `POST /admin/roles`                 | Crea un rol (`409` si el nombre ya existe).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | ✅🔑🗝️                           |
+| `PATCH /admin/roles/:id`            | Edita nombre/descripción/activo.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | ✅🔑🗝️                           |
+| `DELETE /admin/roles/:id`           | Borra el rol; `409` si tiene usuarios asignados.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | ✅🔑🗝️                           |
+| `GET /admin/users`                  | Listado paginado con `search`, `role_id`, `activo`. Nunca incluye `password_hash` en la respuesta.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | ✅🔑🗝️                           |
+| `POST /admin/users`                 | Crea un usuario con `username` y `password` obligatorios (el SysAdmin define las credenciales y se las entrega). `409` si el email o el username ya existen; `400` si el rol no existe o la contraseña incumple la política compartida.                                                                                                                                                                                                                                                                                                                                                                                            | ✅🔑🗝️                           |
+| `PATCH /admin/users/:id`            | Edita nombre/apellido/username/email/rol/activo. No acepta contraseña — eso sigue yendo por el endpoint dedicado.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | ✅🔑🗝️                           |
+| `POST /admin/users/:id/password`    | Establece/reestablece una contraseña conforme a la política compartida y **revoca todas las sesiones activas de ese usuario**. `204`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | ✅🔑🗝️                           |
+| `POST /admin/import`                | Importación masiva desde CSV (texto plano en el body). Con `dry_run: true` solo simula. Idempotente por `conversation_id` y atómica: un fallo revierte la tanda completa. Emite `tickets_importados` solo después del commit.                                                                                                                                                                                                                                                                                                                                                                                                      | ✅🔑🗝️                           |
+| `POST /admin/truncate`              | Borra **todos** los tickets y seguimientos y reinicia los contadores autoincrement en una única transacción. Exige `{ confirmar: true }`. Emite `datos_actualizados` solo después del commit.                                                                                                                                                                                                                                                                                                                                                                                                                                      | ✅🔑🗝️                           |
+| `GET /events`                       | Stream SSE. Fuera del contrato OpenAPI a propósito (Orval no modela streams).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | ✅                               |
 
 ## Autenticación y autorización
 
@@ -172,11 +179,11 @@ El contrato OpenAPI tipa los códigos de `/auth/password` mediante `PasswordChan
 
 Tres roles base por nombre (constantes en `rbac.ts`, espejadas en `frontend/src/lib/roles.ts`):
 
-| Constante | Valor | Regla |
-|---|---|---|
-| `ROL_SYSADMIN` | `"SysAdmin"` | Único que pasa `requireSysAdmin` → único con acceso a `/admin/*` |
-| `ROL_ADMINISTRADOR` | `"Administrador"` | `puedeCerrarTickets()` devuelve `true` |
-| `ROL_OPERADOR` | `"Operador"` | `puedeCerrarTickets()` devuelve `false` — el `PATCH /tickets/:id` con `estado: "cerrado"` le responde `403` |
+| Constante           | Valor             | Regla                                                                                                       |
+| ------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------- |
+| `ROL_SYSADMIN`      | `"SysAdmin"`      | Único que pasa `requireSysAdmin` → único con acceso a `/admin/*`                                            |
+| `ROL_ADMINISTRADOR` | `"Administrador"` | `puedeCerrarTickets()` devuelve `true`                                                                      |
+| `ROL_OPERADOR`      | `"Operador"`      | `puedeCerrarTickets()` devuelve `false` — el `PATCH /tickets/:id` con `estado: "cerrado"` le responde `403` |
 
 Los tres nombres quedan reservados sin distinguir mayúsculas: esos roles no se pueden renombrar, desactivar ni eliminar, aunque sí se puede corregir su descripción. Los roles personalizados conservan su CRUD; uno inactivo no admite nuevas asignaciones y revoca las sesiones y streams de sus usuarios. El backend también impide desactivar o degradar al último SysAdmin activo que tenga username y un hash scrypt utilizable.
 
@@ -222,28 +229,28 @@ SQLite vía `better-sqlite3`, modo WAL, `foreign_keys = ON`. Definido en `lib/db
 
 ### `tickets` — una fila por llamada
 
-| Columna | Tipo | Notas |
-|---|---|---|
-| `id` | integer PK autoincrement | Uso interno; no se expone en la UI |
-| `version` | integer, default `1`, check `>= 1` | Revisión monotónica de la fila; cada cambio real del ticket la incrementa dentro de la misma transacción |
-| `conversation_id` | text, **único** | ID de ElevenLabs — clave de idempotencia |
-| `hora` | text | `"HH:MM"` de la llamada |
-| `nombre`, `apellido` | text (nombre requerido) | Datos del contacto |
-| `telefono`, `dni`, `empresa`, `email` | text, nullable | |
-| `estado_empleado` | text enum: `Activo` \| `Inactivo`, nullable | Informado por n8n; los registros anteriores permanecen en `null` |
-| `motivo` | text | Texto libre recibido; los procesos automáticos nunca lo reescriben, aunque puede corregirse mediante una edición funcional auditada |
-| `motivo_categoria` | text enum, default `sin_clasificar` | Derivado de `motivo`/`resumen` por `clasificarMotivo()` — ver [Categorización de motivos](#categorización-de-motivos) |
-| `resumen` | text, nullable | |
-| `notificado` | boolean, default `false` | |
-| `estado` | text enum: `nuevo` \| `en_proceso` \| `pendiente` \| `resuelto` \| `cerrado`, default `nuevo` | Pasar a `cerrado` exige rol Administrador/SysAdmin |
-| `prioridad` | text enum: `baja` \| `media` \| `alta` \| `urgente`, default `media` | Puede promoverse automáticamente según las horas hábiles restantes; nunca se degrada |
-| `asignado_usuario_id` | integer → `usuarios.id`, nullable | Identidad autoritativa; `onDelete: set null` |
-| `asignado_a` | text, nullable | Snapshot legible del responsable y compatibilidad histórica |
-| `audio_url`, `notas` | text, nullable | |
-| `progreso` | integer, default `0` | 0–100 |
-| `fecha_creacion` | integer (timestamp ms) | Default: ahora; los importadores históricos usan la fecha/hora válida de la fila |
-| `fecha_limite` | integer (timestamp ms), nullable | SLA de 48 horas hábiles desde `fecha_creacion`, pausado sábado/domingo, si no viene explícita (webhook/alta/import) |
-| `fecha_resolucion` | integer (timestamp ms), nullable | Se autocompleta al entrar en `resuelto`/`cerrado`; se limpia al reabrir y se conserva al pasar de resuelto a cerrado |
+| Columna                               | Tipo                                                                                          | Notas                                                                                                                               |
+| ------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                                  | integer PK autoincrement                                                                      | Uso interno; no se expone en la UI                                                                                                  |
+| `version`                             | integer, default `1`, check `>= 1`                                                            | Revisión monotónica de la fila; cada cambio real del ticket la incrementa dentro de la misma transacción                            |
+| `conversation_id`                     | text, **único**                                                                               | ID de ElevenLabs — clave de idempotencia                                                                                            |
+| `hora`                                | text                                                                                          | `"HH:MM"` de la llamada                                                                                                             |
+| `nombre`, `apellido`                  | text (nombre requerido)                                                                       | Datos del contacto                                                                                                                  |
+| `telefono`, `dni`, `empresa`, `email` | text, nullable                                                                                |                                                                                                                                     |
+| `estado_empleado`                     | text enum: `Activo` \| `Inactivo`, nullable                                                   | Informado por n8n; los registros anteriores permanecen en `null`                                                                    |
+| `motivo`                              | text                                                                                          | Texto libre recibido; los procesos automáticos nunca lo reescriben, aunque puede corregirse mediante una edición funcional auditada |
+| `motivo_categoria`                    | text enum, default `sin_clasificar`                                                           | Derivado de `motivo`/`resumen` por `clasificarMotivo()` — ver [Categorización de motivos](#categorización-de-motivos)               |
+| `resumen`                             | text, nullable                                                                                |                                                                                                                                     |
+| `notificado`                          | boolean, default `false`                                                                      |                                                                                                                                     |
+| `estado`                              | text enum: `nuevo` \| `en_proceso` \| `pendiente` \| `resuelto` \| `cerrado`, default `nuevo` | Pasar a `cerrado` exige rol Administrador/SysAdmin                                                                                  |
+| `prioridad`                           | text enum: `baja` \| `media` \| `alta` \| `urgente`, default `media`                          | Puede promoverse automáticamente según las horas hábiles restantes; nunca se degrada                                                |
+| `asignado_usuario_id`                 | integer → `usuarios.id`, nullable                                                             | Identidad autoritativa; `onDelete: set null`                                                                                        |
+| `asignado_a`                          | text, nullable                                                                                | Snapshot legible del responsable y compatibilidad histórica                                                                         |
+| `audio_url`, `notas`                  | text, nullable                                                                                |                                                                                                                                     |
+| `progreso`                            | integer, default `0`                                                                          | 0–100                                                                                                                               |
+| `fecha_creacion`                      | integer (timestamp ms)                                                                        | Default: ahora; los importadores históricos usan la fecha/hora válida de la fila                                                    |
+| `fecha_limite`                        | integer (timestamp ms), nullable                                                              | SLA de 48 horas hábiles desde `fecha_creacion`, pausado sábado/domingo, si no viene explícita (webhook/alta/import)                 |
+| `fecha_resolucion`                    | integer (timestamp ms), nullable                                                              | Se autocompleta al entrar en `resuelto`/`cerrado`; se limpia al reabrir y se conserva al pasar de resuelto a cerrado                |
 
 `estado_empleado` corresponde a la consulta de Serin para el DNI y la empresa recibidos. Si una edición manual cambia cualquiera de esos dos datos, el backend lo limpia automáticamente y audita también ese campo para no asociar un estado laboral anterior a otra identidad o empresa.
 
@@ -251,55 +258,55 @@ La migración `0012_add_ticket_version.sql` asigna `version = 1` a cada históri
 
 ### `seguimientos` — historial de cada ticket
 
-| Columna | Tipo | Notas |
-|---|---|---|
-| `id` | integer PK autoincrement | |
-| `ticket_id` | integer → `tickets.id` | `onDelete: cascade` |
-| `nota` | text | |
-| `estado_anterior`, `estado_nuevo` | text, nullable | Registra transiciones de estado |
-| `prioridad_anterior`, `prioridad_nueva` | text, nullable | Registra promociones manuales o automáticas |
-| `asignado_anterior_usuario_id`, `asignado_nuevo_usuario_id` | integer, nullable | Identidades de la asignación antes/después |
-| `asignado_anterior`, `asignado_nuevo` | text, nullable | Snapshots legibles de la asignación antes/después |
-| `campos_editados` | JSON de strings, nullable | Nombres de los campos modificados; no duplica valores sensibles |
-| `autor` | text, nullable | **Asignado por el backend** desde la sesión, no por el cliente |
-| `fecha_creacion` | integer (timestamp ms) | |
+| Columna                                                     | Tipo                      | Notas                                                           |
+| ----------------------------------------------------------- | ------------------------- | --------------------------------------------------------------- |
+| `id`                                                        | integer PK autoincrement  |                                                                 |
+| `ticket_id`                                                 | integer → `tickets.id`    | `onDelete: cascade`                                             |
+| `nota`                                                      | text                      |                                                                 |
+| `estado_anterior`, `estado_nuevo`                           | text, nullable            | Registra transiciones de estado                                 |
+| `prioridad_anterior`, `prioridad_nueva`                     | text, nullable            | Registra promociones manuales o automáticas                     |
+| `asignado_anterior_usuario_id`, `asignado_nuevo_usuario_id` | integer, nullable         | Identidades de la asignación antes/después                      |
+| `asignado_anterior`, `asignado_nuevo`                       | text, nullable            | Snapshots legibles de la asignación antes/después               |
+| `campos_editados`                                           | JSON de strings, nullable | Nombres de los campos modificados; no duplica valores sensibles |
+| `autor`                                                     | text, nullable            | **Asignado por el backend** desde la sesión, no por el cliente  |
+| `fecha_creacion`                                            | integer (timestamp ms)    |                                                                 |
 
 Cuando el webhook crea un ticket con empresa real, inserta en la misma transacción un seguimiento inicial con autor `Sistema` y la leyenda de origen Serin. Los reintentos por `conversation_id` no duplican esa entrada. El historial se ordena por fecha y luego por ID para conservar un orden determinista. La entrada automática permanece visible en el ticket, pero se excluye de `actividad-reciente` para no duplicar cada alta en el feed general.
 
 ### `roles`
 
-| Columna | Tipo | Notas |
-|---|---|---|
-| `id` | integer PK autoincrement | |
-| `nombre` | text, **único** | `SysAdmin` / `Administrador` / `Operador` (o los que se agreguen) |
-| `descripcion` | text, nullable | |
-| `activo` | boolean, default `true` | Desactivar ≠ borrar |
-| `fecha_creacion`, `fecha_actualizacion` | integer (timestamp ms) | |
+| Columna                                 | Tipo                     | Notas                                                             |
+| --------------------------------------- | ------------------------ | ----------------------------------------------------------------- |
+| `id`                                    | integer PK autoincrement |                                                                   |
+| `nombre`                                | text, **único**          | `SysAdmin` / `Administrador` / `Operador` (o los que se agreguen) |
+| `descripcion`                           | text, nullable           |                                                                   |
+| `activo`                                | boolean, default `true`  | Desactivar ≠ borrar                                               |
+| `fecha_creacion`, `fecha_actualizacion` | integer (timestamp ms)   |                                                                   |
 
 No se puede borrar un rol con usuarios asignados (`409`), aunque esté inactivo.
 
 ### `usuarios`
 
-| Columna | Tipo | Notas |
-|---|---|---|
-| `id` | integer PK autoincrement | |
-| `nombre` | text | |
-| `apellido` | text, nullable | |
-| `username` | text, **único**, nullable | El identificador de login (distinto del email). Nullable solo por compatibilidad con filas creadas antes de este campo — el seed lo backfillea con el email al arrancar |
-| `email` | text, **único** | Se normaliza a minúsculas al guardar; dato de contacto, ya no es el identificador de login |
-| `password_hash` | text, **nullable** | `null` = no puede loguearse todavía. Al crear un usuario desde el panel, `username` + `password` son obligatorios, así que en la práctica siempre queda seteado en ese momento |
-| `role_id` | integer → `roles.id` | `onDelete: restrict` — no se puede borrar un rol en uso |
-| `activo` | boolean, default `true` | Un usuario desactivado pierde el acceso aunque su sesión siga viva |
-| `fecha_creacion`, `fecha_actualizacion` | integer (timestamp ms) | |
+| Columna                                 | Tipo                      | Notas                                                                                                                                                                          |
+| --------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`                                    | integer PK autoincrement  |                                                                                                                                                                                |
+| `nombre`                                | text                      |                                                                                                                                                                                |
+| `apellido`                              | text, nullable            |                                                                                                                                                                                |
+| `username`                              | text, **único**, nullable | El identificador de login (distinto del email). Nullable solo por compatibilidad con filas creadas antes de este campo — el seed lo backfillea con el email al arrancar        |
+| `email`                                 | text, **único**           | Se normaliza a minúsculas al guardar; dato de contacto, ya no es el identificador de login                                                                                     |
+| `password_hash`                         | text, **nullable**        | `null` = no puede loguearse todavía. Al crear un usuario desde el panel, `username` + `password` son obligatorios, así que en la práctica siempre queda seteado en ese momento |
+| `role_id`                               | integer → `roles.id`      | `onDelete: restrict` — no se puede borrar un rol en uso                                                                                                                        |
+| `activo`                                | boolean, default `true`   | Un usuario desactivado pierde el acceso aunque su sesión siga viva                                                                                                             |
+| `fecha_creacion`, `fecha_actualizacion` | integer (timestamp ms)    |                                                                                                                                                                                |
 
 ### `sesiones`
 
-| Columna | Tipo | Notas |
-|---|---|---|
-| `token` | text PK | Nombre físico histórico; contiene solo `sha256:<64 hex>` del bearer, nunca el valor de `gsb_session` |
-| `usuario_id` | integer → `usuarios.id` | `onDelete: cascade` |
-| `fecha_expiracion` | integer (timestamp ms) | 7 días desde el login |
-| `fecha_creacion` | integer (timestamp ms) | |
+| Columna            | Tipo                    | Notas                                                                                                |
+| ------------------ | ----------------------- | ---------------------------------------------------------------------------------------------------- |
+| `token`            | text PK                 | Nombre físico histórico; contiene solo `sha256:<64 hex>` del bearer, nunca el valor de `gsb_session` |
+| `usuario_id`       | integer → `usuarios.id` | `onDelete: cascade`                                                                                  |
+| `fecha_expiracion` | integer (timestamp ms)  | 7 días desde el login                                                                                |
+| `fecha_creacion`   | integer (timestamp ms)  |                                                                                                      |
 
 ### Migraciones
 
@@ -358,6 +365,7 @@ Tanto el importador HTTP como el CLI preparan las filas antes de abrir la transa
 `src/lib/events.ts` mantiene un `Map` en memoria con cada respuesta HTTP abierta y su identidad de usuario/sesión (una por pestaña conectada a `GET /api/events`). `broadcastEvent(tipo, data)` escribe `data: {...}\n\n` a todos los clientes conectados.
 
 Emisores actuales:
+
 - `POST /webhooks/ticket` → `ticket_creado` para tickets operativos (con `ticket_id`, `nombre`, `apellido`, `motivo`); `datos_actualizados` para registros vacíos en cuarentena.
 - `POST /admin/tickets` → `ticket_creado` para tickets operativos; `datos_actualizados` para registros vacíos en cuarentena.
 - `POST /admin/import` → `tickets_importados` (con cantidad visible y total insertado) si la tanda incluye al menos un ticket operativo; si todos los registros importados quedan en cuarentena, emite `datos_actualizados`. No emite eventos en `dry_run`.
@@ -374,16 +382,16 @@ El endpoint manda `retry: 5000` (reconexión automática del navegador) y un hea
 
 Ver también la tabla en el [README raíz](../README.md#configuración). Las que lee específicamente el backend:
 
-| Variable | Dónde se usa | Comportamiento si falta |
-|---|---|---|
-| `PORT` | `index.ts` | Default `5000` |
-| `WEBHOOK_API_KEY` | `requireWebhookKey` | El webhook responde `503` (cerrado) |
-| `ADMIN_API_KEY` | `requireAdminKey` | Las operaciones administrativas responden `503` (cerradas) |
-| `BOOTSTRAP_SYSADMIN_PASSWORD` | `ensureAdminSeed` | En una base sin hashes o con el seed heredado, el arranque falla antes de escuchar tráfico; una cuenta ya asegurada no depende de ella |
-| `TICKETS_DB_PATH` | `lib/db/src/db-path.ts` | Default `<repo>/data/tickets.db` (busca la raíz del monorepo por `pnpm-workspace.yaml`) |
-| `PRIORIDAD_AUTOMATICA_INTERVAL_MS` | `prioridad-automatica-runner.ts` | Default `300000` (5 min); acepta enteros desde `10000` ms |
-| `TZ` | proceso Node (filtros de fecha) | Zona del sistema; en Docker se fija `America/Argentina/Buenos_Aires` por default |
-| `NODE_ENV` | `logger.ts` | En producción desactiva `pino-pretty` (logs JSON crudos) |
+| Variable                           | Dónde se usa                     | Comportamiento si falta                                                                                                                |
+| ---------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                             | `index.ts`                       | Default `5000`                                                                                                                         |
+| `WEBHOOK_API_KEY`                  | `requireWebhookKey`              | El webhook responde `503` (cerrado)                                                                                                    |
+| `ADMIN_API_KEY`                    | `requireAdminKey`                | Las operaciones administrativas responden `503` (cerradas)                                                                             |
+| `BOOTSTRAP_SYSADMIN_PASSWORD`      | `ensureAdminSeed`                | En una base sin hashes o con el seed heredado, el arranque falla antes de escuchar tráfico; una cuenta ya asegurada no depende de ella |
+| `TICKETS_DB_PATH`                  | `lib/db/src/db-path.ts`          | Default `<repo>/data/tickets.db` (busca la raíz del monorepo por `pnpm-workspace.yaml`)                                                |
+| `PRIORIDAD_AUTOMATICA_INTERVAL_MS` | `prioridad-automatica-runner.ts` | Default `300000` (5 min); acepta enteros desde `10000` ms                                                                              |
+| `TZ`                               | proceso Node (filtros de fecha)  | Zona del sistema; en Docker se fija `America/Argentina/Buenos_Aires` por default                                                       |
+| `NODE_ENV`                         | `logger.ts`                      | En producción desactiva `pino-pretty` (logs JSON crudos)                                                                               |
 
 ## Build y despliegue
 
@@ -408,4 +416,5 @@ CLI: `scripts/src/backup-db.ts`, expuesto como `pnpm run backup:db -- --output <
 - Autenticado pero sin permiso → `403` (rol SysAdmin en admin, rol Administrador para cerrar tickets).
 - Recurso no encontrado → `404`.
 - Conflicto (unique constraint, rol con usuarios asignados) → `409`.
+- `GET /readyz` fuera de fase `ready` o sin el schema mínimo de SQLite → `503` intencional y genérico; no convierte `healthz` en un fallo ni expone la excepción interna.
 - Todo lo demás sin capturar explícitamente propaga la excepción (Express 5 la atrapa y devuelve 500; queda logueada por pino-http).

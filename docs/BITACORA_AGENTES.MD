@@ -2,6 +2,18 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — Readiness real del backend
+
+**Agente:** Codex
+**Estado:** vigesimotercera remediación de la auditoría técnica, implementada localmente.
+
+- Se separaron los contratos operativos: `GET /api/healthz` es liveness estática y responde únicamente `200 { status: "ok" }`; `GET /api/readyz` publica `200 { status: "ready" }` o `503 { status: "unavailable" }`. Ambos endpoints son públicos, usan `Cache-Control: no-store` y OpenAPI/codegen conserva tipos distintos para éxito y error.
+- El proceso mantiene un estado monótono `starting → ready → draining`. Solo se anuncia listo desde el evento HTTP `listening`; una señal o error inicia el drenaje como primera acción síncrona y el estado nunca puede volver a `ready`, incluso ante una carrera de arranque.
+- Readiness falla cerrado fuera de la fase lista. Dentro de ella verifica que el handle SQLite siga abierto y ejecuta una lectura acotada de `tickets.id` y `tickets.version`, validando conexión y schema mínimo sin conteos, escrituras ni recorridos completos. Un error se registra internamente, pero la respuesta no filtra excepciones, paths ni detalles del motor.
+- La ruta quedó construible por inyección para probar dependencias fallidas sin cerrar la base compartida. Se cubrieron el estado irreversible, la ausencia de sondas durante arranque/drenaje, recuperación de un fallo transitorio, schema ausente, handle cerrado, separación exacta de schemas Zod, respuesta HTTP genérica y orden del apagado.
+- Archivos principales: contrato y artefactos OpenAPI, control y sonda de readiness, router de health, composition root/ciclo de salida, pruebas y documentación técnica.
+- Validaciones: 16 pruebas focalizadas, schema Drizzle, 166 pruebas backend y 308 pruebas totales aprobadas; typecheck y builds de producción completos. El build conserva los avisos ya registrados de sourcemaps en cuatro componentes UI y del bundle frontend mayor a 500 kB.
+
 ## 2026-08-05 — Apagado controlado del backend
 
 **Agente:** Codex

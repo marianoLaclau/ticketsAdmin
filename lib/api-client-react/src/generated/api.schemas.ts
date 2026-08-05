@@ -392,8 +392,37 @@ export interface TicketIngestResult {
   ticket: Ticket;
 }
 
+export type HealthStatusStatus = typeof HealthStatusStatus[keyof typeof HealthStatusStatus];
+
+
+export const HealthStatusStatus = {
+  ok: 'ok',
+} as const;
+
 export interface HealthStatus {
-  status: string;
+  status: HealthStatusStatus;
+}
+
+export type ReadinessStatusStatus = typeof ReadinessStatusStatus[keyof typeof ReadinessStatusStatus];
+
+
+export const ReadinessStatusStatus = {
+  ready: 'ready',
+} as const;
+
+export interface ReadinessStatus {
+  status: ReadinessStatusStatus;
+}
+
+export type ReadinessUnavailableStatus = typeof ReadinessUnavailableStatus[keyof typeof ReadinessUnavailableStatus];
+
+
+export const ReadinessUnavailableStatus = {
+  unavailable: 'unavailable',
+} as const;
+
+export interface ReadinessUnavailable {
+  status: ReadinessUnavailableStatus;
 }
 
 /**

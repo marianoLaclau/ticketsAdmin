@@ -24,13 +24,17 @@ after(async () => {
   rmSync(databasePath, { force: true });
 });
 
-const [{ default: app }, { sqlite }] = await Promise.all([
+const [{ default: app }, { sqlite }, { readinessControl }] = await Promise.all([
   import("../src/app.ts"),
   import("@workspace/db"),
+  import("../src/lib/runtime-readiness.ts"),
 ]);
 closeDatabase = () => {
   if (sqlite.open) sqlite.close();
 };
+sqlite.exec(
+  "CREATE TABLE tickets (id INTEGER PRIMARY KEY, version INTEGER NOT NULL)",
+);
 server = app.listen(0);
 await new Promise<void>((resolve) => server.once("listening", resolve));
 const { port } = server.address() as AddressInfo;
@@ -68,4 +72,28 @@ test("mantiene la API same-origin sin publicar CORS ni la firma de Express", asy
   assert.equal(preflight.status, 200);
   assert.equal(preflight.headers.get("x-powered-by"), null);
   assertNoCorsHeaders(preflight);
+});
+
+test("separa liveness de readiness durante el ciclo de vida", async () => {
+  const starting = await fetch(`${baseUrl}/api/readyz`);
+  assert.equal(starting.status, 503);
+  assert.deepEqual(await starting.json(), { status: "unavailable" });
+  assert.equal(starting.headers.get("cache-control"), "no-store");
+
+  readinessControl.markReady();
+  const ready = await fetch(`${baseUrl}/api/readyz`);
+  assert.equal(ready.status, 200);
+  assert.deepEqual(await ready.json(), { status: "ready" });
+  assert.equal(ready.headers.get("cache-control"), "no-store");
+
+  readinessControl.beginDrain();
+  const unavailable = await fetch(`${baseUrl}/api/readyz`);
+  assert.equal(unavailable.status, 503);
+  assert.deepEqual(await unavailable.json(), { status: "unavailable" });
+  assert.equal(unavailable.headers.get("cache-control"), "no-store");
+
+  const alive = await fetch(`${baseUrl}/api/healthz`);
+  assert.equal(alive.status, 200);
+  assert.deepEqual(await alive.json(), { status: "ok" });
+  assert.equal(alive.headers.get("cache-control"), "no-store");
 });

@@ -13,7 +13,16 @@ import * as zod from 'zod';
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
-  "status": zod.string()
+  "status": zod.enum(['ok'])
+})
+
+
+/**
+ * Returns whether the API can receive application traffic
+ * @summary Readiness check
+ */
+export const ReadinessCheckResponse = zod.object({
+  "status": zod.enum(['ready'])
 })
 
 

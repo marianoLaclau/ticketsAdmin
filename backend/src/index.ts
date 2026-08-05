@@ -8,6 +8,7 @@ import { crearRunnerPrioridadAutomatica } from "./lib/prioridad-automatica-runne
 import { reconciliarCategoriasMotivo } from "./lib/reclasificar-motivos";
 import { validateServiceSecrets } from "./lib/service-secrets";
 import { purgeUnsafeStoredSessions } from "./lib/session-store";
+import { readinessControl } from "./lib/runtime-readiness";
 import {
   crearApagadoControlado,
   registrarCierreAntesDeSalir,
@@ -62,6 +63,7 @@ runnerPrioridadAutomatica.iniciar();
 const server = app.listen(port);
 const apagar = crearApagadoControlado({
   server,
+  iniciarDrenaje: () => readinessControl.beginDrain(),
   detenerTareas: () => runnerPrioridadAutomatica.detener(),
   esperarTareas: () => runnerPrioridadAutomatica.esperarEjecucionActiva(),
   cerrarStreams: beginEventClientShutdown,
@@ -73,6 +75,7 @@ registrarCierreAntesDeSalir(() => {
 registrarSenalesApagado(apagar);
 
 server.once("listening", () => {
+  readinessControl.markReady();
   logger.info({ port }, "Server listening");
 });
 

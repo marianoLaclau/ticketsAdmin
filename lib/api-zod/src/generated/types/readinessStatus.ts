@@ -5,8 +5,8 @@
  * GSB Ticket Management System API
  * OpenAPI spec version: 0.5.0
  */
-import type { HealthStatusStatus } from './healthStatusStatus';
+import type { ReadinessStatusStatus } from './readinessStatusStatus';
 
-export interface HealthStatus {
-  status: HealthStatusStatus;
+export interface ReadinessStatus {
+  status: ReadinessStatusStatus;
 }

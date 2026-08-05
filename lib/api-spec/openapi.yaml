@@ -23,8 +23,8 @@ tags:
   - name: auth
     description: >
       Autenticación por sesión. El login setea una cookie httpOnly; toda la API
-      funcional exige esa sesión. Healthz, el webhook de n8n, login y el logout
-      idempotente son las únicas excepciones.
+      funcional exige esa sesión. Healthz, readyz, el webhook de n8n, login y
+      el logout idempotente son las únicas excepciones.
 
 security:
   - sessionCookie: []
@@ -44,6 +44,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /readyz:
+    get:
+      operationId: readinessCheck
+      tags: [health]
+      summary: Readiness check
+      description: Returns whether the API can receive application traffic
+      security: []
+      responses:
+        "200":
+          description: Ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessStatus"
+        "503":
+          description: Not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessUnavailable"
 
   /tickets:
     get:
@@ -1514,9 +1535,31 @@ components:
 
     HealthStatus:
       type: object
+      additionalProperties: false
       properties:
         status:
           type: string
+          enum: [ok]
+      required:
+        - status
+
+    ReadinessStatus:
+      type: object
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [ready]
+      required:
+        - status
+
+    ReadinessUnavailable:
+      type: object
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [unavailable]
       required:
         - status
 

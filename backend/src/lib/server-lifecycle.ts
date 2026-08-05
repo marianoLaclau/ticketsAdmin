@@ -26,6 +26,7 @@ interface FuenteSalida {
 
 interface OpcionesApagadoControlado {
   server: Pick<Server, "close" | "closeAllConnections">;
+  iniciarDrenaje: () => void;
   detenerTareas: () => void;
   esperarTareas: () => Promise<void>;
   cerrarStreams: () => number;
@@ -133,6 +134,9 @@ export function crearApagadoControlado(
       };
 
       try {
+        // Debe ocurrir antes de logs, timers o cierres: desde este instante el
+        // proceso deja de anunciarse listo aunque aun este drenando trafico.
+        opciones.iniciarDrenaje();
         opciones.logger.info(
           { motivo, timeoutMs },
           "Apagado controlado iniciado",

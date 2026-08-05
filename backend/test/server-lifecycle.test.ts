@@ -113,6 +113,7 @@ describe("apagado controlado", () => {
 
     const apagar = crearApagadoControlado({
       server: servidor.server,
+      iniciarDrenaje: () => eventos.push("readiness:drenar"),
       detenerTareas: () => eventos.push("tareas:detener"),
       esperarTareas: () => {
         eventos.push("tareas:esperar");
@@ -134,6 +135,7 @@ describe("apagado controlado", () => {
     const porSigint = apagar("SIGINT");
     assert.strictEqual(porSigint, porSigterm);
     assert.deepEqual(eventos, [
+      "readiness:drenar",
       "tareas:detener",
       "http:cerrar",
       "sse:cerrar",
@@ -161,6 +163,7 @@ describe("apagado controlado", () => {
 
     const apagar = crearApagadoControlado({
       server: servidor.server,
+      iniciarDrenaje() {},
       detenerTareas: () => eventos.push("tareas:detener"),
       esperarTareas: () => tarea.promesa,
       cerrarStreams: () => 0,
@@ -196,6 +199,7 @@ describe("apagado controlado", () => {
     const salida = diferida<number>();
     const apagar = crearApagadoControlado({
       server: servidor.server,
+      iniciarDrenaje() {},
       detenerTareas() {},
       esperarTareas: () => Promise.resolve(),
       cerrarStreams: () => 0,
@@ -278,6 +282,7 @@ it("no cierra SQLite mientras continua un handler cuyo cliente aborto", async ()
     const deadline = crearDeadlineManual();
     const apagar = crearApagadoControlado({
       server,
+      iniciarDrenaje() {},
       detenerTareas() {},
       esperarTareas: () => Promise.resolve(),
       cerrarStreams: () => 0,
@@ -387,6 +392,7 @@ it("rechaza un SSE que intenta registrarse despues de iniciar el drenaje", async
     const deadline = crearDeadlineManual();
     const apagar = crearApagadoControlado({
       server,
+      iniciarDrenaje() {},
       detenerTareas() {},
       esperarTareas: () => Promise.resolve(),
       cerrarStreams: beginEventClientShutdown,

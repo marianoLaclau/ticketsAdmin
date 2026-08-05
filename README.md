@@ -34,13 +34,13 @@ Llamada telefónica → ElevenLabs (agente de voz) → n8n → POST /api/webhook
 
 ## Autenticación y roles
 
-Todo el sistema funcional exige sesión iniciada. Las rutas que no la requieren son `GET /api/healthz`, `POST /api/webhooks/ticket` (autenticado con su propia API key, para n8n), `POST /api/auth/login` y `POST /api/auth/logout`; este último es público para poder limpiar de forma idempotente una cookie ausente, inválida o ya revocada. Cualquier URL privada del frontend, sin sesión, muestra el login.
+Todo el sistema funcional exige sesión iniciada. Las rutas que no la requieren son `GET /api/healthz` (el proceso está vivo), `GET /api/readyz` (el proceso ya puede recibir tráfico), `POST /api/webhooks/ticket` (autenticado con su propia API key, para n8n), `POST /api/auth/login` y `POST /api/auth/logout`; este último es público para poder limpiar de forma idempotente una cookie ausente, inválida o ya revocada. Cualquier URL privada del frontend, sin sesión, muestra el login. Ambos probes HTTP deshabilitan caché: `healthz` es estático, mientras `readyz` exige que el servidor haya abierto el puerto, no esté drenando y pueda consultar el schema mínimo de tickets en SQLite.
 
-| Rol | Puede |
-|---|---|
-| **SysAdmin** | Todo, incluido el panel de Administración (`/admin`, `/admin/roles-usuarios`) |
-| **Administrador** | Gestión completa de tickets — incluido pasarlos a **Cerrado** — pero sin acceso al panel de administración |
-| **Operador** | Gestión básica de tickets; **no puede cerrarlos** (la opción queda deshabilitada en la UI y el backend la rechaza igual) |
+| Rol               | Puede                                                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **SysAdmin**      | Todo, incluido el panel de Administración (`/admin`, `/admin/roles-usuarios`)                                            |
+| **Administrador** | Gestión completa de tickets — incluido pasarlos a **Cerrado** — pero sin acceso al panel de administración               |
+| **Operador**      | Gestión básica de tickets; **no puede cerrarlos** (la opción queda deshabilitada en la UI y el backend la rechaza igual) |
 
 Los tres roles base son identidades protegidas: no se renombran, desactivan ni eliminan. Los roles personalizados inactivos cortan login y sesiones y no pueden recibir nuevas asignaciones. El backend impide además desactivar o degradar al último SysAdmin con credenciales utilizables.
 
@@ -104,16 +104,16 @@ Abrir http://localhost:3000. En una base nueva, el primer arranque crea el usuar
 
 Copiar `.env.example` a `.env` en la raíz:
 
-| Variable | Para qué |
-|---|---|
-| `PORT` | Puerto del backend (default 5000) |
-| `HOST_IP` | IP de esta máquina en la red interna — la usa n8n para llegar al webhook (solo referencia, no la lee el código) |
-| `WEBHOOK_API_KEY` | Clave que n8n manda en `x-api-key` al crear tickets (requerida para el webhook) |
-| `ADMIN_API_KEY` | Segunda credencial obligatoria de las operaciones administrativas del SysAdmin; si falta, esas operaciones responden `503` |
-| `BOOTSTRAP_SYSADMIN_PASSWORD` | Secreto exclusivo del bootstrap: crea `sysadmin` en una base sin hashes o rota la credencial semilla heredada; nunca modifica una contraseña ya asegurada |
-| `TICKETS_DB_PATH` | Ruta del archivo SQLite (opcional, default `data/tickets.db`) |
-| `PRIORIDAD_AUTOMATICA_INTERVAL_MS` | Intervalo opcional de revisión de prioridades en milisegundos (default 300000 = 5 minutos; mínimo aceptado 10000) |
-| `TZ` | Timezone del proceso backend — en Docker por default `America/Argentina/Buenos_Aires`; los filtros por día calendario usan esta zona |
+| Variable                           | Para qué                                                                                                                                                  |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                             | Puerto del backend (default 5000)                                                                                                                         |
+| `HOST_IP`                          | IP de esta máquina en la red interna — la usa n8n para llegar al webhook (solo referencia, no la lee el código)                                           |
+| `WEBHOOK_API_KEY`                  | Clave que n8n manda en `x-api-key` al crear tickets (requerida para el webhook)                                                                           |
+| `ADMIN_API_KEY`                    | Segunda credencial obligatoria de las operaciones administrativas del SysAdmin; si falta, esas operaciones responden `503`                                |
+| `BOOTSTRAP_SYSADMIN_PASSWORD`      | Secreto exclusivo del bootstrap: crea `sysadmin` en una base sin hashes o rota la credencial semilla heredada; nunca modifica una contraseña ya asegurada |
+| `TICKETS_DB_PATH`                  | Ruta del archivo SQLite (opcional, default `data/tickets.db`)                                                                                             |
+| `PRIORIDAD_AUTOMATICA_INTERVAL_MS` | Intervalo opcional de revisión de prioridades en milisegundos (default 300000 = 5 minutos; mínimo aceptado 10000)                                         |
+| `TZ`                               | Timezone del proceso backend — en Docker por default `America/Argentina/Buenos_Aires`; los filtros por día calendario usan esta zona                      |
 
 ## Stack
 
@@ -128,9 +128,9 @@ Copiar `.env.example` a `.env` en la raíz:
 - **Ingesta por webhook, no leyendo el Excel**: n8n hace POST a `/api/webhooks/ticket` con header `x-api-key`. Idempotente por `conversation_id` (reintento ⇒ 200 con `created: false`); el Excel de n8n queda solo como respaldo/histórico.
 - **Contract-first**: todo el contrato vive en `lib/api-spec/openapi.yaml`. Se edita el yaml, se corre `codegen`, y los dos lados (frontend y backend) quedan sincronizados por construcción.
 - **SQLite en lugar de Postgres** (migrado 2026-07): better-sqlite3 con WAL alcanza para el volumen de llamadas, sin servidor de base de datos que administrar.
-- **Login real con roles**, no solo una API key: sesiones en cookie host-only `httpOnly`, `SameSite=Lax` y token hexadecimal estricto; SQLite conserva únicamente un hash `sha256:` versionado del token, nunca el bearer reutilizable. Las cookies inválidas, vencidas o revocadas se eliminan y las respuestas de autenticación no se cachean. Las contraseñas usan scrypt asíncrono y formato versionado, el login combina límite por identidad con admisión criptográfica acotada, y un candado global (`requireSession`) protege toda la API funcional. Solo health, el webhook con clave propia, login y el logout idempotente quedan fuera del candado.
+- **Login real con roles**, no solo una API key: sesiones en cookie host-only `httpOnly`, `SameSite=Lax` y token hexadecimal estricto; SQLite conserva únicamente un hash `sha256:` versionado del token, nunca el bearer reutilizable. Las cookies inválidas, vencidas o revocadas se eliminan y las respuestas de autenticación no se cachean. Las contraseñas usan scrypt asíncrono y formato versionado, el login combina límite por identidad con admisión criptográfica acotada, y un candado global (`requireSession`) protege toda la API funcional. Solo liveness/readiness, el webhook con clave propia, login y el logout idempotente quedan fuera del candado.
 - **`ADMIN_API_KEY` es una segunda verificación obligatoria, no la única**: las rutas `/admin/*`, el borrado y la edición administrativa de tickets exigen sesión + rol SysAdmin + esta clave. Si la variable falta, el backend falla cerrado con `503`.
-- **Los secretos de servicio se validan antes de abrir el puerto**: `WEBHOOK_API_KEY` y `ADMIN_API_KEY` deben existir, ser diferentes, tener al menos 32 caracteres y no usar placeholders, controles ni espacios exteriores. `.env.example` los deja vacíos deliberadamente; un backend mal configurado no llega a reportarse saludable.
+- **Los secretos de servicio se validan antes de abrir el puerto**: `WEBHOOK_API_KEY` y `ADMIN_API_KEY` deben existir, ser diferentes, tener al menos 32 caracteres y no usar placeholders, controles ni espacios exteriores. `.env.example` los deja vacíos deliberadamente; un backend mal configurado no llega a anunciarse listo.
 - **Transporte web same-origin**: React llama a `/api` mediante Vite/Nginx y el webhook de n8n es servidor-a-servidor. El backend no publica CORS para orígenes arbitrarios ni expone `X-Powered-By`; Nginx oculta su versión y agrega `nosniff`, protección anti-iframe, política de referrer y permisos mínimos.
 - **Texto recibido preservado frente a procesos automáticos, categoría derivada**: el clasificador y los backfills nunca reescriben `ticket.motivo` ni `ticket.resumen`; solo calculan `ticket.motivo_categoria`. Un usuario autenticado sí puede corregir explícitamente esos datos desde el detalle, y esa edición queda auditada; al cambiar motivo o resumen se recalcula la categoría.
 - **Cuarentena derivada, sin borrar ni reescribir**: un ticket queda fuera de la operación únicamente cuando, por una condición AND, no contiene nombre/apellido, teléfono, DNI, empresa, email, motivo, resumen ni notas, no tiene seguimientos y conserva todos sus valores operativos iniciales. IDs, fechas, hora, categoría derivada y `audio_url` no se consideran contenido porque son datos técnicos o automáticos. Administración puede incluir estos registros con `incluir_vacios=true`, protegido por sesión SysAdmin y `ADMIN_API_KEY`; al completar o gestionar el ticket deja de cumplir la regla y reaparece automáticamente. La definición exacta está en [docs/FLUJO.md](docs/FLUJO.md#cuarentena-administrativa-de-registros-vacíos).
@@ -141,7 +141,7 @@ Copiar `.env.example` a `.env` en la raíz:
 
 - En Windows, usar siempre pnpm; el preinstall usa Node (no `sh`).
 - `lib/db/drizzle.config.ts` normaliza la ruta del schema a barras `/` porque drizzle-kit usa globs que no toleran `\` de Windows.
-- No usar `sql\`...\`` crudo con objetos `Date` como parámetro: better-sqlite3 no bindea `Date`. Usar los operadores tipados de Drizzle (`lt`, `gte`, …).
+- No usar `sql\`...\``crudo con objetos`Date`como parámetro: better-sqlite3 no bindea`Date`. Usar los operadores tipados de Drizzle (`lt`, `gte`, …).
 - SQLite no tiene `ilike`; se usa `like` (case-insensitive para ASCII).
 - El `.env` de la raíz lo carga el backend (walk-up desde cwd); Vite no lo lee.
 - Con SQLite en modo WAL no hay que copiar solo `tickets.db` mientras la API está activa — usar `pnpm run backup:db` o el procedimiento Docker de [docs/DEPLOY.md](docs/DEPLOY.md).

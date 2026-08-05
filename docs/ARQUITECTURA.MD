@@ -63,9 +63,20 @@ flowchart TB
 
 `backend/src/index.ts` carga el entorno y valida los secretos entre servicios antes del seed y antes de abrir el puerto; una configuración incompleta no puede reportarse saludable. `backend/src/app.ts` desactiva la firma `X-Powered-By` y configura logging HTTP, cookies y parseo del body. No se emiten headers CORS: React consume `/api` desde el mismo origen mediante Vite/Nginx y n8n llama al webhook como servidor-a-servidor. En producción, Nginx oculta su versión y la firma defensiva de Express, impide MIME sniffing y framing, limita el referrer cross-origin y deshabilita capacidades del navegador que la aplicación no usa. Estas cabeceras se declaran en `server`, con `always`, para cubrir SPA, API, SSE y respuestas de error. `backend/src/routes/index.ts` monta las rutas bajo `/api` en este orden:
 
-El mismo composition root controla el ciclo de salida. Ante `SIGTERM` o `SIGINT`, cancela futuras pasadas de prioridad, inicia `server.close()`, pone el registro SSE en drenaje —también rechaza altas tardías— y espera HTTP junto con el trabajo periódico ya iniciado. El controlador es idempotente frente a señales repetidas. Como un cliente abortado puede liberar su socket antes de que termine el handler async, SQLite se cierra sincrónicamente en `beforeExit`, no en el callback HTTP. El watchdog de 20 segundos queda referenciado durante el drenaje y luego pasa a `unref`: no impide la salida natural, pero fuerza sockets y código de error si otro trabajo mantiene vivo el proceso. Una vez concluidos migrador y bootstrap, Docker entrega la señal directamente a Node mediante `exec` y concede 30 segundos antes de `SIGKILL`; esa garantía todavía no cubre las fases iniciales, cuya separación queda como hardening posterior.
+El mismo composition root controla readiness y salida. El proceso comienza en `starting`, pasa a `ready` únicamente desde el evento HTTP `listening` y entra en `draining` como primera acción síncrona ante `SIGTERM`, `SIGINT` o un error del servidor. Esa transición es irreversible: una carrera entre la señal y `listening` no puede volver a publicar una instancia que ya se está apagando. Luego cancela futuras pasadas de prioridad, inicia `server.close()`, pone el registro SSE en drenaje —también rechaza altas tardías— y espera HTTP junto con el trabajo periódico ya iniciado. El controlador es idempotente frente a señales repetidas. Como un cliente abortado puede liberar su socket antes de que termine el handler async, SQLite se cierra sincrónicamente en `beforeExit`, no en el callback HTTP. El watchdog de 20 segundos queda referenciado durante el drenaje y luego pasa a `unref`: no impide la salida natural, pero fuerza sockets y código de error si otro trabajo mantiene vivo el proceso. Una vez concluidos migrador y bootstrap, Docker entrega la señal directamente a Node mediante `exec` y concede 30 segundos antes de `SIGKILL`; esa garantía todavía no cubre las fases iniciales, cuya separación queda como hardening posterior.
 
-1. `health`: health check público.
+```mermaid
+stateDiagram-v2
+    [*] --> starting
+    starting --> ready: HTTP listening
+    starting --> draining: señal o error
+    ready --> draining: señal o error
+    draining --> draining: señales repetidas
+```
+
+`GET /api/healthz` es liveness: responde siempre `200 { status: "ok" }` mientras el proceso pueda atender HTTP y no toca la base. `GET /api/readyz` es readiness: fuera de `ready` devuelve 503 sin ejecutar la sonda; dentro de `ready` comprueba que el handle SQLite esté abierto y que una lectura acotada sobre `tickets.id` y `tickets.version` pueda prepararse y ejecutarse. Un fallo se registra internamente pero la respuesta pública queda reducida a `503 { status: "unavailable" }`, sin paths, excepciones ni detalles del motor. Ambas rutas son públicas y usan `Cache-Control: no-store`.
+
+1. `health`: liveness y readiness públicos.
 2. `webhooks`: ingesta pública protegida por `x-api-key`.
 3. `auth`: login y logout idempotente son públicos; sesión actual y cambio propio validan la cookie dentro del router.
 4. `requireSession`: candado global para el resto de la API.
@@ -161,15 +172,15 @@ pnpm run codegen
 
 Otros paquetes compartidos:
 
-| Paquete | Responsabilidad |
-|---|---|
-| `@workspace/db` | Schema Drizzle, conexión SQLite, migraciones y visibilidad de tickets |
-| `@workspace/ingesta` | Motivos, categorías, SLA, prioridad y origen Serin |
-| `@workspace/api-spec` | OpenAPI y configuración de Orval |
-| `@workspace/api-client-react` | Hooks React Query y tipos de consumo |
-| `@workspace/api-zod` | Schemas Zod consumidos por el backend |
-| `@workspace/password-policy` | Límites y reglas puras de contraseñas nuevas compartidas por backend/frontend |
-| `@workspace/scripts` | Importador histórico y backup de SQLite |
+| Paquete                       | Responsabilidad                                                               |
+| ----------------------------- | ----------------------------------------------------------------------------- |
+| `@workspace/db`               | Schema Drizzle, conexión SQLite, migraciones y visibilidad de tickets         |
+| `@workspace/ingesta`          | Motivos, categorías, SLA, prioridad y origen Serin                            |
+| `@workspace/api-spec`         | OpenAPI y configuración de Orval                                              |
+| `@workspace/api-client-react` | Hooks React Query y tipos de consumo                                          |
+| `@workspace/api-zod`          | Schemas Zod consumidos por el backend                                         |
+| `@workspace/password-policy`  | Límites y reglas puras de contraseñas nuevas compartidas por backend/frontend |
+| `@workspace/scripts`          | Importador histórico y backup de SQLite                                       |
 
 ## 4. Flujo de una llamada
 
