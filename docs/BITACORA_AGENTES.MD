@@ -2,6 +2,19 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — Quality gate reproducible antes del deploy
+
+**Agente:** Codex
+**Estado:** vigesimoprimera remediación de la auditoría técnica, implementada localmente.
+
+- Se fijó `pnpm@11.13.1` mediante `packageManager`, alineado con Node 24, para que local, GitHub Actions y Docker no elijan versiones distintas del gestor.
+- `pnpm run codegen:check` regenera el cliente React Query y los schemas Zod y consulta `git status --porcelain` sobre ambos árboles. El gate detecta tanto archivos versionados modificados como tipos nuevos sin agregar, caso que `git diff` por sí solo omite.
+- `pnpm run quality` encadena codegen sin drift, `drizzle-kit check`, las suites completas, typecheck y builds. Es el único comando que usan los workflows para evitar dos definiciones divergentes de calidad.
+- El workflow reutilizable `Quality` corre en `ubuntu-latest` para cada pull request y también puede ejecutarse manualmente. `Deploy` lo invoca primero y el job self-hosted queda condicionado a su resultado; una revisión fallida no toca los contenedores.
+- La exclusión mutua cubre el workflow completo y el runner compara el SHA con el `main` remoto antes de construir y nuevamente antes de reiniciar, evitando desplegar una ejecución que quedó obsoleta durante el build. El job self-hosted tiene un límite de 45 minutos. Las API keys reales dejaron de estar disponibles para checkout/build y solo se inyectan en el step que recrea los servicios; Compose recibe placeholders no sensibles durante el build.
+- Se documentaron el comando local, el flujo PR/deploy y el alcance exacto del gate. Este commit no agrega todavía espera de health, smoke, backup previo ni rollback automático: quedan separados en los siguientes bloques operativos.
+- Validaciones: detección positiva de un archivo generado no trackeado, `pnpm run codegen:check`, 291 pruebas y builds/typecheck completos mediante `pnpm run quality`.
+
 ## 2026-08-05 — Control optimista end-to-end de tickets
 
 **Agente:** Codex

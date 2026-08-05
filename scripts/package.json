@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "backup-db": "tsx ./src/backup-db.ts",
+    "check-generated-code": "tsx ./src/check-generated-code.ts",
     "import-excel": "tsx ./src/import-excel.ts",
     "test": "tsx --test ./test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"

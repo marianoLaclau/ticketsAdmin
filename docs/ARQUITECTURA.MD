@@ -421,14 +421,14 @@ Si una auditoría falla, la transacción se revierte. Si un cliente SSE se desco
 ```mermaid
 flowchart LR
     git[Push a main]
-    actions[GitHub Actions]
+    quality[Quality: codegen, schema, tests y build]
     runner[Runner self-hosted]
     images[Docker Compose build]
     backendc[Contenedor backend]
     frontendc[Contenedor frontend / Nginx]
     volume[(tickets_data volume)]
 
-    git --> actions --> runner --> images
+    git --> quality --> runner --> images
     images --> backendc
     images --> frontendc
     backendc -->|dist/migrate.mjs al arrancar| volume
@@ -444,6 +444,7 @@ En local se usa `drizzle-kit push` para iterar rápidamente. En Docker, el backe
 0009            → backfill conservador de Embargos
 0010            → cambio obligatorio de credenciales temporales
 0011            → revocación única de bearer de sesión persistidos en claro
+0012            → versión monotónica de tickets para control optimista
 ```
 
 La columna física conserva el nombre histórico `sesiones.token` para permitir un rollback estructural, pero el schema la expone como `token_hash`. Desde `0011`, toda fila nueva contiene `sha256:<digest>` y el arranque elimina formatos crudos o inválidos después de validar secretos, antes del seed y antes de abrir el puerto. La migración fuerza un único re-login; no se admite un despliegue simultáneo de binarios anteriores y posteriores a este cambio. Un rollback rápido conserva el schema e invalida las sesiones creadas por la otra versión, pero el piso soportado es `06db746`, primer commit cuyo extractor rechaza todo lo que no sea raw de 64 hex.
@@ -469,7 +470,7 @@ lib/ingesta/              clasificación, SLA y normalización compartida
 lib/password-policy/      política pura de contraseñas nuevas
 scripts/                  importador histórico y backup de SQLite
 docs/                    arquitectura, flujo, deploy y bitácora
-.github/workflows/        deploy automático a partir de main
+.github/workflows/        quality gate reutilizable y deploy automático desde main
 data/                     base local ignorada por Git
 backups/                  copias locales ignoradas por Git
 tmp/                      temporales de tests y desarrollo, ignorados

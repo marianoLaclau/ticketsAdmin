@@ -5,32 +5,69 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-testing
+  cancel-in-progress: false
+
 jobs:
+  quality:
+    uses: ./.github/workflows/quality.yml
+
   deploy:
+    needs: quality
     runs-on: self-hosted
-    concurrency:
-      group: deploy-testing
-      cancel-in-progress: false
-    env:
-      # docker compose interpola ambas claves de docker-compose.yml en CUALQUIER
-      # subcomando (build, up, ps...), no solo en "up" — por eso van a nivel de
-      # job y no en un solo step.
-      WEBHOOK_API_KEY: ${{ secrets.WEBHOOK_API_KEY }}
-      # Obligatoria: segunda credencial de las operaciones SysAdmin
-      ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check that this is still the current main commit
+        id: freshness
+        shell: bash
+        run: |
+          git fetch --no-tags origin main
+          if [ "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "A newer main commit exists; this obsolete deploy is skipped."
+          fi
+
       - name: Build images
+        if: steps.freshness.outputs.deploy == 'true'
         run: docker compose build
+        env:
+          # Compose interpola las variables aun al construir, pero las imágenes
+          # no consumen ni deben recibir las credenciales reales.
+          WEBHOOK_API_KEY: not-used-during-image-build
+          ADMIN_API_KEY: not-used-during-image-build
+
+      - name: Recheck main before restarting services
+        id: freshness_after_build
+        if: steps.freshness.outputs.deploy == 'true'
+        shell: bash
+        run: |
+          git fetch --no-tags origin main
+          if [ "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "A newer main commit arrived during the build; restart is skipped."
+          fi
 
       - name: Restart containers
+        if: steps.freshness_after_build.outputs.deploy == 'true'
         run: docker compose up -d --remove-orphans
         env:
+          WEBHOOK_API_KEY: ${{ secrets.WEBHOOK_API_KEY }}
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
           # Inicializa una base sin hashes o asegura el seed heredado. Una
           # credencial ya cambiada ignora el valor y nunca se resetea.
           BOOTSTRAP_SYSADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_SYSADMIN_PASSWORD }}
 
       - name: Clean up dangling images
+        if: steps.freshness_after_build.outputs.deploy == 'true'
         run: docker image prune -f

@@ -32,9 +32,10 @@ pnpm install
 pnpm run typecheck
 pnpm test
 pnpm run build
+pnpm run quality
 ```
 
-Si cambia el contrato OpenAPI, ejecutar `pnpm run codegen` y luego `pnpm test`. Si cambia el schema, generar la migración, revisar el SQL y validar una instalación nueva y una actualización desde la última migración de producción.
+`pnpm run quality` reproduce el gate de GitHub: regenera OpenAPI, detecta archivos generados modificados o nuevos sin commitear, verifica la cadena Drizzle y ejecuta todas las pruebas, typecheck y builds. Si cambia el schema, generar la migración, revisar el SQL y validar una instalación nueva y una actualización desde la última migración de producción.
 
 ## Estado local que no se versiona
 

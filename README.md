@@ -92,6 +92,8 @@ Abrir http://localhost:3000. En una base nueva, el primer arranque crea el usuar
 - `pnpm test` — ejecuta las pruebas de todos los paquetes que tienen suite
 - `pnpm run build` — typecheck + build de todos los paquetes
 - `pnpm run codegen` — regenera hooks y schemas Zod desde el spec OpenAPI
+- `pnpm run codegen:check` — regenera y falla si falta commitear cualquier artefacto OpenAPI, incluso archivos nuevos
+- `pnpm run quality` — quality gate completo: codegen sin drift, migraciones, pruebas, typecheck y builds
 - `pnpm --filter @workspace/db run push` — aplica cambios de schema a la base SQLite (dev only)
 - `pnpm --filter @workspace/scripts run import-excel -- <archivo.xlsx|csv> [--dry-run] [--sheet <nombre>]` — importa el histórico de llamadas (idempotente por conversation_id)
 - `pnpm run backup:db -- --output ./backups/tickets-AAAA-MM-DD.db` — backup SQLite consistente con WAL, verifica integridad y no sobrescribe archivos

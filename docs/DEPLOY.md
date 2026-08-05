@@ -1,16 +1,20 @@
 # Despliegue en el servidor de testing (Docker + CI/CD)
 
 > Server de testing: Linux con acceso SSH. CI/CD vía GitHub Actions con un
-> **self-hosted runner** instalado en el propio servidor — cada push a `main`
-> reconstruye las imágenes y reinicia los contenedores ahí mismo, sin
-> necesidad de exponer SSH a GitHub ni usar un registro de imágenes externo.
+> **self-hosted runner** instalado en el propio servidor. Cada push a `main`
+> pasa primero por un quality gate hospedado por GitHub y, solo si lo aprueba,
+> reconstruye las imágenes y reinicia los contenedores en el servidor, sin
+> exponer SSH ni usar un registro de imágenes externo.
 
 ## Arquitectura del despliegue
 
 ```
-GitHub (push a main)
+GitHub (PR o push a main)
         │
         ▼
+Quality gate (codegen + schema + tests + typecheck + build)
+        │
+        ▼  solo push de main con gate aprobado
 Self-hosted runner (corriendo EN el servidor de testing)
         │  docker compose build && docker compose up -d
         ▼
@@ -37,6 +41,7 @@ Self-hosted runner (corriendo EN el servidor de testing)
 - **`:3000`** — el frontend, para que los operadores gestionen los tickets.
 - El volumen nombrado `tickets_data` persiste el archivo SQLite entre reconstrucciones/reinicios de contenedores — **no se pierde al redeployar**.
 - Las migraciones de la base (`lib/db/drizzle/*.sql`) se aplican solas al arrancar el contenedor del backend (ver `backend/src/migrate.ts`), antes de levantar la API. Es idempotente: en cada arranque solo aplica lo que falte.
+- Los pull requests ejecutan `.github/workflows/quality.yml` sin desplegar. El workflow de deploy reutiliza exactamente ese gate y el job self-hosted depende de su resultado; no construye ni reinicia contenedores si hay drift de codegen/schema, una prueba falla, TypeScript no compila o un build falla. Consulta `origin/main` antes de construir y nuevamente justo antes de reiniciar los servicios, por lo que omite un SHA que quedó obsoleto incluso durante el build.
 - `docker-compose.yml` fija el nombre de proyecto `ticketsadmin`, de modo que contenedores, red y volumen conservan el mismo namespace aunque el workflow y un operador ejecuten Compose desde checkouts distintos.
 - El backend corre con `TZ=America/Argentina/Buenos_Aires` por defecto (configurable con `TZ`). Los filtros por día calendario usan el timezone local del proceso, igual que en desarrollo.
 - Nginx aplica a SPA, API, SSE y errores `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` y una `Permissions-Policy` mínima; además no publica su versión. Esto no reemplaza TLS. CSP se evaluará por separado después de inventariar fuentes, estilos dinámicos, audio y descargas `blob:`; HSTS y la cookie `Secure` sí se habilitarán cuando exista un borde HTTPS real.
@@ -137,7 +142,7 @@ La migración `0011_invalidate_plaintext_sessions.sql` revoca una sola vez todas
 
 El backend limita el login por identidad: diez credenciales rechazadas dentro de 15 minutos hacen que la siguiente solicitud active un bloqueo de 15 minutos (`429` más `Retry-After`). Un login válido o un alta, cambio de username o reset de contraseña desde SysAdmin libera esa identidad; errores internos y rechazos por capacidad no suman fallos. Los contadores no están en SQLite: viven hasheados y acotados en la memoria de la única instancia, por lo que un redeploy los reinicia. Esto es esperado en la topología actual; no levantar una segunda réplica sin migrar el rate limit a un store compartido. La protección de scrypt admite una ráfaga inicial de 30 trabajos públicos y repone 30 por minuto, con cuatro activos y ocho en espera, para conservar capacidad durante ráfagas y ataques sostenidos.
 
-GitHub inyecta esos secretos solo durante el job. Para ejecutar manualmente comandos que crean o recrean servicios (`up`, `create`, un `run` normal), guardar las variables en un archivo fuera del repo y con permisos restringidos, por ejemplo `/etc/ticketsadmin/compose.env`, y usar:
+GitHub inyecta esos secretos solo en el step que recrea los servicios; checkout, quality y build no los reciben. Para ejecutar manualmente comandos que crean o recrean servicios (`up`, `create`, un `run` normal), guardar las variables en un archivo fuera del repo y con permisos restringidos, por ejemplo `/etc/ticketsadmin/compose.env`, y usar:
 
 ```bash
 docker compose --env-file /etc/ticketsadmin/compose.env up -d
@@ -153,7 +158,7 @@ No usar ese placeholder con `up`, `create` ni para iniciar la API.
 
 ## 4. Primer despliegue
 
-Con el runner instalado y los secretos configurados, cualquier push a `main` dispara el deploy. Para forzar el primero sin esperar un push:
+Con el runner instalado y los secretos configurados, cualquier push a `main` dispara primero Quality y luego el deploy. Para forzar el primero sin esperar un push:
 
 - En GitHub: **Actions → Deploy → Run workflow** (el trigger `workflow_dispatch` está habilitado para esto), o
 - Hacer un push cualquiera a `main`.
@@ -183,7 +188,7 @@ con el mismo header `x-api-key` (el valor cargado como secreto `WEBHOOK_API_KEY`
 
 ## Operación del día a día
 
-- **Cada push a `main` redeploya solo.** No hace falta tocar el servidor a mano.
+- **Cada push a `main` redeploya solo si pasa `pnpm run quality`.** Los pull requests ejecutan el mismo gate pero nunca modifican el servidor.
 - **Cada comando Compose** se ejecuta desde un checkout actual del repo (el workspace del runner o `/opt/ticketsAdmin` actualizado). El proyecto se llama siempre `ticketsadmin`.
 - **Ver logs**: `WEBHOOK_API_KEY=not-used-for-readonly-command docker compose logs -f backend` (o `frontend`).
 - **Ver estado**: `WEBHOOK_API_KEY=not-used-for-readonly-command docker compose ps`
