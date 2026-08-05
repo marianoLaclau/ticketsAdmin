@@ -35,6 +35,24 @@ export interface TicketFunctionalForm {
   resumen: string;
 }
 
+export interface TicketManagementForm {
+  estado: Ticket['estado'];
+  prioridad: Ticket['prioridad'];
+  progreso: number;
+  notas: string;
+  fecha_limite: string;
+}
+
+export const TICKET_STATE_PROGRESS: Readonly<
+  Record<Ticket['estado'], number>
+> = {
+  nuevo: 0,
+  en_proceso: 25,
+  pendiente: 50,
+  resuelto: 75,
+  cerrado: 100,
+};
+
 const cleanRequired = (value: string): string => value.trim();
 const cleanOptional = (value: string | null | undefined): string | null =>
   value?.trim() || null;
@@ -57,6 +75,64 @@ export function ticketToFunctionalForm(ticket: Ticket): TicketFunctionalForm {
     motivo: ticket.motivo ?? '',
     resumen: ticket.resumen ?? '',
   };
+}
+
+export function ticketToManagementForm(
+  ticket: Ticket,
+  fechaLimite = '',
+): TicketManagementForm {
+  return {
+    estado: ticket.estado,
+    prioridad: ticket.prioridad,
+    progreso: ticket.progreso,
+    notas: ticket.notas ?? '',
+    fecha_limite: fechaLimite,
+  };
+}
+
+export function applyTicketManagementState(
+  form: TicketManagementForm,
+  estado: Ticket['estado'],
+  baseline: TicketManagementForm = form,
+): TicketManagementForm {
+  return {
+    ...form,
+    estado,
+    progreso:
+      estado === baseline.estado
+        ? baseline.progreso
+        : TICKET_STATE_PROGRESS[estado],
+  };
+}
+
+/**
+ * Compara exclusivamente contra el snapshot tomado al abrir el diálogo. Una
+ * actualización SSE posterior no puede convertir campos intactos del form en
+ * sobrescrituras accidentales. El conflicto sobre el mismo campo se resolverá
+ * más adelante mediante versionado optimista en el backend.
+ */
+export function buildTicketManagementUpdate(
+  baseline: TicketManagementForm,
+  draft: TicketManagementForm,
+): TicketUpdate {
+  const update: TicketUpdate = {};
+
+  if (draft.estado !== baseline.estado) {
+    update.estado = draft.estado;
+  }
+  if (draft.progreso !== baseline.progreso) {
+    update.progreso = draft.progreso;
+  }
+
+  if (draft.prioridad !== baseline.prioridad) {
+    update.prioridad = draft.prioridad;
+  }
+
+  const nextNotes = cleanOptional(draft.notas);
+  const currentNotes = cleanOptional(baseline.notas);
+  if (nextNotes !== currentNotes) update.notas = nextNotes;
+
+  return update;
 }
 
 /**

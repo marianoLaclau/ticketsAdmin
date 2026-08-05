@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useLocation, useParams } from 'wouter';
 import {
   useGetTicket,
@@ -63,16 +63,51 @@ import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
 import { getUserErrorMessage } from '@/lib/error-messages';
 import { useAdminAccess, adminErrorMessage } from '@/hooks/use-admin-access';
 import { TicketDataEditDialog } from '@/components/tickets/TicketDataEditDialog';
-import { getFunctionalFieldLabel } from '@/lib/ticket-edit';
+import {
+  TICKET_STATE_PROGRESS,
+  applyTicketManagementState,
+  buildTicketManagementUpdate,
+  getFunctionalFieldLabel,
+  ticketToManagementForm,
+  type TicketManagementForm,
+} from '@/lib/ticket-edit';
 import { getAssignedDisplayName } from '@/lib/asignacion';
 
 const PROGRESS_STEPS = [
-  { estado: TicketEstado.nuevo, value: 0, label: 'Nuevo' },
-  { estado: TicketEstado.en_proceso, value: 25, label: 'En Proceso' },
-  { estado: TicketEstado.pendiente, value: 50, label: getEstadoLabel(TicketEstado.pendiente) },
-  { estado: TicketEstado.resuelto, value: 75, label: 'Resuelto' },
-  { estado: TicketEstado.cerrado, value: 100, label: 'Cerrado' },
+  {
+    estado: TicketEstado.nuevo,
+    value: TICKET_STATE_PROGRESS.nuevo,
+    label: 'Nuevo',
+  },
+  {
+    estado: TicketEstado.en_proceso,
+    value: TICKET_STATE_PROGRESS.en_proceso,
+    label: 'En Proceso',
+  },
+  {
+    estado: TicketEstado.pendiente,
+    value: TICKET_STATE_PROGRESS.pendiente,
+    label: getEstadoLabel(TicketEstado.pendiente),
+  },
+  {
+    estado: TicketEstado.resuelto,
+    value: TICKET_STATE_PROGRESS.resuelto,
+    label: 'Resuelto',
+  },
+  {
+    estado: TicketEstado.cerrado,
+    value: TICKET_STATE_PROGRESS.cerrado,
+    label: 'Cerrado',
+  },
 ];
+
+const EMPTY_MANAGEMENT_FORM: TicketManagementForm = {
+  estado: TicketEstado.nuevo,
+  prioridad: TicketPrioridad.media,
+  progreso: 0,
+  notas: '',
+  fecha_limite: '',
+};
 
 interface TicketDetailProps {
   adminMode?: boolean;
@@ -118,25 +153,32 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
   // Edit states
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingData, setIsEditingData] = useState(false);
-  const [editData, setEditData] = useState<any>({});
+  const [editData, setEditData] = useState<TicketManagementForm>(
+    EMPTY_MANAGEMENT_FORM,
+  );
+  const [editBaseline, setEditBaseline] =
+    useState<TicketManagementForm | null>(null);
   
   // New seguimiento state
   const [newSeguimiento, setNewSeguimiento] = useState('');
 
-  useEffect(() => {
-    if (ticket && !isEditing) {
-      setEditData({
-        estado: ticket.estado,
-        prioridad: ticket.prioridad,
-        progreso: ticket.progreso || 0,
-        notas: ticket.notas || '',
-        ...(adminMode ? { fecha_limite: toDateTimeLocalValue(ticket.fecha_limite) } : {}),
-      });
+  const handleEditDialogOpenChange = (open: boolean) => {
+    if (open && ticket) {
+      const form = ticketToManagementForm(
+        ticket,
+        adminMode ? toDateTimeLocalValue(ticket.fecha_limite) : '',
+      );
+      setEditData(form);
+      setEditBaseline({ ...form });
+    } else if (!open) {
+      setEditBaseline(null);
     }
-  }, [adminMode, ticket, isEditing]);
+    setIsEditing(open);
+  };
 
   const handleUpdateTicket = () => {
-    const originalFechaLimite = toDateTimeLocalValue(ticket?.fecha_limite);
+    if (!editBaseline) return;
+    const originalFechaLimite = editBaseline.fecha_limite;
 
     if (adminMode && originalFechaLimite && !editData.fecha_limite) {
       toast({
@@ -147,13 +189,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
       return;
     }
 
-    const estadoStep = PROGRESS_STEPS.find(s => s.estado === editData.estado);
-    const updatedData: any = {
-      estado: editData.estado,
-      prioridad: editData.prioridad,
-      notas: editData.notas,
-      progreso: estadoStep && ticket?.estado !== editData.estado ? estadoStep.value : editData.progreso,
-    };
+    const updatedData = buildTicketManagementUpdate(editBaseline, editData);
     // Si el usuario no modificó el control, se omite el campo para conservar
     // también los segundos y milisegundos que datetime-local no muestra.
     if (adminMode && editData.fecha_limite && editData.fecha_limite !== originalFechaLimite) {
@@ -169,13 +205,25 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
       updatedData.fecha_limite = fechaLimiteIso;
     }
 
+    if (Object.keys(updatedData).length === 0) {
+      handleEditDialogOpenChange(false);
+      toast({
+        variant: 'info',
+        title: 'Sin cambios para guardar',
+        description: `El ticket #${ticketId} conserva sus datos actuales.`,
+      });
+      return;
+    }
+
     updateTicket.mutate(
       { id: ticketId, params: includeEmptyParams, data: updatedData },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
-          setIsEditing(false);
-          const estadoLabel = PROGRESS_STEPS.find((step) => step.estado === editData.estado)?.label;
+          handleEditDialogOpenChange(false);
+          const estadoLabel = updatedData.estado
+            ? PROGRESS_STEPS.find((step) => step.estado === updatedData.estado)?.label
+            : undefined;
           toast({
             variant: 'success',
             title: 'Ticket actualizado',
@@ -363,7 +411,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
           <EstadoBadge estado={ticket.estado} className="text-sm px-3 py-1" />
           <PrioridadBadge prioridad={ticket.prioridad} className="text-sm px-3 py-1" />
           
-          <Dialog open={isEditing} onOpenChange={setIsEditing}>
+          <Dialog open={isEditing} onOpenChange={handleEditDialogOpenChange}>
             <DialogTrigger asChild>
               <Button variant="outline" className="bg-white">Editar Estado</Button>
             </DialogTrigger>
@@ -378,7 +426,18 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Estado</label>
-                    <Select value={editData.estado} onValueChange={(v) => setEditData({...editData, estado: v})}>
+                    <Select
+                      value={editData.estado}
+                      onValueChange={(estado) =>
+                        setEditData((current) =>
+                          applyTicketManagementState(
+                            current,
+                            estado as TicketManagementForm['estado'],
+                            editBaseline ?? current,
+                          ),
+                        )
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -402,7 +461,16 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Prioridad</label>
-                    <Select value={editData.prioridad} onValueChange={(v) => setEditData({...editData, prioridad: v})}>
+                    <Select
+                      value={editData.prioridad}
+                      onValueChange={(prioridad) =>
+                        setEditData((current) => ({
+                          ...current,
+                          prioridad:
+                            prioridad as TicketManagementForm['prioridad'],
+                        }))
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -422,7 +490,12 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
                   </div>
                   <Slider 
                     value={[editData.progreso]} 
-                    onValueChange={(v) => setEditData({...editData, progreso: v[0]})}
+                    onValueChange={(value) =>
+                      setEditData((current) => ({
+                        ...current,
+                        progreso: value[0] ?? current.progreso,
+                      }))
+                    }
                     max={100}
                     step={5}
                   />
@@ -433,8 +506,13 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
                     <label className="text-sm font-medium">Fecha Límite</label>
                     <Input
                       type="datetime-local"
-                      value={editData.fecha_limite || ''}
-                      onChange={(e) => setEditData({...editData, fecha_limite: e.target.value})}
+                      value={editData.fecha_limite}
+                      onChange={(event) =>
+                        setEditData((current) => ({
+                          ...current,
+                          fecha_limite: event.target.value,
+                        }))
+                      }
                     />
                     <p className="text-[11px] text-muted-foreground">
                       Campo técnico protegido por la llave de administración.
@@ -445,15 +523,25 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Notas Internas</label>
                   <Textarea 
-                    value={editData.notas || ''}
-                    onChange={(e) => setEditData({...editData, notas: e.target.value})}
+                    value={editData.notas}
+                    onChange={(event) =>
+                      setEditData((current) => ({
+                        ...current,
+                        notas: event.target.value,
+                      }))
+                    }
                     placeholder="Notas visibles solo para agentes..."
                     className="h-24"
                   />
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsEditing(false)}>Cancelar</Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleEditDialogOpenChange(false)}
+                >
+                  Cancelar
+                </Button>
                 <Button onClick={handleUpdateTicket} disabled={updateTicket.isPending}>
                   {updateTicket.isPending ? 'Guardando...' : 'Guardar Cambios'}
                 </Button>

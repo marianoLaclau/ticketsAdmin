@@ -382,6 +382,7 @@ Reglas complementarias:
 - A 12 horas hábiles o con vencimiento superado, pasa a `urgente`.
 - Sábados y domingos no consumen horas SLA; los feriados actualmente sí cuentan.
 - Ticket, asignación y seguimiento se persisten en una misma transacción cuando corresponde.
+- El editor de gestión toma un baseline inmutable al abrirse y construye PATCH mínimos. Un refresco SSE concurrente no puede convertir estado, prioridad, notas, progreso o vencimiento no tocados en escrituras stale; el versionado optimista posterior resolverá carreras sobre el mismo campo.
 - Las importaciones web/CLI deduplican e insertan todas las filas válidas bajo una transacción; las corridas reales reservan escritura con `BEGIN IMMEDIATE` y un error de persistencia revierte la tanda insertable. Las filas inválidas se saltean según el contrato y `dry_run` usa un snapshot diferido sin escribir.
 - El truncate elimina seguimientos y tickets y reinicia sus secuencias en una sola transacción. Los conteos usan `changes`, sin cargar todos los IDs borrados en memoria.
 

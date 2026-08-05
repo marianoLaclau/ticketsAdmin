@@ -331,6 +331,8 @@ El cálculo usa horas hábiles firmadas y excluye sábados y domingos igual que 
 
 El `PATCH` de tickets aplica la misma garantía transaccional: toma un snapshot autoritativo, persiste solo diferencias reales y registra estado, prioridad, asignación y nombres de campos editados. `notas: null` y una nota compuesta solo por espacios se normalizan a `NULL`, de modo que el campo puede borrarse sin guardar un string vacío; las fechas técnicas continúan rechazando `null` porque su ciclo de vida lo controla el backend. Esta trazabilidad comienza con v0.5; las migraciones preservan los seguimientos antiguos tal como existen y no inventan responsables ni cambios históricos.
 
+El diálogo operativo del frontend captura un baseline al abrirse y envía únicamente estado, prioridad, progreso, notas o fecha límite que el usuario modificó. Si llega un evento SSE mientras permanece abierto, un campo intacto no vuelve al servidor como parte de un snapshot viejo. Elegir un estado propone inmediatamente su progreso canónico en el slider y un ajuste manual posterior permanece explícito; los conflictos simultáneos sobre el mismo campo quedan reservados para el control optimista por versión.
+
 En las respuestas de `Ticket` y `Seguimiento`, una columna nullable siempre conserva su propiedad y usa `null` cuando no hay valor; no se representa como propiedad ausente. OpenAPI marca esos campos como requeridos + nullable, `TicketDetail.seguimientos` siempre es un array y el codegen refleja la forma real de Drizzle en TypeScript y Zod.
 
 ## Ingesta y CSV compartidos

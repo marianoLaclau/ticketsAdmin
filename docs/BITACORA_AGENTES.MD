@@ -2,6 +2,19 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — PATCH mínimo para la gestión del ticket
+
+**Agente:** Codex
+**Estado:** decimosexta remediación de la auditoría técnica, implementada localmente.
+
+- El diálogo de estado dejó de enviar siempre una instantánea completa de estado, prioridad, notas y progreso. Captura un baseline autoritativo al abrirse y construye un `TicketUpdate` solo con diferencias reales.
+- Si un SSE refresca el ticket mientras el diálogo permanece abierto, los campos que la persona no tocó se omiten y no pisan el trabajo de otro usuario ni una promoción automática de prioridad. La fecha límite administrativa se compara contra el mismo baseline, no contra el ticket vivo.
+- Elegir un estado actualiza visualmente el slider al progreso canónico del nuevo paso; si luego se ajusta manualmente, se respeta ese valor explícito. Volver al estado original restaura también el progreso capturado al abrir, incluso en tickets históricos no canónicos. Cambios aislados de prioridad, progreso o notas permanecen aislados; borrar notas produce `null` y guardar sin cambios no llama a la API.
+- Se reemplazó el estado `any` por un formulario tipado y se centralizó el mapa estado/progreso para evitar dos fuentes divergentes.
+- Se agregaron pruebas puras para PATCH mínimo, estado/progreso acoplados, borrado de notas, progreso aislado y no-op.
+- Archivos principales: `TicketDetail`, helper/test de edición y documentación.
+- Validaciones: 274 pruebas correctas (backend 145, frontend 65, base de datos 11, política compartida 4, ingesta 48 y scripts 1), typecheck y build completos. El build conserva los avisos ya registrados de sourcemaps en cuatro componentes UI y del bundle frontend mayor a 500 kB.
+
 ## 2026-08-05 — Contrato nullable preciso para tickets
 
 **Agente:** Codex

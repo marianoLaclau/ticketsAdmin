@@ -2,10 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Ticket } from '@workspace/api-client-react';
 import {
+  applyTicketManagementState,
+  buildTicketManagementUpdate,
   buildFunctionalTicketUpdate,
   getFunctionalFieldLabel,
   isValidOptionalEmail,
   ticketToFunctionalForm,
+  ticketToManagementForm,
 } from '../src/lib/ticket-edit.ts';
 
 const ticket = {
@@ -17,6 +20,7 @@ const ticket = {
   telefono: null,
   dni: '123',
   empresa: null,
+  estado_empleado: null,
   email: 'ana@example.com',
   motivo: 'Consulta',
   motivo_categoria: 'contacto_general',
@@ -24,8 +28,14 @@ const ticket = {
   notificado: false,
   estado: 'nuevo',
   prioridad: 'media',
+  asignado_usuario_id: null,
+  asignado_a: null,
+  audio_url: null,
+  notas: null,
   progreso: 0,
-  fecha_creacion: new Date().toISOString(),
+  fecha_creacion: new Date(),
+  fecha_limite: null,
+  fecha_resolucion: null,
 } as Ticket;
 
 test('construye un PATCH mínimo y normaliza opcionales vacíos a null', () => {
@@ -46,6 +56,78 @@ test('construye un PATCH mínimo y normaliza opcionales vacíos a null', () => {
 
 test('omite todos los campos cuando no hubo cambios reales', () => {
   assert.deepEqual(buildFunctionalTicketUpdate(ticket, ticketToFunctionalForm(ticket)), {});
+});
+
+test('gestión envía solo los campos realmente modificados', () => {
+  const baseline = ticketToManagementForm(ticket, '2026-08-05T10:30');
+  const draft = {
+    ...baseline,
+    prioridad: 'urgente' as const,
+    notas: '  Requiere revisión  ',
+  };
+
+  assert.deepEqual(buildTicketManagementUpdate(baseline, draft), {
+    prioridad: 'urgente',
+    notas: 'Requiere revisión',
+  });
+});
+
+test('un cambio de estado envía su progreso coherente sin snapshots ajenos', () => {
+  const baseline = ticketToManagementForm(ticket);
+  const draft = applyTicketManagementState(baseline, 'pendiente');
+
+  assert.deepEqual(buildTicketManagementUpdate(baseline, draft), {
+    estado: 'pendiente',
+    progreso: 50,
+  });
+});
+
+test('respeta un ajuste manual de progreso posterior al cambio de estado', () => {
+  const baseline = ticketToManagementForm(ticket);
+  const changedState = applyTicketManagementState(baseline, 'pendiente');
+  const draft = { ...changedState, progreso: 65 };
+
+  assert.deepEqual(buildTicketManagementUpdate(baseline, draft), {
+    estado: 'pendiente',
+    progreso: 65,
+  });
+});
+
+test('volver al estado original restaura también su progreso inicial', () => {
+  const ticketWithHistoricalProgress = { ...ticket, progreso: 15 };
+  const baseline = ticketToManagementForm(ticketWithHistoricalProgress);
+  const changedState = applyTicketManagementState(
+    baseline,
+    'pendiente',
+    baseline,
+  );
+  const reverted = applyTicketManagementState(
+    changedState,
+    baseline.estado,
+    baseline,
+  );
+
+  assert.equal(reverted.progreso, 15);
+  assert.deepEqual(buildTicketManagementUpdate(baseline, reverted), {});
+});
+
+test('permite cambiar solo progreso y borrar notas con null', () => {
+  const baseline = ticketToManagementForm({
+    ...ticket,
+    notas: 'Dato anterior',
+  });
+  const draft = { ...baseline, progreso: 35, notas: '   ' };
+
+  assert.deepEqual(buildTicketManagementUpdate(baseline, draft), {
+    progreso: 35,
+    notas: null,
+  });
+});
+
+test('no genera un PATCH cuando la gestión conserva el snapshot de apertura', () => {
+  const baseline = ticketToManagementForm(ticket, '2026-08-05T10:30');
+
+  assert.deepEqual(buildTicketManagementUpdate(baseline, { ...baseline }), {});
 });
 
 test('expone etiquetas humanas para la auditoría', () => {
