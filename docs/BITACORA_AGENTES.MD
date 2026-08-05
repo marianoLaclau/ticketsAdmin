@@ -2,6 +2,18 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — Revocación al cambiar el rol de un usuario
+
+**Agente:** Codex
+**Estado:** decimotercera remediación de la auditoría técnica, implementada localmente.
+
+- `PATCH /admin/users/:id` compara el rol solicitado con el rol autoritativo. Un cambio real actualiza la cuenta y elimina todas sus sesiones dentro de la misma transacción; después del commit cierra sus streams SSE.
+- Una cookie previa no puede heredar una promoción ni conservar el rol anterior. Reenviar el mismo `role_id` conserva la sesión y evita expulsiones por formularios que todavía envían snapshots completos.
+- Si falla la revocación, también se revierte el cambio de rol. La protección del último SysAdmin y el rechazo de roles inactivos permanecen dentro de la misma decisión transaccional.
+- Se agregaron pruebas HTTP con sesión y stream reales para cambio, no-op y rollback forzado de la revocación.
+- Archivos principales: ruta administrativa de usuarios, contrato OpenAPI, pruebas RBAC/SSE y documentación.
+- Validaciones: 261 pruebas correctas (backend 142, frontend 55, base de datos 11, política compartida 4, ingesta 48 y scripts 1), codegen, typecheck y build completos. El build conserva los avisos ya registrados de sourcemaps en cuatro componentes UI y del bundle frontend mayor a 500 kB.
+
 ## 2026-08-05 — Importación y truncate atómicos
 
 **Agente:** Codex

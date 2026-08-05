@@ -704,7 +704,10 @@ paths:
       operationId: updateAdminUser
       tags: [admin]
       summary: Actualizar o desactivar un usuario
-      description: Los usuarios se desactivan estableciendo activo en false; no se eliminan.
+      description: >
+        Los usuarios se desactivan estableciendo activo en false; no se eliminan.
+        Desactivar la cuenta o cambiarla realmente de rol revoca todas sus
+        sesiones activas. Reenviar el mismo role_id conserva la sesión.
       security:
         - sessionCookie: []
           adminApiKey: []

@@ -1638,6 +1638,116 @@ describe("roles inactivos", () => {
   });
 });
 
+describe("cambios de rol de usuario", () => {
+  it("revoca sus sesiones y cierra su SSE al cambiar realmente de rol", async () => {
+    const operatorCookie = sessionCookie(await login("operadora"));
+    const secondOperatorCookie = sessionCookie(await login("operadora"));
+    const stream = await requestWithSession("/api/events", operatorCookie);
+    assert.equal(stream.status, 200);
+    assert.ok(stream.body);
+    const reader = stream.body.getReader();
+
+    try {
+      const initial = await reader.read();
+      assert.equal(initial.done, false);
+
+      const adminCookie = await adminSession();
+      const changed = await adminRequest("/admin/users/2", adminCookie, {
+        method: "PATCH",
+        body: JSON.stringify({ role_id: 2 }),
+      });
+      assert.equal(changed.status, 200);
+
+      const user = sqlite
+        .prepare("SELECT role_id FROM usuarios WHERE id = 2")
+        .get() as { role_id: number };
+      assert.equal(user.role_id, 2);
+
+      const sessions = sqlite
+        .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
+        .get() as { total: number };
+      assert.equal(sessions.total, 0);
+
+      const closed = await Promise.race([
+        reader.read(),
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(
+            () => reject(new Error("el SSE siguió abierto tras cambiar el rol")),
+            1_000,
+          ),
+        ),
+      ]);
+      assert.equal(closed.done, true);
+      assert.equal(
+        (await requestWithSession("/auth/me", operatorCookie)).status,
+        401,
+      );
+      assert.equal(
+        (await requestWithSession("/auth/me", secondOperatorCookie)).status,
+        401,
+      );
+    } finally {
+      await reader.cancel();
+    }
+  });
+
+  it("conserva la sesion cuando role_id no cambia", async () => {
+    const operatorCookie = sessionCookie(await login("operadora"));
+    const adminCookie = await adminSession();
+
+    const unchanged = await adminRequest("/admin/users/2", adminCookie, {
+      method: "PATCH",
+      body: JSON.stringify({ role_id: 5 }),
+    });
+    assert.equal(unchanged.status, 200);
+
+    const sessions = sqlite
+      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
+      .get() as { total: number };
+    assert.equal(sessions.total, 1);
+    assert.equal(
+      (await requestWithSession("/auth/me", operatorCookie)).status,
+      200,
+    );
+  });
+
+  it("revierte el rol si no puede revocar las sesiones", async () => {
+    const operatorCookie = sessionCookie(await login("operadora"));
+    const adminCookie = await adminSession();
+    sqlite.exec(`
+      CREATE TRIGGER bloquear_revocacion_por_rol
+      BEFORE DELETE ON sesiones
+      WHEN OLD.usuario_id = 2
+      BEGIN
+        SELECT RAISE(ABORT, 'fallo de revocacion forzado');
+      END;
+    `);
+
+    try {
+      const changed = await adminRequest("/admin/users/2", adminCookie, {
+        method: "PATCH",
+        body: JSON.stringify({ role_id: 2 }),
+      });
+      assert.equal(changed.status, 500);
+    } finally {
+      sqlite.exec("DROP TRIGGER bloquear_revocacion_por_rol");
+    }
+
+    const user = sqlite
+      .prepare("SELECT role_id FROM usuarios WHERE id = 2")
+      .get() as { role_id: number };
+    assert.equal(user.role_id, 5);
+    const sessions = sqlite
+      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
+      .get() as { total: number };
+    assert.equal(sessions.total, 1);
+    assert.equal(
+      (await requestWithSession("/auth/me", operatorCookie)).status,
+      200,
+    );
+  });
+});
+
 describe("último SysAdmin autenticable", () => {
   it("impide desactivarlo o degradarlo", async () => {
     const cookie = await adminSession();

@@ -616,6 +616,7 @@ router.patch("/admin/users/:id", async (req, res) => {
         .select({
           id: usuariosTable.id,
           activo: usuariosTable.activo,
+          roleId: usuariosTable.role_id,
           username: usuariosTable.username,
           passwordHash: usuariosTable.password_hash,
           rol: rolesTable.nombre,
@@ -688,7 +689,10 @@ router.patch("/admin/users/:id", async (req, res) => {
         .where(eq(usuariosTable.id, current.id))
         .returning(PUBLIC_USER_COLUMNS)
         .get();
-      if (updates.activo === false) {
+      const roleChanged =
+        body.data.role_id !== undefined && body.data.role_id !== current.roleId;
+      const sessionsRevoked = updates.activo === false || roleChanged;
+      if (sessionsRevoked) {
         tx.delete(sesionesTable)
           .where(eq(sesionesTable.usuario_id, current.id))
           .run();
@@ -697,6 +701,7 @@ router.patch("/admin/users/:id", async (req, res) => {
         kind: "updated",
         user,
         previousUsername: current.username,
+        sessionsRevoked,
       } as const;
     });
 
@@ -718,7 +723,7 @@ router.patch("/admin/users/:id", async (req, res) => {
       });
       return;
     }
-    if (updates.activo === false) {
+    if (result.sessionsRevoked) {
       closeEventClientsForUsers([params.data.id]);
     }
     if (updates.username !== undefined) {

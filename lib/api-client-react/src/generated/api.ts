@@ -1382,7 +1382,7 @@ export const getUpdateAdminUserUrl = (id: number,) => {
 }
 
 /**
- * Los usuarios se desactivan estableciendo activo en false; no se eliminan.
+ * Los usuarios se desactivan estableciendo activo en false; no se eliminan. Desactivar la cuenta o cambiarla realmente de rol revoca todas sus sesiones activas. Reenviar el mismo role_id conserva la sesión.
  * @summary Actualizar o desactivar un usuario
  */
 export const updateAdminUser = async (id: number,

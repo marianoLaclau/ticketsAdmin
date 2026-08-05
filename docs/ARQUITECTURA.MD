@@ -303,6 +303,7 @@ Es la auditoría temporal del ticket. Registra notas manuales, alta automática 
 Invariantes de RBAC aplicadas en backend y reflejadas en la UI:
 
 - un rol inactivo no permite login ni nuevas asignaciones; al desactivarlo se revocan atómicamente las sesiones de sus usuarios y se cierran sus streams SSE;
+- un cambio real de `usuarios.role_id` revoca en la misma transacción todas las sesiones de esa cuenta y cierra sus SSE después del commit; reenviar el mismo rol es un no-op para la sesión;
 - los tres roles base no se renombran, desactivan ni eliminan;
 - una actualización de usuarios no puede dejar el sistema sin al menos un SysAdmin activo, con username y hash scrypt utilizable;
 - el seed crea/reactiva roles canónicos y migra solo la identidad histórica: nunca convierte en masa el rol `Administrador` en `SysAdmin`.
