@@ -222,6 +222,7 @@ erDiagram
         text username UK
         text email UK
         text password_hash
+        boolean debe_cambiar_password
         integer role_id FK
         boolean activo
         timestamp fecha_creacion
@@ -290,11 +291,13 @@ Es la auditoría temporal del ticket. Registra notas manuales, alta automática 
 ### `roles`, `usuarios` y `sesiones`
 
 - `roles` define el catálogo de perfiles. Los nombres base `SysAdmin`, `Administrador` y `Operador` son identidades reservadas y activas; los perfiles personalizados sí admiten ciclo de vida propio.
-- `usuarios` contiene identidad, credenciales hash, rol y estado activo.
+- `usuarios` contiene identidad, credenciales hash, rol, estado activo y el flag autoritativo `debe_cambiar_password`.
 - `sesiones` persiste el token de cookie `gsb_session`, su usuario y expiración; permite revocar sesiones y sobrevivir reinicios.
 - `password_hash` usa scrypt asíncrono y versionado (`scrypt$v1$N$r$p$salt$hash`); nunca se almacena la contraseña en texto plano. El lector mantiene compatibilidad con el formato legado y lo rehashea con una sal nueva tras un login válido.
 - Alta, reset y bootstrap validan con `@workspace/password-policy`: 16–128 unidades UTF-16, sin controles C0/DEL, whitespace exterior, placeholders públicos conocidos ni un único carácter repetido. OpenAPI reutiliza un único schema `NewPassword`; el paquete completa la blocklist contextual acotada. Se permiten frases con espacios interiores y no se recorta ni normaliza el secreto antes de hashearlo (NFKC/minúsculas se usan solo para comparar la blocklist y el patrón repetitivo).
 - Login acepta 1–128 unidades UTF-16 para preservar credenciales históricas y poder migrar su hash; esa compatibilidad no habilita nuevas claves fuera de política.
+- Alta, reset administrativo y bootstrap dejan la credencial como temporal. Un usuario en ese estado conserva únicamente sesión actual, logout y cambio propio; el segundo guard global bloquea tickets, dashboard, administración y SSE hasta que el flag sea exactamente `false`.
+- El cambio propio usa comparación optimista del hash y una transacción para actualizar hash/flag, revocar todos los tokens y crear la nueva sesión. La migración deja a usuarios históricos en `false`, pero el schema usa `DEFAULT true` y `CHECK (0,1)` para que futuras omisiones fallen de forma segura.
 
 Invariantes de RBAC aplicadas en backend y reflejadas en la UI:
 
@@ -310,17 +313,24 @@ flowchart TD
     request[Request]
     public{Ruta pública?}
     session{Sesión válida?}
+    password{¿Cambio temporal pendiente?}
+    authOnly{¿me, logout o cambio propio?}
     admin{SysAdmin + x-admin-key?}
     allow[Ejecutar operación]
     reject401[401 / login]
     reject403[403 / acceso denegado]
+    rejectPassword[403 / PASSWORD_CHANGE_REQUIRED]
     reject503[503 / configuración ausente]
 
     request --> public
     public -->|health, login, webhook con su clave| allow
     public -->|resto| session
     session -->|no| reject401
-    session -->|sí| admin
+    session -->|sí| password
+    password -->|no| admin
+    password -->|sí| authOnly
+    authOnly -->|sí| allow
+    authOnly -->|no| rejectPassword
     admin -->|ruta normal| allow
     admin -->|administración| admin
     admin -->|no es SysAdmin| reject403
@@ -338,9 +348,9 @@ Credenciales:
 - `WEBHOOK_API_KEY`: autentica a n8n.
 - Cookie `gsb_session`: autentica usuarios del panel.
 - `ADMIN_API_KEY`: segunda credencial para operaciones SysAdmin.
-- `BOOTSTRAP_SYSADMIN_PASSWORD`: secreto exclusivo del bootstrap para crear `sysadmin` cuando no hay hashes o rotar la credencial semilla heredada.
+- `BOOTSTRAP_SYSADMIN_PASSWORD`: secreto exclusivo del bootstrap para crear `sysadmin` cuando no hay hashes o rotar la credencial semilla heredada; la contraseña resultante es temporal.
 
-Las API keys y el secreto bootstrap se entregan por variables de entorno o secretos del runner y no deben entrar al repositorio. Las API keys no se persisten en la base; del secreto bootstrap solo se guarda un hash scrypt. Una credencial ya asegurada se conserva: la variable no funciona como mecanismo de reset. La rotación de compatibilidad actualiza el hash y revoca las sesiones del seed histórico en una única transacción.
+Las API keys y el secreto bootstrap se entregan por variables de entorno o secretos del runner y no deben entrar al repositorio. Las API keys no se persisten en la base; del secreto bootstrap solo se guarda un hash scrypt. Una credencial ya asegurada se conserva: la variable no funciona como mecanismo de reset. La rotación de compatibilidad actualiza el hash, activa el cambio obligatorio y revoca las sesiones del seed histórico en una única transacción.
 
 ## 7. Estados, SLA y auditoría
 

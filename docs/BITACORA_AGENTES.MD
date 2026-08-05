@@ -2,6 +2,20 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-04 — Cambio obligatorio de contraseña temporal
+
+**Agente:** Codex
+**Estado:** quinta remediación de la auditoría técnica, implementada y validada localmente.
+
+- Se agregó `usuarios.debe_cambiar_password` como estado autoritativo. La migración `0010_require_password_change.sql` conserva en `false` a todas las cuentas históricas y deja `NOT NULL DEFAULT true` más `CHECK (0,1)` para que futuras altas omitidas fallen de forma segura.
+- Alta y reset administrativo, bootstrap inicial y rotación del seed heredado emiten contraseñas temporales. El rehash automático de un formato histórico preserva el flag y un seed posterior nunca vuelve a activarlo sobre una clave ya asegurada.
+- Se incorporó `POST /api/auth/password`: verifica la contraseña actual con compatibilidad histórica, aplica la política compartida a la nueva, rechaza reutilización y realiza con comparación optimista una transacción que cambia hash/flag, revoca todas las sesiones y crea un token nuevo. Carreras y fallos revierten la operación completa.
+- Después de autenticar, un segundo guard backend bloquea tickets, dashboard, administración y SSE con el código estable `PASSWORD_CHANGE_REQUIRED` mientras el flag no sea exactamente `false`. `/auth/me`, logout y el cambio propio siguen disponibles; por lo tanto la restricción no depende de la UI.
+- El frontend agregó `/cambiar-contrasena` fuera del layout privado, con contraseña temporal, nueva, repetición, ayudas accesibles y cierre de sesión. Login, raíz y `AuthGate` comparten una decisión de ruta probada; no se puede escapar mediante navegación ni volver a la pantalla después de regularizar la cuenta. La raíz tampoco confía en un usuario stale si `/auth/me` falló o sigue revalidando, y limpia las queries funcionales antes de instalar otra identidad para evitar rebotes o datos cruzados.
+- Roles y usuarios ahora identifica claves temporales, muestra el badge **Cambio de contraseña pendiente** y actualiza el listado después de un reset. OpenAPI expone el flag de solo lectura, el nuevo endpoint, errores estructurados y la respuesta `PASSWORD_CHANGE_REQUIRED` en todas las operaciones protegidas; Orval regeneró tipos, cliente React y validadores Zod.
+- Archivos principales: `lib/db/src/schema/admin.ts`, migración y prueba `0010`, `lib/api-spec/openapi.yaml`, artefactos generados, `backend/src/lib/auth.ts`, `backend/src/routes/auth.ts`, `backend/src/routes/admin.ts`, `backend/src/lib/seed.ts`, `frontend/src/App.tsx`, `frontend/src/pages/ChangePassword.tsx`, `frontend/src/lib/session-state.ts` y `frontend/src/pages/AdminRolesUsers.tsx`.
+- Validaciones ejecutadas antes del commit: 217 pruebas correctas en la suite completa (backend 102, frontend 53, base de datos 10, política compartida 4 e ingesta 48), codegen, typecheck completo, build de producción, `drizzle-kit check`, migrador real idempotente, `git diff --check` y dos revisiones cruzadas. El build conserva únicamente las advertencias ya auditadas de sourcemaps y tamaño del bundle, fuera del alcance de este commit.
+
 ## 2026-08-04 — Política única de contraseñas nuevas
 
 **Agente:** Codex

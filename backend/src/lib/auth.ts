@@ -52,13 +52,19 @@ export interface SessionUser {
   apellido: string | null;
   email: string;
   rol: string;
+  debe_cambiar_password: boolean;
+}
+
+export function getSessionToken(req: Request): string | null {
+  const token = (req as Request & { cookies?: Record<string, string> })
+    .cookies?.[SESSION_COOKIE];
+  return typeof token === "string" && token.length > 0 ? token : null;
 }
 
 export async function getSessionUser(
   req: Request,
 ): Promise<SessionUser | null> {
-  const token = (req as Request & { cookies?: Record<string, string> })
-    .cookies?.[SESSION_COOKIE];
+  const token = getSessionToken(req);
   if (!token) return null;
 
   const [row] = await db
@@ -69,6 +75,7 @@ export async function getSessionUser(
       apellido: usuariosTable.apellido,
       email: usuariosTable.email,
       activo: usuariosTable.activo,
+      debe_cambiar_password: usuariosTable.debe_cambiar_password,
       rol: rolesTable.nombre,
       rol_activo: rolesTable.activo,
     })
@@ -94,6 +101,7 @@ export async function getSessionUser(
     apellido: row.apellido,
     email: row.email,
     rol: row.rol,
+    debe_cambiar_password: row.debe_cambiar_password,
   };
 }
 
@@ -109,6 +117,25 @@ export async function requireSession(
     return;
   }
   res.locals.authUser = user;
+  next();
+}
+
+// Segundo candado global: una sesión creada con una clave temporal solo puede
+// usar los endpoints de autenticación montados antes de este middleware.
+// Comparar contra false hace que un valor ausente también falle cerrado.
+export function requirePasswordChangeCompleted(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  const user = res.locals.authUser as SessionUser | undefined;
+  if (!user || user.debe_cambiar_password !== false) {
+    res.status(403).json({
+      code: "PASSWORD_CHANGE_REQUIRED",
+      error: "Debés cambiar la contraseña temporal antes de continuar",
+    });
+    return;
+  }
   next();
 }
 

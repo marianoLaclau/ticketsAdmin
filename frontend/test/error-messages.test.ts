@@ -4,6 +4,8 @@ import {
   getAdminErrorMessage,
   getApiErrorStatus,
   getLoginErrorMessage,
+  getPasswordChangeErrorMessage,
+  getServerErrorCode,
   getUserErrorMessage,
 } from '../src/lib/error-messages.ts';
 
@@ -21,6 +23,18 @@ test('nunca muestra el mensaje técnico del Error', () => {
 
   assert.equal(result, 'Revisá los datos ingresados e intentá nuevamente.');
   assert.doesNotMatch(result, /HTTP|String|password|code/i);
+});
+
+test('expone únicamente el código estructurado para refrescar la sesión', () => {
+  assert.equal(
+    getServerErrorCode({
+      status: 403,
+      data: { code: 'PASSWORD_CHANGE_REQUIRED', error: 'mensaje' },
+    }),
+    'PASSWORD_CHANGE_REQUIRED',
+  );
+  assert.equal(getServerErrorCode({ data: { error: 'sin código' } }), '');
+  assert.equal(getServerErrorCode(new Error('PASSWORD_CHANGE_REQUIRED')), '');
 });
 
 test('extrae el estado solamente desde datos estructurados', () => {
@@ -101,6 +115,23 @@ test('el login diferencia credenciales inválidas y problemas de conexión', () 
 test('el login no presenta una validación HTTP como un problema de conexión', () => {
   assert.match(getLoginErrorMessage(apiError(400, 'Invalid body')), /Revisá el usuario/i);
   assert.match(getLoginErrorMessage(apiError(403, 'Cuenta bloqueada')), /no tiene permitido/i);
+});
+
+test('el cambio de contraseña usa códigos estables sin filtrar el servidor', () => {
+  for (const [code, expected] of [
+    ['CURRENT_PASSWORD_INVALID', /temporal no es correcta/i],
+    ['PASSWORD_REUSE_NOT_ALLOWED', /diferente de la temporal/i],
+    ['PASSWORD_CHANGE_REQUIRED', /contraseña definitiva/i],
+    ['SESSION_CHANGED', /sesión cambió o venció/i],
+  ] as const) {
+    const error = Object.assign(new Error('stack y payload técnico'), {
+      status: code === 'PASSWORD_REUSE_NOT_ALLOWED' ? 409 : 400,
+      data: { code, error: 'detalle interno que no debe mostrarse' },
+    });
+    const message = getPasswordChangeErrorMessage(error);
+    assert.match(message, expected);
+    assert.doesNotMatch(message, /payload|stack|detalle interno/i);
+  }
 });
 
 test('respeta un fallback amigable para errores no clasificados', () => {

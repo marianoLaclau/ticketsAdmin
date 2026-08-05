@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  ChangeOwnPasswordBody,
   CreateAdminUserBody,
   LoginBody,
   ResetAdminUserPasswordBody,
@@ -33,9 +34,7 @@ describe("contrato generado de contraseñas", () => {
       [NEW_PASSWORD_MAX_LENGTH + 1, false],
     ] as const) {
       const password =
-        expected && length >= 2
-          ? boundaryPassword(length)
-          : "x".repeat(length);
+        expected && length >= 2 ? boundaryPassword(length) : "x".repeat(length);
       assert.equal(
         CreateAdminUserBody.safeParse(validUserBody(password)).success,
         expected,
@@ -104,6 +103,57 @@ describe("contrato generado de contraseñas", () => {
       assert.equal(
         LoginBody.safeParse({ usuario: "operadora", password }).success,
         expected,
+      );
+    }
+  });
+
+  it("separa la contraseña actual histórica de la nueva en el cambio propio", () => {
+    const newPassword = boundaryPassword(NEW_PASSWORD_MIN_LENGTH);
+    for (const [currentPassword, expected] of [
+      ["", false],
+      ["x".repeat(LOGIN_PASSWORD_MIN_LENGTH), true],
+      [" passwordpassword ", true],
+      ["x".repeat(PASSWORD_MAX_LENGTH), true],
+      ["x".repeat(PASSWORD_MAX_LENGTH + 1), false],
+    ] as const) {
+      assert.equal(
+        ChangeOwnPasswordBody.safeParse({
+          password_actual: currentPassword,
+          password_nueva: newPassword,
+        }).success,
+        expected,
+      );
+    }
+
+    for (const [length, expected] of [
+      [NEW_PASSWORD_MIN_LENGTH - 1, false],
+      [NEW_PASSWORD_MIN_LENGTH, true],
+      [NEW_PASSWORD_MAX_LENGTH, true],
+      [NEW_PASSWORD_MAX_LENGTH + 1, false],
+    ] as const) {
+      const passwordNueva = expected
+        ? boundaryPassword(length)
+        : "x".repeat(length);
+      assert.equal(
+        ChangeOwnPasswordBody.safeParse({
+          password_actual: "histórica",
+          password_nueva: passwordNueva,
+        }).success,
+        expected,
+      );
+    }
+
+    for (const passwordNueva of [
+      " Frase interna segura 2026",
+      "Frase interna segura 2026 ",
+      "Frase\ninterna segura 2026",
+    ]) {
+      assert.equal(
+        ChangeOwnPasswordBody.safeParse({
+          password_actual: "histórica",
+          password_nueva: passwordNueva,
+        }).success,
+        false,
       );
     }
   });

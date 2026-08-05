@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { AlertCircle, KeyRound, LogIn, User } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { getLoginErrorMessage } from '@/lib/error-messages';
+import { getAuthenticatedEntryPath } from '@/lib/password-change';
+import { clearAuthenticatedQueries } from '@/lib/session-state';
 
 // @ts-ignore
 import gsbLogo from '@/assets/gsb-logo.jpg';
@@ -29,10 +31,12 @@ export default function Login() {
       { data: { usuario, password } },
       {
         onSuccess: (user) => {
-          // Actualizar primero la sesión evita un nuevo pedido mientras se
-          // ingresa al área autenticada.
+          // Ninguna query funcional de una identidad anterior puede sobrevivir
+          // al login. /auth/me se preserva para reemplazarla sin recrear el
+          // observer que mantiene montada la entrada pública.
+          clearAuthenticatedQueries(queryClient, getGetMeQueryKey());
           queryClient.setQueryData(getGetMeQueryKey(), user);
-          navigate('/dashboard', { replace: true });
+          navigate(getAuthenticatedEntryPath(user), { replace: true });
         },
         onError: (err) => {
           setError(getLoginErrorMessage(err));

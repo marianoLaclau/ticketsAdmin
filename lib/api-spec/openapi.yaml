@@ -151,6 +151,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TicketListResponse"
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
 
   /tickets/export.csv:
     get:
@@ -238,6 +240,8 @@ paths:
             text/csv:
               schema:
                 type: string
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
 
   /auth/login:
     post:
@@ -263,6 +267,46 @@ paths:
                 $ref: "#/components/schemas/AuthUser"
         "401":
           description: Credenciales inválidas o usuario inactivo
+
+  /auth/password:
+    post:
+      operationId: changeOwnPassword
+      tags: [auth]
+      summary: Reemplazar la contraseña propia
+      description: >
+        Verifica la contraseña actual, aplica la política de credenciales
+        nuevas, rota la sesión y revoca todos los tokens anteriores del usuario.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OwnPasswordChangeInput"
+      responses:
+        "200":
+          description: Contraseña actualizada y sesión rotada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "400":
+          description: Cuerpo inválido, contraseña actual incorrecta o política incumplida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordChangeError"
+        "401":
+          description: Sesión ausente, vencida o modificada en simultáneo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordChangeError"
+        "409":
+          description: La contraseña nueva reutiliza la actual
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordChangeError"
 
   /auth/logout:
     post:
@@ -348,6 +392,8 @@ paths:
                 $ref: "#/components/schemas/Ticket"
         "401":
           description: Clave de administración inválida
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
         "409":
           description: Ya existe un ticket con ese conversation_id
 
@@ -381,6 +427,8 @@ paths:
           description: CSV inválido o sin columna conversation_id
         "401":
           description: Clave de administración inválida
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
 
   /admin/truncate:
     post:
@@ -410,6 +458,8 @@ paths:
           description: Falta la confirmación explícita
         "401":
           description: Clave de administración inválida
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
 
   /admin/roles:
     get:
@@ -448,6 +498,8 @@ paths:
           description: Parametros de consulta invalidos
         "401":
           description: Clave de administracion invalida
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
 
     post:
       operationId: createAdminRole
@@ -473,6 +525,8 @@ paths:
           description: Cuerpo invalido
         "401":
           description: Clave de administracion invalida
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
         "409":
           description: El nombre ya existe o está reservado para un rol del sistema
 
@@ -508,6 +562,8 @@ paths:
           description: Id o cuerpo invalido
         "401":
           description: Clave de administracion invalida
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
         "404":
           description: Rol no encontrado
         "409":
@@ -534,6 +590,8 @@ paths:
           description: Id invalido
         "401":
           description: Clave de administracion invalida
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
         "404":
           description: Rol no encontrado
         "409":
@@ -585,6 +643,8 @@ paths:
           description: Parametros de consulta invalidos
         "401":
           description: Clave de administracion invalida
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
 
     post:
       operationId: createAdminUser
@@ -610,6 +670,8 @@ paths:
           description: Cuerpo invalido o rol inexistente
         "401":
           description: Clave de administracion invalida
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
         "409":
           description: El email/username ya existe o el rol indicado está inactivo
 
@@ -646,6 +708,8 @@ paths:
           description: Id o cuerpo invalido
         "401":
           description: Clave de administracion invalida
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
         "404":
           description: Usuario o rol no encontrado
         "409":
@@ -683,6 +747,8 @@ paths:
           description: Id o cuerpo invalido
         "401":
           description: Clave de administracion invalida
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
         "404":
           description: Usuario no encontrado
 
@@ -710,6 +776,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TicketDetail"
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
         "404":
           description: Not found
 
@@ -750,7 +818,7 @@ paths:
         "401":
           description: Sesion requerida o clave de administracion invalida
         "403":
-          description: La edicion administrativa requiere rol SysAdmin
+          $ref: "#/components/responses/FunctionalAccessForbidden"
         "503":
           description: ADMIN_API_KEY no esta configurada en el servidor
 
@@ -774,7 +842,7 @@ paths:
         "401":
           description: Clave de administracion invalida
         "403":
-          description: Requiere rol SysAdmin
+          $ref: "#/components/responses/FunctionalAccessForbidden"
         "503":
           description: ADMIN_API_KEY no esta configurada en el servidor
 
@@ -804,6 +872,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Seguimiento"
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
 
     post:
       operationId: createSeguimiento
@@ -834,6 +904,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Seguimiento"
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
 
   /dashboard/stats:
     get:
@@ -852,6 +924,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DashboardStats"
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
 
   /dashboard/actividad-reciente:
     get:
@@ -877,6 +951,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ActividadItem"
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
 
   /dashboard/tickets-vencidos:
     get:
@@ -897,6 +973,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Ticket"
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
 
   /dashboard/motivos:
     get:
@@ -917,6 +995,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/MotivoStat"
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
 
 components:
   parameters:
@@ -935,6 +1015,14 @@ components:
         type: string
         format: date
 
+  responses:
+    FunctionalAccessForbidden:
+      description: La contraseña temporal debe reemplazarse o el rol no permite la operación.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/FunctionalAccessError"
+
   securitySchemes:
     sessionCookie:
       type: apiKey
@@ -952,6 +1040,36 @@ components:
       description: Segunda verificacion obligatoria, utilizable solo junto a una sesion SysAdmin.
 
   schemas:
+    FunctionalAccessError:
+      type: object
+      required:
+        - error
+      properties:
+        code:
+          type: string
+          enum: [PASSWORD_CHANGE_REQUIRED]
+          description: Código estable presente cuando una contraseña temporal bloquea la operación.
+        error:
+          type: string
+
+    PasswordChangeError:
+      type: object
+      required:
+        - code
+        - error
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_BODY
+            - CURRENT_PASSWORD_INVALID
+            - NEW_PASSWORD_POLICY_VIOLATION
+            - PASSWORD_REUSE_NOT_ALLOWED
+            - SESSION_INVALID
+            - SESSION_CHANGED
+        error:
+          type: string
+
     NewPassword:
       type: string
       minLength: 16
@@ -959,6 +1077,13 @@ components:
       pattern: '^(?![\s\S]*[\x00-\x1F\x7F])\S(?:[\s\S]*\S)?$'
       writeOnly: true
       description: Contraseña nueva sin caracteres de control, espacios exteriores ni claves comunes, repetitivas o de ejemplo. Se persiste únicamente como hash.
+
+    CurrentPassword:
+      type: string
+      minLength: 1
+      maxLength: 128
+      writeOnly: true
+      description: Contraseña actual; conserva compatibilidad con credenciales históricas.
 
     LoginInput:
       type: object
@@ -970,10 +1095,18 @@ components:
           type: string
           description: Nombre de usuario asignado al crear la cuenta (no el email)
         password:
-          type: string
-          minLength: 1
-          maxLength: 128
-          writeOnly: true
+          $ref: "#/components/schemas/CurrentPassword"
+
+    OwnPasswordChangeInput:
+      type: object
+      required:
+        - password_actual
+        - password_nueva
+      properties:
+        password_actual:
+          $ref: "#/components/schemas/CurrentPassword"
+        password_nueva:
+          $ref: "#/components/schemas/NewPassword"
 
     AuthUser:
       type: object
@@ -982,6 +1115,7 @@ components:
         - nombre
         - email
         - rol
+        - debe_cambiar_password
       properties:
         id:
           type: integer
@@ -994,6 +1128,10 @@ components:
         rol:
           type: string
           description: Nombre del rol asignado
+        debe_cambiar_password:
+          type: boolean
+          readOnly: true
+          description: Indica que la clave actual es temporal y debe reemplazarse antes de usar la aplicación.
 
     AdminRole:
       type: object
@@ -1079,6 +1217,7 @@ components:
         - email
         - role_id
         - activo
+        - debe_cambiar_password
         - fecha_creacion
         - fecha_actualizacion
       properties:
@@ -1097,6 +1236,10 @@ components:
           type: integer
         activo:
           type: boolean
+        debe_cambiar_password:
+          type: boolean
+          readOnly: true
+          description: Indica que la contraseña fue emitida por administración y todavía no fue reemplazada por el usuario.
         fecha_creacion:
           type: string
           format: date-time

@@ -19,6 +19,8 @@ export interface AdminUser {
   email: string;
   role_id: number;
   activo: boolean;
+  /** Indica que la contraseña fue emitida por administración y todavía no fue reemplazada por el usuario. */
+  readonly debe_cambiar_password: boolean;
   fecha_creacion: Date;
   fecha_actualizacion: Date;
 }

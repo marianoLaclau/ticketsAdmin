@@ -6,9 +6,9 @@
  * OpenAPI spec version: 0.5.0
  */
 import type { CurrentPassword } from './currentPassword';
+import type { NewPassword } from './newPassword';
 
-export interface LoginInput {
-  /** Nombre de usuario asignado al crear la cuenta (no el email) */
-  usuario: string;
-  password: CurrentPassword;
+export interface OwnPasswordChangeInput {
+  password_actual: CurrentPassword;
+  password_nueva: NewPassword;
 }

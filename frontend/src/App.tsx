@@ -7,6 +7,7 @@ import TicketDetail from '@/pages/TicketDetail';
 import Admin from '@/pages/Admin';
 import AdminRolesUsers from '@/pages/AdminRolesUsers';
 import Login from '@/pages/Login';
+import ChangePassword from '@/pages/ChangePassword';
 import NotFound from '@/pages/not-found';
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useGetMe, getGetMeQueryKey } from '@workspace/api-client-react';
@@ -15,6 +16,15 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Loader2 } from 'lucide-react';
 import { ROL_SYSADMIN } from '@/lib/roles';
 import { AppErrorBoundary, ErrorPage, getErrorStatus } from '@/components/ErrorPage';
+import { getServerErrorCode } from '@/lib/error-messages';
+import {
+  PASSWORD_CHANGE_PATH,
+  getAuthenticatedEntryPath,
+} from '@/lib/password-change';
+import {
+  clearAuthenticatedQueries,
+  hasConfirmedPublicSession,
+} from '@/lib/session-state';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,14 +40,22 @@ const queryClient = new QueryClient({
       // IMPORTANTE: excluir a /auth/me de este handler — si su propio 401
       // la invalida, se refetchea, vuelve a dar 401 y entra en loop infinito.
       const esQueryDeSesion = query.queryKey[0] === getGetMeQueryKey()[0];
-      if (!esQueryDeSesion && (error as { status?: number })?.status === 401) {
+      const isUnauthorized = (error as { status?: number })?.status === 401;
+      const requiresPasswordChange =
+        getServerErrorCode(error) === 'PASSWORD_CHANGE_REQUIRED';
+      if (esQueryDeSesion && isUnauthorized) {
+        clearAuthenticatedQueries(queryClient, getGetMeQueryKey());
+      } else if (!esQueryDeSesion && (isUnauthorized || requiresPasswordChange)) {
         queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       }
     },
   }),
   mutationCache: new MutationCache({
     onError: (error) => {
-      if (getErrorStatus(error) !== 401) return;
+      const isUnauthorized = getErrorStatus(error) === 401;
+      const requiresPasswordChange =
+        getServerErrorCode(error) === 'PASSWORD_CHANGE_REQUIRED';
+      if (!isUnauthorized && !requiresPasswordChange) return;
 
       const apiError = error as { data?: { error?: unknown }; url?: unknown };
       const serverMessage = apiError.data?.error;
@@ -49,7 +67,7 @@ const queryClient = new QueryClient({
       // Una API key incorrecta no invalida la sesión del SysAdmin, y un login
       // fallido ya se informa dentro del formulario. El resto de los 401 en
       // mutaciones obliga a revalidar la sesión y, si venció, vuelve a la raíz.
-      if (!isAdminKeyError && !isLoginAttempt) {
+      if (requiresPasswordChange || (!isAdminKeyError && !isLoginAttempt)) {
         queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       }
     },
@@ -84,12 +102,15 @@ function PublicEntry() {
     query: { queryKey: getGetMeQueryKey(), retry: false, refetchOnWindowFocus: true },
   });
   const errorStatus = getErrorStatus(error);
+  const hasConfirmedSession = hasConfirmedPublicSession(me, isError, isFetching);
 
   React.useEffect(() => {
-    if (me) navigate('/dashboard', { replace: true });
-  }, [me, navigate]);
+    if (hasConfirmedSession) {
+      navigate(getAuthenticatedEntryPath(me), { replace: true });
+    }
+  }, [hasConfirmedSession, me, navigate]);
 
-  if (isLoading || me) return <LoadingSession />;
+  if (isLoading || isFetching || hasConfirmedSession) return <LoadingSession />;
 
   // En la entrada, un 401 significa simplemente que hay que iniciar sesión.
   if (!isError || errorStatus === 401) return <Login />;
@@ -114,7 +135,7 @@ function PublicEntry() {
  * errores de red/servidor se muestran aparte y permiten reintentar.
  */
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const { data: me, error, isError, isFetching, isLoading, refetch } = useGetMe({
     query: { queryKey: getGetMeQueryKey(), retry: false, refetchOnWindowFocus: true },
   });
@@ -125,8 +146,16 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       navigate('/', { replace: true });
     } else if (!isLoading && !isError && !me) {
       navigate('/', { replace: true });
+    } else if (me) {
+      const target = getAuthenticatedEntryPath(me);
+      const passwordChangeRequired = target === PASSWORD_CHANGE_PATH;
+      if (passwordChangeRequired && location !== target) {
+        navigate(target, { replace: true });
+      } else if (!passwordChangeRequired && location === PASSWORD_CHANGE_PATH) {
+        navigate(target, { replace: true });
+      }
     }
-  }, [errorStatus, isError, isLoading, me, navigate]);
+  }, [errorStatus, isError, isLoading, location, me, navigate]);
 
   if (isLoading) return <LoadingSession />;
 
@@ -148,6 +177,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   if (!me) return <LoadingSession />;
+
+  if (getAuthenticatedEntryPath(me) === PASSWORD_CHANGE_PATH) {
+    if (location !== PASSWORD_CHANGE_PATH) return <LoadingSession />;
+    return <ChangePassword />;
+  }
+  if (location === PASSWORD_CHANGE_PATH) return <LoadingSession />;
 
   return <>{children}</>;
 }

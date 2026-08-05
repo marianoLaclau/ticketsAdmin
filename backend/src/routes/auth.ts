@@ -1,8 +1,8 @@
-import { Router, type Request } from "express";
+import { Router } from "express";
 import { randomBytes } from "node:crypto";
 import { db, sesionesTable, usuariosTable, rolesTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
-import { LoginBody } from "@workspace/api-zod";
+import { ChangeOwnPasswordBody, LoginBody } from "@workspace/api-zod";
 import {
   hashPassword,
   needsPasswordRehash,
@@ -11,10 +11,15 @@ import {
 import {
   SESSION_COOKIE,
   SESSION_TTL_MS,
+  getSessionToken,
   getSessionUser,
   purgeExpiredSessions,
 } from "../lib/auth";
-import { closeEventClientsForSession } from "../lib/events";
+import {
+  closeEventClientsForSession,
+  closeEventClientsForUsers,
+} from "../lib/events";
+import { getNewPasswordPolicyError } from "../lib/new-password-policy";
 
 const router = Router();
 
@@ -33,7 +38,20 @@ interface LoginUserRecord {
   activo: boolean;
   rol: string;
   rol_activo: boolean;
+  debe_cambiar_password: boolean;
 }
+
+const LOGIN_USER_COLUMNS = {
+  id: usuariosTable.id,
+  nombre: usuariosTable.nombre,
+  apellido: usuariosTable.apellido,
+  email: usuariosTable.email,
+  password_hash: usuariosTable.password_hash,
+  activo: usuariosTable.activo,
+  rol: rolesTable.nombre,
+  rol_activo: rolesTable.activo,
+  debe_cambiar_password: usuariosTable.debe_cambiar_password,
+};
 
 type LoginTransactionResult =
   | { kind: "authenticated"; user: LoginUserRecord }
@@ -49,16 +67,7 @@ router.post("/auth/login", async (req, res) => {
   const usuarioNormalizado = parsed.data.usuario.trim().toLowerCase();
 
   const [user] = await db
-    .select({
-      id: usuariosTable.id,
-      nombre: usuariosTable.nombre,
-      apellido: usuariosTable.apellido,
-      email: usuariosTable.email,
-      password_hash: usuariosTable.password_hash,
-      activo: usuariosTable.activo,
-      rol: rolesTable.nombre,
-      rol_activo: rolesTable.activo,
-    })
+    .select(LOGIN_USER_COLUMNS)
     .from(usuariosTable)
     .innerJoin(rolesTable, eq(usuariosTable.role_id, rolesTable.id))
     .where(eq(usuariosTable.username, usuarioNormalizado));
@@ -102,16 +111,7 @@ router.post("/auth/login", async (req, res) => {
       // relee el estado y se exige el mismo hash, evitando que un reset
       // concurrente termine autenticando la contraseña anterior.
       const current = tx
-        .select({
-          id: usuariosTable.id,
-          nombre: usuariosTable.nombre,
-          apellido: usuariosTable.apellido,
-          email: usuariosTable.email,
-          password_hash: usuariosTable.password_hash,
-          activo: usuariosTable.activo,
-          rol: rolesTable.nombre,
-          rol_activo: rolesTable.activo,
-        })
+        .select(LOGIN_USER_COLUMNS)
         .from(usuariosTable)
         .innerJoin(rolesTable, eq(usuariosTable.role_id, rolesTable.id))
         .where(eq(usuariosTable.id, candidate.id))
@@ -190,12 +190,160 @@ router.post("/auth/login", async (req, res) => {
     apellido: authenticatedUser.apellido,
     email: authenticatedUser.email,
     rol: authenticatedUser.rol,
+    debe_cambiar_password: authenticatedUser.debe_cambiar_password,
   });
 });
 
+router.post("/auth/password", async (req, res) => {
+  const token = getSessionToken(req);
+  const sessionUser = await getSessionUser(req);
+  if (!token || !sessionUser) {
+    res.clearCookie(SESSION_COOKIE, cookieOptions);
+    res
+      .status(401)
+      .json({ code: "SESSION_INVALID", error: "Sin sesión válida" });
+    return;
+  }
+
+  const rawNewPassword =
+    req.body && typeof req.body === "object" && !Array.isArray(req.body)
+      ? (req.body as { password_nueva?: unknown }).password_nueva
+      : undefined;
+  const passwordPolicyError = getNewPasswordPolicyError(rawNewPassword);
+  if (passwordPolicyError) {
+    res.status(400).json({
+      code: "NEW_PASSWORD_POLICY_VIOLATION",
+      error: passwordPolicyError,
+    });
+    return;
+  }
+
+  const parsed = ChangeOwnPasswordBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ code: "INVALID_BODY", error: "Invalid body" });
+    return;
+  }
+
+  const [account] = await db
+    .select({ password_hash: usuariosTable.password_hash })
+    .from(usuariosTable)
+    .where(eq(usuariosTable.id, sessionUser.id));
+  const currentPasswordValid = await verifyPasswordOrDummy(
+    parsed.data.password_actual,
+    account?.password_hash ?? null,
+  );
+  if (!account?.password_hash || !currentPasswordValid) {
+    // Si un reset revocó la sesión mientras se verificaba el hash observado,
+    // no presentar esa carrera como una contraseña simplemente incorrecta.
+    if (!(await getSessionUser(req))) {
+      res.clearCookie(SESSION_COOKIE, cookieOptions);
+      res.status(401).json({
+        code: "SESSION_CHANGED",
+        error: "La sesión cambió mientras se verificaba la contraseña",
+      });
+      return;
+    }
+    res.status(400).json({
+      code: "CURRENT_PASSWORD_INVALID",
+      error: "La contraseña actual es incorrecta",
+    });
+    return;
+  }
+  if (parsed.data.password_nueva === parsed.data.password_actual) {
+    res.status(409).json({
+      code: "PASSWORD_REUSE_NOT_ALLOWED",
+      error: "La contraseña nueva debe ser diferente de la actual",
+    });
+    return;
+  }
+
+  const observedHash = account.password_hash;
+  const newToken = randomBytes(32).toString("hex");
+  const newPasswordHash = await hashPassword(parsed.data.password_nueva);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
+
+  const result = db.transaction((tx) => {
+    const current = tx
+      .select({
+        ...LOGIN_USER_COLUMNS,
+        session_expires_at: sesionesTable.fecha_expiracion,
+      })
+      .from(sesionesTable)
+      .innerJoin(usuariosTable, eq(sesionesTable.usuario_id, usuariosTable.id))
+      .innerJoin(rolesTable, eq(usuariosTable.role_id, rolesTable.id))
+      .where(eq(sesionesTable.token, token))
+      .get();
+    if (
+      !current ||
+      !current.password_hash ||
+      !current.activo ||
+      !current.rol_activo ||
+      current.session_expires_at < now ||
+      current.password_hash !== observedHash
+    ) {
+      return { kind: "stale" } as const;
+    }
+
+    const updated = tx
+      .update(usuariosTable)
+      .set({
+        password_hash: newPasswordHash,
+        debe_cambiar_password: false,
+        fecha_actualizacion: now,
+      })
+      .where(
+        and(
+          eq(usuariosTable.id, current.id),
+          eq(usuariosTable.password_hash, observedHash),
+        ),
+      )
+      .run();
+    if (updated.changes !== 1) return { kind: "stale" } as const;
+
+    tx.delete(sesionesTable)
+      .where(eq(sesionesTable.usuario_id, current.id))
+      .run();
+    tx.insert(sesionesTable)
+      .values({
+        token: newToken,
+        usuario_id: current.id,
+        fecha_expiracion: expiresAt,
+      })
+      .run();
+
+    return {
+      kind: "changed",
+      user: {
+        id: current.id,
+        nombre: current.nombre,
+        apellido: current.apellido,
+        email: current.email,
+        rol: current.rol,
+        debe_cambiar_password: false,
+      },
+    } as const;
+  });
+
+  if (result.kind === "stale") {
+    res.clearCookie(SESSION_COOKIE, cookieOptions);
+    res.status(401).json({
+      code: "SESSION_CHANGED",
+      error: "La sesión cambió mientras se actualizaba la contraseña",
+    });
+    return;
+  }
+
+  closeEventClientsForUsers([result.user.id]);
+  res.cookie(SESSION_COOKIE, newToken, {
+    ...cookieOptions,
+    maxAge: SESSION_TTL_MS,
+  });
+  res.json(result.user);
+});
+
 router.post("/auth/logout", async (req, res) => {
-  const token = (req as Request & { cookies?: Record<string, string> })
-    .cookies?.[SESSION_COOKIE];
+  const token = getSessionToken(req);
   if (token) {
     await db.delete(sesionesTable).where(eq(sesionesTable.token, token));
     closeEventClientsForSession(token);

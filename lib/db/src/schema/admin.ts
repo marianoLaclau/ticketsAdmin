@@ -1,4 +1,5 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+import { check, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const rolesTable = sqliteTable("roles", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -13,29 +14,48 @@ export const rolesTable = sqliteTable("roles", {
     .$defaultFn(() => new Date()),
 });
 
-export const usuariosTable = sqliteTable("usuarios", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  nombre: text("nombre").notNull(),
-  apellido: text("apellido"),
-  // Identificador de login (distinto del email). Nullable solo para no
-  // romper filas creadas antes de este campo — el seed las backfillea con
-  // el email al arrancar, así que en la práctica siempre queda seteado.
-  username: text("username").unique(),
-  email: text("email").notNull().unique(),
-  // Hash scrypt versionado; el lector conserva compatibilidad con el formato
-  // legado. Nullable: un usuario sin contraseña aún no puede iniciar sesión.
-  password_hash: text("password_hash"),
-  role_id: integer("role_id")
-    .notNull()
-    .references(() => rolesTable.id, { onDelete: "restrict" }),
-  activo: integer("activo", { mode: "boolean" }).notNull().default(true),
-  fecha_creacion: integer("fecha_creacion", { mode: "timestamp_ms" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-  fecha_actualizacion: integer("fecha_actualizacion", { mode: "timestamp_ms" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+export const usuariosTable = sqliteTable(
+  "usuarios",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    nombre: text("nombre").notNull(),
+    apellido: text("apellido"),
+    // Identificador de login (distinto del email). Nullable solo para no
+    // romper filas creadas antes de este campo — el seed las backfillea con
+    // el email al arrancar, así que en la práctica siempre queda seteado.
+    username: text("username").unique(),
+    email: text("email").notNull().unique(),
+    // Hash scrypt versionado; el lector conserva compatibilidad con el formato
+    // legado. Nullable: un usuario sin contraseña aún no puede iniciar sesión.
+    password_hash: text("password_hash"),
+    // Las claves emitidas por un administrador o por el bootstrap son
+    // temporales. La migración preserva usuarios históricos en false, pero el
+    // default true hace fallar cerrado cualquier alta futura que omita el dato.
+    debe_cambiar_password: integer("debe_cambiar_password", {
+      mode: "boolean",
+    })
+      .notNull()
+      .default(true),
+    role_id: integer("role_id")
+      .notNull()
+      .references(() => rolesTable.id, { onDelete: "restrict" }),
+    activo: integer("activo", { mode: "boolean" }).notNull().default(true),
+    fecha_creacion: integer("fecha_creacion", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    fecha_actualizacion: integer("fecha_actualizacion", {
+      mode: "timestamp_ms",
+    })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    check(
+      "usuarios_debe_cambiar_password_bool",
+      sql`${table.debe_cambiar_password} in (0, 1)`,
+    ),
+  ],
+);
 
 // Sesiones de login (cookie httpOnly con el token). Respaldadas en la base
 // para poder revocarlas y para que sobrevivan a reinicios del backend.
@@ -44,7 +64,9 @@ export const sesionesTable = sqliteTable("sesiones", {
   usuario_id: integer("usuario_id")
     .notNull()
     .references(() => usuariosTable.id, { onDelete: "cascade" }),
-  fecha_expiracion: integer("fecha_expiracion", { mode: "timestamp_ms" }).notNull(),
+  fecha_expiracion: integer("fecha_expiracion", {
+    mode: "timestamp_ms",
+  }).notNull(),
   fecha_creacion: integer("fecha_creacion", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),

@@ -35,6 +35,7 @@ bootstrap.exec(`
     username TEXT UNIQUE,
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT,
+    debe_cambiar_password INTEGER NOT NULL DEFAULT 1 CHECK (debe_cambiar_password IN (0, 1)),
     role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
     activo INTEGER NOT NULL DEFAULT 1,
     fecha_creacion INTEGER NOT NULL DEFAULT 0,
@@ -52,12 +53,14 @@ bootstrap.close();
 const [
   { default: authRouter },
   { default: adminRouter },
-  { requireSession },
+  { default: productionRouter },
+  { requirePasswordChangeCompleted, requireSession },
   { hashPassword, needsPasswordRehash, verifyPassword },
   { sqlite },
 ] = await Promise.all([
   import("../src/routes/auth.ts"),
   import("../src/routes/admin.ts"),
+  import("../src/routes/index.ts"),
   import("../src/lib/auth.ts"),
   import("../src/lib/passwords.ts"),
   import("@workspace/db"),
@@ -70,7 +73,12 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(authRouter);
 app.use(requireSession);
+app.use(requirePasswordChangeCompleted);
+app.get("/protected-test", (_req, res) => {
+  res.json({ ok: true });
+});
 app.use(adminRouter);
+app.use("/api", productionRouter);
 app.use(
   (
     _error: unknown,
@@ -131,6 +139,20 @@ function adminRequest(
   return requestWithSession(path, cookie, { ...init, headers });
 }
 
+function changeOwnPassword(
+  cookie: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<Response> {
+  return requestWithSession("/auth/password", cookie, {
+    method: "POST",
+    body: JSON.stringify({
+      password_actual: currentPassword,
+      password_nueva: newPassword,
+    }),
+  });
+}
+
 beforeEach(async () => {
   const passwordHash = await hashPassword(password);
   sqlite.exec("DELETE FROM sesiones; DELETE FROM usuarios; DELETE FROM roles;");
@@ -146,8 +168,8 @@ beforeEach(async () => {
     .run();
   const insertUser = sqlite.prepare(
     `INSERT INTO usuarios
-     (id, nombre, username, email, password_hash, role_id, activo)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+     (id, nombre, username, email, password_hash, debe_cambiar_password, role_id, activo)
+     VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
   );
   insertUser.run(
     1,
@@ -214,17 +236,34 @@ describe("autenticación uniforme", () => {
     const salt = "0123456789abcdef0123456789abcdef";
     const legacy = `scrypt:${salt}:${scryptSync(password, salt, 64).toString("hex")}`;
     sqlite
-      .prepare("UPDATE usuarios SET password_hash = ? WHERE id = 1")
+      .prepare(
+        `
+        UPDATE usuarios
+        SET password_hash = ?, debe_cambiar_password = 1
+        WHERE id = 1
+      `,
+      )
       .run(legacy);
 
     const response = await login("sysadmin");
     assert.equal(response.status, 200);
+    assert.equal(
+      ((await response.json()) as { debe_cambiar_password: boolean })
+        .debe_cambiar_password,
+      true,
+    );
     const stored = sqlite
-      .prepare("SELECT password_hash FROM usuarios WHERE id = 1")
-      .get() as { password_hash: string };
+      .prepare(
+        `
+        SELECT password_hash, debe_cambiar_password
+        FROM usuarios WHERE id = 1
+      `,
+      )
+      .get() as { password_hash: string; debe_cambiar_password: number };
     assert.notEqual(stored.password_hash, legacy);
     assert.equal(needsPasswordRehash(stored.password_hash), false);
     assert.equal(await verifyPassword(password, stored.password_hash), true);
+    assert.equal(stored.debe_cambiar_password, 1);
   });
 
   it("acepta dos logins simultáneos mientras migra un hash legado", async () => {
@@ -362,6 +401,345 @@ describe("autenticación uniforme", () => {
   });
 });
 
+describe("cambio obligatorio de contraseña", () => {
+  const definitivePassword = "Definitiva interna segura 2026";
+
+  it("informa la clave temporal y bloquea toda ruta funcional", async () => {
+    sqlite
+      .prepare("UPDATE usuarios SET debe_cambiar_password = 1 WHERE id = 1")
+      .run();
+    const response = await login("sysadmin");
+    assert.equal(response.status, 200);
+    assert.equal(
+      ((await response.json()) as { debe_cambiar_password: boolean })
+        .debe_cambiar_password,
+      true,
+    );
+    const cookie = sessionCookie(response);
+
+    const me = await requestWithSession("/auth/me", cookie);
+    assert.equal(me.status, 200);
+    assert.equal(
+      ((await me.json()) as { debe_cambiar_password: boolean })
+        .debe_cambiar_password,
+      true,
+    );
+
+    for (const request of [
+      requestWithSession("/protected-test", cookie),
+      adminRequest("/admin/users", cookie),
+      requestWithSession("/api/tickets", cookie),
+    ]) {
+      const blocked = await request;
+      assert.equal(blocked.status, 403);
+      assert.deepEqual(await blocked.json(), {
+        code: "PASSWORD_CHANGE_REQUIRED",
+        error: "Debés cambiar la contraseña temporal antes de continuar",
+      });
+    }
+
+    const logout = await requestWithSession("/auth/logout", cookie, {
+      method: "POST",
+    });
+    assert.equal(logout.status, 204);
+    assert.equal((await requestWithSession("/auth/me", cookie)).status, 401);
+  });
+
+  it("falla cerrado si el contexto no contiene un flag booleano", () => {
+    let statusCode = 0;
+    let payload: unknown;
+    let nextCalled = false;
+    const response = {
+      locals: {
+        authUser: {
+          id: 1,
+          nombre: "Contexto incompleto",
+          apellido: null,
+          email: "incompleto@example.test",
+          rol: "SysAdmin",
+        },
+      },
+      status(code: number) {
+        statusCode = code;
+        return this;
+      },
+      json(body: unknown) {
+        payload = body;
+        return this;
+      },
+    } as unknown as express.Response;
+
+    requirePasswordChangeCompleted({} as express.Request, response, () => {
+      nextCalled = true;
+    });
+
+    assert.equal(statusCode, 403);
+    assert.equal(nextCalled, false);
+    assert.deepEqual(payload, {
+      code: "PASSWORD_CHANGE_REQUIRED",
+      error: "Debés cambiar la contraseña temporal antes de continuar",
+    });
+  });
+
+  it("rechaza actual incorrecta, nueva inválida o reutilizada sin mutar nada", async () => {
+    sqlite
+      .prepare("UPDATE usuarios SET debe_cambiar_password = 1 WHERE id = 2")
+      .run();
+    const firstLogin = await login("operadora");
+    const secondLogin = await login("operadora");
+    const cookie = sessionCookie(firstLogin);
+    sessionCookie(secondLogin);
+    const before = sqlite
+      .prepare(
+        `
+        SELECT password_hash, debe_cambiar_password
+        FROM usuarios WHERE id = 2
+      `,
+      )
+      .get() as { password_hash: string; debe_cambiar_password: number };
+
+    const wrongCurrent = await changeOwnPassword(
+      cookie,
+      "Temporal-incorrecta-2026",
+      definitivePassword,
+    );
+    assert.equal(wrongCurrent.status, 400);
+    assert.equal(
+      ((await wrongCurrent.json()) as { code: string }).code,
+      "CURRENT_PASSWORD_INVALID",
+    );
+
+    const invalidNew = await changeOwnPassword(
+      cookie,
+      password,
+      "passwordpassword",
+    );
+    assert.equal(invalidNew.status, 400);
+    assert.equal(
+      ((await invalidNew.json()) as { code: string }).code,
+      "NEW_PASSWORD_POLICY_VIOLATION",
+    );
+
+    const reused = await changeOwnPassword(cookie, password, password);
+    assert.equal(reused.status, 409);
+    assert.equal(
+      ((await reused.json()) as { code: string }).code,
+      "PASSWORD_REUSE_NOT_ALLOWED",
+    );
+
+    const after = sqlite
+      .prepare(
+        `
+        SELECT password_hash, debe_cambiar_password
+        FROM usuarios WHERE id = 2
+      `,
+      )
+      .get() as { password_hash: string; debe_cambiar_password: number };
+    const sessions = sqlite
+      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
+      .get() as { total: number };
+    assert.deepEqual(after, before);
+    assert.equal(sessions.total, 2);
+  });
+
+  it("cambia el hash, limpia el flag y rota todas las sesiones atómicamente", async () => {
+    sqlite
+      .prepare("UPDATE usuarios SET debe_cambiar_password = 1 WHERE id = 2")
+      .run();
+    const firstLogin = await login("operadora");
+    const secondLogin = await login("operadora");
+    const firstCookie = sessionCookie(firstLogin);
+    const secondCookie = sessionCookie(secondLogin);
+
+    const changed = await changeOwnPassword(
+      firstCookie,
+      password,
+      definitivePassword,
+    );
+    assert.equal(changed.status, 200);
+    const rotatedCookie = sessionCookie(changed);
+    assert.notEqual(rotatedCookie, firstCookie);
+    assert.equal(
+      ((await changed.json()) as { debe_cambiar_password: boolean })
+        .debe_cambiar_password,
+      false,
+    );
+
+    assert.equal(
+      (await requestWithSession("/auth/me", firstCookie)).status,
+      401,
+    );
+    assert.equal(
+      (await requestWithSession("/auth/me", secondCookie)).status,
+      401,
+    );
+    const me = await requestWithSession("/auth/me", rotatedCookie);
+    assert.equal(me.status, 200);
+    assert.equal(
+      ((await me.json()) as { debe_cambiar_password: boolean })
+        .debe_cambiar_password,
+      false,
+    );
+    assert.equal(
+      (await requestWithSession("/protected-test", rotatedCookie)).status,
+      200,
+    );
+
+    const stored = sqlite
+      .prepare(
+        `
+        SELECT password_hash, debe_cambiar_password
+        FROM usuarios WHERE id = 2
+      `,
+      )
+      .get() as { password_hash: string; debe_cambiar_password: number };
+    const sessions = sqlite
+      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
+      .get() as { total: number };
+    assert.equal(
+      await verifyPassword(definitivePassword, stored.password_hash),
+      true,
+    );
+    assert.equal(stored.debe_cambiar_password, 0);
+    assert.equal(sessions.total, 1);
+    assert.equal((await login("operadora", password)).status, 401);
+    assert.equal((await login("operadora", definitivePassword)).status, 200);
+  });
+
+  it("revierte hash, flag y sesiones si no puede crear el token rotado", async () => {
+    sqlite
+      .prepare("UPDATE usuarios SET debe_cambiar_password = 1 WHERE id = 2")
+      .run();
+    const loginResponse = await login("operadora");
+    const cookie = sessionCookie(loginResponse);
+    const before = sqlite
+      .prepare(
+        `
+        SELECT password_hash, debe_cambiar_password
+        FROM usuarios WHERE id = 2
+      `,
+      )
+      .get() as { password_hash: string; debe_cambiar_password: number };
+    sqlite.exec(`
+      CREATE TRIGGER bloquear_sesion_rotada
+      BEFORE INSERT ON sesiones
+      WHEN NEW.usuario_id = 2
+      BEGIN
+        SELECT RAISE(ABORT, 'rotación bloqueada por prueba');
+      END;
+    `);
+
+    let response: Response;
+    try {
+      response = await changeOwnPassword(cookie, password, definitivePassword);
+    } finally {
+      sqlite.exec("DROP TRIGGER bloquear_sesion_rotada");
+    }
+
+    assert.equal(response.status, 500);
+    const after = sqlite
+      .prepare(
+        `
+        SELECT password_hash, debe_cambiar_password
+        FROM usuarios WHERE id = 2
+      `,
+      )
+      .get() as { password_hash: string; debe_cambiar_password: number };
+    const sessions = sqlite
+      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
+      .get() as { total: number };
+    assert.deepEqual(after, before);
+    assert.equal(sessions.total, 1);
+    assert.equal((await requestWithSession("/auth/me", cookie)).status, 200);
+  });
+
+  it("permite confirmar como máximo uno de dos cambios concurrentes", async () => {
+    sqlite
+      .prepare("UPDATE usuarios SET debe_cambiar_password = 1 WHERE id = 2")
+      .run();
+    const firstCookie = sessionCookie(await login("operadora"));
+    const secondCookie = sessionCookie(await login("operadora"));
+    const candidates = [
+      "Definitiva concurrente Alfa 2026",
+      "Definitiva concurrente Beta 2026",
+    ];
+
+    const responses = await Promise.all([
+      changeOwnPassword(firstCookie, password, candidates[0]),
+      changeOwnPassword(secondCookie, password, candidates[1]),
+    ]);
+    assert.deepEqual(
+      responses.map(({ status }) => status).sort((a, b) => a - b),
+      [200, 401],
+    );
+    const winner = responses.findIndex(({ status }) => status === 200);
+    const stored = sqlite
+      .prepare(
+        `
+        SELECT password_hash, debe_cambiar_password
+        FROM usuarios WHERE id = 2
+      `,
+      )
+      .get() as { password_hash: string; debe_cambiar_password: number };
+    const sessions = sqlite
+      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
+      .get() as { total: number };
+    assert.equal(
+      await verifyPassword(candidates[winner], stored.password_hash),
+      true,
+    );
+    assert.equal(stored.debe_cambiar_password, 0);
+    assert.equal(sessions.total, 1);
+  });
+
+  it("un reset administrativo concurrente siempre conserva su clave temporal", async () => {
+    const adminCookie = await adminSession();
+    sqlite
+      .prepare("UPDATE usuarios SET debe_cambiar_password = 1 WHERE id = 2")
+      .run();
+    const operatorCookie = sessionCookie(await login("operadora"));
+    const adminTemporaryPassword = "Temporal administrativa segura 2026";
+
+    const [ownChange, adminReset] = await Promise.all([
+      changeOwnPassword(operatorCookie, password, definitivePassword),
+      adminRequest("/admin/users/2/password", adminCookie, {
+        method: "POST",
+        body: JSON.stringify({ password: adminTemporaryPassword }),
+      }),
+    ]);
+
+    assert.equal(adminReset.status, 204);
+    assert.ok(ownChange.status === 200 || ownChange.status === 401);
+    const stored = sqlite
+      .prepare(
+        `
+        SELECT password_hash, debe_cambiar_password
+        FROM usuarios WHERE id = 2
+      `,
+      )
+      .get() as { password_hash: string; debe_cambiar_password: number };
+    const sessions = sqlite
+      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
+      .get() as { total: number };
+    assert.equal(
+      await verifyPassword(adminTemporaryPassword, stored.password_hash),
+      true,
+    );
+    assert.equal(
+      await verifyPassword(definitivePassword, stored.password_hash),
+      false,
+    );
+    assert.equal(stored.debe_cambiar_password, 1);
+    assert.equal(sessions.total, 0);
+    if (ownChange.status === 200) {
+      assert.equal(
+        (await requestWithSession("/auth/me", sessionCookie(ownChange))).status,
+        401,
+      );
+    }
+  });
+});
+
 describe("política de contraseñas nuevas", () => {
   const boundaryPassword = (length: number): string =>
     `A${"b".repeat(length - 2)}1`;
@@ -413,8 +791,13 @@ describe("política de contraseñas nuevas", () => {
     assert.equal(operatorResponse.status, 200);
     const cookie = await adminSession();
     const before = sqlite
-      .prepare("SELECT password_hash FROM usuarios WHERE id = 2")
-      .get() as { password_hash: string };
+      .prepare(
+        `
+        SELECT password_hash, debe_cambiar_password
+        FROM usuarios WHERE id = 2
+      `,
+      )
+      .get() as { password_hash: string; debe_cambiar_password: number };
 
     for (const invalidPassword of invalidPasswords) {
       const response = await adminRequest("/admin/users/2/password", cookie, {
@@ -425,13 +808,73 @@ describe("política de contraseñas nuevas", () => {
     }
 
     const after = sqlite
-      .prepare("SELECT password_hash FROM usuarios WHERE id = 2")
-      .get() as { password_hash: string };
+      .prepare(
+        `
+        SELECT password_hash, debe_cambiar_password
+        FROM usuarios WHERE id = 2
+      `,
+      )
+      .get() as { password_hash: string; debe_cambiar_password: number };
     const sessions = sqlite
       .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
       .get() as { total: number };
-    assert.equal(after.password_hash, before.password_hash);
+    assert.deepEqual(after, before);
     assert.equal(sessions.total, 1);
+  });
+
+  it("revierte hash y flag si no puede revocar las sesiones durante un reset", async () => {
+    const operatorResponse = await login("operadora");
+    assert.equal(operatorResponse.status, 200);
+    const operatorCookie = sessionCookie(operatorResponse);
+    const adminCookie = await adminSession();
+    const before = sqlite
+      .prepare(
+        `
+        SELECT password_hash, debe_cambiar_password
+        FROM usuarios WHERE id = 2
+      `,
+      )
+      .get() as { password_hash: string; debe_cambiar_password: number };
+
+    sqlite.exec(`
+      CREATE TRIGGER bloquear_revocacion_reset
+      BEFORE DELETE ON sesiones
+      WHEN OLD.usuario_id = 2
+      BEGIN
+        SELECT RAISE(ABORT, 'revocación bloqueada por prueba');
+      END;
+    `);
+
+    let response: Response;
+    try {
+      response = await adminRequest("/admin/users/2/password", adminCookie, {
+        method: "POST",
+        body: JSON.stringify({
+          password: "Temporal de rollback segura 2026",
+        }),
+      });
+    } finally {
+      sqlite.exec("DROP TRIGGER bloquear_revocacion_reset");
+    }
+
+    assert.equal(response.status, 500);
+    const after = sqlite
+      .prepare(
+        `
+        SELECT password_hash, debe_cambiar_password
+        FROM usuarios WHERE id = 2
+      `,
+      )
+      .get() as { password_hash: string; debe_cambiar_password: number };
+    const sessions = sqlite
+      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
+      .get() as { total: number };
+    assert.deepEqual(after, before);
+    assert.equal(sessions.total, 1);
+    assert.equal(
+      (await requestWithSession("/auth/me", operatorCookie)).status,
+      200,
+    );
   });
 
   it("acepta los límites y espacios interiores", async () => {
@@ -454,12 +897,21 @@ describe("política de contraseñas nuevas", () => {
       });
       assert.equal(response.status, 201);
       const stored = sqlite
-        .prepare("SELECT password_hash FROM usuarios WHERE username = ?")
-        .get(`valida${index}`) as { password_hash: string };
+        .prepare(
+          `
+          SELECT password_hash, debe_cambiar_password
+          FROM usuarios WHERE username = ?
+        `,
+        )
+        .get(`valida${index}`) as {
+        password_hash: string;
+        debe_cambiar_password: number;
+      };
       assert.equal(
         await verifyPassword(validPassword, stored.password_hash),
         true,
       );
+      assert.equal(stored.debe_cambiar_password, 1);
     }
   });
 
@@ -467,10 +919,7 @@ describe("política de contraseñas nuevas", () => {
     const cookie = await adminSession();
     let currentPassword = password;
 
-    for (const validPassword of [
-      boundaryPassword(16),
-      boundaryPassword(128),
-    ]) {
+    for (const validPassword of [boundaryPassword(16), boundaryPassword(128)]) {
       const operatorResponse = await login("operadora", currentPassword);
       assert.equal(operatorResponse.status, 200);
 
@@ -481,8 +930,13 @@ describe("política de contraseñas nuevas", () => {
       assert.equal(reset.status, 204);
 
       const stored = sqlite
-        .prepare("SELECT password_hash FROM usuarios WHERE id = 2")
-        .get() as { password_hash: string };
+        .prepare(
+          `
+          SELECT password_hash, debe_cambiar_password
+          FROM usuarios WHERE id = 2
+        `,
+        )
+        .get() as { password_hash: string; debe_cambiar_password: number };
       const sessions = sqlite
         .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
         .get() as { total: number };
@@ -490,6 +944,7 @@ describe("política de contraseñas nuevas", () => {
         await verifyPassword(validPassword, stored.password_hash),
         true,
       );
+      assert.equal(stored.debe_cambiar_password, 1);
       assert.equal(sessions.total, 0);
       currentPassword = validPassword;
     }
@@ -671,8 +1126,8 @@ describe("último SysAdmin autenticable", () => {
     sqlite
       .prepare(
         `INSERT INTO usuarios
-         (nombre, username, email, password_hash, role_id, activo)
-         VALUES ('Sin clave', 'sinclave', 'sinclave@example.test', NULL, 1, 1)`,
+         (nombre, username, email, password_hash, debe_cambiar_password, role_id, activo)
+         VALUES ('Sin clave', 'sinclave', 'sinclave@example.test', NULL, 0, 1, 1)`,
       )
       .run();
     const cookie = await adminSession();
@@ -699,8 +1154,8 @@ describe("último SysAdmin autenticable", () => {
     sqlite
       .prepare(
         `INSERT INTO usuarios
-         (nombre, username, email, password_hash, role_id, activo)
-         VALUES ('Respaldo', 'respaldo', 'respaldo@example.test', ?, 1, 1)`,
+         (nombre, username, email, password_hash, debe_cambiar_password, role_id, activo)
+         VALUES ('Respaldo', 'respaldo', 'respaldo@example.test', ?, 0, 1, 1)`,
       )
       .run(backupHash);
     const cookie = await adminSession();

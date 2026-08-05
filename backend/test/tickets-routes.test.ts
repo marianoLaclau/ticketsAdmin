@@ -32,6 +32,7 @@ bootstrap.exec(`
     username TEXT UNIQUE,
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT,
+    debe_cambiar_password INTEGER NOT NULL DEFAULT 1 CHECK (debe_cambiar_password IN (0, 1)),
     role_id INTEGER NOT NULL REFERENCES roles(id),
     activo INTEGER NOT NULL DEFAULT 1,
     fecha_creacion INTEGER NOT NULL,
@@ -129,7 +130,8 @@ function request(path: string, options: RequestOptions = {}) {
   requestHeaders.set("x-test-role", role ?? "Operador");
   requestHeaders.set("x-test-user", String(userId ?? 1));
   if (adminKey !== undefined) requestHeaders.set("x-admin-key", adminKey);
-  if (init.body !== undefined) requestHeaders.set("Content-Type", "application/json");
+  if (init.body !== undefined)
+    requestHeaders.set("Content-Type", "application/json");
 
   return fetch(`${baseUrl}${path}`, {
     ...init,
@@ -164,11 +166,11 @@ beforeEach(() => {
       (1, 'Operador', 1, 1, 1),
       (2, 'SysAdmin', 1, 1, 1);
     INSERT INTO usuarios (
-      id, nombre, apellido, username, email, role_id, activo,
+      id, nombre, apellido, username, email, debe_cambiar_password, role_id, activo,
       fecha_creacion, fecha_actualizacion
     ) VALUES
-      (1, 'Operadora', 'Uno', 'operadora', 'operadora@example.test', 1, 1, 1, 1),
-      (2, 'Sistema', 'Admin', 'sysadmin', 'sys@example.test', 2, 1, 1, 1);
+      (1, 'Operadora', 'Uno', 'operadora', 'operadora@example.test', 0, 1, 1, 1, 1),
+      (2, 'Sistema', 'Admin', 'sysadmin', 'sys@example.test', 0, 2, 1, 1, 1);
 
     INSERT INTO tickets (
       id, conversation_id, hora, nombre, apellido, telefono, empresa,
@@ -205,7 +207,10 @@ describe("listado y exportación de tickets", () => {
       tickets: Array<{ id: number }>;
       total: number;
     };
-    assert.deepEqual(body.tickets.map(({ id }) => id), [2]);
+    assert.deepEqual(
+      body.tickets.map(({ id }) => id),
+      [2],
+    );
     assert.equal(body.total, 2);
   });
 
@@ -222,7 +227,10 @@ describe("listado y exportación de tickets", () => {
       tickets: Array<{ id: number }>;
       total: number;
     };
-    assert.deepEqual(body.tickets.map(({ id }) => id), [2, 1]);
+    assert.deepEqual(
+      body.tickets.map(({ id }) => id),
+      [2, 1],
+    );
     assert.equal(body.total, 2);
   });
 
@@ -545,7 +553,9 @@ describe("validación de email en PATCH", () => {
 describe("fecha de resolución al reabrir", () => {
   it("la limpia al reabrir y genera una nueva al resolver otra vez", async () => {
     sqlite
-      .prepare("UPDATE tickets SET estado = 'resuelto', fecha_resolucion = ? WHERE id = 1")
+      .prepare(
+        "UPDATE tickets SET estado = 'resuelto', fecha_resolucion = ? WHERE id = 1",
+      )
       .run(Date.parse("2026-07-21T12:00:00Z"));
 
     const reopened = await jsonRequest("/tickets/1", "PATCH", {

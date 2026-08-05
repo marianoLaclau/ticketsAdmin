@@ -127,7 +127,7 @@ export const loginBodyPasswordMax = 128;
 
 export const LoginBody = zod.object({
   "usuario": zod.string().describe('Nombre de usuario asignado al crear la cuenta (no el email)'),
-  "password": zod.string().min(1).max(loginBodyPasswordMax)
+  "password": zod.string().min(1).max(loginBodyPasswordMax).describe('Contraseña actual; conserva compatibilidad con credenciales históricas.')
 })
 
 export const LoginResponse = zod.object({
@@ -135,7 +135,36 @@ export const LoginResponse = zod.object({
   "nombre": zod.string(),
   "apellido": zod.string().nullish(),
   "email": zod.string(),
-  "rol": zod.string().describe('Nombre del rol asignado')
+  "rol": zod.string().describe('Nombre del rol asignado'),
+  "debe_cambiar_password": zod.boolean().describe('Indica que la clave actual es temporal y debe reemplazarse antes de usar la aplicación.')
+})
+
+
+/**
+ * Verifica la contraseña actual, aplica la política de credenciales nuevas, rota la sesión y revoca todos los tokens anteriores del usuario.
+ * @summary Reemplazar la contraseña propia
+ */
+export const changeOwnPasswordBodyPasswordActualMax = 128;
+
+export const changeOwnPasswordBodyPasswordNuevaMin = 16;
+export const changeOwnPasswordBodyPasswordNuevaMax = 128;
+
+
+export const changeOwnPasswordBodyPasswordNuevaRegExp = new RegExp('^(?![\\s\\S]*[\\x00-\\x1F\\x7F])\\S(?:[\\s\\S]*\\S)?$');
+
+
+export const ChangeOwnPasswordBody = zod.object({
+  "password_actual": zod.string().min(1).max(changeOwnPasswordBodyPasswordActualMax).describe('Contraseña actual; conserva compatibilidad con credenciales históricas.'),
+  "password_nueva": zod.string().min(changeOwnPasswordBodyPasswordNuevaMin).max(changeOwnPasswordBodyPasswordNuevaMax).regex(changeOwnPasswordBodyPasswordNuevaRegExp).describe('Contraseña nueva sin caracteres de control, espacios exteriores ni claves comunes, repetitivas o de ejemplo. Se persiste únicamente como hash.')
+})
+
+export const ChangeOwnPasswordResponse = zod.object({
+  "id": zod.number(),
+  "nombre": zod.string(),
+  "apellido": zod.string().nullish(),
+  "email": zod.string(),
+  "rol": zod.string().describe('Nombre del rol asignado'),
+  "debe_cambiar_password": zod.boolean().describe('Indica que la clave actual es temporal y debe reemplazarse antes de usar la aplicación.')
 })
 
 
@@ -154,7 +183,8 @@ export const GetMeResponse = zod.object({
   "nombre": zod.string(),
   "apellido": zod.string().nullish(),
   "email": zod.string(),
-  "rol": zod.string().describe('Nombre del rol asignado')
+  "rol": zod.string().describe('Nombre del rol asignado'),
+  "debe_cambiar_password": zod.boolean().describe('Indica que la clave actual es temporal y debe reemplazarse antes de usar la aplicación.')
 })
 
 
@@ -466,6 +496,7 @@ export const ListAdminUsersResponse = zod.object({
   "email": zod.string(),
   "role_id": zod.number(),
   "activo": zod.boolean(),
+  "debe_cambiar_password": zod.boolean().describe('Indica que la contraseña fue emitida por administración y todavía no fue reemplazada por el usuario.'),
   "fecha_creacion": zod.coerce.date(),
   "fecha_actualizacion": zod.coerce.date()
 })),
@@ -517,6 +548,7 @@ export const CreateAdminUserResponse = zod.object({
   "email": zod.string(),
   "role_id": zod.number(),
   "activo": zod.boolean(),
+  "debe_cambiar_password": zod.boolean().describe('Indica que la contraseña fue emitida por administración y todavía no fue reemplazada por el usuario.'),
   "fecha_creacion": zod.coerce.date(),
   "fecha_actualizacion": zod.coerce.date()
 })
@@ -566,6 +598,7 @@ export const UpdateAdminUserResponse = zod.object({
   "email": zod.string(),
   "role_id": zod.number(),
   "activo": zod.boolean(),
+  "debe_cambiar_password": zod.boolean().describe('Indica que la contraseña fue emitida por administración y todavía no fue reemplazada por el usuario.'),
   "fecha_creacion": zod.coerce.date(),
   "fecha_actualizacion": zod.coerce.date()
 })

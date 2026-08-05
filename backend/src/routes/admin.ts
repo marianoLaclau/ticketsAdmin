@@ -11,11 +11,6 @@ import {
 } from "@workspace/db";
 import { and, asc, count, eq, inArray, like, or, type SQL } from "drizzle-orm";
 import {
-  NEW_PASSWORD_MAX_LENGTH,
-  NEW_PASSWORD_MIN_LENGTH,
-  getNewPasswordViolation,
-} from "@workspace/password-policy";
-import {
   CreateAdminTicketBody,
   ImportCsvBody,
   TruncateTicketsBody,
@@ -43,6 +38,7 @@ import { hashPassword, isUsablePasswordHash } from "../lib/passwords";
 import { broadcastEvent, closeEventClientsForUsers } from "../lib/events";
 import { findInvalidRfc3339DateTimeField } from "../lib/rfc3339";
 import { esNombreRolReservado, esRolSistema, ROL_SYSADMIN } from "../lib/rbac";
+import { getNewPasswordPolicyError } from "../lib/new-password-policy";
 
 const router = Router();
 
@@ -72,29 +68,9 @@ const normalizeUsername = (value: string): string => value.trim().toLowerCase();
 const hasOwn = (value: object, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, key);
 
-const getNewPasswordPolicyError = (body: unknown): string | null => {
+const readPasswordFromBody = (body: unknown): unknown => {
   if (!body || typeof body !== "object" || Array.isArray(body)) return null;
-  const password = (body as { password?: unknown }).password;
-  if (typeof password !== "string") return null;
-
-  const violation = getNewPasswordViolation(password);
-  switch (violation) {
-    case null:
-      return null;
-    case "too_short":
-    case "too_long":
-      return `La contraseña debe tener entre ${NEW_PASSWORD_MIN_LENGTH} y ${NEW_PASSWORD_MAX_LENGTH} caracteres`;
-    case "control_character":
-      return "La contraseña no puede contener caracteres de control";
-    case "outer_whitespace":
-      return "La contraseña no puede comenzar ni terminar con espacios";
-    case "blocked":
-      return "La contraseña elegida es demasiado predecible, repetitiva o corresponde a un ejemplo público";
-    default: {
-      const exhaustiveCheck: never = violation;
-      return exhaustiveCheck;
-    }
-  }
+  return (body as { password?: unknown }).password;
 };
 
 const hasLoginIdentity = (value: string | null): value is string =>
@@ -110,6 +86,7 @@ const PUBLIC_USER_COLUMNS = {
   email: usuariosTable.email,
   role_id: usuariosTable.role_id,
   activo: usuariosTable.activo,
+  debe_cambiar_password: usuariosTable.debe_cambiar_password,
   fecha_creacion: usuariosTable.fecha_creacion,
   fecha_actualizacion: usuariosTable.fecha_actualizacion,
 };
@@ -490,7 +467,9 @@ router.get("/admin/users", async (req, res) => {
 });
 
 router.post("/admin/users", async (req, res) => {
-  const passwordPolicyError = getNewPasswordPolicyError(req.body);
+  const passwordPolicyError = getNewPasswordPolicyError(
+    readPasswordFromBody(req.body),
+  );
   if (passwordPolicyError) {
     res.status(400).json({ error: passwordPolicyError });
     return;
@@ -546,6 +525,7 @@ router.post("/admin/users", async (req, res) => {
           apellido: normalizeOptionalText(parsed.data.apellido),
           username,
           password_hash: passwordHash,
+          debe_cambiar_password: true,
           email,
           role_id: parsed.data.role_id,
           activo: parsed.data.activo,
@@ -759,7 +739,9 @@ router.post("/admin/users/:id/password", async (req, res) => {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
-  const passwordPolicyError = getNewPasswordPolicyError(req.body);
+  const passwordPolicyError = getNewPasswordPolicyError(
+    readPasswordFromBody(req.body),
+  );
   if (passwordPolicyError) {
     res.status(400).json({ error: passwordPolicyError });
     return;
@@ -780,18 +762,26 @@ router.post("/admin/users/:id/password", async (req, res) => {
   }
 
   const passwordHash = await hashPassword(body.data.password);
-  db.transaction((tx) => {
-    tx.update(usuariosTable)
+  const updated = db.transaction((tx) => {
+    const result = tx
+      .update(usuariosTable)
       .set({
         password_hash: passwordHash,
+        debe_cambiar_password: true,
         fecha_actualizacion: new Date(),
       })
       .where(eq(usuariosTable.id, params.data.id))
       .run();
+    if (result.changes !== 1) return false;
     tx.delete(sesionesTable)
       .where(eq(sesionesTable.usuario_id, params.data.id))
       .run();
+    return true;
   });
+  if (!updated) {
+    res.status(404).json({ error: "Usuario no encontrado" });
+    return;
+  }
   closeEventClientsForUsers([params.data.id]);
 
   res.status(204).end();

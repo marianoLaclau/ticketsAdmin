@@ -14,4 +14,6 @@ export interface AuthUser {
   email: string;
   /** Nombre del rol asignado */
   rol: string;
+  /** Indica que la clave actual es temporal y debe reemplazarse antes de usar la aplicación. */
+  readonly debe_cambiar_password: boolean;
 }

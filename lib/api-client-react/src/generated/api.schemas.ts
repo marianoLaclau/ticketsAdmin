@@ -6,6 +6,39 @@
  * OpenAPI spec version: 0.5.0
  */
 /**
+ * Código estable presente cuando una contraseña temporal bloquea la operación.
+ */
+export type FunctionalAccessErrorCode = typeof FunctionalAccessErrorCode[keyof typeof FunctionalAccessErrorCode];
+
+
+export const FunctionalAccessErrorCode = {
+  PASSWORD_CHANGE_REQUIRED: 'PASSWORD_CHANGE_REQUIRED',
+} as const;
+
+export interface FunctionalAccessError {
+  /** Código estable presente cuando una contraseña temporal bloquea la operación. */
+  code?: FunctionalAccessErrorCode;
+  error: string;
+}
+
+export type PasswordChangeErrorCode = typeof PasswordChangeErrorCode[keyof typeof PasswordChangeErrorCode];
+
+
+export const PasswordChangeErrorCode = {
+  INVALID_BODY: 'INVALID_BODY',
+  CURRENT_PASSWORD_INVALID: 'CURRENT_PASSWORD_INVALID',
+  NEW_PASSWORD_POLICY_VIOLATION: 'NEW_PASSWORD_POLICY_VIOLATION',
+  PASSWORD_REUSE_NOT_ALLOWED: 'PASSWORD_REUSE_NOT_ALLOWED',
+  SESSION_INVALID: 'SESSION_INVALID',
+  SESSION_CHANGED: 'SESSION_CHANGED',
+} as const;
+
+export interface PasswordChangeError {
+  code: PasswordChangeErrorCode;
+  error: string;
+}
+
+/**
  * Contraseña nueva sin caracteres de control, espacios exteriores ni claves comunes, repetitivas o de ejemplo. Se persiste únicamente como hash.
  * @minLength 16
  * @maxLength 128
@@ -13,14 +46,22 @@
  */
 export type NewPassword = string;
 
+/**
+ * Contraseña actual; conserva compatibilidad con credenciales históricas.
+ * @minLength 1
+ * @maxLength 128
+ */
+export type CurrentPassword = string;
+
 export interface LoginInput {
   /** Nombre de usuario asignado al crear la cuenta (no el email) */
   usuario: string;
-  /**
-     * @minLength 1
-     * @maxLength 128
-     */
-  password: string;
+  password: CurrentPassword;
+}
+
+export interface OwnPasswordChangeInput {
+  password_actual: CurrentPassword;
+  password_nueva: NewPassword;
 }
 
 export interface AuthUser {
@@ -31,6 +72,8 @@ export interface AuthUser {
   email: string;
   /** Nombre del rol asignado */
   rol: string;
+  /** Indica que la clave actual es temporal y debe reemplazarse antes de usar la aplicación. */
+  readonly debe_cambiar_password: boolean;
 }
 
 export interface AdminRole {
@@ -91,6 +134,8 @@ export interface AdminUser {
   email: string;
   role_id: number;
   activo: boolean;
+  /** Indica que la contraseña fue emitida por administración y todavía no fue reemplazada por el usuario. */
+  readonly debe_cambiar_password: boolean;
   fecha_creacion: string;
   fecha_actualizacion: string;
 }
@@ -549,6 +594,11 @@ export interface ActividadItem {
   descripcion: string;
   fecha: string;
 }
+
+/**
+ * La contraseña temporal debe reemplazarse o el rol no permite la operación.
+ */
+export type FunctionalAccessForbiddenResponse = FunctionalAccessError;
 
 /**
  * Primer dia incluido en el periodo del dashboard (YYYY-MM-DD).

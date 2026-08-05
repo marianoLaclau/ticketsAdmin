@@ -47,7 +47,8 @@ backend/
     index.ts               → entrypoint del servidor: carga .env, corre el seed, abre el puerto
     migrate.ts              → entrypoint separado: aplica migraciones y termina (usado en Docker)
     lib/
-      auth.ts                → sesiones, roles, requireSession/requireSysAdmin/requireAdminKey/requireWebhookKey
+      auth.ts                → sesiones y guards de autenticación, cambio pendiente, roles y API keys
+      new-password-policy.ts → adaptación HTTP de la política compartida de contraseñas nuevas
       passwords.ts            → hash y verificación con scrypt
       seed.ts                  → crea/migra el usuario y rol semilla al arrancar
       events.ts                → registro de clientes SSE y broadcastEvent()
@@ -58,7 +59,7 @@ backend/
       prioridad-automatica.ts        → evaluación y promoción transaccional de prioridades
       prioridad-automatica-runner.ts  → pasada de arranque + ejecución periódica sin solapamientos
     routes/
-      auth.ts     → POST /auth/login, /auth/logout, GET /auth/me
+      auth.ts     → login, sesión actual, logout y cambio de contraseña propia
       tickets.ts  → CRUD de tickets + seguimientos
       dashboard.ts→ estadísticas agregadas
       webhooks.ts → ingesta desde n8n
@@ -85,7 +86,8 @@ router.use(healthRouter);      // público
 router.use(webhooksRouter);    // público (clave propia x-api-key)
 router.use(authRouter);        // público (login) / requiere sesión (logout, me)
 
-router.use(requireSession);    // 🔒 candado global: todo lo que sigue exige sesión
+router.use(requireSession);    // 🔒 todo lo que sigue exige sesión
+router.use(requirePasswordChangeCompleted); // 🔒 bloquea credenciales temporales
 router.use(ticketsRouter);
 router.use(dashboardRouter);
 router.use(adminRouter);       // dentro, además: requireSysAdmin + requireAdminKey
@@ -105,6 +107,7 @@ Todas bajo el prefijo `/api`. ✅ = requiere sesión (candado global). 🔑 = ad
 | `POST /auth/login` | Body `{ usuario, password }` (`usuario` = el `username` asignado al crear la cuenta, no el email; se normaliza a minúsculas). Devuelve `AuthUser` y setea la cookie `gsb_session`. Mensaje de error genérico a propósito (no revela si el usuario existe). | público |
 | `POST /auth/logout` | Revoca la sesión actual (borra la fila) y limpia la cookie. `204`. | ✅ (no falla si no hay cookie) |
 | `GET /auth/me` | Devuelve el `AuthUser` de la sesión activa, o `401`. | ✅ |
+| `POST /auth/password` | Cambia la contraseña propia con `{ password_actual, password_nueva }`. La actual conserva el contrato histórico de 1–128; la nueva aplica la política compartida y debe ser distinta. En una transacción limpia `debe_cambiar_password`, revoca todas las sesiones y crea una nueva para el navegador actual. | ✅, incluso con cambio pendiente |
 | `GET /tickets` | Listado con filtros: `estado`, `prioridad`, `fecha_desde`/`fecha_hasta` (día calendario **local**, según `TZ`), `hora_desde`/`hora_hasta`, `empresa`, `motivo`, `motivo_categoria`, `search`, `vencidos`; orden server-side con `sort_by` sobre una lista cerrada de columnas y `order`; paginación `page`/`limit` (1–100). `incluir_vacios=true` agrega la cuarentena únicamente con acceso administrativo. | ✅ / ✅🔑🗝️ |
 | `GET /tickets/export.csv` | Exporta **todos** los tickets operativos que coinciden con los mismos filtros y orden del listado, sin limitarse a la página visible. CSV UTF-8 con BOM, separador `;` y protección ante fórmulas. | ✅ |
 | `GET /tickets/:id` | Detalle + array de `seguimientos`. Admite `incluir_vacios=true` con acceso administrativo para abrir un registro en cuarentena. | ✅ / ✅🔑🗝️ |
@@ -140,11 +143,15 @@ La política de roles vive en `src/lib/rbac.ts`; sesiones y middlewares, en [`sr
 - Desactivar un usuario o un rol desde Administración elimina en la misma transacción todas las sesiones afectadas y cierra sus conexiones SSE abiertas. Reactivarlo no revive cookies anteriores. El heartbeat del stream vuelve a validar la cookie cada 25 segundos como defensa adicional ante expiraciones o revocaciones externas.
 - `purgeExpiredSessions()` se invoca en cada login (barrido perezoso, no hay cron).
 - Logout borra la fila de `sesiones` y limpia la cookie.
-- **Reset de contraseña revoca todas las sesiones del usuario** (`DELETE FROM sesiones WHERE usuario_id = ...`): si estaba logueado en otro navegador, queda afuera al instante.
+- **Alta, reset y bootstrap emiten credenciales temporales**: guardan `usuarios.debe_cambiar_password = true`. Mientras siga pendiente, `/auth/me`, `/auth/logout` y `/auth/password` continúan disponibles, pero tickets, dashboard, administración y SSE responden `403` con `code: "PASSWORD_CHANGE_REQUIRED"`.
+- **Reset de contraseña revoca todas las sesiones del usuario** (`DELETE FROM sesiones WHERE usuario_id = ...`): si estaba logueado en otro navegador, queda afuera al instante y el próximo login exige reemplazar la clave temporal.
+- **Cambio propio rota la sesión**: verifica la contraseña actual, genera el hash fuera de la transacción y luego compara el hash observado antes de actualizarlo. En una sola transacción limpia el flag, elimina todos los tokens y crea uno nuevo; por eso dos cambios concurrentes no pueden confirmar ambos ni dejar un estado parcial.
 
 ### El candado global
 
-`requireSession` se monta una sola vez en `routes/index.ts`, después de las rutas públicas. Cualquier router montado después queda protegido automáticamente — no hace falta acordarse de agregarlo ruta por ruta.
+`requireSession` se monta una sola vez en `routes/index.ts`, después de las rutas públicas y de autenticación. A continuación se monta `requirePasswordChangeCompleted`, que falla cerrado si el flag falta o no es `false`. Cualquier router funcional montado después hereda ambos controles; las tres operaciones permitidas durante el cambio obligatorio se autentican dentro de `authRouter` y no atraviesan el segundo guard.
+
+El contrato OpenAPI tipa los códigos de `/auth/password` mediante `PasswordChangeError` y declara una respuesta `403` reutilizable para todas las operaciones detrás del segundo guard. El frontend invalida `/auth/me` al recibir `PASSWORD_CHANGE_REQUIRED`, por lo que una pestaña abierta también converge a la pantalla obligatoria si el estado cambió en el servidor.
 
 ### Roles
 
@@ -176,7 +183,9 @@ Dos capas encima de la sesión: primero el rol (`403` si no es SysAdmin), despu�
 
 La política de credenciales nuevas vive en `lib/password-policy` (`@workspace/password-policy`) y es consumida por alta, reset, bootstrap y frontend: 16 a 128 caracteres, sin controles C0/DEL ni whitespace al principio/final. También bloquea una lista acotada y explícita de credenciales comunes, placeholders y ejemplos públicos del repositorio, además de valores formados por un único carácter repetido. Se permiten espacios interiores y no se imponen reglas de composición. Los límites se miden con la longitud de string de JavaScript (unidades UTF-16), igual que los validadores Zod y los inputs actuales. La contraseña no se recorta ni normaliza antes de hashearla.
 
-El login es deliberadamente distinto: acepta de 1 a 128 caracteres para no bloquear credenciales históricas cortas, comunes o con espacios exteriores. Esa excepción solo verifica/rehashea valores ya existentes; nunca permite crear una contraseña nueva fuera de política.
+El login y el campo `password_actual` son deliberadamente distintos: aceptan de 1 a 128 caracteres para no bloquear credenciales históricas cortas, comunes o con espacios exteriores. Esa excepción solo verifica/rehashea valores ya existentes; nunca permite crear una contraseña nueva fuera de política. Un rehash de formato conserva `debe_cambiar_password`; no convierte una contraseña histórica en temporal.
+
+La migración `0010_require_password_change.sql` agrega el booleano con `NOT NULL`, `DEFAULT true` y un `CHECK` cerrado a `0/1`. Después marca explícitamente en `false` a las cuentas históricas para no interrumpirlas. Las altas futuras quedan protegidas por defecto incluso si un consumidor omite el campo.
 
 `src/lib/passwords.ts` usa **scrypt asíncrono** del módulo `crypto` nativo de Node (sin dependencias externas como bcrypt/argon2), con parámetros explícitos `N=16384`, `r=8`, `p=1` y `maxmem=64 MiB`. El trabajo se ejecuta en el pool de libuv y no bloquea el event loop del servidor.
 
@@ -188,8 +197,8 @@ Se ejecuta una vez en cada arranque del backend (`await ensureAdminSeed()` en `i
 
 1. **Roles base**: crea `SysAdmin`, `Administrador` y `Operador` si faltan y reactiva cualquiera que hubiese quedado inactivo. Nunca renombra `Administrador` a `SysAdmin`, porque eso promovería también a todos sus usuarios.
 2. **Compatibilidad de identidad**: si existe el usuario histórico `admin` y no existe `sysadmin`, normaliza únicamente esa identidad. Al rotar el seed heredado le asigna el rol `SysAdmin` canónico; los demás usuarios de `Administrador` permanecen en su rol.
-3. **Alta inicial segura**: si ningún usuario tiene `password_hash`, exige `BOOTSTRAP_SYSADMIN_PASSWORD` (16 a 128 caracteres), crea el rol `SysAdmin` y guarda únicamente el hash scrypt. La validación ocurre antes de modificar filas y el backend no abre el puerto si falta o es inválida.
-4. **Upgrade seguro**: detecta exclusivamente si `sysadmin` —o el nombre histórico `admin`— todavía conserva la credencial pública del seed anterior. En ese caso exige el mismo secreto externo, rota el hash y revoca sus sesiones dentro de una transacción.
+3. **Alta inicial segura**: si ningún usuario tiene `password_hash`, exige `BOOTSTRAP_SYSADMIN_PASSWORD` (16 a 128 caracteres), crea el rol `SysAdmin`, guarda únicamente el hash scrypt y deja la contraseña como temporal. La validación ocurre antes de modificar filas y el backend no abre el puerto si falta o es inválida.
+4. **Upgrade seguro**: detecta exclusivamente si `sysadmin` —o el nombre histórico `admin`— todavía conserva la credencial pública del seed anterior. En ese caso exige el mismo secreto externo, rota el hash, lo marca como temporal y revoca sus sesiones dentro de una transacción.
 5. **Sin resets implícitos**: cualquier contraseña distinta de la credencial heredada queda intacta. Cambiar o conservar `BOOTSTRAP_SYSADMIN_PASSWORD` no modifica una cuenta ya asegurada.
 
 ## Base de datos

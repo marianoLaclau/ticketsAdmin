@@ -44,6 +44,7 @@ frontend/
     assets/                       → logo, estáticos importados por el bundler
     pages/
       Login.tsx                    → pantalla de login
+      ChangePassword.tsx             → reemplazo obligatorio de credenciales temporales
       Dashboard.tsx                 → KPIs, gráficos, actividad reciente
       TicketList.tsx                 → listado con filtros, orden y paginación
       TicketDetail.tsx                → detalle, edición, seguimientos, audio
@@ -62,6 +63,8 @@ frontend/
       use-mobile.tsx                   → media query helper
     lib/
       roles.ts                       → constantes de rol + puedeCerrarTickets() (espejo del backend)
+      password-change.ts               → decisión de ruta y validación pura del cambio obligatorio
+      session-state.ts                   → revalidación y aislamiento de caché entre identidades
       motivos.ts                      → catálogo de categorías de motivo + estilos de badge
       ticket-edit.ts                   → formulario funcional, PATCH mínimo y labels de auditoría
       ticket-list-controls.ts           → parámetros compartidos por listado y exportación
@@ -77,21 +80,22 @@ Todo se define en `App.tsx`. La raíz es la única entrada pública del lado del
 ```tsx
 <WouterRouter>
   <Switch>
-    <Route path="/" component={PublicEntry} />  {/* login; con sesión → /dashboard */}
+    <Route path="/" component={PublicEntry} />  {/* login; decide cambio o dashboard */}
     <Route>
       <AuthGate>
-        <ProtectedRouter />  {/* AppLayout + rutas autenticadas */}
+        <ProtectedRouter />  {/* cambio pendiente no llega a montar este layout */}
       </AuthGate>
     </Route>
   </Switch>
 </WouterRouter>
 ```
 
-- **`PublicEntry`** atiende `/`: sin sesión muestra `<Login />`; si la sesión todavía es válida redirige a `/dashboard` con reemplazo de historial.
-- **`AuthGate`** protege `/dashboard`, `/tickets` y `/admin`. Llama a `useGetMe()` (`GET /api/auth/me`), muestra un spinner mientras verifica y, ante un `401`, normaliza la URL a `/`. Un fallo de red o del backend muestra una pantalla de error con opción de reintentar, no un login engañoso.
+- **`PublicEntry`** atiende `/`: sin sesión muestra `<Login />`; si la sesión todavía es válida decide entre `/cambiar-contrasena` y `/dashboard` según `me.debe_cambiar_password`, con reemplazo de historial.
+- **`AuthGate`** protege `/cambiar-contrasena`, `/dashboard`, `/tickets` y `/admin`. Llama a `useGetMe()` (`GET /api/auth/me`), muestra un spinner mientras verifica y, ante un `401`, normaliza la URL a `/`. Una credencial temporal solo puede renderizar `ChangePassword`, fuera de `AppLayout`; una cuenta ya regularizada no puede volver a esa pantalla. Un fallo de red o del backend muestra una pantalla de error con opción de reintentar, no un login engañoso.
 - **`SoloSysAdmin`** envuelve `/admin`, `/admin/roles-usuarios` y `/admin/tickets/:id`: si `me.rol !== 'SysAdmin'`, muestra una pantalla `403 Acceso denegado`. El backend valida lo mismo de forma independiente; este guard visual no es la única defensa.
-- **Manejo de sesión vencida**: `QueryCache` y `MutationCache` revalidan `/auth/me` ante un `401` de sesión, lo que devuelve la aplicación a la raíz/login. Se excluyen el propio `/auth/me`, los intentos de login y los `401` de la llave administrativa para evitar loops o expulsar al SysAdmin por una key mal escrita.
-- **Login**: tras autenticar, actualiza el caché de `/auth/me` y navega explícitamente a `/dashboard` con `replace`.
+- **Manejo de sesión vencida**: `QueryCache` y `MutationCache` revalidan `/auth/me` ante un `401` de sesión, lo que devuelve la aplicación a la raíz/login. La entrada pública nunca confía en `data` stale si esa revalidación falló o sigue pendiente, y un `401` confirmado elimina las queries funcionales sin recrear en loop la query activa de sesión. Se excluyen los intentos de login y los `401` de la llave administrativa para no expulsar al SysAdmin por una key mal escrita. Un login exitoso vuelve a limpiar las queries anteriores antes de instalar la nueva identidad.
+- **Login**: tras autenticar, actualiza el caché de `/auth/me` y navega a `/cambiar-contrasena` o `/dashboard` con la misma función pura y `replace`.
+- **Cambio obligatorio**: solicita contraseña temporal, nueva y repetición, aplica la política compartida en cliente y usa `POST /api/auth/password`. Un éxito reemplaza el usuario cacheado —incluido el flag— y continúa al dashboard; cerrar sesión sigue disponible. El guard del backend es la autoridad y evita un bypass mediante URL o llamadas directas.
 - **Logout**: tras el `204`, `queryClient.clear()` elimina los datos de la sesión y hace una recarga limpia en `/`. La recarga fuerza una nueva verificación de la cookie ya eliminada y evita que un observer conserve momentáneamente al usuario anterior. La llave administrativa no se borra: permanece localmente, separada por ID de SysAdmin.
 
 ## Roles en la UI

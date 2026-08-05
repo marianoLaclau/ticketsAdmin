@@ -38,6 +38,7 @@ import type {
   CreateSeguimientoParams,
   DashboardStats,
   ExportTicketsCsvParams,
+  FunctionalAccessForbiddenResponse,
   GetActividadRecienteParams,
   GetDashboardStatsParams,
   GetMotivoStatsParams,
@@ -50,6 +51,8 @@ import type {
   ListTicketsParams,
   LoginInput,
   MotivoStat,
+  OwnPasswordChangeInput,
+  PasswordChangeError,
   Seguimiento,
   SeguimientoInput,
   Ticket,
@@ -206,7 +209,7 @@ export const getListTicketsQueryKey = (params?: ListTicketsParams,) => {
     }
 
 
-export const getListTicketsQueryOptions = <TData = Awaited<ReturnType<typeof listTickets>>, TError = ErrorType<unknown>>(params?: ListTicketsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTickets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListTicketsQueryOptions = <TData = Awaited<ReturnType<typeof listTickets>>, TError = ErrorType<FunctionalAccessForbiddenResponse>>(params?: ListTicketsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTickets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -225,14 +228,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListTicketsQueryResult = NonNullable<Awaited<ReturnType<typeof listTickets>>>
-export type ListTicketsQueryError = ErrorType<unknown>
+export type ListTicketsQueryError = ErrorType<FunctionalAccessForbiddenResponse>
 
 
 /**
  * @summary List all tickets with optional filters
  */
 
-export function useListTickets<TData = Awaited<ReturnType<typeof listTickets>>, TError = ErrorType<unknown>>(
+export function useListTickets<TData = Awaited<ReturnType<typeof listTickets>>, TError = ErrorType<FunctionalAccessForbiddenResponse>>(
  params?: ListTicketsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTickets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -290,7 +293,7 @@ export const getExportTicketsCsvQueryKey = (params?: ExportTicketsCsvParams,) =>
     }
 
 
-export const getExportTicketsCsvQueryOptions = <TData = Awaited<ReturnType<typeof exportTicketsCsv>>, TError = ErrorType<unknown>>(params?: ExportTicketsCsvParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportTicketsCsv>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getExportTicketsCsvQueryOptions = <TData = Awaited<ReturnType<typeof exportTicketsCsv>>, TError = ErrorType<FunctionalAccessForbiddenResponse>>(params?: ExportTicketsCsvParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportTicketsCsv>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -309,14 +312,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ExportTicketsCsvQueryResult = NonNullable<Awaited<ReturnType<typeof exportTicketsCsv>>>
-export type ExportTicketsCsvQueryError = ErrorType<unknown>
+export type ExportTicketsCsvQueryError = ErrorType<FunctionalAccessForbiddenResponse>
 
 
 /**
  * @summary Exportar todos los tickets operativos que coinciden con los filtros
  */
 
-export function useExportTicketsCsv<TData = Awaited<ReturnType<typeof exportTicketsCsv>>, TError = ErrorType<unknown>>(
+export function useExportTicketsCsv<TData = Awaited<ReturnType<typeof exportTicketsCsv>>, TError = ErrorType<FunctionalAccessForbiddenResponse>>(
  params?: ExportTicketsCsvParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportTicketsCsv>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -404,6 +407,78 @@ export const useLogin = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getLoginMutationOptions(options));
+    }
+
+export const getChangeOwnPasswordUrl = () => {
+
+
+
+
+  return `/api/auth/password`
+}
+
+/**
+ * Verifica la contraseña actual, aplica la política de credenciales nuevas, rota la sesión y revoca todos los tokens anteriores del usuario.
+ * @summary Reemplazar la contraseña propia
+ */
+export const changeOwnPassword = async (ownPasswordChangeInput: OwnPasswordChangeInput, options?: RequestInit): Promise<AuthUser> => {
+
+  return customFetch<AuthUser>(getChangeOwnPasswordUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(ownPasswordChangeInput)
+  }
+);}
+
+
+
+
+
+export const getChangeOwnPasswordMutationOptions = <TError = ErrorType<PasswordChangeError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeOwnPassword>>, TError,{data: BodyType<OwnPasswordChangeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof changeOwnPassword>>, TError,{data: BodyType<OwnPasswordChangeInput>}, TContext> => {
+
+const mutationKey = ['changeOwnPassword'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof changeOwnPassword>>, {data: BodyType<OwnPasswordChangeInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  changeOwnPassword(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChangeOwnPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof changeOwnPassword>>>
+    export type ChangeOwnPasswordMutationBody = BodyType<OwnPasswordChangeInput>
+    export type ChangeOwnPasswordMutationError = ErrorType<PasswordChangeError>
+
+    /**
+ * @summary Reemplazar la contraseña propia
+ */
+export const useChangeOwnPassword = <TError = ErrorType<PasswordChangeError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeOwnPassword>>, TError,{data: BodyType<OwnPasswordChangeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof changeOwnPassword>>,
+        TError,
+        {data: BodyType<OwnPasswordChangeInput>},
+        TContext
+      > => {
+      return useMutation(getChangeOwnPasswordMutationOptions(options));
     }
 
 export const getLogoutUrl = () => {
@@ -654,7 +729,7 @@ export const createAdminTicket = async (ticketInput: TicketInput, options?: Requ
 
 
 
-export const getCreateAdminTicketMutationOptions = <TError = ErrorType<void>,
+export const getCreateAdminTicketMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminTicket>>, TError,{data: BodyType<TicketInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createAdminTicket>>, TError,{data: BodyType<TicketInput>}, TContext> => {
 
@@ -683,12 +758,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateAdminTicketMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminTicket>>>
     export type CreateAdminTicketMutationBody = BodyType<TicketInput>
-    export type CreateAdminTicketMutationError = ErrorType<void>
+    export type CreateAdminTicketMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
 
     /**
  * @summary Crear un registro manualmente (solo administración)
  */
-export const useCreateAdminTicket = <TError = ErrorType<void>,
+export const useCreateAdminTicket = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminTicket>>, TError,{data: BodyType<TicketInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createAdminTicket>>,
@@ -726,7 +801,7 @@ export const importCsv = async (adminImportInput: AdminImportInput, options?: Re
 
 
 
-export const getImportCsvMutationOptions = <TError = ErrorType<void>,
+export const getImportCsvMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importCsv>>, TError,{data: BodyType<AdminImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof importCsv>>, TError,{data: BodyType<AdminImportInput>}, TContext> => {
 
@@ -755,12 +830,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type ImportCsvMutationResult = NonNullable<Awaited<ReturnType<typeof importCsv>>>
     export type ImportCsvMutationBody = BodyType<AdminImportInput>
-    export type ImportCsvMutationError = ErrorType<void>
+    export type ImportCsvMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
 
     /**
  * @summary Importación masiva desde CSV
  */
-export const useImportCsv = <TError = ErrorType<void>,
+export const useImportCsv = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importCsv>>, TError,{data: BodyType<AdminImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof importCsv>>,
@@ -798,7 +873,7 @@ export const truncateTickets = async (adminTruncateInput: AdminTruncateInput, op
 
 
 
-export const getTruncateTicketsMutationOptions = <TError = ErrorType<void>,
+export const getTruncateTicketsMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof truncateTickets>>, TError,{data: BodyType<AdminTruncateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof truncateTickets>>, TError,{data: BodyType<AdminTruncateInput>}, TContext> => {
 
@@ -827,12 +902,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type TruncateTicketsMutationResult = NonNullable<Awaited<ReturnType<typeof truncateTickets>>>
     export type TruncateTicketsMutationBody = BodyType<AdminTruncateInput>
-    export type TruncateTicketsMutationError = ErrorType<void>
+    export type TruncateTicketsMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
 
     /**
  * @summary Borrar todos los registros (truncate)
  */
-export const useTruncateTickets = <TError = ErrorType<void>,
+export const useTruncateTickets = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof truncateTickets>>, TError,{data: BodyType<AdminTruncateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof truncateTickets>>,
@@ -883,7 +958,7 @@ export const getListAdminRolesQueryKey = (params?: ListAdminRolesParams,) => {
     }
 
 
-export const getListAdminRolesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminRoles>>, TError = ErrorType<void>>(params?: ListAdminRolesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminRoles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListAdminRolesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminRoles>>, TError = ErrorType<void | FunctionalAccessForbiddenResponse>>(params?: ListAdminRolesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminRoles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -902,14 +977,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListAdminRolesQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminRoles>>>
-export type ListAdminRolesQueryError = ErrorType<void>
+export type ListAdminRolesQueryError = ErrorType<void | FunctionalAccessForbiddenResponse>
 
 
 /**
  * @summary Listar roles
  */
 
-export function useListAdminRoles<TData = Awaited<ReturnType<typeof listAdminRoles>>, TError = ErrorType<void>>(
+export function useListAdminRoles<TData = Awaited<ReturnType<typeof listAdminRoles>>, TError = ErrorType<void | FunctionalAccessForbiddenResponse>>(
  params?: ListAdminRolesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminRoles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -953,7 +1028,7 @@ export const createAdminRole = async (adminRoleInput: AdminRoleInput, options?: 
 
 
 
-export const getCreateAdminRoleMutationOptions = <TError = ErrorType<void>,
+export const getCreateAdminRoleMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminRole>>, TError,{data: BodyType<AdminRoleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createAdminRole>>, TError,{data: BodyType<AdminRoleInput>}, TContext> => {
 
@@ -982,12 +1057,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateAdminRoleMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminRole>>>
     export type CreateAdminRoleMutationBody = BodyType<AdminRoleInput>
-    export type CreateAdminRoleMutationError = ErrorType<void>
+    export type CreateAdminRoleMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
 
     /**
  * @summary Crear un rol
  */
-export const useCreateAdminRole = <TError = ErrorType<void>,
+export const useCreateAdminRole = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminRole>>, TError,{data: BodyType<AdminRoleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createAdminRole>>,
@@ -1025,7 +1100,7 @@ export const updateAdminRole = async (id: number,
 
 
 
-export const getUpdateAdminRoleMutationOptions = <TError = ErrorType<void>,
+export const getUpdateAdminRoleMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminRole>>, TError,{id: number;data: BodyType<AdminRoleUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateAdminRole>>, TError,{id: number;data: BodyType<AdminRoleUpdate>}, TContext> => {
 
@@ -1054,12 +1129,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateAdminRoleMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminRole>>>
     export type UpdateAdminRoleMutationBody = BodyType<AdminRoleUpdate>
-    export type UpdateAdminRoleMutationError = ErrorType<void>
+    export type UpdateAdminRoleMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
 
     /**
  * @summary Actualizar un rol
  */
-export const useUpdateAdminRole = <TError = ErrorType<void>,
+export const useUpdateAdminRole = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminRole>>, TError,{id: number;data: BodyType<AdminRoleUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateAdminRole>>,
@@ -1096,7 +1171,7 @@ export const deleteAdminRole = async (id: number, options?: RequestInit): Promis
 
 
 
-export const getDeleteAdminRoleMutationOptions = <TError = ErrorType<void>,
+export const getDeleteAdminRoleMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminRole>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminRole>>, TError,{id: number}, TContext> => {
 
@@ -1125,12 +1200,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeleteAdminRoleMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminRole>>>
 
-    export type DeleteAdminRoleMutationError = ErrorType<void>
+    export type DeleteAdminRoleMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
 
     /**
  * @summary Eliminar un rol sin usuarios asignados
  */
-export const useDeleteAdminRole = <TError = ErrorType<void>,
+export const useDeleteAdminRole = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminRole>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof deleteAdminRole>>,
@@ -1181,7 +1256,7 @@ export const getListAdminUsersQueryKey = (params?: ListAdminUsersParams,) => {
     }
 
 
-export const getListAdminUsersQueryOptions = <TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = ErrorType<void>>(params?: ListAdminUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListAdminUsersQueryOptions = <TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = ErrorType<void | FunctionalAccessForbiddenResponse>>(params?: ListAdminUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -1200,14 +1275,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListAdminUsersQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminUsers>>>
-export type ListAdminUsersQueryError = ErrorType<void>
+export type ListAdminUsersQueryError = ErrorType<void | FunctionalAccessForbiddenResponse>
 
 
 /**
  * @summary Listar usuarios
  */
 
-export function useListAdminUsers<TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = ErrorType<void>>(
+export function useListAdminUsers<TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = ErrorType<void | FunctionalAccessForbiddenResponse>>(
  params?: ListAdminUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -1251,7 +1326,7 @@ export const createAdminUser = async (adminUserInput: AdminUserInput, options?: 
 
 
 
-export const getCreateAdminUserMutationOptions = <TError = ErrorType<void>,
+export const getCreateAdminUserMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminUser>>, TError,{data: BodyType<AdminUserInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createAdminUser>>, TError,{data: BodyType<AdminUserInput>}, TContext> => {
 
@@ -1280,12 +1355,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateAdminUserMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminUser>>>
     export type CreateAdminUserMutationBody = BodyType<AdminUserInput>
-    export type CreateAdminUserMutationError = ErrorType<void>
+    export type CreateAdminUserMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
 
     /**
  * @summary Crear un usuario
  */
-export const useCreateAdminUser = <TError = ErrorType<void>,
+export const useCreateAdminUser = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminUser>>, TError,{data: BodyType<AdminUserInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createAdminUser>>,
@@ -1324,7 +1399,7 @@ export const updateAdminUser = async (id: number,
 
 
 
-export const getUpdateAdminUserMutationOptions = <TError = ErrorType<void>,
+export const getUpdateAdminUserMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminUser>>, TError,{id: number;data: BodyType<AdminUserUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateAdminUser>>, TError,{id: number;data: BodyType<AdminUserUpdate>}, TContext> => {
 
@@ -1353,12 +1428,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateAdminUserMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminUser>>>
     export type UpdateAdminUserMutationBody = BodyType<AdminUserUpdate>
-    export type UpdateAdminUserMutationError = ErrorType<void>
+    export type UpdateAdminUserMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
 
     /**
  * @summary Actualizar o desactivar un usuario
  */
-export const useUpdateAdminUser = <TError = ErrorType<void>,
+export const useUpdateAdminUser = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminUser>>, TError,{id: number;data: BodyType<AdminUserUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateAdminUser>>,
@@ -1397,7 +1472,7 @@ export const resetAdminUserPassword = async (id: number,
 
 
 
-export const getResetAdminUserPasswordMutationOptions = <TError = ErrorType<void>,
+export const getResetAdminUserPasswordMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetAdminUserPassword>>, TError,{id: number;data: BodyType<AdminUserPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof resetAdminUserPassword>>, TError,{id: number;data: BodyType<AdminUserPasswordInput>}, TContext> => {
 
@@ -1426,12 +1501,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type ResetAdminUserPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof resetAdminUserPassword>>>
     export type ResetAdminUserPasswordMutationBody = BodyType<AdminUserPasswordInput>
-    export type ResetAdminUserPasswordMutationError = ErrorType<void>
+    export type ResetAdminUserPasswordMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
 
     /**
  * @summary Establecer o reestablecer la contraseña de un usuario
  */
-export const useResetAdminUserPassword = <TError = ErrorType<void>,
+export const useResetAdminUserPassword = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetAdminUserPassword>>, TError,{id: number;data: BodyType<AdminUserPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof resetAdminUserPassword>>,
@@ -1485,7 +1560,7 @@ export const getGetTicketQueryKey = (id: number,
     }
 
 
-export const getGetTicketQueryOptions = <TData = Awaited<ReturnType<typeof getTicket>>, TError = ErrorType<void>>(id: number,
+export const getGetTicketQueryOptions = <TData = Awaited<ReturnType<typeof getTicket>>, TError = ErrorType<FunctionalAccessForbiddenResponse | void>>(id: number,
     params?: GetTicketParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicket>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -1505,14 +1580,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetTicketQueryResult = NonNullable<Awaited<ReturnType<typeof getTicket>>>
-export type GetTicketQueryError = ErrorType<void>
+export type GetTicketQueryError = ErrorType<FunctionalAccessForbiddenResponse | void>
 
 
 /**
  * @summary Get ticket details
  */
 
-export function useGetTicket<TData = Awaited<ReturnType<typeof getTicket>>, TError = ErrorType<void>>(
+export function useGetTicket<TData = Awaited<ReturnType<typeof getTicket>>, TError = ErrorType<FunctionalAccessForbiddenResponse | void>>(
  id: number,
     params?: GetTicketParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicket>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
@@ -1571,7 +1646,7 @@ export const updateTicket = async (id: number,
 
 
 
-export const getUpdateTicketMutationOptions = <TError = ErrorType<void>,
+export const getUpdateTicketMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>;params?: UpdateTicketParams}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>;params?: UpdateTicketParams}, TContext> => {
 
@@ -1600,12 +1675,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateTicketMutationResult = NonNullable<Awaited<ReturnType<typeof updateTicket>>>
     export type UpdateTicketMutationBody = BodyType<TicketUpdate>
-    export type UpdateTicketMutationError = ErrorType<void>
+    export type UpdateTicketMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
 
     /**
  * @summary Update a ticket
  */
-export const useUpdateTicket = <TError = ErrorType<void>,
+export const useUpdateTicket = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>;params?: UpdateTicketParams}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateTicket>>,
@@ -1643,7 +1718,7 @@ export const deleteTicket = async (id: number, options?: RequestInit): Promise<v
 
 
 
-export const getDeleteTicketMutationOptions = <TError = ErrorType<void>,
+export const getDeleteTicketMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTicket>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteTicket>>, TError,{id: number}, TContext> => {
 
@@ -1672,12 +1747,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeleteTicketMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTicket>>>
 
-    export type DeleteTicketMutationError = ErrorType<void>
+    export type DeleteTicketMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
 
     /**
  * @summary Delete a ticket (solo SysAdmin con clave administrativa)
  */
-export const useDeleteTicket = <TError = ErrorType<void>,
+export const useDeleteTicket = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTicket>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof deleteTicket>>,
@@ -1731,7 +1806,7 @@ export const getListSeguimientosQueryKey = (id: number,
     }
 
 
-export const getListSeguimientosQueryOptions = <TData = Awaited<ReturnType<typeof listSeguimientos>>, TError = ErrorType<unknown>>(id: number,
+export const getListSeguimientosQueryOptions = <TData = Awaited<ReturnType<typeof listSeguimientos>>, TError = ErrorType<FunctionalAccessForbiddenResponse>>(id: number,
     params?: ListSeguimientosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSeguimientos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -1751,14 +1826,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListSeguimientosQueryResult = NonNullable<Awaited<ReturnType<typeof listSeguimientos>>>
-export type ListSeguimientosQueryError = ErrorType<unknown>
+export type ListSeguimientosQueryError = ErrorType<FunctionalAccessForbiddenResponse>
 
 
 /**
  * @summary List follow-ups for a ticket
  */
 
-export function useListSeguimientos<TData = Awaited<ReturnType<typeof listSeguimientos>>, TError = ErrorType<unknown>>(
+export function useListSeguimientos<TData = Awaited<ReturnType<typeof listSeguimientos>>, TError = ErrorType<FunctionalAccessForbiddenResponse>>(
  id: number,
     params?: ListSeguimientosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSeguimientos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
@@ -1813,7 +1888,7 @@ export const createSeguimiento = async (id: number,
 
 
 
-export const getCreateSeguimientoMutationOptions = <TError = ErrorType<unknown>,
+export const getCreateSeguimientoMutationOptions = <TError = ErrorType<FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSeguimiento>>, TError,{id: number;data: BodyType<SeguimientoInput>;params?: CreateSeguimientoParams}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createSeguimiento>>, TError,{id: number;data: BodyType<SeguimientoInput>;params?: CreateSeguimientoParams}, TContext> => {
 
@@ -1842,12 +1917,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateSeguimientoMutationResult = NonNullable<Awaited<ReturnType<typeof createSeguimiento>>>
     export type CreateSeguimientoMutationBody = BodyType<SeguimientoInput>
-    export type CreateSeguimientoMutationError = ErrorType<unknown>
+    export type CreateSeguimientoMutationError = ErrorType<FunctionalAccessForbiddenResponse>
 
     /**
  * @summary Add a follow-up to a ticket
  */
-export const useCreateSeguimiento = <TError = ErrorType<unknown>,
+export const useCreateSeguimiento = <TError = ErrorType<FunctionalAccessForbiddenResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSeguimiento>>, TError,{id: number;data: BodyType<SeguimientoInput>;params?: CreateSeguimientoParams}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createSeguimiento>>,
@@ -1898,7 +1973,7 @@ export const getGetDashboardStatsQueryKey = (params?: GetDashboardStatsParams,) 
     }
 
 
-export const getGetDashboardStatsQueryOptions = <TData = Awaited<ReturnType<typeof getDashboardStats>>, TError = ErrorType<void>>(params?: GetDashboardStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetDashboardStatsQueryOptions = <TData = Awaited<ReturnType<typeof getDashboardStats>>, TError = ErrorType<void | FunctionalAccessForbiddenResponse>>(params?: GetDashboardStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -1917,14 +1992,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetDashboardStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getDashboardStats>>>
-export type GetDashboardStatsQueryError = ErrorType<void>
+export type GetDashboardStatsQueryError = ErrorType<void | FunctionalAccessForbiddenResponse>
 
 
 /**
  * @summary Get dashboard statistics
  */
 
-export function useGetDashboardStats<TData = Awaited<ReturnType<typeof getDashboardStats>>, TError = ErrorType<void>>(
+export function useGetDashboardStats<TData = Awaited<ReturnType<typeof getDashboardStats>>, TError = ErrorType<void | FunctionalAccessForbiddenResponse>>(
  params?: GetDashboardStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -1982,7 +2057,7 @@ export const getGetActividadRecienteQueryKey = (params?: GetActividadRecientePar
     }
 
 
-export const getGetActividadRecienteQueryOptions = <TData = Awaited<ReturnType<typeof getActividadReciente>>, TError = ErrorType<void>>(params?: GetActividadRecienteParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActividadReciente>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetActividadRecienteQueryOptions = <TData = Awaited<ReturnType<typeof getActividadReciente>>, TError = ErrorType<void | FunctionalAccessForbiddenResponse>>(params?: GetActividadRecienteParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActividadReciente>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -2001,14 +2076,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetActividadRecienteQueryResult = NonNullable<Awaited<ReturnType<typeof getActividadReciente>>>
-export type GetActividadRecienteQueryError = ErrorType<void>
+export type GetActividadRecienteQueryError = ErrorType<void | FunctionalAccessForbiddenResponse>
 
 
 /**
  * @summary Get recent ticket activity
  */
 
-export function useGetActividadReciente<TData = Awaited<ReturnType<typeof getActividadReciente>>, TError = ErrorType<void>>(
+export function useGetActividadReciente<TData = Awaited<ReturnType<typeof getActividadReciente>>, TError = ErrorType<void | FunctionalAccessForbiddenResponse>>(
  params?: GetActividadRecienteParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getActividadReciente>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -2066,7 +2141,7 @@ export const getGetTicketsVencidosQueryKey = (params?: GetTicketsVencidosParams,
     }
 
 
-export const getGetTicketsVencidosQueryOptions = <TData = Awaited<ReturnType<typeof getTicketsVencidos>>, TError = ErrorType<void>>(params?: GetTicketsVencidosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicketsVencidos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetTicketsVencidosQueryOptions = <TData = Awaited<ReturnType<typeof getTicketsVencidos>>, TError = ErrorType<void | FunctionalAccessForbiddenResponse>>(params?: GetTicketsVencidosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicketsVencidos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -2085,14 +2160,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetTicketsVencidosQueryResult = NonNullable<Awaited<ReturnType<typeof getTicketsVencidos>>>
-export type GetTicketsVencidosQueryError = ErrorType<void>
+export type GetTicketsVencidosQueryError = ErrorType<void | FunctionalAccessForbiddenResponse>
 
 
 /**
  * @summary Get overdue tickets
  */
 
-export function useGetTicketsVencidos<TData = Awaited<ReturnType<typeof getTicketsVencidos>>, TError = ErrorType<void>>(
+export function useGetTicketsVencidos<TData = Awaited<ReturnType<typeof getTicketsVencidos>>, TError = ErrorType<void | FunctionalAccessForbiddenResponse>>(
  params?: GetTicketsVencidosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicketsVencidos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -2150,7 +2225,7 @@ export const getGetMotivoStatsQueryKey = (params?: GetMotivoStatsParams,) => {
     }
 
 
-export const getGetMotivoStatsQueryOptions = <TData = Awaited<ReturnType<typeof getMotivoStats>>, TError = ErrorType<void>>(params?: GetMotivoStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMotivoStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetMotivoStatsQueryOptions = <TData = Awaited<ReturnType<typeof getMotivoStats>>, TError = ErrorType<void | FunctionalAccessForbiddenResponse>>(params?: GetMotivoStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMotivoStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -2169,14 +2244,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetMotivoStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getMotivoStats>>>
-export type GetMotivoStatsQueryError = ErrorType<void>
+export type GetMotivoStatsQueryError = ErrorType<void | FunctionalAccessForbiddenResponse>
 
 
 /**
  * @summary Get ticket counts grouped by normalized contact category
  */
 
-export function useGetMotivoStats<TData = Awaited<ReturnType<typeof getMotivoStats>>, TError = ErrorType<void>>(
+export function useGetMotivoStats<TData = Awaited<ReturnType<typeof getMotivoStats>>, TError = ErrorType<void | FunctionalAccessForbiddenResponse>>(
  params?: GetMotivoStatsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMotivoStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {

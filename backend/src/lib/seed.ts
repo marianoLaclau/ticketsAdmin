@@ -238,6 +238,7 @@ export async function ensureAdminSeed(): Promise<void> {
           .update(usuariosTable)
           .set({
             password_hash: rotacion.nuevoHash,
+            debe_cambiar_password: true,
             fecha_actualizacion: new Date(),
           })
           .where(
@@ -326,6 +327,7 @@ export async function ensureAdminSeed(): Promise<void> {
         .set({
           username: "sysadmin",
           password_hash: hashInicial,
+          debe_cambiar_password: true,
           activo: true,
           role_id: rol.id,
           fecha_actualizacion: new Date(),
@@ -343,6 +345,7 @@ export async function ensureAdminSeed(): Promise<void> {
           email: "sysadmin",
           role_id: rol.id,
           password_hash: hashInicial,
+          debe_cambiar_password: true,
         })
         .returning({ id: usuariosTable.id })
         .get();

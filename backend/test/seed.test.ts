@@ -29,6 +29,7 @@ bootstrap.exec(`
     username TEXT UNIQUE,
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT,
+    debe_cambiar_password INTEGER NOT NULL DEFAULT 1 CHECK (debe_cambiar_password IN (0, 1)),
     role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
     activo INTEGER NOT NULL DEFAULT 1,
     fecha_creacion INTEGER NOT NULL DEFAULT 0,
@@ -68,8 +69,8 @@ async function crearSeedHeredado(email = "sysadmin") {
   const usuario = sqlite
     .prepare(
       `INSERT INTO usuarios
-       (nombre, username, email, password_hash, role_id)
-       VALUES ('SysAdmin', ?, ?, ?, ?)`,
+       (nombre, username, email, password_hash, debe_cambiar_password, role_id)
+       VALUES ('SysAdmin', ?, ?, ?, 0, ?)`,
     )
     .run(email === "sysadmin" ? "sysadmin" : null, email, passwordHash, roleId);
   sqlite
@@ -151,7 +152,8 @@ describe("bootstrap seguro del SysAdmin", () => {
 
     const usuario = sqlite
       .prepare(
-        `SELECT u.username, u.email, u.password_hash, r.nombre AS rol
+        `SELECT u.username, u.email, u.password_hash,
+                u.debe_cambiar_password, r.nombre AS rol
          FROM usuarios u
          JOIN roles r ON r.id = u.role_id
          WHERE u.username = 'sysadmin'`,
@@ -160,11 +162,13 @@ describe("bootstrap seguro del SysAdmin", () => {
       username: string;
       email: string;
       password_hash: string;
+      debe_cambiar_password: number;
       rol: string;
     };
 
     assert.equal(usuario.email, "sysadmin");
     assert.equal(usuario.rol, "SysAdmin");
+    assert.equal(usuario.debe_cambiar_password, 1);
     assert.notEqual(usuario.password_hash, passwordInicial);
     assert.equal(
       await verifyPassword(passwordInicial, usuario.password_hash),
@@ -175,14 +179,24 @@ describe("bootstrap seguro del SysAdmin", () => {
   it("no exige la variable ni sobrescribe una credencial existente", async () => {
     process.env.BOOTSTRAP_SYSADMIN_PASSWORD = passwordInicial;
     await ensureAdminSeed();
+    sqlite
+      .prepare(
+        `
+        UPDATE usuarios SET debe_cambiar_password = 0
+        WHERE username = 'sysadmin'
+      `,
+      )
+      .run();
 
     const anterior = sqlite
       .prepare(
-        "SELECT id, password_hash FROM usuarios WHERE username = 'sysadmin'",
+        `SELECT id, password_hash, debe_cambiar_password
+         FROM usuarios WHERE username = 'sysadmin'`,
       )
       .get() as {
       id: number;
       password_hash: string;
+      debe_cambiar_password: number;
     };
 
     delete process.env.BOOTSTRAP_SYSADMIN_PASSWORD;
@@ -193,11 +207,13 @@ describe("bootstrap seguro del SysAdmin", () => {
 
     const actual = sqlite
       .prepare(
-        "SELECT id, password_hash FROM usuarios WHERE username = 'sysadmin'",
+        `SELECT id, password_hash, debe_cambiar_password
+         FROM usuarios WHERE username = 'sysadmin'`,
       )
       .get() as {
       id: number;
       password_hash: string;
+      debe_cambiar_password: number;
     };
     assert.deepEqual(actual, anterior);
     assert.equal(
@@ -219,11 +235,18 @@ describe("bootstrap seguro del SysAdmin", () => {
     );
 
     const actual = sqlite
-      .prepare("SELECT password_hash FROM usuarios WHERE id = ?")
+      .prepare(
+        `
+        SELECT password_hash, debe_cambiar_password
+        FROM usuarios WHERE id = ?
+      `,
+      )
       .get(heredado.id) as {
       password_hash: string;
+      debe_cambiar_password: number;
     };
     assert.equal(actual.password_hash, heredado.passwordHash);
+    assert.equal(actual.debe_cambiar_password, 0);
     assert.equal(
       sqlite
         .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?")
@@ -241,8 +264,8 @@ describe("bootstrap seguro del SysAdmin", () => {
     const otroUsuario = sqlite
       .prepare(
         `INSERT INTO usuarios
-         (nombre, username, email, password_hash, role_id)
-         VALUES ('Otra', 'otra', 'otra@example.test', ?, ?)`,
+         (nombre, username, email, password_hash, debe_cambiar_password, role_id)
+         VALUES ('Otra', 'otra', 'otra@example.test', ?, 0, ?)`,
       )
       .run(otroHash, roleId);
     sqlite
@@ -257,15 +280,18 @@ describe("bootstrap seguro del SysAdmin", () => {
 
     const rotado = sqlite
       .prepare(
-        "SELECT username, email, password_hash FROM usuarios WHERE id = ?",
+        `SELECT username, email, password_hash, debe_cambiar_password
+         FROM usuarios WHERE id = ?`,
       )
       .get(heredado.id) as {
       username: string;
       email: string;
       password_hash: string;
+      debe_cambiar_password: number;
     };
     assert.equal(rotado.username, "sysadmin");
     assert.equal(rotado.email, "sysadmin");
+    assert.equal(rotado.debe_cambiar_password, 1);
     assert.equal(
       await verifyPassword(passwordHeredado, rotado.password_hash),
       false,
@@ -288,14 +314,24 @@ describe("bootstrap seguro del SysAdmin", () => {
     );
 
     const hashRotado = rotado.password_hash;
+    sqlite
+      .prepare("UPDATE usuarios SET debe_cambiar_password = 0 WHERE id = ?")
+      .run(heredado.id);
     delete process.env.BOOTSTRAP_SYSADMIN_PASSWORD;
     await ensureAdminSeed();
     const segundaEjecucion = sqlite
-      .prepare("SELECT password_hash FROM usuarios WHERE id = ?")
+      .prepare(
+        `
+        SELECT password_hash, debe_cambiar_password
+        FROM usuarios WHERE id = ?
+      `,
+      )
       .get(heredado.id) as {
       password_hash: string;
+      debe_cambiar_password: number;
     };
     assert.equal(segundaEjecucion.password_hash, hashRotado);
+    assert.equal(segundaEjecucion.debe_cambiar_password, 0);
   });
 
   it("rota un admin heredado sin promoverlo cuando ya existe el sysadmin canónico", async () => {
@@ -314,8 +350,8 @@ describe("bootstrap seguro del SysAdmin", () => {
     const sysadminSeguro = sqlite
       .prepare(
         `INSERT INTO usuarios
-         (nombre, username, email, password_hash, role_id)
-         VALUES ('SysAdmin seguro', 'sysadmin', 'sysadmin', ?, ?)`,
+         (nombre, username, email, password_hash, debe_cambiar_password, role_id)
+         VALUES ('SysAdmin seguro', 'sysadmin', 'sysadmin', ?, 0, ?)`,
       )
       .run(hashSeguro, roleId);
     sqlite
@@ -366,17 +402,33 @@ describe("bootstrap seguro del SysAdmin", () => {
 
     await ensureAdminSeed();
 
-    const hashes = [admin.id, sysadmin.id].map(
+    const rows = [admin.id, sysadmin.id].map(
       (id) =>
         sqlite
-          .prepare("SELECT password_hash FROM usuarios WHERE id = ?")
-          .get(id)!.password_hash,
+          .prepare(
+            `
+            SELECT password_hash, debe_cambiar_password
+            FROM usuarios WHERE id = ?
+          `,
+          )
+          .get(id) as {
+          password_hash: string;
+          debe_cambiar_password: number;
+        },
     );
-    assert.equal(await verifyPassword(passwordInicial, hashes[0]), true);
-    assert.equal(await verifyPassword(passwordInicial, hashes[1]), true);
+    assert.equal(
+      await verifyPassword(passwordInicial, rows[0].password_hash),
+      true,
+    );
+    assert.equal(
+      await verifyPassword(passwordInicial, rows[1].password_hash),
+      true,
+    );
+    assert.equal(rows[0].debe_cambiar_password, 1);
+    assert.equal(rows[1].debe_cambiar_password, 1);
     assert.notEqual(
-      hashes[0],
-      hashes[1],
+      rows[0].password_hash,
+      rows[1].password_hash,
       "cada cuenta debe recibir una sal única",
     );
     assert.equal(
@@ -396,15 +448,15 @@ describe("bootstrap seguro del SysAdmin", () => {
     const seed = sqlite
       .prepare(
         `INSERT INTO usuarios
-         (nombre, username, email, password_hash, role_id)
-         VALUES ('Admin histórico', NULL, 'admin', ?, ?)`,
+         (nombre, username, email, password_hash, debe_cambiar_password, role_id)
+         VALUES ('Admin histórico', NULL, 'admin', ?, 0, ?)`,
       )
       .run(hashHeredado, roleId);
     const colega = sqlite
       .prepare(
         `INSERT INTO usuarios
-         (nombre, username, email, password_hash, role_id)
-         VALUES ('Colega', 'colega', 'colega@example.test', ?, ?)`,
+         (nombre, username, email, password_hash, debe_cambiar_password, role_id)
+         VALUES ('Colega', 'colega', 'colega@example.test', ?, 0, ?)`,
       )
       .run(hashSeguro, roleId);
 
@@ -440,8 +492,8 @@ describe("bootstrap seguro del SysAdmin", () => {
     const usuario = sqlite
       .prepare(
         `INSERT INTO usuarios
-         (nombre, username, email, password_hash, role_id)
-         VALUES ('Admin histórico', NULL, 'admin', ?, ?)`,
+         (nombre, username, email, password_hash, debe_cambiar_password, role_id)
+         VALUES ('Admin histórico', NULL, 'admin', ?, 0, ?)`,
       )
       .run(hashSeguro, roleId);
     sqlite
@@ -527,11 +579,18 @@ describe("bootstrap seguro del SysAdmin", () => {
     }
 
     const actual = sqlite
-      .prepare("SELECT password_hash FROM usuarios WHERE id = ?")
+      .prepare(
+        `
+        SELECT password_hash, debe_cambiar_password
+        FROM usuarios WHERE id = ?
+      `,
+      )
       .get(heredado.id) as {
       password_hash: string;
+      debe_cambiar_password: number;
     };
     assert.equal(actual.password_hash, heredado.passwordHash);
+    assert.equal(actual.debe_cambiar_password, 0);
     assert.equal(
       await verifyPassword(passwordHeredado, actual.password_hash),
       true,

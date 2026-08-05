@@ -36,6 +36,11 @@ function getServerErrorText(error: unknown): string {
   return '';
 }
 
+export function getServerErrorCode(error: unknown): string {
+  const payload = asRecord(asRecord(error)?.data);
+  return typeof payload?.code === 'string' ? payload.code : '';
+}
+
 function normalize(value: string): string {
   return value
     .normalize('NFD')
@@ -175,5 +180,26 @@ export function getLoginErrorMessage(error: unknown): string {
       return 'El servicio no está disponible en este momento. Intentá nuevamente en unos minutos.';
     default:
       return CONNECTION_ERROR_MESSAGE;
+  }
+}
+
+export function getPasswordChangeErrorMessage(error: unknown): string {
+  switch (getServerErrorCode(error)) {
+    case 'CURRENT_PASSWORD_INVALID':
+      return 'La contraseña temporal no es correcta.';
+    case 'PASSWORD_REUSE_NOT_ALLOWED':
+      return 'La contraseña nueva debe ser diferente de la temporal.';
+    case 'PASSWORD_CHANGE_REQUIRED':
+      return 'Tenés que crear tu contraseña definitiva antes de continuar.';
+    case 'SESSION_INVALID':
+    case 'SESSION_CHANGED':
+      return 'Tu sesión cambió o venció. Volvé a iniciar sesión.';
+    case 'NEW_PASSWORD_POLICY_VIOLATION':
+      return getUserErrorMessage(error);
+    default:
+      return getUserErrorMessage(
+        error,
+        'No pudimos cambiar la contraseña. Revisá los datos e intentá nuevamente.',
+      );
   }
 }
