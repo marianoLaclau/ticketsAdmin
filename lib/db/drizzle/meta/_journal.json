@@ -85,6 +85,13 @@
       "when": 1785944312355,
       "tag": "0011_invalidate_plaintext_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1785952374554,
+      "tag": "0012_add_ticket_version",
+      "breakpoints": true
     }
   ]
 }

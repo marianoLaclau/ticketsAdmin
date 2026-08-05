@@ -14,11 +14,12 @@ describe("reconciliación de categorías derivadas", () => {
     sqlite.exec(`
       CREATE TABLE tickets (
         id INTEGER PRIMARY KEY,
+        version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
         motivo TEXT NOT NULL,
         motivo_categoria TEXT NOT NULL,
         resumen TEXT
       );
-      INSERT INTO tickets VALUES
+      INSERT INTO tickets (id, motivo, motivo_categoria, resumen) VALUES
         (1, 'Necesita ayuda', 'legales', 'Retención judicial de haberes'),
         (2, 'Necesita ayuda', 'haberes_pagos', 'Embargo de sueldo'),
         (3, 'Solicita su recibo de sueldo', 'recibos_documentacion', 'También mencionó un embargo'),
@@ -41,15 +42,15 @@ describe("reconciliación de categorías derivadas", () => {
     assert.equal(resultado.actualizados, 2);
     assert.deepEqual(
       sqlite
-        .prepare("SELECT id, motivo_categoria FROM tickets ORDER BY id")
+        .prepare("SELECT id, motivo_categoria, version FROM tickets ORDER BY id")
         .all(),
       [
-        { id: 1, motivo_categoria: "embargos" },
-        { id: 2, motivo_categoria: "embargos" },
-        { id: 3, motivo_categoria: "recibos_documentacion" },
-        { id: 4, motivo_categoria: "legales" },
-        { id: 5, motivo_categoria: "recibos_documentacion" },
-        { id: 6, motivo_categoria: "legales" },
+        { id: 1, motivo_categoria: "embargos", version: 2 },
+        { id: 2, motivo_categoria: "embargos", version: 2 },
+        { id: 3, motivo_categoria: "recibos_documentacion", version: 1 },
+        { id: 4, motivo_categoria: "legales", version: 1 },
+        { id: 5, motivo_categoria: "recibos_documentacion", version: 1 },
+        { id: 6, motivo_categoria: "legales", version: 1 },
       ],
     );
     assert.deepEqual(
@@ -59,6 +60,17 @@ describe("reconciliación de categorías derivadas", () => {
 
     const segundaPasada = await reconciliarCategoriasMotivo(cargarModulo);
     assert.equal(segundaPasada.actualizados, 0);
+    assert.deepEqual(
+      sqlite.prepare("SELECT id, version FROM tickets ORDER BY id").all(),
+      [
+        { id: 1, version: 2 },
+        { id: 2, version: 2 },
+        { id: 3, version: 1 },
+        { id: 4, version: 1 },
+        { id: 5, version: 1 },
+        { id: 6, version: 1 },
+      ],
+    );
     sqlite.close();
   });
 });

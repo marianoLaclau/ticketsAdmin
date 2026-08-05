@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { clasificarMotivo } from "@workspace/ingesta";
 import type { MotivoCategoria } from "@workspace/db/schema";
 
@@ -77,7 +77,10 @@ export async function reconciliarCategoriasMotivo(
     for (const cambio of cambiosDetectados) {
       const rows = tx
         .update(ticketsTable)
-        .set({ motivo_categoria: cambio.categoriaNueva })
+        .set({
+          motivo_categoria: cambio.categoriaNueva,
+          version: sql`${ticketsTable.version} + 1`,
+        })
         .where(
           and(
             eq(ticketsTable.id, cambio.ticketId),

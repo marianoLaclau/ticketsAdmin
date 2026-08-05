@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, not } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, not, sql } from "drizzle-orm";
 import {
   calcularHorasHabilesRestantes,
   calcularPrioridadPorSla,
@@ -262,7 +262,10 @@ export function crearRepositorioPrioridadAutomaticaDb(
       return db.transaction((tx) => {
         const actualizados = tx
           .update(ticketsTable)
-          .set({ prioridad: cambio.prioridadNueva })
+          .set({
+            prioridad: cambio.prioridadNueva,
+            version: sql`${ticketsTable.version} + 1`,
+          })
           .where(
             and(
               eq(ticketsTable.id, cambio.ticketId),

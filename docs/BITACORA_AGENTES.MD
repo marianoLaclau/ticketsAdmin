@@ -2,6 +2,19 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — Base monotónica para concurrencia de tickets
+
+**Agente:** Codex
+**Estado:** decimonovena remediación de la auditoría técnica, implementada localmente.
+
+- Se agregó `tickets.version`, entero no nulo con default 1 y restricción positiva. La migración aditiva `0012` preserva filas históricas, evita reconstruir la tabla y deja el mismo default para altas futuras.
+- La versión no forma parte de `TicketInput`, CSV ni datos funcionales: webhook, alta administrativa e importadores no pueden imponerla desde afuera.
+- Las promociones automáticas de prioridad y la reconciliación conservadora de categorías incrementan la revisión mediante `version = version + 1` en el mismo UPDATE protegido por compare-and-set.
+- Un fallo al insertar la auditoría revierte prioridad y versión juntas; repetir una promoción o reconciliación sin cambios no vuelve a incrementar la fila.
+- Se actualizaron las fixtures que representan el schema actual y se agregó una prueba de migración para históricos, defaults, constraint, integridad e idempotencia de la cadena completa.
+- Archivos principales: schema/migración Drizzle, mutadores internos, fixtures, pruebas y documentación.
+- Validaciones: 282 pruebas correctas (backend 145, frontend 72, base de datos 12, política compartida 4, ingesta 48 y scripts 1), typecheck y build completos. El build conserva los avisos ya registrados de sourcemaps en cuatro componentes UI y del bundle frontend mayor a 500 kB.
+
 ## 2026-08-05 — PATCH mínimo en el CRUD administrativo
 
 **Agente:** Codex

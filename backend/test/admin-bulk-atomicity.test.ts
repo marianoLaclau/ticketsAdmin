@@ -21,6 +21,7 @@ bootstrap.pragma("foreign_keys = ON");
 bootstrap.exec(`
   CREATE TABLE tickets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
     conversation_id TEXT NOT NULL UNIQUE,
     hora TEXT NOT NULL,
     nombre TEXT NOT NULL,

@@ -236,6 +236,7 @@ erDiagram
     }
     TICKETS {
         integer id PK
+        integer version
         text conversation_id UK
         text nombre
         text apellido
@@ -272,6 +273,7 @@ erDiagram
 Es la entidad operativa principal:
 
 - `conversation_id` es único y funciona como clave de idempotencia de n8n.
+- `version` comienza en 1, no admite cero o negativos y avanza con cada modificación real de la fila. Es metadato interno de concurrencia: no se importa ni exporta como dato de negocio.
 - `motivo` y `resumen` conservan el texto recibido.
 - `motivo_categoria` es una columna derivada; actualmente incluye `embargos`, `legales` y categorías operativas generales.
 - `estado_empleado` admite `Activo` o `Inactivo` cuando existe una empresa asociada y proviene del dato recibido desde Serin.
@@ -382,7 +384,7 @@ Reglas complementarias:
 - A 12 horas hábiles o con vencimiento superado, pasa a `urgente`.
 - Sábados y domingos no consumen horas SLA; los feriados actualmente sí cuentan.
 - Ticket, asignación y seguimiento se persisten en una misma transacción cuando corresponde.
-- Los editores de gestión, datos de contacto y CRUD administrativo toman un baseline inmutable al abrirse y construyen PATCH mínimos contra su draft local. Un refresco SSE concurrente no puede convertir estado, prioridad, notas, progreso, vencimiento ni datos funcionales no tocados en escrituras stale; el versionado optimista posterior resolverá carreras sobre el mismo campo. En Administración, los opcionales borrados se expresan como `null`, `conversation_id` permanece inmutable y un no-op no genera tráfico ni auditoría.
+- Los editores de gestión, datos de contacto y CRUD administrativo toman un baseline inmutable al abrirse y construyen PATCH mínimos contra su draft local. Un refresco SSE concurrente no puede convertir estado, prioridad, notas, progreso, vencimiento ni datos funcionales no tocados en escrituras stale. La revisión monotónica de la fila ya avanza en cambios manuales y automáticos; el siguiente tramo conecta esa precondición al PATCH para resolver carreras sobre el mismo campo. En Administración, los opcionales borrados se expresan como `null`, `conversation_id` permanece inmutable y un no-op no genera tráfico ni auditoría.
 - Las importaciones web/CLI deduplican e insertan todas las filas válidas bajo una transacción; las corridas reales reservan escritura con `BEGIN IMMEDIATE` y un error de persistencia revierte la tanda insertable. Las filas inválidas se saltean según el contrato y `dry_run` usa un snapshot diferido sin escribir.
 - El truncate elimina seguimientos y tickets y reinicia sus secuencias en una sola transacción. Los conteos usan `changes`, sin cargar todos los IDs borrados en memoria.
 

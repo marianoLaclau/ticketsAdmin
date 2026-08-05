@@ -225,6 +225,7 @@ SQLite vía `better-sqlite3`, modo WAL, `foreign_keys = ON`. Definido en `lib/db
 | Columna | Tipo | Notas |
 |---|---|---|
 | `id` | integer PK autoincrement | Uso interno; no se expone en la UI |
+| `version` | integer, default `1`, check `>= 1` | Revisión monotónica de la fila; cada cambio real del ticket la incrementa dentro de la misma transacción |
 | `conversation_id` | text, **único** | ID de ElevenLabs — clave de idempotencia |
 | `hora` | text | `"HH:MM"` de la llamada |
 | `nombre`, `apellido` | text (nombre requerido) | Datos del contacto |
@@ -245,6 +246,8 @@ SQLite vía `better-sqlite3`, modo WAL, `foreign_keys = ON`. Definido en `lib/db
 | `fecha_resolucion` | integer (timestamp ms), nullable | Se autocompleta al entrar en `resuelto`/`cerrado`; se limpia al reabrir y se conserva al pasar de resuelto a cerrado |
 
 `estado_empleado` corresponde a la consulta de Serin para el DNI y la empresa recibidos. Si una edición manual cambia cualquiera de esos dos datos, el backend lo limpia automáticamente y audita también ese campo para no asociar un estado laboral anterior a otra identidad o empresa.
+
+La migración `0012_add_ticket_version.sql` asigna `version = 1` a cada histórico sin reconstruir la tabla. Altas por webhook, Administración e importadores heredan ese default y no aceptan una versión externa. Las promociones automáticas de prioridad y la reconciliación de categorías incrementan la versión solo cuando su compare-and-set confirma un cambio; si falla la auditoría, el incremento también se revierte.
 
 ### `seguimientos` — historial de cada ticket
 

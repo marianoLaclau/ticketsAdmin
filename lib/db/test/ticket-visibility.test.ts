@@ -90,6 +90,7 @@ describe("condiciones SQL de visibilidad", () => {
     sqlite.exec(`
       CREATE TABLE tickets (
         id INTEGER PRIMARY KEY,
+        version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
         nombre TEXT NOT NULL,
         apellido TEXT NOT NULL,
         telefono TEXT,

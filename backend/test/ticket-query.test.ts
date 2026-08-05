@@ -36,6 +36,7 @@ function createDatabase() {
   sqlite.exec(`
     CREATE TABLE tickets (
       id INTEGER PRIMARY KEY,
+      version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
       conversation_id TEXT NOT NULL,
       hora TEXT NOT NULL,
       nombre TEXT NOT NULL,

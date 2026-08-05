@@ -18,6 +18,7 @@ function crearBase(opciones: { forzarFalloAuditoria?: boolean } = {}) {
   sqlite.exec(`
     CREATE TABLE tickets (
       id INTEGER PRIMARY KEY,
+      version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
       estado TEXT NOT NULL,
       prioridad TEXT NOT NULL,
       fecha_limite INTEGER
@@ -99,8 +100,8 @@ describe("repositorio transaccional de prioridad automatica", () => {
     assert.equal(await repositorio.promoverSiCoincide(cambio), true);
 
     const ticket = sqlite
-      .prepare("SELECT prioridad FROM tickets WHERE id = 1")
-      .get() as { prioridad: string };
+      .prepare("SELECT prioridad, version FROM tickets WHERE id = 1")
+      .get() as { prioridad: string; version: number };
     const seguimientos = sqlite.prepare(`
       SELECT ticket_id, nota, prioridad_anterior, prioridad_nueva, autor
       FROM seguimientos
@@ -108,6 +109,7 @@ describe("repositorio transaccional de prioridad automatica", () => {
     `).all() as Array<Record<string, unknown>>;
 
     assert.equal(ticket.prioridad, "alta");
+    assert.equal(ticket.version, 2);
     assert.equal(seguimientos.length, 1);
     assert.deepEqual(
       {
@@ -132,6 +134,14 @@ describe("repositorio transaccional de prioridad automatica", () => {
       .prepare("SELECT count(*) AS total FROM seguimientos")
       .all() as Array<{ total: number }>;
     assert.equal(total, 1);
+    assert.equal(
+      (
+        sqlite
+          .prepare("SELECT version FROM tickets WHERE id = 1")
+          .get() as { version: number }
+      ).version,
+      2,
+    );
     sqlite.close();
   });
 
@@ -152,9 +162,10 @@ describe("repositorio transaccional de prioridad automatica", () => {
     );
 
     const ticket = sqlite
-      .prepare("SELECT prioridad FROM tickets WHERE id = 1")
-      .get() as { prioridad: string };
+      .prepare("SELECT prioridad, version FROM tickets WHERE id = 1")
+      .get() as { prioridad: string; version: number };
     assert.equal(ticket.prioridad, "media");
+    assert.equal(ticket.version, 1);
     sqlite.close();
   });
 });
