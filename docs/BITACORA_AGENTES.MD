@@ -2,6 +2,18 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — Cabeceras HTTP seguras en Nginx
+
+**Agente:** Codex
+**Estado:** undécima remediación de la auditoría técnica, implementada localmente.
+
+- Nginx dejó de publicar su versión y elimina defensivamente una eventual firma `X-Powered-By` del upstream.
+- SPA, API, SSE y errores reciben siempre `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` y una `Permissions-Policy` que deshabilita sensores, cámara, captura de pantalla, geolocalización, micrófono, pagos y USB, capacidades que la aplicación no utiliza.
+- CSP sigue fuera de alcance hasta inventariar explícitamente fuentes Google, audio externo, estilos dinámicos y descargas `blob:`. HSTS y cookie `Secure` esperan un borde TLS real; no se presentó este hardening como sustituto de HTTPS.
+- Se agregó una prueba que exige valores exactos, `always` y alcance `server`, para evitar perder cabeceras en una `location` o en respuestas de error.
+- Archivos principales: `frontend/nginx.conf`, prueba de configuración y documentación de arquitectura/despliegue.
+- Validaciones: 253 pruebas correctas (backend 135, frontend 55, base de datos 11, política compartida 4 e ingesta 48), typecheck y build completos. La imagen Docker del frontend se construyó, `nginx -t` aprobó y un smoke HTTP dentro del contenedor confirmó las cuatro cabeceras y `Server: nginx` sin versión. El build conserva los avisos ya registrados de sourcemaps en cuatro componentes UI y del bundle frontend mayor a 500 kB.
+
 ## 2026-08-05 — API same-origin sin CORS global
 
 **Agente:** Codex

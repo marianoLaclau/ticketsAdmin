@@ -39,6 +39,7 @@ Self-hosted runner (corriendo EN el servidor de testing)
 - Las migraciones de la base (`lib/db/drizzle/*.sql`) se aplican solas al arrancar el contenedor del backend (ver `backend/src/migrate.ts`), antes de levantar la API. Es idempotente: en cada arranque solo aplica lo que falte.
 - `docker-compose.yml` fija el nombre de proyecto `ticketsadmin`, de modo que contenedores, red y volumen conservan el mismo namespace aunque el workflow y un operador ejecuten Compose desde checkouts distintos.
 - El backend corre con `TZ=America/Argentina/Buenos_Aires` por defecto (configurable con `TZ`). Los filtros por día calendario usan el timezone local del proceso, igual que en desarrollo.
+- Nginx aplica a SPA, API, SSE y errores `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` y una `Permissions-Policy` mínima; además no publica su versión. Esto no reemplaza TLS. CSP se evaluará por separado después de inventariar fuentes, estilos dinámicos, audio y descargas `blob:`; HSTS y la cookie `Secure` sí se habilitarán cuando exista un borde HTTPS real.
 
 ## 1. Preparar el servidor
 
@@ -161,8 +162,12 @@ Seguir el progreso en la pestaña **Actions** del repo. Al terminar:
 # desde el servidor, para confirmar que quedó arriba
 curl http://localhost:5000/api/healthz
 curl http://localhost:3000/
+curl -I http://localhost:3000/
+curl -I http://localhost:3000/api/healthz
 WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose ps
 ```
+
+Los dos `curl -I` deben mostrar las cuatro cabeceras de seguridad configuradas por Nginx y no deben revelar una versión en `Server`. La API directa en `:5000` no pasa por Nginx; su exposición de red sigue siendo un frente operativo separado.
 
 ## 5. Actualizar la configuración de n8n
 

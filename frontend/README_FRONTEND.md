@@ -37,7 +37,7 @@ En dev, Vite proxea todo lo que empieza con `/api` hacia `API_PROXY_TARGET` (def
 
 ```
 frontend/
-  nginx.conf                    → config de producción (proxy /api, sin buffering en /api/events)
+  nginx.conf                    → proxy /api, SSE sin buffering y cabeceras HTTP seguras
   src/
     App.tsx                      → QueryClient, AuthGate, definición de rutas (wouter)
     main.tsx                     → entry point (createRoot)

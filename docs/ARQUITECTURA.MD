@@ -61,7 +61,7 @@ flowchart TB
 
 #### Transporte y seguridad
 
-`backend/src/index.ts` carga el entorno y valida los secretos entre servicios antes del seed y antes de abrir el puerto; una configuración incompleta no puede reportarse saludable. `backend/src/app.ts` desactiva la firma `X-Powered-By` y configura logging HTTP, cookies y parseo del body. No se emiten headers CORS: React consume `/api` desde el mismo origen mediante Vite/Nginx y n8n llama al webhook como servidor-a-servidor. `backend/src/routes/index.ts` monta las rutas bajo `/api` en este orden:
+`backend/src/index.ts` carga el entorno y valida los secretos entre servicios antes del seed y antes de abrir el puerto; una configuración incompleta no puede reportarse saludable. `backend/src/app.ts` desactiva la firma `X-Powered-By` y configura logging HTTP, cookies y parseo del body. No se emiten headers CORS: React consume `/api` desde el mismo origen mediante Vite/Nginx y n8n llama al webhook como servidor-a-servidor. En producción, Nginx oculta su versión y la firma defensiva de Express, impide MIME sniffing y framing, limita el referrer cross-origin y deshabilita capacidades del navegador que la aplicación no usa. Estas cabeceras se declaran en `server`, con `always`, para cubrir SPA, API, SSE y respuestas de error. `backend/src/routes/index.ts` monta las rutas bajo `/api` en este orden:
 
 1. `health`: health check público.
 2. `webhooks`: ingesta pública protegida por `x-api-key`.
