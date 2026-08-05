@@ -828,17 +828,9 @@ router.post("/admin/import", async (req, res) => {
     return;
   }
 
-  const existing = new Set(
-    (
-      await db.select({ cid: ticketsTable.conversation_id }).from(ticketsTable)
-    ).map((r) => r.cid),
-  );
-
-  let insertados = 0;
-  let insertadosVisibles = 0;
-  let yaExistentes = 0;
   let invalidos = 0;
   const advertencias: string[] = [];
+  const candidatos: NonNullable<ReturnType<typeof filaATicket>>[] = [];
 
   for (let i = 0; i < dataRows.length; i++) {
     const record: Record<string, string> = {};
@@ -854,24 +846,47 @@ router.post("/admin/import", async (req, res) => {
       invalidos++;
       continue;
     }
-    if (existing.has(values.conversation_id)) {
-      yaExistentes++;
-      continue;
-    }
-    existing.add(values.conversation_id);
-
-    if (!dryRun) {
-      await db.insert(ticketsTable).values(values);
-    }
-    if (!esTicketVacio(values)) insertadosVisibles++;
-    insertados++;
+    candidatos.push(values);
   }
 
-  if (!dryRun && insertados > 0) {
-    if (insertadosVisibles > 0) {
+  // El snapshot de existentes, la deduplicación del propio archivo y todas
+  // las escrituras comparten una transacción. Si un insert falla, no queda una
+  // importación parcial ni se emite un evento sobre datos que hicieron rollback.
+  const importacion = db.transaction(
+    (tx) => {
+      const existing = new Set(
+        tx
+          .select({ cid: ticketsTable.conversation_id })
+          .from(ticketsTable)
+          .all()
+          .map((row) => row.cid),
+      );
+      let insertados = 0;
+      let insertadosVisibles = 0;
+      let yaExistentes = 0;
+
+      for (const values of candidatos) {
+        if (existing.has(values.conversation_id)) {
+          yaExistentes++;
+          continue;
+        }
+        existing.add(values.conversation_id);
+
+        if (!dryRun) tx.insert(ticketsTable).values(values).run();
+        if (!esTicketVacio(values)) insertadosVisibles++;
+        insertados++;
+      }
+
+      return { insertados, insertadosVisibles, yaExistentes };
+    },
+    { behavior: dryRun ? "deferred" : "immediate" },
+  );
+
+  if (!dryRun && importacion.insertados > 0) {
+    if (importacion.insertadosVisibles > 0) {
       broadcastEvent("tickets_importados", {
-        cantidad: insertadosVisibles,
-        cantidad_total: insertados,
+        cantidad: importacion.insertadosVisibles,
+        cantidad_total: importacion.insertados,
       });
     } else {
       broadcastEvent("datos_actualizados");
@@ -881,8 +896,8 @@ router.post("/admin/import", async (req, res) => {
   res.json({
     dry_run: dryRun,
     filas: dataRows.length,
-    insertados,
-    ya_existentes: yaExistentes,
+    insertados: importacion.insertados,
+    ya_existentes: importacion.yaExistentes,
     invalidos,
     columnas: [...columnas.entries()].map(([idx, campo]) => ({
       columna: headerCells[idx] ?? `col ${idx + 1}`,
@@ -903,22 +918,30 @@ router.post("/admin/truncate", async (req, res) => {
     return;
   }
 
-  const seguimientosEliminados = (
-    await db.delete(seguimientosTable).returning({ id: seguimientosTable.id })
-  ).length;
-  const ticketsEliminados = (
-    await db.delete(ticketsTable).returning({ id: ticketsTable.id })
-  ).length;
+  const { seguimientosEliminados, ticketsEliminados } = db.transaction(
+    (tx) => {
+      const seguimientosEliminados = tx.delete(seguimientosTable).run().changes;
+      const ticketsEliminados = tx.delete(ticketsTable).run().changes;
 
-  // Reiniciar los contadores AUTOINCREMENT (la tabla sqlite_sequence puede
-  // no existir si nunca hubo inserts — en ese caso no hay nada que reiniciar)
-  try {
-    sqlite.exec(
-      "DELETE FROM sqlite_sequence WHERE name IN ('tickets', 'seguimientos')",
-    );
-  } catch {
-    // sin sqlite_sequence no hay contadores que reiniciar
-  }
+      // sqlite_sequence vive en la misma conexión/transacción. Consultar el
+      // catálogo evita ocultar errores reales con un catch demasiado amplio.
+      const sequenceExists = sqlite
+        .prepare(
+          "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sqlite_sequence'",
+        )
+        .get();
+      if (sequenceExists) {
+        sqlite
+          .prepare(
+            "DELETE FROM sqlite_sequence WHERE name IN ('tickets', 'seguimientos')",
+          )
+          .run();
+      }
+
+      return { seguimientosEliminados, ticketsEliminados };
+    },
+    { behavior: "immediate" },
+  );
 
   broadcastEvent("datos_actualizados", {});
 

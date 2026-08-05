@@ -6,6 +6,7 @@
   "scripts": {
     "backup-db": "tsx ./src/backup-db.ts",
     "import-excel": "tsx ./src/import-excel.ts",
+    "test": "tsx --test ./test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

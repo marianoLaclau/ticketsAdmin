@@ -2,6 +2,19 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — Importación y truncate atómicos
+
+**Agente:** Codex
+**Estado:** duodécima remediación de la auditoría técnica, implementada localmente.
+
+- El importador HTTP y el CLI preparan las filas antes de escribir y ejecutan snapshot, deduplicación e inserts dentro de una única transacción. Un error de persistencia revierte todas las filas insertables; las inválidas conservan su salteo, advertencia y conteo.
+- Las corridas reales usan `BEGIN IMMEDIATE` para evitar snapshots obsoletos al competir con otro escritor; `dry_run` usa una transacción diferida, deduplica igual y no crea filas ni secuencias.
+- El truncate incluye seguimientos, tickets y reinicio de `sqlite_sequence` en una transacción inmediata. Se eliminó el `catch` amplio que podía ocultar errores y los conteos usan `changes` sin materializar miles de IDs.
+- Los eventos SSE permanecen después del commit: una operación fallida no anuncia datos revertidos.
+- Se agregaron pruebas HTTP de rollback al fallar el segundo insert, solicitudes simultáneas idempotentes, simulación sin escrituras, rollback total del truncate y reinicio de ambos IDs; el CLI tiene además una prueba real en un proceso separado.
+- Archivos principales: rutas administrativas, CLI de importación, suites backend/scripts y documentación.
+- Validaciones: 258 pruebas correctas (backend 139, frontend 55, base de datos 11, política compartida 4, ingesta 48 y scripts 1), typecheck y build completos. El build conserva los avisos ya registrados de sourcemaps en cuatro componentes UI y del bundle frontend mayor a 500 kB.
+
 ## 2026-08-05 — Cabeceras HTTP seguras en Nginx
 
 **Agente:** Codex

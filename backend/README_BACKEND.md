@@ -132,8 +132,8 @@ Todas bajo el prefijo `/api`. ✅ = requiere sesión (candado global). 🔑 = ad
 | `POST /admin/users` | Crea un usuario con `username` y `password` obligatorios (el SysAdmin define las credenciales y se las entrega). `409` si el email o el username ya existen; `400` si el rol no existe o la contraseña incumple la política compartida. | ✅🔑🗝️ |
 | `PATCH /admin/users/:id` | Edita nombre/apellido/username/email/rol/activo. No acepta contraseña — eso sigue yendo por el endpoint dedicado. | ✅🔑🗝️ |
 | `POST /admin/users/:id/password` | Establece/reestablece una contraseña conforme a la política compartida y **revoca todas las sesiones activas de ese usuario**. `204`. | ✅🔑🗝️ |
-| `POST /admin/import` | Importación masiva desde CSV (texto plano en el body). Con `dry_run: true` solo simula. Idempotente por `conversation_id`. Emite `tickets_importados` si insertó algo real. | ✅🔑🗝️ |
-| `POST /admin/truncate` | Borra **todos** los tickets y seguimientos y reinicia los contadores autoincrement. Exige `{ confirmar: true }`. Emite `datos_actualizados`. | ✅🔑🗝️ |
+| `POST /admin/import` | Importación masiva desde CSV (texto plano en el body). Con `dry_run: true` solo simula. Idempotente por `conversation_id` y atómica: un fallo revierte la tanda completa. Emite `tickets_importados` solo después del commit. | ✅🔑🗝️ |
+| `POST /admin/truncate` | Borra **todos** los tickets y seguimientos y reinicia los contadores autoincrement en una única transacción. Exige `{ confirmar: true }`. Emite `datos_actualizados` solo después del commit. | ✅🔑🗝️ |
 | `GET /events` | Stream SSE. Fuera del contrato OpenAPI a propósito (Orval no modela streams). | ✅ |
 
 ## Autenticación y autorización
@@ -339,6 +339,8 @@ El `PATCH` de tickets aplica la misma garantía transaccional: toma un snapshot 
 - `backend/src/routes/admin.ts` (`POST /admin/import`) — importador web.
 
 Expone: `parseCsv` (parser RFC 4180 con autodetección de `;`/`,`), `detectarColumnas` (mapea encabezados por alias — ver `HEADER_ALIASES` — tolerando variantes de nombre/acentos), `filaATicket` (combina fecha/hora histórica, valida formatos, convierte una fila cruda y aplica el SLA/clasificación), `fechaExcelAStringLocal` (conserva la hora civil de una celda Excel), `calcularFechaLimiteSla`/`sumarHorasHabiles`, el cálculo firmado de horas hábiles restantes y la prioridad mínima correspondiente, además de las constantes `ESTADOS_VALIDOS`/`PRIORIDADES_VALIDAS`.
+
+Tanto el importador HTTP como el CLI preparan las filas antes de abrir la transacción y luego toman un snapshot consistente de `conversation_id`. Las corridas reales usan `BEGIN IMMEDIATE` para serializar escritores; `dry_run` conserva una transacción de solo lectura diferida. Un error de persistencia en cualquier insert revierte todas las filas insertables; las filas inválidas mantienen el contrato histórico de salteo, advertencia y conteo. Como una carga extensa conserva el lock de escritura hasta el commit, debe probarse primero con `dry_run` y ejecutarse en una ventana sin edición concurrente. El truncate incluye en la misma transacción seguimientos, tickets y `sqlite_sequence`, y no materializa IDs eliminados en memoria.
 
 ## Eventos en vivo (SSE)
 

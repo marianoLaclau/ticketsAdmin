@@ -105,14 +105,9 @@ async function main() {
     process.exit(1);
   }
 
-  const existing = new Set(
-    (await db.select({ cid: ticketsTable.conversation_id }).from(ticketsTable)).map((r) => r.cid),
-  );
-
-  let inserted = 0;
-  let skippedExisting = 0;
   let skippedInvalid = 0;
   const warnings: string[] = [];
+  const candidates: NonNullable<ReturnType<typeof filaATicket>>[] = [];
 
   for (let i = 0; i < dataRows.length; i++) {
     const rowNumber = i + 2; // 1-based + encabezado
@@ -129,25 +124,45 @@ async function main() {
       skippedInvalid++;
       continue;
     }
-    if (existing.has(values.conversation_id)) {
-      skippedExisting++;
-      continue;
-    }
-    existing.add(values.conversation_id); // dedupe dentro del mismo archivo
-
-    if (!dryRun) {
-      await db.insert(ticketsTable).values(values);
-    }
-    inserted++;
+    candidates.push(values);
   }
+
+  // Un error en cualquier insert revierte el archivo completo. El snapshot de
+  // existentes y el dedupe del propio archivo quedan dentro de esa operación.
+  const importResult = db.transaction(
+    (tx) => {
+      const existing = new Set(
+        tx
+          .select({ cid: ticketsTable.conversation_id })
+          .from(ticketsTable)
+          .all()
+          .map((row) => row.cid),
+      );
+      let inserted = 0;
+      let skippedExisting = 0;
+
+      for (const values of candidates) {
+        if (existing.has(values.conversation_id)) {
+          skippedExisting++;
+          continue;
+        }
+        existing.add(values.conversation_id);
+        if (!dryRun) tx.insert(ticketsTable).values(values).run();
+        inserted++;
+      }
+
+      return { inserted, skippedExisting };
+    },
+    { behavior: dryRun ? "deferred" : "immediate" },
+  );
 
   for (const w of warnings.slice(0, 20)) console.warn(`⚠ ${w}`);
   if (warnings.length > 20) console.warn(`⚠ ... y ${warnings.length - 20} advertencias más`);
 
   console.log("");
   console.log(dryRun ? "== SIMULACIÓN (--dry-run, no se escribió nada) ==" : "== Importación terminada ==");
-  console.log(`  Insertados:            ${inserted}`);
-  console.log(`  Ya existentes (salteados): ${skippedExisting}`);
+  console.log(`  Insertados:            ${importResult.inserted}`);
+  console.log(`  Ya existentes (salteados): ${importResult.skippedExisting}`);
   console.log(`  Inválidos (salteados):     ${skippedInvalid}`);
 }
 

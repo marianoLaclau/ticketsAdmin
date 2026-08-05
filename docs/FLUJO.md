@@ -124,15 +124,15 @@ API REST en Express 5. Único componente que toca la base. Rutas:
 | `GET /api/dashboard/motivos`             | Categorías de contacto del conjunto creado dentro del rango solicitado.                                                                           |
 | `GET /api/healthz`                       | Chequeo de vida.                                                                                                                                 |
 | `POST /api/admin/tickets`                | **Admin**: alta manual de un registro (409 si el conversation_id existe).                                                                        |
-| `POST /api/admin/import`                 | **Admin**: importación masiva desde CSV, con `dry_run` para simular. Idempotente.                                                                |
-| `POST /api/admin/truncate`               | **Admin**: borra todos los registros y reinicia los ids (requiere `confirmar: true`).                                                            |
+| `POST /api/admin/import`                 | **Admin**: importación masiva CSV atómica e idempotente; `dry_run` simula sin escribir.                                                         |
+| `POST /api/admin/truncate`               | **Admin**: borra registros y reinicia ids en una transacción (requiere `confirmar: true`).                                                      |
 | `GET/POST /api/admin/roles`              | **Admin**: listado paginado y alta de roles.                                                                                                     |
 | `PATCH/DELETE /api/admin/roles/:id`      | **Admin**: CRUD de roles personalizados. Los roles base permiten editar descripción, pero no nombre, estado ni eliminación.                      |
 | `GET/POST /api/admin/users`              | **Admin**: listado paginado, filtros y alta de usuarios.                                                                                         |
 | `PATCH /api/admin/users/:id`             | **Admin**: edición, cambio de rol y activación/desactivación sin borrado físico; preserva siempre un SysAdmin autenticable.                      |
 | `GET /api/events`                        | **SSE**: stream de eventos en vivo. El frontend recibe altas/importaciones, actualizaciones de tickets y cambios automáticos de prioridad al instante. Fuera de OpenAPI porque Orval no modela streams. |
 
-Las rutas `admin`, el borrado y la edición administrativa de tickets exigen sesión SysAdmin y el header `x-admin-key`. Si `ADMIN_API_KEY` falta o está vacía, responden `503` y permanecen cerradas. Los nombres de rol y emails son únicos, los emails se normalizan a minúsculas y una clave foránea impide borrar roles asignados. La lógica de parseo del CSV es la misma del importador CLI: vive compartida en [lib/ingesta/](../lib/ingesta/).
+Las rutas `admin`, el borrado y la edición administrativa de tickets exigen sesión SysAdmin y el header `x-admin-key`. Si `ADMIN_API_KEY` falta o está vacía, responden `503` y permanecen cerradas. Los nombres de rol y emails son únicos, los emails se normalizan a minúsculas y una clave foránea impide borrar roles asignados. La lógica de parseo del CSV es la misma del importador CLI: vive compartida en [lib/ingesta/](../lib/ingesta/). Web y CLI confirman cada archivo como una sola unidad: un error de persistencia revierte todas las filas insertables; las inválidas se siguen salteando y contando. El truncate también agrupa seguimientos, tickets y secuencias; los eventos SSE se emiten únicamente después del commit.
 
 Cada request: se loguea (pino) → se valida con Zod → se consulta/escribe con Drizzle → responde JSON.
 
@@ -301,6 +301,7 @@ pnpm --filter @workspace/scripts run import-excel -- "ruta\archivo.csv"         
 - Acepta `.xlsx` y `.csv` (detecta el delimitador `;` o `,` solo).
 - Reconoce los encabezados del export de n8n (`id`, `fecha_hora`, `Observaciones`, `audio`, `VERDADERO/FALSO`…) y variantes con acentos. El mapeo está en `HEADER_ALIASES` dentro del script.
 - **Idempotente**: las filas cuyo `conversation_id` ya está en la base se saltean. Se puede correr mil veces.
+- **Atómico**: un error de persistencia revierte todas las filas insertables del archivo. La corrida real reserva el escritor SQLite; para archivos grandes, ejecutar primero `--dry-run` y hacer la carga en una ventana sin operadores modificando tickets.
 - Acepta fecha y hora combinadas (`"16/07/2026 - 11:34hs"`) o en columnas separadas; ambas forman un único `fecha_creacion` en la zona de Buenos Aires. Si ambas fuentes incluyen hora, tiene precedencia la columna `hora`.
 - Admite fecha local `dd/mm/aaaa`, ISO local y un ISO con zona explícita; rechaza filas con fechas u horas imposibles en vez de normalizarlas silenciosamente.
 - Las celdas de fecha/hora de Excel conservan sus componentes de reloj sin el corrimiento UTC propio de JavaScript.
