@@ -448,6 +448,8 @@ flowchart LR
     frontendc -->|depende del backend saludable| backendc
 ```
 
+El runner valida Docker Compose `>= 2.17.0` y la configuración antes del build. El rollout usa `up --wait`: el backend es healthy únicamente si `/api/readyz` devuelve su JSON exacto, y Nginx exige simultáneamente la SPA real y el mismo endpoint a través del proxy. Después, el host repite los tres recorridos como smoke test y solo entonces elimina imágenes colgantes. Una actualización explícita del backend reinicia también Nginx para renovar su resolución DNS. La semántica sigue siendo single-replica: health + wait detectan un rollout fallido, pero no brindan cero downtime, monitoreo continuo ni rollback automático.
+
 En local se usa `drizzle-kit push` para iterar rápidamente. En Docker, el backend ejecuta `dist/migrate.mjs` antes de escuchar tráfico. Las migraciones versionadas actuales mantienen una secuencia lineal:
 
 ```text

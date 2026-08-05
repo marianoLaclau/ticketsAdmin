@@ -16,7 +16,7 @@ Quality gate (codegen + schema + tests + typecheck + build)
         │
         ▼  solo push de main con gate aprobado
 Self-hosted runner (corriendo EN el servidor de testing)
-        │  docker compose build && docker compose up -d
+        │  build → up --wait → smoke publicado
         ▼
 ┌─────────────────────────────────────────────┐
 │  Servidor de testing (IP fija interna)       │
@@ -43,13 +43,17 @@ Self-hosted runner (corriendo EN el servidor de testing)
 - Las migraciones de la base (`lib/db/drizzle/*.sql`) se aplican solas al arrancar el contenedor del backend (ver `backend/src/migrate.ts`), antes de levantar la API. Es idempotente: en cada arranque solo aplica lo que falte.
 - Una vez terminadas las migraciones, Node reemplaza al shell y recibe directamente `SIGTERM`. El backend deja de aceptar tráfico, bloquea altas SSE tardías y espera sockets/prioridad automática; SQLite se cierra recién en `beforeExit`, cubriendo handlers async de clientes abortados. El watchdog es de 20 segundos y Compose concede 30 antes de `SIGKILL`. Durante el migrador y el bootstrap inicial todavía no está instalado todo este ciclo; separarlos en fases cancelables queda como hardening posterior y las migraciones actuales siguen siendo transaccionales.
 - Los pull requests ejecutan `.github/workflows/quality.yml` sin desplegar. El workflow de deploy reutiliza exactamente ese gate y el job self-hosted depende de su resultado; no construye ni reinicia contenedores si hay drift de codegen/schema, una prueba falla, TypeScript no compila o un build falla. Consulta `origin/main` antes de construir y nuevamente justo antes de reiniciar los servicios, por lo que omite un SHA que quedó obsoleto incluso durante el build.
+- Antes de construir, el runner exige Docker Compose `>= 2.17.0`, comprueba las opciones de espera, la presencia de `curl` y valida el archivo con placeholders no sensibles. Una instalación incompatible falla antes de tocar servicios.
+- El healthcheck del backend consulta `/api/readyz` y valida su JSON exacto. El frontend solo queda healthy si Nginx sirve la SPA real y también puede alcanzar ese JSON a través del proxy `/api`; por eso una fallback HTML no puede enmascarar una API rota. Hay 60 segundos de gracia para migraciones/bootstrap, pero cualquier éxito anticipado habilita el servicio de inmediato.
+- `docker compose up --wait --wait-timeout 180` convierte un servicio no saludable en un deploy fallido. Después se repiten tres smoke tests desde el host sobre API directa, SPA y proxy. Las imágenes colgantes se eliminan únicamente tras ese éxito; ante un fallo se publican estado y hasta 100 líneas de logs, sin seguimiento infinito.
+- `depends_on.backend.restart: true` hace que una actualización explícita mediante Compose reinicie Nginx y renueve la resolución del nombre `backend`. No reacciona a degradaciones ni reemplazos externos: Compose no es un orquestador con autohealing por health. La espera confirma un instante y tampoco implica rollback automático; ese mecanismo se trata por separado.
 - `docker-compose.yml` fija el nombre de proyecto `ticketsadmin`, de modo que contenedores, red y volumen conservan el mismo namespace aunque el workflow y un operador ejecuten Compose desde checkouts distintos.
 - El backend corre con `TZ=America/Argentina/Buenos_Aires` por defecto (configurable con `TZ`). Los filtros por día calendario usan el timezone local del proceso, igual que en desarrollo.
 - Nginx aplica a SPA, API, SSE y errores `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` y una `Permissions-Policy` mínima; además no publica su versión. Esto no reemplaza TLS. CSP se evaluará por separado después de inventariar fuentes, estilos dinámicos, audio y descargas `blob:`; HSTS y la cookie `Secure` sí se habilitarán cuando exista un borde HTTPS real.
 
 ## 1. Preparar el servidor
 
-Docker y otros runners de self-hosted ya están instalados en el servidor (se usan para otros proyectos) — no hace falta tocar eso. Lo que sigue es específico de **este** repo.
+Docker y otros runners de self-hosted ya están instalados en el servidor (se usan para otros proyectos) — no hace falta tocar eso. Este repo requiere Docker Compose `2.17.0` o posterior; el workflow lo verifica antes de construir. Lo que sigue es específico de **este** repo.
 
 ### 1.1. Verificar que los puertos 5000 y 3000 estén libres y abrir el firewall
 
@@ -146,7 +150,7 @@ El backend limita el login por identidad: diez credenciales rechazadas dentro de
 GitHub inyecta esos secretos solo en el step que recrea los servicios; checkout, quality y build no los reciben. Para ejecutar manualmente comandos que crean o recrean servicios (`up`, `create`, un `run` normal), guardar las variables en un archivo fuera del repo y con permisos restringidos, por ejemplo `/etc/ticketsadmin/compose.env`, y usar:
 
 ```bash
-docker compose --env-file /etc/ticketsadmin/compose.env up -d
+docker compose --env-file /etc/ticketsadmin/compose.env up -d --wait --wait-timeout 180
 ```
 
 El archivo debe definir `WEBHOOK_API_KEY` y `ADMIN_API_KEY`; para una base sin hashes o con el seed histórico también debe definir `BOOTSTRAP_SYSADMIN_PASSWORD`. Puede definir `TZ` y no se commitea. Las dos API keys fallan cerradas si faltan o no cumplen la política. Para comandos que solo inspeccionan o actúan sobre contenedores existentes (`ps`, `logs`, `exec`, `cp`), Compose igualmente exige interpolar las API keys, pero se puede usar un placeholder porque no cambia el entorno del contenedor ya creado:
@@ -168,14 +172,16 @@ Seguir el progreso en la pestaña **Actions** del repo. Al terminar:
 
 ```bash
 # desde el servidor, para confirmar que quedó arriba
-curl http://localhost:5000/api/healthz
-curl http://localhost:3000/
+test "$(curl -fsS --max-time 5 http://127.0.0.1:5000/api/readyz)" = '{"status":"ready"}'
+SPA="$(curl -fsS --max-time 5 http://127.0.0.1:3000/)"
+grep -Fq '<div id="root"></div>' <<< "$SPA"
+test "$(curl -fsS --max-time 5 http://127.0.0.1:3000/api/readyz)" = '{"status":"ready"}'
 curl -I http://localhost:3000/
-curl -I http://localhost:3000/api/healthz
+curl -I http://localhost:3000/api/readyz
 WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose ps
 ```
 
-Los dos `curl -I` deben mostrar las cuatro cabeceras de seguridad configuradas por Nginx y no deben revelar una versión en `Server`. La API directa en `:5000` no pasa por Nginx; su exposición de red sigue siendo un frente operativo separado.
+Los tres primeros comandos deben terminar sin salida de error. Los dos `curl -I` deben mostrar las cuatro cabeceras de seguridad configuradas por Nginx y no deben revelar una versión en `Server`. La API directa en `:5000` no pasa por Nginx; su exposición de red sigue siendo un frente operativo separado. `healthz` continúa disponible como liveness, pero no demuestra que SQLite ni el schema requerido estén listos.
 
 ## 5. Actualizar la configuración de n8n
 
@@ -189,22 +195,22 @@ con el mismo header `x-api-key` (el valor cargado como secreto `WEBHOOK_API_KEY`
 
 ## Operación del día a día
 
-- **Cada push a `main` redeploya solo si pasa `pnpm run quality`.** Los pull requests ejecutan el mismo gate pero nunca modifican el servidor.
+- **Cada push a `main` redeploya solo si pasa `pnpm run quality`, Compose llega a healthy y los tres smoke tests publicados responden el contenido esperado.** Los pull requests ejecutan el mismo gate pero nunca modifican el servidor.
 - **Cada comando Compose** se ejecuta desde un checkout actual del repo (el workspace del runner o `/opt/ticketsAdmin` actualizado). El proyecto se llama siempre `ticketsadmin`.
-- **Ver logs**: `WEBHOOK_API_KEY=not-used-for-readonly-command docker compose logs -f backend` (o `frontend`).
-- **Ver estado**: `WEBHOOK_API_KEY=not-used-for-readonly-command docker compose ps`
+- **Ver logs**: `WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose logs -f backend` (o `frontend`).
+- **Ver estado**: `WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose ps`
 - **Backup de la base**: no usar `cat`, `cp` ni copiar solamente `/data/tickets.db`; SQLite está en WAL y eso puede omitir transacciones confirmadas. La imagen del backend incluye un CLI que usa la API online de SQLite y publica la copia solo después de `PRAGMA integrity_check`. Para guardar el backup fuera del volumen Docker:
   ```bash
   mkdir -p "$HOME/backups/ticketsadmin"
   BACKUP_NAME="tickets-$(date -u +%Y%m%dT%H%M%SZ).db"
-  WEBHOOK_API_KEY=not-used-by-backup docker compose exec -T backend \
+  WEBHOOK_API_KEY=not-used-by-backup ADMIN_API_KEY=not-used-by-backup docker compose exec -T backend \
     node dist/backup-db.mjs --output "/tmp/$BACKUP_NAME"
-  WEBHOOK_API_KEY=not-used-by-backup docker compose cp \
+  WEBHOOK_API_KEY=not-used-by-backup ADMIN_API_KEY=not-used-by-backup docker compose cp \
     "backend:/tmp/$BACKUP_NAME" "$HOME/backups/ticketsadmin/$BACKUP_NAME"
-  WEBHOOK_API_KEY=not-used-by-backup docker compose exec -T backend \
+  WEBHOOK_API_KEY=not-used-by-backup ADMIN_API_KEY=not-used-by-backup docker compose exec -T backend \
     rm -f "/tmp/$BACKUP_NAME"
   ```
-  El placeholder solo satisface la interpolación de Compose: `exec` usa el entorno real del backend que ya está corriendo y no lo modifica. El destino es obligatorio y nunca se sobrescribe; una ejecución exitosa informa `Integridad: ok`. El `cp` extrae la copia ya verificada y el último comando elimina el temporal del contenedor. Copiar luego el archivo a almacenamiento externo según la política de retención.
+  Los placeholders solo satisfacen la interpolación de Compose: `exec` usa el entorno real del backend que ya está corriendo y no lo modifica. El destino es obligatorio y nunca se sobrescribe; una ejecución exitosa informa `Integridad: ok`. El `cp` extrae la copia ya verificada y el último comando elimina el temporal del contenedor. Copiar luego el archivo a almacenamiento externo según la política de retención.
 - **Cambios de schema**: si se modifica `lib/db/src/schema/tickets.ts`, hay que generar la migración ANTES de mergear a main:
   ```bash
   pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts

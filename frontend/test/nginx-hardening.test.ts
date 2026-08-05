@@ -48,3 +48,14 @@ test('declara las cabeceras de bajo riesgo en el contexto server', () => {
     'una cabecera en location anularia la herencia del conjunto declarado en server',
   );
 });
+
+test('el proxy generico permite verificar readiness a traves de Nginx', () => {
+  const apiLocation = /location\s+\/api\/\s*\{([^{}]*)\}/.exec(activeConfig);
+  assert.ok(apiLocation?.[1], 'falta el location generico de API');
+  assert.match(apiLocation[1], /proxy_pass\s+http:\/\/backend:5000\/api\/\s*;/);
+  assert.doesNotMatch(apiLocation[1], /\btry_files\b/);
+
+  const spaLocation = /location\s+\/\s*\{([^{}]*)\}/.exec(activeConfig);
+  assert.ok(spaLocation?.[1], 'falta el location de la SPA');
+  assert.match(spaLocation[1], /try_files\s+\$uri\s+\/index\.html\s*;/);
+});

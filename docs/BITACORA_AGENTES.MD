@@ -2,6 +2,19 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — Readiness aplicada al despliegue
+
+**Agente:** Codex
+**Estado:** vigesimocuarta remediación de la auditoría técnica, implementada localmente.
+
+- El healthcheck del backend dejó de aceptar liveness como disponibilidad: consulta `/api/readyz`, exige HTTP 200 y el cuerpo exacto `{"status":"ready"}`. El período inicial de 60 segundos cubre migraciones, bootstrap y reconciliaciones sin retrasar un éxito temprano.
+- El frontend queda healthy únicamente si Nginx sirve el mount point real de React y el proxy devuelve el JSON exacto de readiness. Las descargas se capturan antes del grep para conservar el código de error de `wget`; una fallback SPA, un 503 o una respuesta truncada no pueden producir un falso positivo.
+- Compose espera ambos servicios durante hasta 180 segundos. `depends_on.restart` reinicia Nginx ante reemplazos explícitos del backend para renovar su DNS interno; se documentó que no responde a degradaciones, auto-restarts ni reemplazos externos.
+- El runner valida antes del build que Docker Compose sea al menos 2.17, soporte `--wait`/`--wait-timeout`, disponga de `curl` y acepte la configuración. Tras el rollout hace smoke sobre API directa, SPA y API proxied; el prune ocurre solo después del éxito y un fallo deja estado más logs acotados para diagnóstico.
+- Se agregaron regresiones estáticas por bloque de servicio/step, normalizadas para LF/CRLF, que evitan coincidencias accidentales entre SPA y API y verifican orden, condiciones, contenido, límites de diagnóstico y proxy Nginx.
+- Archivos principales: Compose, workflow de deploy, pruebas operativas, arquitectura y runbook.
+- Validaciones: `docker compose config --quiet`, 6 pruebas focalizadas y 312 pruebas totales aprobadas. El gate completo se ejecuta sobre el commit local antes de continuar al siguiente bloque.
+
 ## 2026-08-05 — Readiness real del backend
 
 **Agente:** Codex

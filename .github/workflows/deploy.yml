@@ -36,6 +36,28 @@ jobs:
             echo "A newer main commit exists; this obsolete deploy is skipped."
           fi
 
+      - name: Verify Docker Compose capabilities
+        if: steps.freshness.outputs.deploy == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          minimum_version="2.17.0"
+          compose_version="$(docker compose version --short)"
+          compose_version="${compose_version#v}"
+          if [ "$(printf '%s\n' "$minimum_version" "$compose_version" | sort -V | head -n1)" != "$minimum_version" ]; then
+            echo "Docker Compose >= $minimum_version is required; found $compose_version" >&2
+            exit 1
+          fi
+          compose_up_help="$(docker compose up --help)"
+          grep -Eq -- '(^|[[:space:]])--wait([[:space:]]|$)' <<< "$compose_up_help"
+          grep -Eq -- '(^|[[:space:]])--wait-timeout([[:space:]]|$)' <<< "$compose_up_help"
+          command -v curl >/dev/null
+          docker compose config --quiet
+        env:
+          # Solo validan la interpolación; el preflight no crea servicios.
+          WEBHOOK_API_KEY: not-used-during-compose-preflight
+          ADMIN_API_KEY: not-used-during-compose-preflight
+
       - name: Build images
         if: steps.freshness.outputs.deploy == 'true'
         run: docker compose build
@@ -58,9 +80,9 @@ jobs:
             echo "A newer main commit arrived during the build; restart is skipped."
           fi
 
-      - name: Restart containers
+      - name: Deploy and wait for healthy services
         if: steps.freshness_after_build.outputs.deploy == 'true'
-        run: docker compose up -d --remove-orphans
+        run: docker compose up -d --remove-orphans --wait --wait-timeout 180
         env:
           WEBHOOK_API_KEY: ${{ secrets.WEBHOOK_API_KEY }}
           ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
@@ -68,6 +90,28 @@ jobs:
           # credencial ya cambiada ignora el valor y nunca se resetea.
           BOOTSTRAP_SYSADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_SYSADMIN_PASSWORD }}
 
-      - name: Clean up dangling images
+      - name: Smoke test published services
         if: steps.freshness_after_build.outputs.deploy == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(curl -fsS --max-time 5 http://127.0.0.1:5000/api/readyz)" = '{"status":"ready"}'
+          spa="$(curl -fsS --max-time 5 http://127.0.0.1:3000/)"
+          grep -Fq '<div id="root"></div>' <<< "$spa"
+          test "$(curl -fsS --max-time 5 http://127.0.0.1:3000/api/readyz)" = '{"status":"ready"}'
+
+      - name: Clean up dangling images
+        if: success() && steps.freshness_after_build.outputs.deploy == 'true'
         run: docker image prune -f
+
+      - name: Deployment diagnostics
+        if: failure() && steps.freshness_after_build.outputs.deploy == 'true'
+        shell: bash
+        run: |
+          docker compose ps || true
+          docker compose logs --no-color --tail=100 backend frontend || true
+        env:
+          # Solo permiten que Compose interprete el archivo para inspeccionar
+          # contenedores existentes; no crean ni modifican servicios.
+          WEBHOOK_API_KEY: not-used-for-deploy-diagnostics
+          ADMIN_API_KEY: not-used-for-deploy-diagnostics

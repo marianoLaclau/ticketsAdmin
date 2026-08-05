@@ -27,12 +27,14 @@ services:
           "CMD",
           "node",
           "-e",
-          "require('http').get('http://localhost:5000/api/healthz', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))",
+          'fetch(''http://127.0.0.1:5000/api/readyz'').then(async r => process.exit(r.status === 200 && await r.text() === ''{"status":"ready"}'' ? 0 : 1)).catch(() => process.exit(1))',
         ]
       interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 10s
+      # Migraciones, bootstrap y reconciliaciones ocurren antes de escuchar.
+      # Un éxito dentro de este período vuelve healthy al servicio de inmediato.
+      start_period: 60s
 
   frontend:
     build:
@@ -44,12 +46,19 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+        # Si Compose reemplaza explícitamente el backend, recrea Nginx para que
+        # resuelva otra vez su nombre en la red interna.
+        restart: true
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      test:
+        [
+          "CMD-SHELL",
+          'spa="$$(wget -qO- http://127.0.0.1/)" && printf ''%s'' "$$spa" | grep -Fq ''<div id="root"></div>'' && ready="$$(wget -qO- http://127.0.0.1/api/readyz)" && printf ''%s'' "$$ready" | grep -Fxq ''{"status":"ready"}''',
+        ]
       interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 5s
+      start_period: 10s
 
 volumes:
   tickets_data:
