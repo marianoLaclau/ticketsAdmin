@@ -6,6 +6,7 @@ import {
   broadcastEvent,
   closeEventClientsForSessionHash,
   closeEventClientsForUsers,
+  revokeEventClientsForUsers,
 } from "../src/lib/events.ts";
 
 function fakeResponse(write: (payload: string) => void): Response {
@@ -47,7 +48,10 @@ test("un cliente SSE desconectado no interrumpe la notificación de los demás",
   addEventClient(healthy);
 
   assert.doesNotThrow(() =>
-    broadcastEvent("ticket_actualizado", { ticket_id: 7 }),
+    broadcastEvent("ticket_actualizado", {
+      ticket_id: 7,
+      tipo: "tipo_no_autorizado",
+    }),
   );
   broadcastEvent("datos_actualizados");
 
@@ -58,12 +62,15 @@ test("un cliente SSE desconectado no interrumpe la notificación de los demás",
   );
   assert.equal(received.length, 2);
   assert.match(received[0] ?? "", /"ticket_id":7/);
+  assert.match(received[0] ?? "", /"tipo":"ticket_actualizado"/);
+  assert.doesNotMatch(received[0] ?? "", /tipo_no_autorizado/);
   healthy.end();
 });
 
 test("cierra de inmediato los streams de una sesión o un usuario revocados", () => {
-  const userOne = fakeResponse(() => undefined);
-  const userTwo = fakeResponse(() => undefined);
+  const received: string[] = [];
+  const userOne = fakeResponse((payload) => received.push(payload));
+  const userTwo = fakeResponse((payload) => received.push(payload));
   addEventClient(userOne, { usuarioId: 1, sessionTokenHash: "hash-1" });
   addEventClient(userTwo, { usuarioId: 2, sessionTokenHash: "hash-2" });
 
@@ -73,4 +80,29 @@ test("cierra de inmediato los streams de una sesión o un usuario revocados", ()
   assert.equal(closeEventClientsForSessionHash("hash-2"), 1);
   assert.equal(userTwo.writableEnded, true);
   assert.equal(closeEventClientsForSessionHash("hash-2"), 0);
+  assert.deepEqual(received, [], "el cierre técnico debe ser silencioso");
+});
+
+test("avisa la revocación administrativa antes de cerrar cada stream", () => {
+  const received: string[] = [];
+  const failed = fakeResponse(() => {
+    throw new Error("socket cerrado");
+  });
+  const healthy = fakeResponse((payload) => received.push(payload));
+  const unrelatedWrites: string[] = [];
+  const unrelated = fakeResponse((payload) => unrelatedWrites.push(payload));
+
+  addEventClient(failed, { usuarioId: 7 });
+  addEventClient(healthy, { usuarioId: 7 });
+  addEventClient(unrelated, { usuarioId: 8 });
+
+  assert.doesNotThrow(() => revokeEventClientsForUsers([7]));
+  assert.equal(failed.destroyed, true);
+  assert.equal(healthy.writableEnded, true);
+  assert.equal(unrelated.writableEnded, false);
+  assert.deepEqual(received, ['data: {"tipo":"sesion_revocada"}\n\n']);
+  assert.deepEqual(unrelatedWrites, []);
+  assert.equal(revokeEventClientsForUsers([7]), 0);
+
+  unrelated.end();
 });

@@ -21,6 +21,11 @@ import { ROL_SYSADMIN } from '@/lib/roles';
 import { getContactDisplayName } from '@/lib/contacto';
 import { getEstadoLabel } from '@/lib/estados';
 import { getUserErrorMessage } from '@/lib/error-messages';
+import {
+  isSessionRevokedEvent,
+  parseRealtimeEvent,
+} from '@/lib/realtime-events';
+import { clearRevokedSessionState } from '@/lib/session-state';
 
 // @ts-ignore
 import gsbLogo from '@/assets/gsb-logo.jpg';
@@ -28,23 +33,40 @@ import gsbLogo from '@/assets/gsb-logo.jpg';
 /**
  * Escucha los eventos del backend (SSE) y refresca los datos en el momento
  * exacto en que entra un llamado nuevo — sin recargar la página ni depender
- * del polling. Si la conexión se corta, el navegador la reintenta solo.
+ * del polling. Si la conexión se corta, el navegador la reintenta solo, salvo
+ * cuando el backend informa una revocación definitiva de la sesión.
  */
 function useEventosEnVivo() {
+  const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   useEffect(() => {
     const es = new EventSource('/api/events');
     es.onmessage = (e) => {
-      let data: any;
-      try {
-        data = JSON.parse(e.data);
-      } catch {
+      const data = parseRealtimeEvent(e.data);
+      if (!data) return;
+
+      if (isSessionRevokedEvent(data)) {
+        // Evita que EventSource intente reconectar con una cookie que el
+        // servidor ya invalidó. La raíz revalida desde cero la cookie actual:
+        // normalmente mostrará el login y, si otra pestaña ya inició una
+        // sesión válida, montará también un EventSource nuevo.
+        es.close();
+        clearRevokedSessionState(queryClient);
+        toast({
+          dedupeKey: 'session-revoked',
+          variant: 'warning',
+          title: 'Sesión finalizada',
+          description:
+            'Tus permisos o credenciales cambiaron. Volvé a iniciar sesión.',
+        });
+        navigate('/', { replace: true });
         return;
       }
+
       // Cualquier evento implica datos nuevos: refrescar listados y stats
-      queryClient.invalidateQueries();
+      void queryClient.invalidateQueries();
       if (data.tipo === 'ticket_creado') {
         const contacto = getContactDisplayName(data);
         toast({
@@ -54,11 +76,12 @@ function useEventosEnVivo() {
           description: [contacto, data.motivo || null].filter(Boolean).join(' — '),
         });
       } else if (data.tipo === 'tickets_importados') {
+        const cantidad = data.cantidad ?? 0;
         toast({
-          dedupeKey: `tickets-imported:${data.cantidad_total ?? data.cantidad}`,
+          dedupeKey: `tickets-imported:${data.cantidad_total ?? cantidad}`,
           variant: 'info',
           title: 'Importación disponible',
-          description: `${data.cantidad} ${data.cantidad === 1 ? 'llamado nuevo' : 'llamados nuevos'} en el listado.`,
+          description: `${cantidad} ${cantidad === 1 ? 'llamado nuevo' : 'llamados nuevos'} en el listado.`,
         });
       }
     };

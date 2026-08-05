@@ -12,6 +12,8 @@ interface EventClient {
 
 const clients = new Map<Response, EventClient>();
 
+const SESSION_REVOKED_EVENT = "sesion_revocada";
+
 export interface EventClientIdentity {
   usuarioId?: number;
   sessionTokenHash?: string;
@@ -25,48 +27,76 @@ export function addEventClient(
   res.on("close", () => clients.delete(res));
 }
 
-function closeClient(client: EventClient): void {
+function serializeEvent(
+  tipo: string,
+  data: Record<string, unknown> = {},
+): string {
+  return `data: ${JSON.stringify({ ...data, tipo })}\n\n`;
+}
+
+function closeClient(client: EventClient, terminalEvent?: string): void {
   clients.delete(client.res);
   if (client.res.destroyed || client.res.writableEnded) return;
   try {
+    if (terminalEvent) client.res.write(serializeEvent(terminalEvent));
     client.res.end();
   } catch {
     client.res.destroy();
   }
 }
 
+function closeMatchingClients(
+  predicate: (client: EventClient) => boolean,
+  terminalEvent?: string,
+): number {
+  let closed = 0;
+  for (const client of clients.values()) {
+    if (!predicate(client)) continue;
+    closeClient(client, terminalEvent);
+    closed += 1;
+  }
+  return closed;
+}
+
 export function closeEventClientsForUsers(
   usuarioIds: readonly number[],
 ): number {
   const ids = new Set(usuarioIds);
-  let closed = 0;
-  for (const client of clients.values()) {
-    if (client.usuarioId !== undefined && ids.has(client.usuarioId)) {
-      closeClient(client);
-      closed += 1;
-    }
-  }
-  return closed;
+  return closeMatchingClients(
+    (client) =>
+      client.usuarioId !== undefined && ids.has(client.usuarioId),
+  );
+}
+
+/**
+ * Avisa una revocación administrativa antes de cerrar cada stream afectado.
+ * Se mantiene separado del cierre silencioso porque una rotación válida de
+ * cookie también descarta streams viejos, pero no debe expulsar al usuario.
+ */
+export function revokeEventClientsForUsers(
+  usuarioIds: readonly number[],
+): number {
+  const ids = new Set(usuarioIds);
+  return closeMatchingClients(
+    (client) =>
+      client.usuarioId !== undefined && ids.has(client.usuarioId),
+    SESSION_REVOKED_EVENT,
+  );
 }
 
 export function closeEventClientsForSessionHash(
   sessionTokenHash: string,
 ): number {
-  let closed = 0;
-  for (const client of clients.values()) {
-    if (client.sessionTokenHash === sessionTokenHash) {
-      closeClient(client);
-      closed += 1;
-    }
-  }
-  return closed;
+  return closeMatchingClients(
+    (client) => client.sessionTokenHash === sessionTokenHash,
+  );
 }
 
 export function broadcastEvent(
   tipo: string,
   data: Record<string, unknown> = {},
 ): void {
-  const payload = `data: ${JSON.stringify({ tipo, ...data })}\n\n`;
+  const payload = serializeEvent(tipo, data);
   for (const client of clients.values()) {
     const { res } = client;
     if (res.destroyed || res.writableEnded) {

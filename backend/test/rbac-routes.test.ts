@@ -205,6 +205,39 @@ async function waitFor(
   assert.fail(message);
 }
 
+function readStreamChunkWithTimeout(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  message: string,
+  timeoutMs = 1_000,
+): Promise<ReadableStreamReadResult<Uint8Array>> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+    reader.read().then(
+      (result) => {
+        clearTimeout(timeout);
+        resolve(result);
+      },
+      (error: unknown) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
+}
+
+async function readStreamUntilClosed(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  message: string,
+): Promise<string> {
+  const decoder = new TextDecoder();
+  let payload = "";
+  for (;;) {
+    const chunk = await readStreamChunkWithTimeout(reader, message);
+    if (chunk.done) return payload + decoder.decode();
+    payload += decoder.decode(chunk.value, { stream: true });
+  }
+}
+
 beforeEach(async () => {
   loginAttemptLimiter.resetAll();
   loginKdfThroughputLimiter.resetAll();
@@ -1668,16 +1701,11 @@ describe("cambios de rol de usuario", () => {
         .get() as { total: number };
       assert.equal(sessions.total, 0);
 
-      const closed = await Promise.race([
-        reader.read(),
-        new Promise<never>((_resolve, reject) =>
-          setTimeout(
-            () => reject(new Error("el SSE siguió abierto tras cambiar el rol")),
-            1_000,
-          ),
-        ),
-      ]);
-      assert.equal(closed.done, true);
+      const terminalPayload = await readStreamUntilClosed(
+        reader,
+        "el SSE siguió abierto tras cambiar el rol",
+      );
+      assert.match(terminalPayload, /"tipo":"sesion_revocada"/);
       assert.equal(
         (await requestWithSession("/auth/me", operatorCookie)).status,
         401,

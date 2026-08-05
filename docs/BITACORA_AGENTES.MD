@@ -2,6 +2,18 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — Cierre visible de sesiones revocadas
+
+**Agente:** Codex
+**Estado:** decimocuarta remediación de la auditoría técnica, implementada localmente.
+
+- Las revocaciones administrativas de cuenta, rol o contraseña envían `sesion_revocada` a cada stream SSE afectado después de confirmar la transacción y luego cierran la conexión. Una falla al notificar continúa siendo secundaria y no cambia una gestión ya persistida.
+- El cierre administrativo quedó separado del cierre técnico: el cambio propio de contraseña rota la cookie y descarta silenciosamente los streams anteriores, por lo que no puede expulsar por carrera a una sesión nueva válida. Reenviar el mismo rol tampoco emite el evento.
+- El frontend valida el JSON recibido y descarta campos de tipos inesperados. Ante el evento terminal cierra explícitamente `EventSource`, limpia toda la caché y reemplaza la ruta por la entrada pública. Allí revalida la cookie sin mostrar datos stale: un `401` deja el login y una cookie nueva válida remonta la identidad y el stream. Una caída transitoria conserva la reconexión automática.
+- Se agregaron pruebas unitarias para serialización, aislamiento de usuarios, streams rotos, cierres silenciosos y parsing defensivo, además de la prueba HTTP con stream real que exige recibir el evento antes del EOF.
+- Archivos principales: registro SSE, rutas administrativas, listener del layout, parser de eventos, pruebas y documentación.
+- Validaciones: 266 pruebas correctas (backend 143, frontend 59, base de datos 11, política compartida 4, ingesta 48 y scripts 1), typecheck y build completos. El build conserva los avisos ya registrados de sourcemaps en cuatro componentes UI y del bundle frontend mayor a 500 kB.
+
 ## 2026-08-05 — Revocación al cambiar el rol de un usuario
 
 **Agente:** Codex

@@ -27,3 +27,12 @@ export function clearAuthenticatedQueries(
     predicate: (query) => query.queryKey[0] !== sessionQueryRoot,
   });
 }
+
+/**
+ * Un evento terminal del servidor es autoritativo: ninguna respuesta o dato
+ * de la identidad anterior debe seguir visible mientras se revalida la cookie
+ * actual desde la entrada pública.
+ */
+export function clearRevokedSessionState(queryClient: QueryClient): void {
+  queryClient.clear();
+}

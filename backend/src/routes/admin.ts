@@ -35,7 +35,7 @@ import {
 } from "@workspace/ingesta";
 import { requireAdminKey, requireSysAdmin } from "../lib/auth";
 import { hashPassword, isUsablePasswordHash } from "../lib/passwords";
-import { broadcastEvent, closeEventClientsForUsers } from "../lib/events";
+import { broadcastEvent, revokeEventClientsForUsers } from "../lib/events";
 import { findInvalidRfc3339DateTimeField } from "../lib/rfc3339";
 import { esNombreRolReservado, esRolSistema, ROL_SYSADMIN } from "../lib/rbac";
 import { getNewPasswordPolicyError } from "../lib/new-password-policy";
@@ -355,7 +355,7 @@ router.patch("/admin/roles/:id", async (req, res) => {
       res.status(404).json({ error: "Rol no encontrado" });
       return;
     }
-    closeEventClientsForUsers(result.revokedUserIds);
+    revokeEventClientsForUsers(result.revokedUserIds);
     res.json(result.role);
   } catch (error) {
     if (hasSqliteConstraint(error, "UNIQUE")) {
@@ -724,7 +724,7 @@ router.patch("/admin/users/:id", async (req, res) => {
       return;
     }
     if (result.sessionsRevoked) {
-      closeEventClientsForUsers([params.data.id]);
+      revokeEventClientsForUsers([params.data.id]);
     }
     if (updates.username !== undefined) {
       if (result.previousUsername) {
@@ -797,7 +797,7 @@ router.post("/admin/users/:id/password", async (req, res) => {
     res.status(404).json({ error: "Usuario no encontrado" });
     return;
   }
-  closeEventClientsForUsers([params.data.id]);
+  revokeEventClientsForUsers([params.data.id]);
   if (updated.username) loginAttemptLimiter.reset(updated.username);
 
   res.status(204).end();
