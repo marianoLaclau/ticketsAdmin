@@ -14,6 +14,7 @@
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/ingesta": "workspace:*",
+    "@workspace/password-policy": "workspace:*",
     "better-sqlite3": "^12.4.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",

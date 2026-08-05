@@ -121,9 +121,13 @@ export const ExportTicketsCsvResponse = zod.unknown()
  * Valida usuario y contraseña. Si son correctos setea la cookie de sesión (httpOnly) y devuelve los datos del usuario.
  * @summary Iniciar sesión
  */
+export const loginBodyPasswordMax = 128;
+
+
+
 export const LoginBody = zod.object({
   "usuario": zod.string().describe('Nombre de usuario asignado al crear la cuenta (no el email)'),
-  "password": zod.string()
+  "password": zod.string().min(1).max(loginBodyPasswordMax)
 })
 
 export const LoginResponse = zod.object({
@@ -483,9 +487,11 @@ export const createAdminUserBodyUsernameMax = 60;
 
 
 export const createAdminUserBodyUsernameRegExp = new RegExp('^\\S+$');
-export const createAdminUserBodyPasswordMin = 6;
+export const createAdminUserBodyPasswordMin = 16;
 export const createAdminUserBodyPasswordMax = 128;
 
+
+export const createAdminUserBodyPasswordRegExp = new RegExp('^(?![\\s\\S]*[\\x00-\\x1F\\x7F])\\S(?:[\\s\\S]*\\S)?$');
 export const createAdminUserBodyEmailMax = 254;
 
 
@@ -497,7 +503,7 @@ export const CreateAdminUserBody = zod.object({
   "nombre": zod.string().min(1).max(createAdminUserBodyNombreMax),
   "apellido": zod.string().max(createAdminUserBodyApellidoMax).nullish(),
   "username": zod.string().min(createAdminUserBodyUsernameMin).max(createAdminUserBodyUsernameMax).regex(createAdminUserBodyUsernameRegExp).describe('Identificador de login que se le entrega al usuario junto con la contraseña.'),
-  "password": zod.string().min(createAdminUserBodyPasswordMin).max(createAdminUserBodyPasswordMax).describe('Contraseña inicial (se guarda hasheada). El SysAdmin la define y se la entrega al usuario.'),
+  "password": zod.string().min(createAdminUserBodyPasswordMin).max(createAdminUserBodyPasswordMax).regex(createAdminUserBodyPasswordRegExp).describe('Contraseña nueva sin caracteres de control, espacios exteriores ni claves comunes, repetitivas o de ejemplo. Se persiste únicamente como hash.'),
   "email": zod.string().max(createAdminUserBodyEmailMax).regex(createAdminUserBodyEmailRegExp),
   "role_id": zod.number().min(1),
   "activo": zod.boolean().default(createAdminUserBodyActivoDefault)
@@ -576,13 +582,15 @@ export const ResetAdminUserPasswordParams = zod.object({
   "id": zod.coerce.number().min(1)
 })
 
-export const resetAdminUserPasswordBodyPasswordMin = 6;
+export const resetAdminUserPasswordBodyPasswordMin = 16;
 export const resetAdminUserPasswordBodyPasswordMax = 128;
 
 
+export const resetAdminUserPasswordBodyPasswordRegExp = new RegExp('^(?![\\s\\S]*[\\x00-\\x1F\\x7F])\\S(?:[\\s\\S]*\\S)?$');
+
 
 export const ResetAdminUserPasswordBody = zod.object({
-  "password": zod.string().min(resetAdminUserPasswordBodyPasswordMin).max(resetAdminUserPasswordBodyPasswordMax).describe('Contraseña nueva en texto plano (se guarda hasheada)')
+  "password": zod.string().min(resetAdminUserPasswordBodyPasswordMin).max(resetAdminUserPasswordBodyPasswordMax).regex(resetAdminUserPasswordBodyPasswordRegExp).describe('Contraseña nueva sin caracteres de control, espacios exteriores ni claves comunes, repetitivas o de ejemplo. Se persiste únicamente como hash.')
 })
 
 export const ResetAdminUserPasswordResponse = zod.void()

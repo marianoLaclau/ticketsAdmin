@@ -5,6 +5,7 @@
  * GSB Ticket Management System API
  * OpenAPI spec version: 0.5.0
  */
+import type { NewPassword } from './newPassword';
 
 export interface AdminUserInput {
   /**
@@ -24,12 +25,7 @@ export interface AdminUserInput {
      * @pattern ^\S+$
      */
   username: string;
-  /**
-     * Contraseña inicial (se guarda hasheada). El SysAdmin la define y se la entrega al usuario.
-     * @minLength 6
-     * @maxLength 128
-     */
-  password: string;
+  password: NewPassword;
   /**
      * @maxLength 254
      * @pattern ^[^@\s]+@[^@\s]+\.[^@\s]+$

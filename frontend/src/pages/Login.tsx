@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLogin, getGetMeQueryKey } from '@workspace/api-client-react';
+import { LOGIN_PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH } from '@workspace/password-policy';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -79,6 +80,8 @@ export default function Login() {
                   className="pl-8"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  minLength={LOGIN_PASSWORD_MIN_LENGTH}
+                  maxLength={PASSWORD_MAX_LENGTH}
                   autoComplete="current-password"
                 />
               </div>

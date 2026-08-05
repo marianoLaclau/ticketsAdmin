@@ -65,6 +65,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { adminErrorMessage, useAdminAccess } from '@/hooks/use-admin-access';
 import { useToast } from '@/hooks/use-toast';
 import { formatDate } from '@/lib/utils-tickets';
+import {
+  NEW_PASSWORD_HELP,
+  NEW_PASSWORD_MAX_LENGTH,
+  NEW_PASSWORD_MIN_LENGTH,
+  getNewPasswordError,
+} from '@/lib/password-policy';
 import { esRolSistema } from '@/lib/roles';
 
 type UserFormState = {
@@ -211,11 +217,12 @@ export default function AdminRolesUsers() {
 
   const savePassword = () => {
     if (!passwordUser) return;
-    if (passwordNueva.length < 6) {
+    const passwordError = getNewPasswordError(passwordNueva);
+    if (passwordError) {
       toast({
         variant: 'warning',
-        title: 'Contraseña muy corta',
-        description: 'La contraseña nueva debe tener al menos 6 caracteres.',
+        title: 'Contraseña no válida',
+        description: passwordError,
       });
       return;
     }
@@ -293,11 +300,12 @@ export default function AdminRolesUsers() {
     // La contraseña solo se pide al crear — para un usuario existente se
     // cambia con la llavesita de reset (revoca sus sesiones activas).
     if (!editingUser) {
-      if (userForm.password.length < 6) {
+      const passwordError = getNewPasswordError(userForm.password);
+      if (passwordError) {
         toast({
           variant: 'warning',
-          title: 'Contraseña muy corta',
-          description: 'La contraseña inicial debe tener al menos 6 caracteres.',
+          title: 'Contraseña no válida',
+          description: passwordError,
         });
         return;
       }
@@ -939,8 +947,13 @@ export default function AdminRolesUsers() {
                         password: event.target.value,
                       }))
                     }
+                    minLength={NEW_PASSWORD_MIN_LENGTH}
+                    maxLength={NEW_PASSWORD_MAX_LENGTH}
                     autoComplete="new-password"
                   />
+                  {userForm.password.length > 0 && getNewPasswordError(userForm.password) && (
+                    <p className="text-xs text-destructive">{getNewPasswordError(userForm.password)}</p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="user-password-repeat">Repetir contraseña *</Label>
@@ -953,13 +966,15 @@ export default function AdminRolesUsers() {
                         passwordRepetida: event.target.value,
                       }))
                     }
+                    minLength={NEW_PASSWORD_MIN_LENGTH}
+                    maxLength={NEW_PASSWORD_MAX_LENGTH}
                     autoComplete="new-password"
                   />
                   {userForm.passwordRepetida.length > 0 && userForm.passwordRepetida !== userForm.password && (
                     <p className="text-xs text-destructive">Las contraseñas no coinciden.</p>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground sm:col-span-2">Mínimo 6 caracteres.</p>
+                <p className="text-xs text-muted-foreground sm:col-span-2">{NEW_PASSWORD_HELP}</p>
               </div>
             )}
             <div className="space-y-1.5">
@@ -1120,10 +1135,16 @@ export default function AdminRolesUsers() {
                 id="password-nueva"
                 value={passwordNueva}
                 onChange={(event) => setPasswordNueva(event.target.value)}
+                minLength={NEW_PASSWORD_MIN_LENGTH}
+                maxLength={NEW_PASSWORD_MAX_LENGTH}
                 autoComplete="new-password"
                 autoFocus
               />
-              <p className="text-xs text-muted-foreground">Mínimo 6 caracteres.</p>
+              {passwordNueva.length > 0 && getNewPasswordError(passwordNueva) ? (
+                <p className="text-xs text-destructive">{getNewPasswordError(passwordNueva)}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">{NEW_PASSWORD_HELP}</p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password-repetida">Repetir contraseña</Label>
@@ -1131,6 +1152,8 @@ export default function AdminRolesUsers() {
                 id="password-repetida"
                 value={passwordRepetida}
                 onChange={(event) => setPasswordRepetida(event.target.value)}
+                minLength={NEW_PASSWORD_MIN_LENGTH}
+                maxLength={NEW_PASSWORD_MAX_LENGTH}
                 autoComplete="new-password"
               />
               {passwordRepetida.length > 0 && passwordRepetida !== passwordNueva && (
@@ -1144,7 +1167,11 @@ export default function AdminRolesUsers() {
             </Button>
             <Button
               onClick={savePassword}
-              disabled={resetPassword.isPending || passwordNueva.length < 6 || passwordNueva !== passwordRepetida}
+              disabled={
+                resetPassword.isPending ||
+                Boolean(getNewPasswordError(passwordNueva)) ||
+                passwordNueva !== passwordRepetida
+              }
             >
               {resetPassword.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Guardar contraseña

@@ -5,12 +5,8 @@
  * GSB Ticket Management System API
  * OpenAPI spec version: 0.5.0
  */
+import type { NewPassword } from './newPassword';
 
 export interface AdminUserPasswordInput {
-  /**
-     * Contraseña nueva en texto plano (se guarda hasheada)
-     * @minLength 6
-     * @maxLength 128
-     */
-  password: string;
+  password: NewPassword;
 }

@@ -124,7 +124,7 @@ El workflow recibe las credenciales desde GitHub Actions, **nunca** desde el rep
    - `ADMIN_API_KEY`: segunda verificación de operaciones SysAdmin.
    - `BOOTSTRAP_SYSADMIN_PASSWORD`: obligatoria si el volumen contiene una base sin hashes o la credencial pública del seed histórico.
 
-El bootstrap crea o asegura `sysadmin`, persiste solamente el hash scrypt y luego se vuelve un no-op. Si detecta el seed histórico también revoca sus sesiones anteriores. Después de verificar el login seguro, retirar `BOOTSTRAP_SYSADMIN_PASSWORD` de GitHub Actions y ejecutar otro deploy para recrear el backend sin el secreto en su entorno. Dejarlo configurado no resetea una cuenta ya asegurada, pero retirarlo reduce exposición innecesaria.
+El bootstrap crea o asegura `sysadmin`, persiste solamente el hash scrypt y luego se vuelve un no-op. La clave debe tener 16–128 caracteres, no contener controles C0/DEL, no comenzar ni terminar con espacios y no ser un placeholder público conocido ni un único carácter repetido; el comando aleatorio anterior cumple la política. Si detecta el seed histórico también revoca sus sesiones anteriores. Después de verificar el login seguro, retirar `BOOTSTRAP_SYSADMIN_PASSWORD` de GitHub Actions y ejecutar otro deploy para recrear el backend sin el secreto en su entorno. Dejarlo configurado no resetea una cuenta ya asegurada, pero retirarlo reduce exposición innecesaria.
 
 GitHub inyecta esos secretos solo durante el job. Para ejecutar manualmente comandos que crean o recrean servicios (`up`, `create`, un `run` normal), guardar las variables en un archivo fuera del repo y con permisos restringidos, por ejemplo `/etc/ticketsadmin/compose.env`, y usar:
 

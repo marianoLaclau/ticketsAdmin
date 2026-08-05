@@ -952,6 +952,14 @@ components:
       description: Segunda verificacion obligatoria, utilizable solo junto a una sesion SysAdmin.
 
   schemas:
+    NewPassword:
+      type: string
+      minLength: 16
+      maxLength: 128
+      pattern: '^(?![\s\S]*[\x00-\x1F\x7F])\S(?:[\s\S]*\S)?$'
+      writeOnly: true
+      description: Contraseña nueva sin caracteres de control, espacios exteriores ni claves comunes, repetitivas o de ejemplo. Se persiste únicamente como hash.
+
     LoginInput:
       type: object
       required:
@@ -963,6 +971,9 @@ components:
           description: Nombre de usuario asignado al crear la cuenta (no el email)
         password:
           type: string
+          minLength: 1
+          maxLength: 128
+          writeOnly: true
 
     AuthUser:
       type: object
@@ -1116,10 +1127,7 @@ components:
           maxLength: 60
           pattern: '^\S+$'
         password:
-          type: string
-          description: Contraseña inicial (se guarda hasheada). El SysAdmin la define y se la entrega al usuario.
-          minLength: 6
-          maxLength: 128
+          $ref: "#/components/schemas/NewPassword"
         email:
           type: string
           pattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
@@ -1163,10 +1171,7 @@ components:
         - password
       properties:
         password:
-          type: string
-          minLength: 6
-          maxLength: 128
-          description: Contraseña nueva en texto plano (se guarda hasheada)
+          $ref: "#/components/schemas/NewPassword"
 
     AdminUserListResponse:
       type: object

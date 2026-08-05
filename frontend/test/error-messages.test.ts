@@ -16,7 +16,7 @@ function apiError(status: number, serverError: string, technicalMessage = 'detal
 
 test('nunca muestra el mensaje técnico del Error', () => {
   const result = getUserErrorMessage(
-    apiError(400, 'Invalid body', 'password: String must contain at least 6 character(s)'),
+    apiError(400, 'Invalid body', 'password: String must contain at least 16 character(s)'),
   );
 
   assert.equal(result, 'Revisá los datos ingresados e intentá nuevamente.');
@@ -52,6 +52,27 @@ test('traduce conflictos de negocio conocidos sin copiar la respuesta cruda', ()
   assert.equal(
     getUserErrorMessage(apiError(409, 'Debe permanecer al menos un SysAdmin activo con credenciales')),
     'Debe quedar al menos un SysAdmin activo con credenciales utilizables.',
+  );
+});
+
+test('traduce la política de contraseñas sin exponer validaciones internas', () => {
+  assert.equal(
+    getUserErrorMessage(apiError(400, 'La contraseña debe tener entre 16 y 128 caracteres')),
+    'La contraseña debe tener entre 16 y 128 caracteres.',
+  );
+  assert.equal(
+    getUserErrorMessage(apiError(400, 'La contraseña no puede comenzar ni terminar con espacios')),
+    'La contraseña no puede tener espacios al principio ni al final.',
+  );
+  assert.equal(
+    getUserErrorMessage(
+      apiError(400, 'La contraseña elegida es demasiado común o corresponde a un ejemplo público'),
+    ),
+    'Elegí una contraseña menos predecible; esa clave es común, repetitiva o de ejemplo.',
+  );
+  assert.equal(
+    getUserErrorMessage(apiError(400, 'La contraseña no puede contener caracteres de control')),
+    'La contraseña no puede contener saltos de línea, tabulaciones ni otros caracteres de control.',
   );
 });
 

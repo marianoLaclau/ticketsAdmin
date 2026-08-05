@@ -1,4 +1,9 @@
 import { db, rolesTable, sesionesTable, usuariosTable } from "@workspace/db";
+import {
+  NEW_PASSWORD_MAX_LENGTH,
+  NEW_PASSWORD_MIN_LENGTH,
+  getNewPasswordViolation,
+} from "@workspace/password-policy";
 import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "./passwords";
 import { logger } from "./logger";
@@ -21,16 +26,7 @@ const ROLES_BASE: Array<{ nombre: string; descripcion: string }> = [
 ];
 
 const BOOTSTRAP_PASSWORD_ENV = "BOOTSTRAP_SYSADMIN_PASSWORD";
-const BOOTSTRAP_PASSWORD_MIN_LENGTH = 16;
-const BOOTSTRAP_PASSWORD_MAX_LENGTH = 128;
 const LEGACY_SEED_PASSWORD = "admin";
-const BOOTSTRAP_PASSWORDS_BLOQUEADAS = new Set([
-  "adminadminadminadmin",
-  "sysadminsysadmin",
-  "passwordpassword",
-  "changemechangeme",
-  "generar-una-clave-inicial-larga-y-unica",
-]);
 
 type AccionCuenta = "ninguna" | "inicializada" | "rotada";
 
@@ -57,28 +53,33 @@ function leerPasswordBootstrap(): string {
     );
   }
 
-  if (password !== password.trim()) {
-    throw new Error(
-      `${BOOTSTRAP_PASSWORD_ENV} no puede comenzar ni terminar con espacios`,
-    );
+  const violation = getNewPasswordViolation(password);
+  switch (violation) {
+    case null:
+      return password;
+    case "too_short":
+    case "too_long":
+      throw new Error(
+        `${BOOTSTRAP_PASSWORD_ENV} debe tener entre ${NEW_PASSWORD_MIN_LENGTH} y ${NEW_PASSWORD_MAX_LENGTH} caracteres`,
+      );
+    case "control_character":
+      throw new Error(
+        `${BOOTSTRAP_PASSWORD_ENV} no puede contener caracteres de control`,
+      );
+    case "outer_whitespace":
+      throw new Error(
+        `${BOOTSTRAP_PASSWORD_ENV} no puede comenzar ni terminar con espacios`,
+      );
+    case "blocked":
+      throw new Error(
+        `${BOOTSTRAP_PASSWORD_ENV} no puede ser una clave conocida o de ejemplo`,
+      );
+    default: {
+      const exhaustiveCheck: never = violation;
+      void exhaustiveCheck;
+      throw new Error(`${BOOTSTRAP_PASSWORD_ENV} no cumple la política`);
+    }
   }
-
-  if (
-    password.length < BOOTSTRAP_PASSWORD_MIN_LENGTH ||
-    password.length > BOOTSTRAP_PASSWORD_MAX_LENGTH
-  ) {
-    throw new Error(
-      `${BOOTSTRAP_PASSWORD_ENV} debe tener entre ${BOOTSTRAP_PASSWORD_MIN_LENGTH} y ${BOOTSTRAP_PASSWORD_MAX_LENGTH} caracteres`,
-    );
-  }
-
-  if (BOOTSTRAP_PASSWORDS_BLOQUEADAS.has(password.toLocaleLowerCase("en-US"))) {
-    throw new Error(
-      `${BOOTSTRAP_PASSWORD_ENV} no puede ser una clave conocida o de ejemplo`,
-    );
-  }
-
-  return password;
 }
 
 async function buscarSeedsHeredados(): Promise<SeedHeredado[]> {

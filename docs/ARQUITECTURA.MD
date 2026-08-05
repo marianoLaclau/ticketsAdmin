@@ -47,7 +47,7 @@ flowchart TB
     http[HTTP / Express]
     routes[Rutas y middlewares<br/>backend/src/routes]
     app[Servicios y reglas extraídas<br/>SLA, prioridad, clasificación, visibilidad]
-    shared[Paquetes compartidos<br/>@workspace/ingesta<br/>@workspace/api-zod]
+    shared[Paquetes compartidos<br/>@workspace/ingesta<br/>@workspace/api-zod<br/>@workspace/password-policy]
     persistence[Persistencia<br/>@workspace/db + Drizzle]
     sqlite[(SQLite)]
 
@@ -77,6 +77,7 @@ Las reglas importantes viven fuera de los handlers cuando pueden reutilizarse:
 
 - `lib/ingesta/src/motivos.ts`: clasificación estable del motivo.
 - `lib/ingesta/src/sla.ts`: 48 horas hábiles, pausando sábados y domingos.
+- `lib/password-policy`: política única de credenciales nuevas para servidor y UI.
 - `backend/src/lib/prioridad-automatica.ts`: promoción de prioridad a `alta`/`urgente`.
 - `backend/src/lib/prioridad-automatica-runner.ts`: ejecución al arranque y periódica.
 - `backend/src/lib/ticket-query.ts`: filtros y orden server-side.
@@ -165,6 +166,7 @@ Otros paquetes compartidos:
 | `@workspace/api-spec` | OpenAPI y configuración de Orval |
 | `@workspace/api-client-react` | Hooks React Query y tipos de consumo |
 | `@workspace/api-zod` | Schemas Zod consumidos por el backend |
+| `@workspace/password-policy` | Límites y reglas puras de contraseñas nuevas compartidas por backend/frontend |
 | `@workspace/scripts` | Importador histórico y backup de SQLite |
 
 ## 4. Flujo de una llamada
@@ -291,6 +293,8 @@ Es la auditoría temporal del ticket. Registra notas manuales, alta automática 
 - `usuarios` contiene identidad, credenciales hash, rol y estado activo.
 - `sesiones` persiste el token de cookie `gsb_session`, su usuario y expiración; permite revocar sesiones y sobrevivir reinicios.
 - `password_hash` usa scrypt asíncrono y versionado (`scrypt$v1$N$r$p$salt$hash`); nunca se almacena la contraseña en texto plano. El lector mantiene compatibilidad con el formato legado y lo rehashea con una sal nueva tras un login válido.
+- Alta, reset y bootstrap validan con `@workspace/password-policy`: 16–128 unidades UTF-16, sin controles C0/DEL, whitespace exterior, placeholders públicos conocidos ni un único carácter repetido. OpenAPI reutiliza un único schema `NewPassword`; el paquete completa la blocklist contextual acotada. Se permiten frases con espacios interiores y no se recorta ni normaliza el secreto antes de hashearlo (NFKC/minúsculas se usan solo para comparar la blocklist y el patrón repetitivo).
+- Login acepta 1–128 unidades UTF-16 para preservar credenciales históricas y poder migrar su hash; esa compatibilidad no habilita nuevas claves fuera de política.
 
 Invariantes de RBAC aplicadas en backend y reflejadas en la UI:
 
@@ -430,6 +434,7 @@ lib/api-client-react/     cliente React Query generado
 lib/api-zod/              validadores Zod generados
 lib/db/                   schema Drizzle, SQLite, migraciones y visibilidad
 lib/ingesta/              clasificación, SLA y normalización compartida
+lib/password-policy/      política pura de contraseñas nuevas
 scripts/                  importador histórico y backup de SQLite
 docs/                    arquitectura, flujo, deploy y bitácora
 .github/workflows/        deploy automático a partir de main

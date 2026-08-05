@@ -11,6 +11,11 @@ import {
 } from "@workspace/db";
 import { and, asc, count, eq, inArray, like, or, type SQL } from "drizzle-orm";
 import {
+  NEW_PASSWORD_MAX_LENGTH,
+  NEW_PASSWORD_MIN_LENGTH,
+  getNewPasswordViolation,
+} from "@workspace/password-policy";
+import {
   CreateAdminTicketBody,
   ImportCsvBody,
   TruncateTicketsBody,
@@ -66,6 +71,31 @@ const normalizeUsername = (value: string): string => value.trim().toLowerCase();
 
 const hasOwn = (value: object, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, key);
+
+const getNewPasswordPolicyError = (body: unknown): string | null => {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const password = (body as { password?: unknown }).password;
+  if (typeof password !== "string") return null;
+
+  const violation = getNewPasswordViolation(password);
+  switch (violation) {
+    case null:
+      return null;
+    case "too_short":
+    case "too_long":
+      return `La contraseña debe tener entre ${NEW_PASSWORD_MIN_LENGTH} y ${NEW_PASSWORD_MAX_LENGTH} caracteres`;
+    case "control_character":
+      return "La contraseña no puede contener caracteres de control";
+    case "outer_whitespace":
+      return "La contraseña no puede comenzar ni terminar con espacios";
+    case "blocked":
+      return "La contraseña elegida es demasiado predecible, repetitiva o corresponde a un ejemplo público";
+    default: {
+      const exhaustiveCheck: never = violation;
+      return exhaustiveCheck;
+    }
+  }
+};
 
 const hasLoginIdentity = (value: string | null): value is string =>
   typeof value === "string" && value.trim().length > 0;
@@ -460,6 +490,11 @@ router.get("/admin/users", async (req, res) => {
 });
 
 router.post("/admin/users", async (req, res) => {
+  const passwordPolicyError = getNewPasswordPolicyError(req.body);
+  if (passwordPolicyError) {
+    res.status(400).json({ error: passwordPolicyError });
+    return;
+  }
   const parsed = CreateAdminUserBody.safeParse(req.body);
   if (!parsed.success) {
     res
@@ -720,9 +755,18 @@ router.patch("/admin/users/:id", async (req, res) => {
 // sesiones activas: si estaba logueado, queda afuera hasta usar la clave nueva.
 router.post("/admin/users/:id/password", async (req, res) => {
   const params = ResetAdminUserPasswordParams.safeParse({ id: req.params.id });
+  if (!params.success || !Number.isInteger(params.data.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const passwordPolicyError = getNewPasswordPolicyError(req.body);
+  if (passwordPolicyError) {
+    res.status(400).json({ error: passwordPolicyError });
+    return;
+  }
   const body = ResetAdminUserPasswordBody.safeParse(req.body);
-  if (!params.success || !Number.isInteger(params.data.id) || !body.success) {
-    res.status(400).json({ error: "Invalid id or body" });
+  if (!body.success) {
+    res.status(400).json({ error: "Invalid body" });
     return;
   }
 

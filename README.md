@@ -44,6 +44,8 @@ Todo el sistema exige sesión iniciada. Las únicas rutas públicas son `GET /ap
 
 Los tres roles base son identidades protegidas: no se renombran, desactivan ni eliminan. Los roles personalizados inactivos cortan login y sesiones y no pueden recibir nuevas asignaciones. El backend impide además desactivar o degradar al último SysAdmin con credenciales utilizables.
 
+Toda contraseña **nueva** —alta de usuario, reset o bootstrap— debe tener entre 16 y 128 caracteres, sin controles ni espacios al principio o al final, y no puede coincidir con un placeholder público ni ser un único carácter repetido. No se exigen combinaciones artificiales de mayúsculas, números o símbolos: se admiten frases largas con espacios interiores. El login conserva compatibilidad con contraseñas históricas de 1 a 128 caracteres y las rehashea sin obligar a cambiarlas en ese momento.
+
 Detalle completo (sesiones, hash de contraseñas, seed inicial, doble verificación del panel admin) en [backend/README_BACKEND.md](backend/README_BACKEND.md#autenticación-y-autorización).
 
 ## Estructura del repo
@@ -57,6 +59,7 @@ lib/
   api-spec/         → contrato OpenAPI (openapi.yaml) + config de Orval
   api-client-react/ → hooks React Query generados
   api-zod/          → schemas Zod generados
+  password-policy/  → política pura compartida por backend y frontend
 scripts/    → utilidades CLI (importador histórico, backup SQLite)
 data/       → base SQLite (gitignoreado, solo en desarrollo local)
 docs/       → README.md, ARQUITECTURA.MD, FLUJO.md, DEPLOY.md, BITACORA_AGENTES.MD
@@ -77,7 +80,7 @@ pnpm --filter @workspace/backend run dev    # API en :5000
 pnpm --filter @workspace/frontend run dev   # UI en :3000
 ```
 
-Abrir http://localhost:3000. En una base nueva, el primer arranque crea el usuario `sysadmin` con el valor de `BOOTSTRAP_SYSADMIN_PASSWORD`. La clave debe tener entre 16 y 128 caracteres; solo se guarda su hash. La misma protección detecta exclusivamente la credencial pública de versiones antiguas, la rota y revoca sus sesiones. Cualquier contraseña que ya haya sido cambiada se conserva aunque la variable siga configurada.
+Abrir http://localhost:3000. En una base nueva, el primer arranque crea el usuario `sysadmin` con el valor de `BOOTSTRAP_SYSADMIN_PASSWORD`. La clave aplica la política compartida de 16 a 128 caracteres, sin controles, espacios exteriores ni valores predecibles conocidos; solo se guarda su hash. La misma protección detecta exclusivamente la credencial pública de versiones antiguas, la rota y revoca sus sesiones. Cualquier contraseña que ya haya sido cambiada se conserva aunque la variable siga configurada.
 
 ## Comandos
 

@@ -122,9 +122,9 @@ Todas bajo el prefijo `/api`. ✅ = requiere sesión (candado global). 🔑 = ad
 | `PATCH /admin/roles/:id` | Edita nombre/descripción/activo. | ✅🔑🗝️ |
 | `DELETE /admin/roles/:id` | Borra el rol; `409` si tiene usuarios asignados. | ✅🔑🗝️ |
 | `GET /admin/users` | Listado paginado con `search`, `role_id`, `activo`. Nunca incluye `password_hash` en la respuesta. | ✅🔑🗝️ |
-| `POST /admin/users` | Crea un usuario con `username` y `password` obligatorios (el SysAdmin define las credenciales y se las entrega). `409` si el email o el username ya existen; `400` si el rol no existe o la contraseña tiene menos de 6 caracteres. | ✅🔑🗝️ |
+| `POST /admin/users` | Crea un usuario con `username` y `password` obligatorios (el SysAdmin define las credenciales y se las entrega). `409` si el email o el username ya existen; `400` si el rol no existe o la contraseña incumple la política compartida. | ✅🔑🗝️ |
 | `PATCH /admin/users/:id` | Edita nombre/apellido/username/email/rol/activo. No acepta contraseña — eso sigue yendo por el endpoint dedicado. | ✅🔑🗝️ |
-| `POST /admin/users/:id/password` | Establece/reestablece la contraseña (mínimo 6 caracteres) y **revoca todas las sesiones activas de ese usuario**. `204`. | ✅🔑🗝️ |
+| `POST /admin/users/:id/password` | Establece/reestablece una contraseña conforme a la política compartida y **revoca todas las sesiones activas de ese usuario**. `204`. | ✅🔑🗝️ |
 | `POST /admin/import` | Importación masiva desde CSV (texto plano en el body). Con `dry_run: true` solo simula. Idempotente por `conversation_id`. Emite `tickets_importados` si insertó algo real. | ✅🔑🗝️ |
 | `POST /admin/truncate` | Borra **todos** los tickets y seguimientos y reinicia los contadores autoincrement. Exige `{ confirmar: true }`. Emite `datos_actualizados`. | ✅🔑🗝️ |
 | `GET /events` | Stream SSE. Fuera del contrato OpenAPI a propósito (Orval no modela streams). | ✅ |
@@ -173,6 +173,10 @@ Dos capas encima de la sesión: primero el rol (`403` si no es SysAdmin), despu�
 `requireWebhookKey` no usa sesión: valida el header `x-api-key` contra `WEBHOOK_API_KEY` con comparación en tiempo constante (`timingSafeEqual` sobre un hash SHA-256, para no filtrar la clave por timing). Igual que la administración, si su variable no está configurada responde `503` y queda cerrado.
 
 ### Contraseñas
+
+La política de credenciales nuevas vive en `lib/password-policy` (`@workspace/password-policy`) y es consumida por alta, reset, bootstrap y frontend: 16 a 128 caracteres, sin controles C0/DEL ni whitespace al principio/final. También bloquea una lista acotada y explícita de credenciales comunes, placeholders y ejemplos públicos del repositorio, además de valores formados por un único carácter repetido. Se permiten espacios interiores y no se imponen reglas de composición. Los límites se miden con la longitud de string de JavaScript (unidades UTF-16), igual que los validadores Zod y los inputs actuales. La contraseña no se recorta ni normaliza antes de hashearla.
+
+El login es deliberadamente distinto: acepta de 1 a 128 caracteres para no bloquear credenciales históricas cortas, comunes o con espacios exteriores. Esa excepción solo verifica/rehashea valores ya existentes; nunca permite crear una contraseña nueva fuera de política.
 
 `src/lib/passwords.ts` usa **scrypt asíncrono** del módulo `crypto` nativo de Node (sin dependencias externas como bcrypt/argon2), con parámetros explícitos `N=16384`, `r=8`, `p=1` y `maxmem=64 MiB`. El trabajo se ejecuta en el pool de libuv y no bloquea el event loop del servidor.
 

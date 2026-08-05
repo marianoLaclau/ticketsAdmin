@@ -47,6 +47,7 @@ export * from './listTicketsPrioridad';
 export * from './loginInput';
 export * from './motivoCategoria';
 export * from './motivoStat';
+export * from './newPassword';
 export * from './prioridadStat';
 export * from './seguimiento';
 export * from './seguimientoInput';

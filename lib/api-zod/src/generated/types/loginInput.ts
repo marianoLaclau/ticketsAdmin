@@ -9,5 +9,9 @@
 export interface LoginInput {
   /** Nombre de usuario asignado al crear la cuenta (no el email) */
   usuario: string;
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
   password: string;
 }

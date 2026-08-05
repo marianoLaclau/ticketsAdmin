@@ -17,6 +17,9 @@
     },
     {
       "path": "../lib/ingesta"
+    },
+    {
+      "path": "../lib/password-policy"
     }
   ]
 }

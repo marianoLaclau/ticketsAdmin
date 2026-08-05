@@ -5,9 +5,21 @@
  * GSB Ticket Management System API
  * OpenAPI spec version: 0.5.0
  */
+/**
+ * Contraseña nueva sin caracteres de control, espacios exteriores ni claves comunes, repetitivas o de ejemplo. Se persiste únicamente como hash.
+ * @minLength 16
+ * @maxLength 128
+ * @pattern ^(?![\s\S]*[\x00-\x1F\x7F])\S(?:[\s\S]*\S)?$
+ */
+export type NewPassword = string;
+
 export interface LoginInput {
   /** Nombre de usuario asignado al crear la cuenta (no el email) */
   usuario: string;
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
   password: string;
 }
 
@@ -101,12 +113,7 @@ export interface AdminUserInput {
      * @pattern ^\S+$
      */
   username: string;
-  /**
-     * Contraseña inicial (se guarda hasheada). El SysAdmin la define y se la entrega al usuario.
-     * @minLength 6
-     * @maxLength 128
-     */
-  password: string;
+  password: NewPassword;
   /**
      * @maxLength 254
      * @pattern ^[^@\s]+@[^@\s]+\.[^@\s]+$
@@ -145,12 +152,7 @@ export interface AdminUserUpdate {
 }
 
 export interface AdminUserPasswordInput {
-  /**
-     * Contraseña nueva en texto plano (se guarda hasheada)
-     * @minLength 6
-     * @maxLength 128
-     */
-  password: string;
+  password: NewPassword;
 }
 
 export interface AdminUserListResponse {

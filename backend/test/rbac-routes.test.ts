@@ -87,11 +87,14 @@ await new Promise<void>((resolve) => server.once("listening", resolve));
 const { port } = server.address() as AddressInfo;
 const baseUrl = `http://127.0.0.1:${port}`;
 
-async function login(usuario: string): Promise<Response> {
+async function login(
+  usuario: string,
+  passwordValue = password,
+): Promise<Response> {
   return fetch(`${baseUrl}/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ usuario, password }),
+    body: JSON.stringify({ usuario, password: passwordValue }),
   });
 }
 
@@ -324,6 +327,172 @@ describe("autenticación uniforme", () => {
     assert.equal(sessions.total, 0);
     assert.equal(await verifyPassword(password, stored.password_hash), false);
     assert.equal(await verifyPassword(newPassword, stored.password_hash), true);
+  });
+
+  it("acepta y rehashea contraseñas históricas fuera de la política de altas", async () => {
+    const salt = "abcdefabcdefabcdefabcdefabcdefab";
+    for (const legacyPassword of [
+      "x",
+      "passwordpassword",
+      " Frase histórica segura ",
+      "x".repeat(128),
+    ]) {
+      const legacy = `scrypt:${salt}:${scryptSync(legacyPassword, salt, 64).toString("hex")}`;
+      sqlite
+        .prepare("UPDATE usuarios SET password_hash = ? WHERE id = 2")
+        .run(legacy);
+
+      const response = await login("operadora", legacyPassword);
+      assert.equal(response.status, 200);
+      const stored = sqlite
+        .prepare("SELECT password_hash FROM usuarios WHERE id = 2")
+        .get() as { password_hash: string };
+      assert.equal(needsPasswordRehash(stored.password_hash), false);
+      assert.equal(
+        await verifyPassword(legacyPassword, stored.password_hash),
+        true,
+      );
+    }
+  });
+
+  it("limita el tamaño del password recibido por login", async () => {
+    assert.equal((await login("operadora", "")).status, 400);
+    assert.equal((await login("operadora", "x".repeat(129))).status, 400);
+    assert.equal((await login("operadora", "x".repeat(128))).status, 401);
+  });
+});
+
+describe("política de contraseñas nuevas", () => {
+  const boundaryPassword = (length: number): string =>
+    `A${"b".repeat(length - 2)}1`;
+  const invalidPasswords = [
+    "x".repeat(15),
+    "x".repeat(129),
+    " Frase-larga-y-segura-2026",
+    "PASSWORDPASSWORD",
+    "a".repeat(16),
+    "generar-una-clave-larga-y-aleatoria",
+    "generar-otra-clave-larga-y-aleatoria",
+    "not-used-for-readonly-command",
+    "not-used-by-backup",
+    "Frase\ninterna segura 2026",
+    "Frase\u0000interna segura 2026",
+  ];
+
+  it("rechaza altas inválidas antes de crear o hashear el usuario", async () => {
+    const cookie = await adminSession();
+    for (const invalidPassword of invalidPasswords) {
+      const response = await adminRequest("/admin/users", cookie, {
+        method: "POST",
+        body: JSON.stringify({
+          nombre: "Inválida",
+          username: "invalida",
+          password: invalidPassword,
+          email: "invalida@example.test",
+          role_id: 5,
+          activo: true,
+        }),
+      });
+      assert.equal(response.status, 400);
+      assert.match(
+        ((await response.json()) as { error: string }).error,
+        /contraseña/i,
+      );
+    }
+
+    const created = sqlite
+      .prepare(
+        "SELECT count(*) AS total FROM usuarios WHERE username = 'invalida'",
+      )
+      .get() as { total: number };
+    assert.equal(created.total, 0);
+  });
+
+  it("un reset inválido conserva el hash y las sesiones existentes", async () => {
+    const operatorResponse = await login("operadora");
+    assert.equal(operatorResponse.status, 200);
+    const cookie = await adminSession();
+    const before = sqlite
+      .prepare("SELECT password_hash FROM usuarios WHERE id = 2")
+      .get() as { password_hash: string };
+
+    for (const invalidPassword of invalidPasswords) {
+      const response = await adminRequest("/admin/users/2/password", cookie, {
+        method: "POST",
+        body: JSON.stringify({ password: invalidPassword }),
+      });
+      assert.equal(response.status, 400);
+    }
+
+    const after = sqlite
+      .prepare("SELECT password_hash FROM usuarios WHERE id = 2")
+      .get() as { password_hash: string };
+    const sessions = sqlite
+      .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
+      .get() as { total: number };
+    assert.equal(after.password_hash, before.password_hash);
+    assert.equal(sessions.total, 1);
+  });
+
+  it("acepta los límites y espacios interiores", async () => {
+    const cookie = await adminSession();
+    for (const [index, validPassword] of [
+      boundaryPassword(16),
+      "Frase interna segura 2026",
+      boundaryPassword(128),
+    ].entries()) {
+      const response = await adminRequest("/admin/users", cookie, {
+        method: "POST",
+        body: JSON.stringify({
+          nombre: `Válida ${index}`,
+          username: `valida${index}`,
+          password: validPassword,
+          email: `valida${index}@example.test`,
+          role_id: 5,
+          activo: true,
+        }),
+      });
+      assert.equal(response.status, 201);
+      const stored = sqlite
+        .prepare("SELECT password_hash FROM usuarios WHERE username = ?")
+        .get(`valida${index}`) as { password_hash: string };
+      assert.equal(
+        await verifyPassword(validPassword, stored.password_hash),
+        true,
+      );
+    }
+  });
+
+  it("acepta ambos límites también al resetear y revoca la sesión", async () => {
+    const cookie = await adminSession();
+    let currentPassword = password;
+
+    for (const validPassword of [
+      boundaryPassword(16),
+      boundaryPassword(128),
+    ]) {
+      const operatorResponse = await login("operadora", currentPassword);
+      assert.equal(operatorResponse.status, 200);
+
+      const reset = await adminRequest("/admin/users/2/password", cookie, {
+        method: "POST",
+        body: JSON.stringify({ password: validPassword }),
+      });
+      assert.equal(reset.status, 204);
+
+      const stored = sqlite
+        .prepare("SELECT password_hash FROM usuarios WHERE id = 2")
+        .get() as { password_hash: string };
+      const sessions = sqlite
+        .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = 2")
+        .get() as { total: number };
+      assert.equal(
+        await verifyPassword(validPassword, stored.password_hash),
+        true,
+      );
+      assert.equal(sessions.total, 0);
+      currentPassword = validPassword;
+    }
   });
 });
 

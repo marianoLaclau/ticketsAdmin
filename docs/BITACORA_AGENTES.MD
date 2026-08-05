@@ -2,6 +2,20 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-04 — Política única de contraseñas nuevas
+
+**Agente:** Codex
+**Estado:** cuarta remediación de la auditoría técnica, implementada y validada localmente.
+
+- Se creó `@workspace/password-policy`, paquete puro consumido por backend y frontend. Alta de usuario, reset y bootstrap exigen 16–128 unidades UTF-16; rechazan controles C0/DEL, whitespace exterior, una lista acotada de valores comunes/placeholders públicos y claves de un único carácter repetido. Admiten frases con espacios interiores y no fuerzan reglas de composición.
+- OpenAPI reutiliza un único componente `NewPassword` para alta y reset, con longitud, `writeOnly` y un patrón que rechaza controles C0/DEL y whitespace exterior. Orval regeneró cliente/tipos y Zod; la blocklist contextual y el rechazo de un único carácter repetido se aplican después mediante el paquete compartido y antes de cualquier hash o mutación.
+- Login conserva un contrato diferente de 1–128 para no bloquear claves históricas. No aplica trim ni blocklist al verificar y puede rehashear credenciales cortas, comunes o con espacios exteriores; esa excepción no existe en ninguna entrada de contraseña nueva.
+- La UI usa la misma política para validación, ayudas, estados deshabilitados y límites de los inputs. Los mensajes explican longitud, controles, espacios exteriores o clave predecible sin mostrar errores técnicos. El campo de login limita el payload a 128 sin aplicar reglas retroactivas.
+- Los consumidores manejan exhaustivamente todos los códigos de violación, de modo que ampliar la unión obliga a actualizar backend, bootstrap y frontend en compilación. `hashPassword` permanece como primitiva criptográfica sin política para permitir migraciones históricas.
+- Se agregaron pruebas puras, de paridad OpenAPI/Zod, de rutas y de UI: límites 15/16/128/129, whitespace exterior/interior, controles C0/DEL, blocklist normalizada, placeholders públicos, repetición de un único carácter, alta/reset sin mutaciones ante rechazo, revocación válida, bootstrap y login histórico de 1–128 con rehash.
+- Archivos principales: `lib/password-policy/`, `lib/api-spec/openapi.yaml`, artefactos generados de API, `backend/src/lib/seed.ts`, `backend/src/routes/admin.ts`, `frontend/src/lib/password-policy.ts`, `frontend/src/pages/AdminRolesUsers.tsx` y `frontend/src/pages/Login.tsx`.
+- Validaciones ejecutadas antes del commit: 199 pruebas correctas (backend 93, frontend 46, política compartida 4, base de datos 8 e ingesta 48), codegen, typecheck completo, build de producción, `git diff --check` y revisión cruzada. El build conserva únicamente las advertencias ya auditadas de sourcemaps y tamaño del bundle, fuera del alcance de este commit.
+
 ## 2026-08-04 — Scrypt asíncrono y hashes versionados
 
 **Agente:** Codex

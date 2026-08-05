@@ -123,8 +123,17 @@ describe("bootstrap seguro del SysAdmin", () => {
     for (const password of [
       "demasiado-corta",
       "passwordpassword",
+      "a".repeat(16),
+      "generar-una-clave-larga-y-aleatoria",
+      "generar-otra-clave-larga-y-aleatoria",
       "generar-una-clave-inicial-larga-y-unica",
+      "not-used-for-readonly-command",
+      "not-used-by-backup",
       " password-largo-pero-invalido ",
+      "x".repeat(129),
+      "password-largo-pero-invalido\u00a0",
+      "password\ninterno-invalido-2026",
+      "password\u0000interno-invalido-2026",
     ]) {
       process.env.BOOTSTRAP_SYSADMIN_PASSWORD = password;
       await assert.rejects(ensureAdminSeed(), /BOOTSTRAP_SYSADMIN_PASSWORD/);

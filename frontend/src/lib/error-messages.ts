@@ -52,8 +52,17 @@ function knownBusinessMessage(error: unknown): string | undefined {
     if (message.includes('coincid') || message.includes('match')) {
       return 'Las contraseñas no coinciden. Revisá ambos campos.';
     }
-    if (message.includes('6') || message.includes('corta') || message.includes('least')) {
-      return 'La contraseña debe tener al menos 6 caracteres.';
+    if (message.includes('principio') || message.includes('comenzar') || message.includes('terminar con espacios')) {
+      return 'La contraseña no puede tener espacios al principio ni al final.';
+    }
+    if (message.includes('caracteres de control')) {
+      return 'La contraseña no puede contener saltos de línea, tabulaciones ni otros caracteres de control.';
+    }
+    if (message.includes('comun') || message.includes('predecible') || message.includes('ejemplo publico')) {
+      return 'Elegí una contraseña menos predecible; esa clave es común, repetitiva o de ejemplo.';
+    }
+    if (message.includes('16') || message.includes('128') || message.includes('corta') || message.includes('least')) {
+      return 'La contraseña debe tener entre 16 y 128 caracteres.';
     }
   }
 
