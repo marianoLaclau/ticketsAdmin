@@ -2,6 +2,19 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — Backup SQLite endurecido y probado
+
+**Agente:** Codex
+**Estado:** vigesimoquinta remediación de la auditoría técnica, implementada localmente.
+
+- La copia online conserva commits que todavía están en WAL y excluye transacciones abiertas. Antes de publicarse verifica `integrity_check`, claves foráneas y tablas más columnas históricas mínimas de `tickets` y `seguimientos`; el ledger de migraciones no se exige porque `drizzle-kit push` es un origen local válido.
+- Los archivos con PII y hashes se construyen dentro de un staging `0700` y quedan en modo `0600` en POSIX, incluso con un umask permisivo. Archivo y entrada de directorio se sincronizan donde la plataforma lo soporta; Windows conserva la publicación segura pero requiere ACL privadas en el directorio.
+- La publicación mantiene la garantía no-clobber mediante hard link: dos productores concurrentes dejan exactamente una copia completa y nunca pisan un destino. Sus temporales privados se eliminan tanto en éxito como ante errores.
+- Se centralizaron verificación y operaciones de archivo para sostener el siguiente bloque de restauración sin duplicar reglas.
+- Las regresiones reales cubren WAL confirmado, escritura no confirmada, corrupción, esquema ajeno, FK huérfana, destino existente, mismo inode, permisos, concurrencia y limpieza de temporales.
+- Archivos principales: `lib/db/src/backup.ts`, `lib/db/src/sqlite-verification.ts`, `lib/db/src/sqlite-files.ts`, suite de base y documentación operativa.
+- Validaciones: 8 regresiones específicas, 20 pruebas de `@workspace/db` y 319 pruebas totales aprobadas; `pnpm run quality` confirmó además codegen sin drift, cadena Drizzle, typecheck y builds de producción. Permanecen únicamente los avisos ya registrados de sourcemaps en cuatro componentes UI y del bundle frontend mayor a 500 kB.
+
 ## 2026-08-05 — Readiness aplicada al despliegue
 
 **Agente:** Codex

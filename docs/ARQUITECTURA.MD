@@ -106,7 +106,7 @@ Las reglas importantes viven fuera de los handlers cuando pueden reutilizarse:
 - Drizzle ORM como acceso tipado de la aplicación;
 - migraciones ejecutadas por el migrador de Drizzle en producción.
 
-La excepción deliberada es el backup online: usa la API nativa de `better-sqlite3` para copiar una base en WAL y ejecutar `PRAGMA integrity_check` antes de publicar el archivo resultante.
+La excepción deliberada es el backup online: usa la API nativa de `better-sqlite3` para obtener un snapshot consistente aunque haya commits en WAL. Antes de publicar valida integridad física, claves foráneas y la identidad mínima del esquema; el archivo queda `0600` en POSIX, se sincroniza cuando la plataforma lo soporta y se publica con una operación no-clobber. Las pruebas cubren además que una transacción sin confirmar no ingrese al respaldo.
 
 El backend es intencionalmente de instancia única respecto del archivo SQLite. Escalar horizontalmente varios contenedores contra el mismo archivo no forma parte del diseño actual.
 

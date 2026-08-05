@@ -16,7 +16,7 @@ Opciones:
 
 El backup usa la API online de SQLite, por lo que incluye transacciones
 confirmadas que todavía estén en el WAL. El archivo solo se publica después
-de pasar PRAGMA integrity_check.`;
+de validar integridad, claves foráneas y el esquema histórico mínimo.`;
 
 interface CliOptions {
   output?: string;
@@ -75,7 +75,10 @@ function loadWorkspaceEnv(startDirectory: string): void {
     }
 
     const parent = path.dirname(directory);
-    if (parent === directory || fs.existsSync(path.join(directory, "pnpm-workspace.yaml"))) {
+    if (
+      parent === directory ||
+      fs.existsSync(path.join(directory, "pnpm-workspace.yaml"))
+    ) {
       return;
     }
     directory = parent;
@@ -94,14 +97,34 @@ async function main(): Promise<void> {
     throw new Error(`--output es obligatorio\n\n${USAGE}`);
   }
 
-  const invocationDirectory = path.resolve(process.env.INIT_CWD ?? process.cwd());
+  const invocationDirectory = path.resolve(
+    process.env.INIT_CWD ?? process.cwd(),
+  );
   loadWorkspaceEnv(invocationDirectory);
 
   const sourcePath = options.source
     ? path.resolve(invocationDirectory, options.source)
     : resolveDbPath(invocationDirectory);
   const outputPath = path.resolve(invocationDirectory, options.output);
-  const result = await createVerifiedSqliteBackup(sourcePath, outputPath);
+  const result = await createVerifiedSqliteBackup(sourcePath, outputPath, {
+    checkForeignKeys: true,
+    // El ledger de migraciones es opcional: desarrollo puede crear el mismo
+    // esquema mediante drizzle-kit push. Las dos tablas iniciales identifican
+    // también backups históricos que el migrador todavía puede actualizar.
+    requiredTables: ["tickets", "seguimientos"],
+    requiredColumns: {
+      tickets: [
+        "id",
+        "conversation_id",
+        "hora",
+        "nombre",
+        "apellido",
+        "motivo",
+        "fecha_creacion",
+      ],
+      seguimientos: ["id", "ticket_id", "nota", "fecha_creacion"],
+    },
+  });
 
   console.log("Backup SQLite creado y verificado");
   console.log(`Origen: ${result.sourcePath}`);

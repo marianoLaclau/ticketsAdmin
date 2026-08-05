@@ -96,7 +96,7 @@ Abrir http://localhost:3000. En una base nueva, el primer arranque crea el usuar
 - `pnpm run quality` — quality gate completo: codegen sin drift, migraciones, pruebas, typecheck y builds
 - `pnpm --filter @workspace/db run push` — aplica cambios de schema a la base SQLite (dev only)
 - `pnpm --filter @workspace/scripts run import-excel -- <archivo.xlsx|csv> [--dry-run] [--sheet <nombre>]` — importa el histórico de llamadas (idempotente por conversation_id)
-- `pnpm run backup:db -- --output ./backups/tickets-AAAA-MM-DD.db` — backup SQLite consistente con WAL, verifica integridad y no sobrescribe archivos
+- `pnpm run backup:db -- --output ./backups/tickets-AAAA-MM-DD.db` — backup SQLite consistente con WAL; valida integridad, claves foráneas y esquema mínimo, usa permisos restrictivos y nunca sobrescribe archivos
 - `pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts` — genera el SQL de migración tras cambiar el schema (commitear el resultado)
 - `WEBHOOK_API_KEY=... ADMIN_API_KEY=... BOOTSTRAP_SYSADMIN_PASSWORD=... docker compose up -d --build` — levanta una instalación nueva en contenedores (ver [docs/DEPLOY.md](docs/DEPLOY.md)); el tercer valor deja de ser necesario después del bootstrap
 

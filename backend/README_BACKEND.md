@@ -403,11 +403,14 @@ En Docker (`Dockerfile.backend`): se buildea, se arma un `node_modules` de produ
 
 `lib/db/src/backup.ts` (`createVerifiedSqliteBackup`) usa la API de backup online de better-sqlite3 (incluye transacciones confirmadas que todavía estén solo en el WAL, no en el archivo principal):
 
-1. Copia a un archivo temporal `.partial`.
-2. Corre `PRAGMA integrity_check` sobre la copia.
-3. Solo si da `"ok"`, la publica con un hard link atómico al destino (nunca sobrescribe un destino existente).
+1. Copia a un archivo temporal `.partial` mediante un snapshot online, no con una copia directa del `.db`.
+2. Corre `PRAGMA integrity_check`, `foreign_key_check` y comprueba tablas más columnas históricas mínimas de TicketManager, sin exigir el ledger opcional de migraciones.
+3. Fuerza modo `0600` en POSIX, sincroniza archivo/directorio cuando la plataforma lo permite y recién entonces publica mediante un hard link no-clobber (nunca sobrescribe un destino existente).
+4. Ante cualquier error elimina solamente sus temporales; un archivo de salida visible siempre es una copia completa y verificada.
 
 CLI: `scripts/src/backup-db.ts`, expuesto como `pnpm run backup:db -- --output <archivo> [--source <db>]`. Carga el `.env` del workspace y resuelve `TICKETS_DB_PATH` igual que el resto del sistema.
+
+Los backups contienen PII, hashes de contraseña y hashes de sesión. En Windows el `chmod` de Node no reemplaza ACL correctas sobre la carpeta de destino; esa carpeta debe quedar accesible solo para el operador autorizado.
 
 ## Convenciones de error
 

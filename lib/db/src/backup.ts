@@ -3,64 +3,66 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import Database from "better-sqlite3";
+import {
+  areSameExistingFile,
+  assertRegularFile,
+  createPrivateFile,
+  createPrivateStagingDirectory,
+  pathEntryExists,
+  removeSqliteArtifacts,
+  syncDirectory,
+  syncFile,
+} from "./sqlite-files";
+import {
+  verifySqliteFile,
+  type SqliteVerificationOptions,
+  type SqliteVerificationResult,
+} from "./sqlite-verification";
 
-export interface SqliteBackupResult {
+export interface SqliteBackupResult extends SqliteVerificationResult {
   sourcePath: string;
   outputPath: string;
-  integrity: "ok";
-  pageCount: number;
-  bytes: number;
-}
-
-function areSamePath(first: string, second: string): boolean {
-  if (process.platform === "win32") {
-    return first.toLocaleLowerCase("en-US") === second.toLocaleLowerCase("en-US");
-  }
-  return first === second;
-}
-
-function removeTemporaryArtifacts(databasePath: string): void {
-  for (const suffix of ["", "-shm", "-wal", "-journal"]) {
-    fs.rmSync(`${databasePath}${suffix}`, { force: true });
-  }
 }
 
 /**
  * Creates a transactionally consistent SQLite backup, including committed
  * pages that are still in the source WAL. The destination is never
- * overwritten and is only published after PRAGMA integrity_check succeeds.
+ * overwritten and is only published after all requested checks succeed.
  */
 export async function createVerifiedSqliteBackup(
   source: string,
   output: string,
+  verification: SqliteVerificationOptions = {},
 ): Promise<SqliteBackupResult> {
   const sourcePath = path.resolve(source);
   const outputPath = path.resolve(output);
 
-  if (areSamePath(sourcePath, outputPath)) {
+  if (areSameExistingFile(sourcePath, outputPath)) {
     throw new Error("El destino del backup no puede ser la base de origen");
   }
 
-  const sourceStat = fs.statSync(sourcePath, { throwIfNoEntry: false });
-  if (!sourceStat?.isFile()) {
-    throw new Error(`La base de origen no existe o no es un archivo: ${sourcePath}`);
-  }
+  assertRegularFile(sourcePath, "La base de origen");
 
-  if (fs.existsSync(outputPath)) {
+  if (pathEntryExists(outputPath)) {
     throw new Error(`El destino ya existe; elegí otro nombre: ${outputPath}`);
   }
 
   const outputDirectory = path.dirname(outputPath);
   fs.mkdirSync(outputDirectory, { recursive: true });
-
-  const temporaryPath = path.join(
+  const stagingDirectory = createPrivateStagingDirectory(
     outputDirectory,
-    `.${path.basename(outputPath)}.${process.pid}.${randomUUID()}.partial`,
+    `.${path.basename(outputPath)}.${process.pid}.${randomUUID()}.staging-`,
   );
+  const temporaryPath = path.join(stagingDirectory, "snapshot.partial");
 
   let sourceDatabase: Database.Database | undefined;
 
   try {
+    // Create the sensitive path with restrictive permissions before SQLite
+    // writes its first page. Applying chmod only after backup() would expose a
+    // world-readable partial whenever the process umask is permissive.
+    createPrivateFile(temporaryPath);
+
     sourceDatabase = new Database(sourcePath, {
       readonly: true,
       fileMustExist: true,
@@ -70,42 +72,33 @@ export async function createVerifiedSqliteBackup(
     sourceDatabase.close();
     sourceDatabase = undefined;
 
-    const backupDatabase = new Database(temporaryPath, {
-      readonly: true,
-      fileMustExist: true,
-      timeout: 5_000,
-    });
+    // Preserve the invariant even if a filesystem altered the requested mode;
+    // Windows still needs appropriate directory ACLs.
+    fs.chmodSync(temporaryPath, 0o600);
+    const result = verifySqliteFile(temporaryPath, verification);
+    syncFile(temporaryPath);
 
-    let integrityResult: unknown;
-    let pageCount: unknown;
-    try {
-      integrityResult = backupDatabase.pragma("integrity_check", { simple: true });
-      pageCount = backupDatabase.pragma("page_count", { simple: true });
-    } finally {
-      backupDatabase.close();
-    }
-
-    if (integrityResult !== "ok") {
-      throw new Error(`La copia no pasó integrity_check: ${String(integrityResult)}`);
-    }
-    if (typeof pageCount !== "number") {
-      throw new Error(`SQLite devolvió un page_count inválido: ${String(pageCount)}`);
-    }
-
-    // Publicación sin sobrescritura: el hard link falla atómicamente si otro
-    // proceso creó el destino mientras se generaba/verificaba el backup.
+    // No-clobber publication: the hard link fails atomically if another
+    // process created the destination while the snapshot was being checked.
     fs.linkSync(temporaryPath, outputPath);
+    syncDirectory(outputDirectory);
     fs.rmSync(temporaryPath);
+    syncDirectory(outputDirectory);
 
     return {
       sourcePath,
       outputPath,
-      integrity: "ok",
-      pageCount,
-      bytes: fs.statSync(outputPath).size,
+      ...result,
     };
   } finally {
     sourceDatabase?.close();
-    removeTemporaryArtifacts(temporaryPath);
+    removeSqliteArtifacts(temporaryPath);
+    fs.rmSync(stagingDirectory, { recursive: true, force: true });
   }
 }
+
+export { verifySqliteFile } from "./sqlite-verification";
+export type {
+  SqliteVerificationOptions,
+  SqliteVerificationResult,
+} from "./sqlite-verification";

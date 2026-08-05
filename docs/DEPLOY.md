@@ -199,7 +199,7 @@ con el mismo header `x-api-key` (el valor cargado como secreto `WEBHOOK_API_KEY`
 - **Cada comando Compose** se ejecuta desde un checkout actual del repo (el workspace del runner o `/opt/ticketsAdmin` actualizado). El proyecto se llama siempre `ticketsadmin`.
 - **Ver logs**: `WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose logs -f backend` (o `frontend`).
 - **Ver estado**: `WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose ps`
-- **Backup de la base**: no usar `cat`, `cp` ni copiar solamente `/data/tickets.db`; SQLite está en WAL y eso puede omitir transacciones confirmadas. La imagen del backend incluye un CLI que usa la API online de SQLite y publica la copia solo después de `PRAGMA integrity_check`. Para guardar el backup fuera del volumen Docker:
+- **Backup de la base**: no usar `cat`, `cp` ni copiar solamente `/data/tickets.db`; SQLite está en WAL y eso puede omitir transacciones confirmadas. La imagen del backend incluye un CLI que usa la API online de SQLite y publica la copia solo después de verificar integridad, claves foráneas y el esquema histórico mínimo de la aplicación. Para guardar el backup fuera del volumen Docker:
   ```bash
   mkdir -p "$HOME/backups/ticketsadmin"
   BACKUP_NAME="tickets-$(date -u +%Y%m%dT%H%M%SZ).db"
@@ -210,7 +210,7 @@ con el mismo header `x-api-key` (el valor cargado como secreto `WEBHOOK_API_KEY`
   WEBHOOK_API_KEY=not-used-by-backup ADMIN_API_KEY=not-used-by-backup docker compose exec -T backend \
     rm -f "/tmp/$BACKUP_NAME"
   ```
-  Los placeholders solo satisfacen la interpolación de Compose: `exec` usa el entorno real del backend que ya está corriendo y no lo modifica. El destino es obligatorio y nunca se sobrescribe; una ejecución exitosa informa `Integridad: ok`. El `cp` extrae la copia ya verificada y el último comando elimina el temporal del contenedor. Copiar luego el archivo a almacenamiento externo según la política de retención.
+  Los placeholders solo satisfacen la interpolación de Compose: `exec` usa el entorno real del backend que ya está corriendo y no lo modifica. El destino es obligatorio y nunca se sobrescribe; una ejecución exitosa informa `Integridad: ok`. El archivo se crea `0600` en Linux porque contiene PII, hashes de contraseña y hashes de sesión. El `cp` extrae la copia ya verificada y el último comando elimina el temporal del contenedor. El directorio externo debe ser privado (`0700`, o ACL equivalente) y tener una política explícita de retención.
 - **Cambios de schema**: si se modifica `lib/db/src/schema/tickets.ts`, hay que generar la migración ANTES de mergear a main:
   ```bash
   pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts
