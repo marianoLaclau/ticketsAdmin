@@ -27,6 +27,7 @@ export interface TicketCandidatoPrioridad {
 
 export interface PromocionPrioridad {
   ticketId: number;
+  version: number;
   prioridadAnterior: PrioridadSla;
   prioridadNueva: PrioridadSla;
   horasHabilesRestantes: number;
@@ -49,7 +50,9 @@ export interface CambioPrioridadCondicional {
 
 export interface RepositorioPrioridadAutomatica {
   listarCandidatos(): Promise<readonly TicketCandidatoPrioridad[]>;
-  promoverSiCoincide(cambio: CambioPrioridadCondicional): Promise<boolean>;
+  promoverSiCoincide(
+    cambio: CambioPrioridadCondicional,
+  ): Promise<{ version: number } | null>;
 }
 
 export interface ServicioPrioridadAutomatica {
@@ -101,6 +104,7 @@ export function emitirPromocionPrioridadSse(
   try {
     emitir("ticket_actualizado", {
       ticket_id: promocion.ticketId,
+      version: promocion.version,
       prioridad: promocion.prioridadNueva,
       prioridad_anterior: promocion.prioridadAnterior,
       prioridad_nueva: promocion.prioridadNueva,
@@ -172,6 +176,7 @@ export async function ejecutarCicloPrioridadAutomatica(
 
     const promocion = {
       ticketId: ticket.id,
+      version: actualizado.version,
       prioridadAnterior: ticket.prioridad,
       prioridadNueva,
       horasHabilesRestantes,
@@ -275,10 +280,11 @@ export function crearRepositorioPrioridadAutomaticaDb(
               not(inArray(ticketsTable.estado, ESTADOS_FINALIZADOS_PRIORIDAD)),
             ),
           )
-          .returning({ id: ticketsTable.id })
+          .returning({ version: ticketsTable.version })
           .all();
 
-        if (actualizados.length !== 1) return false;
+        const actualizado = actualizados[0];
+        if (!actualizado || actualizados.length !== 1) return null;
 
         tx.insert(seguimientosTable)
           .values({
@@ -290,7 +296,7 @@ export function crearRepositorioPrioridadAutomaticaDb(
           })
           .run();
 
-        return true;
+        return { version: actualizado.version };
       });
     },
   };

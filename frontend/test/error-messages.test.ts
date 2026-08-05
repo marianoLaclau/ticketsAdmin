@@ -7,6 +7,7 @@ import {
   getPasswordChangeErrorMessage,
   getServerErrorCode,
   getUserErrorMessage,
+  isTicketVersionConflict,
 } from '../src/lib/error-messages.ts';
 
 function apiError(
@@ -158,4 +159,22 @@ test('el cambio de contraseña usa códigos estables sin filtrar el servidor', (
 test('respeta un fallback amigable para errores no clasificados', () => {
   const result = getUserErrorMessage(new Error('stack trace interno'), 'No se pudo guardar. Reintentá.');
   assert.equal(result, 'No se pudo guardar. Reintentá.');
+});
+
+test('reconoce solo el código estable de conflicto de versión', () => {
+  const conflict = {
+    status: 409,
+    data: {
+      code: 'TICKET_VERSION_CONFLICT',
+      error: 'detalle técnico',
+    },
+  };
+
+  assert.equal(isTicketVersionConflict(conflict), true);
+  assert.equal(
+    isTicketVersionConflict({ status: 409, data: { error: 'Otro conflicto' } }),
+    false,
+  );
+  assert.match(getUserErrorMessage(conflict), /actualizó este ticket/i);
+  assert.doesNotMatch(getUserErrorMessage(conflict), /detalle técnico/i);
 });

@@ -1,4 +1,5 @@
-import type { Ticket, TicketUpdate } from '@workspace/api-client-react';
+import type { Ticket } from '@workspace/api-client-react';
+import type { TicketChanges } from './ticket-version';
 
 export const FUNCTIONAL_TICKET_FIELD_LABELS = {
   nombre: 'Nombre',
@@ -114,8 +115,8 @@ export function applyTicketManagementState(
 export function buildTicketManagementUpdate(
   baseline: TicketManagementForm,
   draft: TicketManagementForm,
-): TicketUpdate {
-  const update: TicketUpdate = {};
+): TicketChanges {
+  const update: TicketChanges = {};
 
   if (draft.estado !== baseline.estado) {
     update.estado = draft.estado;
@@ -142,8 +143,8 @@ export function buildTicketManagementUpdate(
 export function buildFunctionalTicketUpdateFromBaseline(
   baseline: TicketFunctionalForm,
   form: TicketFunctionalForm,
-): TicketUpdate {
-  const update: TicketUpdate = {};
+): TicketChanges {
+  const update: TicketChanges = {};
 
   const requiredFields = ['nombre', 'apellido', 'motivo'] as const;
   for (const field of requiredFields) {

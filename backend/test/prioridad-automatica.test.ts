@@ -34,6 +34,7 @@ class RepositorioEnMemoria implements RepositorioPrioridadAutomatica {
   readonly tickets: TicketCandidatoPrioridad[];
   readonly cambios: CambioPrioridadCondicional[] = [];
   lecturas = 0;
+  readonly versiones = new Map<number, number>();
 
   constructor(tickets: TicketCandidatoPrioridad[]) {
     this.tickets = tickets;
@@ -44,7 +45,9 @@ class RepositorioEnMemoria implements RepositorioPrioridadAutomatica {
     return this.tickets;
   }
 
-  async promoverSiCoincide(cambio: CambioPrioridadCondicional): Promise<boolean> {
+  async promoverSiCoincide(
+    cambio: CambioPrioridadCondicional,
+  ): Promise<{ version: number } | null> {
     const actual = this.tickets.find((item) => item.id === cambio.ticketId);
     if (
       !actual ||
@@ -54,12 +57,14 @@ class RepositorioEnMemoria implements RepositorioPrioridadAutomatica {
       actual.prioridad !== cambio.prioridadEsperada ||
       actual.fechaLimite?.getTime() !== cambio.fechaLimiteEsperada.getTime()
     ) {
-      return false;
+      return null;
     }
 
     actual.prioridad = cambio.prioridadNueva;
     this.cambios.push(cambio);
-    return true;
+    const version = (this.versiones.get(actual.id) ?? 1) + 1;
+    this.versiones.set(actual.id, version);
+    return { version };
   }
 }
 
@@ -129,7 +134,7 @@ describe("ciclo de prioridad automatica", () => {
     const base = new RepositorioEnMemoria([ticket(1, 5)]);
     const repositorio: RepositorioPrioridadAutomatica = {
       listarCandidatos: () => base.listarCandidatos(),
-      promoverSiCoincide: async () => false,
+      promoverSiCoincide: async () => null,
     };
 
     const resultado = await ejecutarCicloPrioridadAutomatica(
@@ -167,7 +172,7 @@ describe("servicio de prioridad automatica", () => {
           liberarLectura = resolve;
         });
       },
-      promoverSiCoincide: async () => true,
+      promoverSiCoincide: async () => ({ version: 2 }),
     };
     let lecturasReloj = 0;
     const servicio = crearServicioPrioridadAutomatica(repositorio, () => {
@@ -203,7 +208,7 @@ describe("servicio de prioridad automatica", () => {
         if (intento === 1) throw new Error("fallo esperado");
         return [];
       },
-      promoverSiCoincide: async () => true,
+      promoverSiCoincide: async () => ({ version: 2 }),
     };
     const servicio = crearServicioPrioridadAutomatica(repositorio);
 

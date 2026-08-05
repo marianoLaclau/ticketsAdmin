@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  getTicket,
   getListTicketsQueryKey,
   useListTickets,
   useCreateAdminTicket,
@@ -11,14 +12,17 @@ import {
   TicketPrioridad,
   TicketSortBy,
   type Ticket,
+  type TicketListResponse,
   type AdminImportResult,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { adminErrorMessage, useAdminAccess } from '@/hooks/use-admin-access';
+import { isTicketVersionConflict } from '@/lib/error-messages';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { SortableTableHead } from '@/components/SortableTableHead';
+import { TicketVersionConflictAlert } from '@/components/tickets/TicketVersionConflictAlert';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -85,6 +89,12 @@ import {
   type AdminTicketForm,
   type AdminTicketTextField,
 } from '@/lib/admin-ticket-form';
+import {
+  buildVersionedTicketUpdate,
+  createTicketEditBaseline,
+  shouldApplyTicketRevision,
+  type TicketEditBaseline,
+} from '@/lib/ticket-version';
 
 const CAMPOS_TEXTO: Array<{
   campo: AdminTicketTextField;
@@ -145,10 +155,15 @@ export default function Admin() {
     order: sorts[0]?.order ?? 'desc',
     ...(search ? { search } : {}),
   };
+  const listQueryKey = [
+    ...getListTicketsQueryKey(listParams),
+    'admin-access',
+    adminAccessVersion,
+  ] as const;
   const listQuery = useListTickets(listParams, {
     query: {
       enabled: Boolean(adminKey),
-      queryKey: [...getListTicketsQueryKey(listParams), 'admin-access', adminAccessVersion],
+      queryKey: listQueryKey,
       retry: false,
     },
     request: adminRequest,
@@ -190,32 +205,63 @@ export default function Admin() {
   const deleteTicket = useDeleteTicket({ request: adminRequest });
 
   const [dialogAbierto, setDialogAbierto] = useState(false);
+  const [isReloadingTicket, setIsReloadingTicket] = useState(false);
+  const [hasVersionConflict, setHasVersionConflict] = useState(false);
+  const reloadAttemptRef = useRef(0);
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [form, setForm] = useState<AdminTicketForm>(
     createEmptyAdminTicketForm,
   );
   const [editBaseline, setEditBaseline] =
-    useState<AdminTicketForm | null>(null);
+    useState<TicketEditBaseline<AdminTicketForm> | null>(null);
   const [aEliminar, setAEliminar] = useState<Ticket | null>(null);
 
   const cambiarEstadoDialogo = (open: boolean) => {
     setDialogAbierto(open);
-    if (!open) setEditBaseline(null);
+    if (!open) {
+      reloadAttemptRef.current += 1;
+      setIsReloadingTicket(false);
+      setEditBaseline(null);
+      setHasVersionConflict(false);
+    }
   };
 
   const abrirCrear = () => {
+    reloadAttemptRef.current += 1;
+    setIsReloadingTicket(false);
     setEditandoId(null);
     setEditBaseline(null);
+    setHasVersionConflict(false);
     setForm(createEmptyAdminTicketForm());
     setDialogAbierto(true);
   };
 
   const abrirEditar = (t: Ticket) => {
+    if (isReloadingTicket) return;
+    reloadAttemptRef.current += 1;
     const snapshot = ticketToAdminTicketForm(t);
     setEditandoId(t.id);
-    setEditBaseline(snapshot);
+    setEditBaseline(createTicketEditBaseline(t, snapshot));
+    setHasVersionConflict(false);
     setForm({ ...snapshot });
     setDialogAbierto(true);
+  };
+
+  const cacheTicketInCurrentList = (savedTicket: Ticket) => {
+    queryClient.setQueryData<TicketListResponse>(
+      listQueryKey,
+      (current) => current
+        ? {
+            ...current,
+            tickets: current.tickets.map((ticket) =>
+              ticket.id === savedTicket.id &&
+              shouldApplyTicketRevision(ticket, savedTicket)
+                ? savedTicket
+                : ticket,
+            ),
+          }
+        : current,
+    );
   };
 
   const guardarRegistro = () => {
@@ -223,8 +269,9 @@ export default function Admin() {
     const onOk =
       (titulo: string, dedupeCreated = false) =>
       (savedTicket: Ticket) => {
+        cacheTicketInCurrentList(savedTicket);
         cambiarEstadoDialogo(false);
-        refrescarTodo();
+        void refrescarTodo();
         toast({
           dedupeKey: dedupeCreated ? `ticket-created:${savedTicket.id}` : undefined,
           variant: 'success',
@@ -239,8 +286,11 @@ export default function Admin() {
       );
     } else {
       if (!editBaseline) return;
-      const update = buildAdminTicketUpdate(editBaseline, form);
-      if (Object.keys(update).length === 0) {
+      const update = buildVersionedTicketUpdate(
+        buildAdminTicketUpdate(editBaseline.values, form),
+        editBaseline.expectedVersion,
+      );
+      if (!update) {
         cambiarEstadoDialogo(false);
         toast({
           variant: 'info',
@@ -255,8 +305,58 @@ export default function Admin() {
           data: update,
           params: { incluir_vacios: true },
         },
-        { onSuccess: onOk('Ticket actualizado'), onError: errorToast('No se pudo actualizar el ticket') },
+        {
+          onSuccess: onOk('Ticket actualizado'),
+          onError: (error) => {
+            if (!isTicketVersionConflict(error)) {
+              errorToast('No se pudo actualizar el ticket')(error);
+              return;
+            }
+
+            setHasVersionConflict(true);
+            toast({
+              variant: 'warning',
+              title: 'El ticket cambió en otra sesión',
+              description:
+                'Conservamos lo que escribiste. Cargá la versión actual antes de volver a guardar.',
+            });
+          },
+        },
       );
+    }
+  };
+
+  const resolverConflictoDeVersion = async () => {
+    if (editandoId === null) return;
+    const reloadAttempt = reloadAttemptRef.current + 1;
+    reloadAttemptRef.current = reloadAttempt;
+    setIsReloadingTicket(true);
+    try {
+      const [latestTicket] = await Promise.all([
+        getTicket(
+          editandoId,
+          { incluir_vacios: true },
+          adminRequest,
+        ),
+        listQuery.refetch(),
+      ]);
+      if (reloadAttemptRef.current !== reloadAttempt) return;
+      const snapshot = ticketToAdminTicketForm(latestTicket);
+      cacheTicketInCurrentList(latestTicket);
+      setEditBaseline(createTicketEditBaseline(latestTicket, snapshot));
+      setForm({ ...snapshot });
+      setHasVersionConflict(false);
+    } catch (error) {
+      if (reloadAttemptRef.current !== reloadAttempt) return;
+      toast({
+        variant: 'destructive',
+        title: 'No se pudo cargar la versión actual',
+        description: adminErrorMessage(error),
+      });
+    } finally {
+      if (reloadAttemptRef.current === reloadAttempt) {
+        setIsReloadingTicket(false);
+      }
     }
   };
 
@@ -638,6 +738,7 @@ export default function Admin() {
                                   event.stopPropagation();
                                   abrirEditar(t);
                                 }}
+                                disabled={isReloadingTicket}
                                 title={`Editar ticket #${t.id}`}
                                 aria-label={`Editar ticket #${t.id}`}
                               >
@@ -862,6 +963,12 @@ export default function Admin() {
                 : 'Edición directa de los campos habilitados del registro.'}
             </DialogDescription>
           </DialogHeader>
+          {hasVersionConflict && (
+            <TicketVersionConflictAlert
+              isReloading={isReloadingTicket}
+              onReload={() => void resolverConflictoDeVersion()}
+            />
+          )}
           <div className="grid grid-cols-2 gap-3 py-2">
             {CAMPOS_TEXTO.map(({ campo, label, requerido }) => (
               <div key={campo} className="space-y-1">
@@ -979,6 +1086,8 @@ export default function Admin() {
               disabled={
                 createTicket.isPending ||
                 updateTicket.isPending ||
+                isReloadingTicket ||
+                hasVersionConflict ||
                 !form.conversation_id.trim() ||
                 !form.hora.trim() ||
                 !form.nombre.trim() ||

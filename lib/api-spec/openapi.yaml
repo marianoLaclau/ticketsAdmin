@@ -816,7 +816,9 @@ paths:
         Las actualizaciones operativas y el enriquecimiento de contacto,
         motivo o resumen requieren una sesión válida. Los campos técnicos y
         el acceso a registros en cuarentena requieren además rol SysAdmin y
-        el header x-admin-key.
+        el header x-admin-key. El body debe incluir expected_version junto a
+        por lo menos un campo editable; una versión desactualizada devuelve
+        TICKET_VERSION_CONFLICT sin persistir ni auditar el intento.
       parameters:
         - name: id
           in: path
@@ -842,10 +844,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Ticket"
+        "400":
+          description: Body inválido, versión ausente o sin campos editables
         "401":
           description: Sesion requerida o clave de administracion invalida
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
+        "409":
+          description: El ticket cambió después de que el cliente abrió el editor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketVersionConflict"
         "503":
           description: ADMIN_API_KEY no esta configurada en el servidor
 
@@ -1118,6 +1128,29 @@ components:
         error:
           type: string
         retry_after_seconds:
+          type: integer
+          minimum: 1
+
+    TicketVersionConflict:
+      type: object
+      required:
+        - code
+        - error
+        - ticket_id
+        - expected_version
+        - current_version
+      properties:
+        code:
+          type: string
+          enum: [TICKET_VERSION_CONFLICT]
+        error:
+          type: string
+        ticket_id:
+          type: integer
+        expected_version:
+          type: integer
+          minimum: 1
+        current_version:
           type: integer
           minimum: 1
 
@@ -1491,6 +1524,7 @@ components:
       type: object
       required:
         - id
+        - version
         - conversation_id
         - hora
         - nombre
@@ -1517,6 +1551,11 @@ components:
       properties:
         id:
           type: integer
+        version:
+          type: integer
+          minimum: 1
+          readOnly: true
+          description: Versión monotónica usada para evitar sobrescrituras concurrentes
         conversation_id:
           type: string
         hora:
@@ -1670,7 +1709,15 @@ components:
 
     TicketUpdate:
       type: object
+      additionalProperties: false
+      minProperties: 2
+      required:
+        - expected_version
       properties:
+        expected_version:
+          type: integer
+          minimum: 1
+          description: Versión del ticket observada al abrir el editor
         hora:
           type: string
         nombre:

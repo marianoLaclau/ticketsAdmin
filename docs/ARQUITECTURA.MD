@@ -384,7 +384,7 @@ Reglas complementarias:
 - A 12 horas hábiles o con vencimiento superado, pasa a `urgente`.
 - Sábados y domingos no consumen horas SLA; los feriados actualmente sí cuentan.
 - Ticket, asignación y seguimiento se persisten en una misma transacción cuando corresponde.
-- Los editores de gestión, datos de contacto y CRUD administrativo toman un baseline inmutable al abrirse y construyen PATCH mínimos contra su draft local. Un refresco SSE concurrente no puede convertir estado, prioridad, notas, progreso, vencimiento ni datos funcionales no tocados en escrituras stale. La revisión monotónica de la fila ya avanza en cambios manuales y automáticos; el siguiente tramo conecta esa precondición al PATCH para resolver carreras sobre el mismo campo. En Administración, los opcionales borrados se expresan como `null`, `conversation_id` permanece inmutable y un no-op no genera tráfico ni auditoría.
+- Los editores de gestión, datos de contacto y CRUD administrativo congelan datos + `version` al abrirse y construyen PATCH mínimos con `expected_version`. El backend reserva escritura con `BEGIN IMMEDIATE`, compara la revisión antes del no-op y vuelve a condicionarla en el UPDATE. Una carrera devuelve `409 TICKET_VERSION_CONFLICT`; no aplica cambios, no audita y no emite SSE. El frontend mantiene el editor y su draft visibles, bloquea un nuevo guardado y solo reemplaza el baseline cuando la persona confirma que quiere descartar sus cambios y cargar la revisión actual. Las escrituras de caché comparan versiones y nunca degradan una revisión más nueva recibida en paralelo. En Administración, los opcionales borrados se expresan como `null`, `conversation_id` permanece inmutable y un no-op vigente no genera tráfico ni auditoría.
 - Las importaciones web/CLI deduplican e insertan todas las filas válidas bajo una transacción; las corridas reales reservan escritura con `BEGIN IMMEDIATE` y un error de persistencia revierte la tanda insertable. Las filas inválidas se saltean según el contrato y `dry_run` usa un snapshot diferido sin escribir.
 - El truncate elimina seguimientos y tickets y reinicia sus secuencias en una sola transacción. Los conteos usan `changes`, sin cargar todos los IDs borrados en memoria.
 
@@ -400,12 +400,18 @@ sequenceDiagram
     participant SSE as Registro SSE
     participant O as Otros navegadores
 
-    U->>API: PATCH /api/tickets/:id
-    API->>DB: transacción ticket + seguimiento
-    DB-->>API: commit confirmado
-    API->>SSE: broadcastEvent()
-    SSE-->>O: evento de actualización
-    O->>API: invalida queries y refresca
+    U->>API: PATCH + expected_version
+    API->>DB: BEGIN IMMEDIATE + compara version
+    alt versión desactualizada
+        API-->>U: 409 TICKET_VERSION_CONFLICT
+    else cambio real
+        API->>DB: UPDATE version + 1 + seguimiento
+        DB-->>API: commit confirmado
+        API->>SSE: ticket_actualizado(version)
+        SSE-->>O: invalida queries y refresca
+    else no-op vigente
+        API-->>U: 200 con la misma version
+    end
 ```
 
 Si una auditoría falla, la transacción se revierte. Si un cliente SSE se desconecta, se elimina sin afectar la operación HTTP que ya fue confirmada. Las revocaciones administrativas se notifican únicamente después del commit con `sesion_revocada`; el frontend cierra su `EventSource`, limpia de inmediato toda la caché y reemplaza la ruta por la entrada pública. La raíz consulta `/auth/me` sin datos stale: un `401` muestra el login y un `200` de una cookie instalada en otra pestaña vuelve a montar la identidad y un stream nuevos. Un corte de red común no se interpreta como logout y conserva la reconexión automática.

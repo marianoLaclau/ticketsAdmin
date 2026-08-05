@@ -2,6 +2,21 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — Control optimista end-to-end de tickets
+
+**Agente:** Codex
+**Estado:** vigésima remediación de la auditoría técnica, implementada localmente.
+
+- OpenAPI expone `Ticket.version` como entero positivo, requerido y de solo lectura. Cada `TicketUpdate` exige `expected_version`, al menos un campo editable y rechaza propiedades ajenas; el codegen propagó tipos/validadores de campo y el backend aplica además la whitelist y la cardinalidad del objeto.
+- `PATCH /tickets/:id` usa `BEGIN IMMEDIATE`, compara la versión antes de evaluar un no-op y repite la condición en el UPDATE. Una escritura real incrementa dato + versión y crea su seguimiento en la misma transacción.
+- Un snapshot viejo recibe `409` con `code: TICKET_VERSION_CONFLICT`, ticket y revisiones esperada/actual. No cambia datos, asignación ni fechas, no audita y no emite SSE. Un no-op vigente conserva la versión.
+- Gestión, datos de contacto y CRUD Admin congelan datos + versión al abrir. Los helpers siguen produciendo change-sets mínimos y agregan la precondición solo después de descartar `{}`; nunca toman la versión viva refrescada por SSE.
+- Ante conflicto, los tres editores permanecen abiertos y conservan el draft para que pueda revisarse o copiarse. Guardar queda bloqueado hasta que la persona elige explícitamente descartar sus cambios y cargar la revisión actual; si esa recarga falla, el draft sigue intacto.
+- Una respuesta exitosa solo actualiza la caché si no existe ya una versión más nueva recibida por SSE/refetch. Las promociones automáticas toman la versión autoritativa de `UPDATE RETURNING` y la incluyen en `ticket_actualizado` después del commit.
+- Se agregaron regresiones para validación de precondiciones, no-op, rollback, retry con versión nueva, dos PATCH competidores (uno 200 y uno 409), baseline congelado y traducción estricta del código de error.
+- Archivos principales: OpenAPI/codegen, ruta PATCH, tres editores, helper de versión, suites backend/frontend y documentación operativa.
+- Validaciones: 291 pruebas correctas (backend 149, frontend 77, base de datos 12, política compartida 4, ingesta 48 y scripts 1), codegen, typecheck y build completos. El build conserva los avisos ya registrados de sourcemaps en cuatro componentes UI y del bundle frontend mayor a 500 kB.
+
 ## 2026-08-05 — Base monotónica para concurrencia de tickets
 
 **Agente:** Codex

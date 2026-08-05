@@ -139,11 +139,13 @@ El botón **Exportar CSV**, junto a los filtros de plazo, conserva filtros y ord
 - Timeline de seguimientos + textarea para agregar uno nuevo (el `autor` no se manda desde acá — lo pone el backend). La línea distingue cambios de estado, prioridad, asignación y campos editados. Los tickets creados por webhook con empresa real comienzan con una entrada de `Sistema` que registra el origen Serin; el backend garantiza que quede primera ordenando por fecha e ID.
 - **Fecha límite**: si el usuario no tocó el control, el campo no se reenvía en el `PATCH` (preserva segundos/milisegundos originales que `datetime-local` no puede representar). Si el control queda vacío pero antes tenía valor, se bloquea el guardado con un toast — el contrato actual no permite null-ear `fecha_limite`.
 - En `/admin/tickets/:id`, `adminMode` agrega `incluir_vacios=true` y `x-admin-key`, permite abrir/corregir un registro en cuarentena y vuelve a Administración. Sin llave no intenta mostrar datos protegidos.
+- Los dos editores congelan el `Ticket.version` junto con sus valores al abrir y envían `expected_version` con un PATCH mínimo. Ante `409 TICKET_VERSION_CONFLICT` conservan el draft visible, bloquean Guardar y solo lo reemplazan cuando la persona elige explícitamente cargar la versión actual. Si la recarga falla, nada escrito se descarta.
 
 ### `Admin.tsx` (ruta `/admin`, solo SysAdmin)
 Tres tabs:
 - **Registros**: tabla CRUD completa (busca, pagina, crea, edita, elimina cualquier ticket) — es la única vía de alta manual del sistema (`POST /api/admin/tickets`).
 - La tabla de Registros muestra ID, fecha/hora, conversation ID, contacto (con teléfono/email), empresa, categoría/motivo, estado, prioridad, asignado y vencimiento. Todas las columnas de datos son ordenables en el servidor; la tabla usa scroll horizontal controlado y mantiene las acciones visibles. Además de editar/eliminar, cada fila se puede abrir en el detalle administrativo, incluidos los registros en cuarentena.
+- La edición captura un baseline versionado, omite `conversation_id` y envía solo diferencias. Un conflicto conserva el formulario hasta que el SysAdmin confirma la carga de la revisión actual; las respuestas de mutaciones nunca reemplazan en caché una versión más nueva recibida por SSE/refetch.
 - **Importar CSV**: al elegir un archivo corre automáticamente un `dry_run` y muestra el resumen (columnas detectadas, a insertar/ya existentes/inválidos) antes de escribir nada; botón para confirmar la importación real.
 - **Zona peligrosa**: truncate de toda la base, con doble seguro — hay que tipear literalmente `BORRAR` para habilitar el botón, y el backend además exige `{ confirmar: true }`.
 
@@ -202,7 +204,8 @@ El transporte real (`customFetch`) vive en `lib/api-client-react/src/custom-fetc
 - **`dashboard-period.ts`** — rangos calendario de semana/mes, validación del período personalizado y etiquetas de presentación.
 - **`asignacion.ts`** — normalización visual del responsable y fallback `Sin asignar`.
 - **`motivos.ts`** — espejo visual del catálogo de `lib/ingesta/src/motivos.ts`, con estilos (`color`, `badgeClass`). Incluye `legales` y la nueva categoría `embargos`; `getMotivoCategoriaConfig(categoria)` devuelve un fallback razonable si llega una categoría todavía desconocida.
-- **`ticket-edit.ts`** — define los ocho campos funcionales editables, compara formulario/ticket para construir un PATCH mínimo y traduce los nombres técnicos del historial a etiquetas legibles.
+- **`ticket-edit.ts`** — define formularios y change-sets mínimos para datos funcionales y gestión, y traduce los nombres técnicos del historial a etiquetas legibles.
+- **`ticket-version.ts`** — congela baseline + versión, agrega `expected_version` solo a cambios reales y evita degradar la caché con una respuesta más antigua.
 - **`ticket-list-controls.ts`** — mantiene en un solo lugar los parámetros de filtros/orden que comparten la consulta paginada y el export CSV.
 - **`utils-tickets.tsx`** — `EstadoBadge`/`PrioridadBadge` (los puntos de color + texto que aparecen en todas las tablas), `formatDate` (formato `es-AR`), `isVencido` (fecha límite pasada y el ticket no está resuelto/cerrado).
 - **`datetime-local.ts`** — `toDateTimeLocalValue`/`dateTimeLocalValueToIso`: convierten entre un ISO string y el formato que espera `<input type="datetime-local">`, **en la zona horaria del navegador** (no UTC). `dateTimeLocalValueToIso` rechaza (devuelve `null`) fechas imposibles o horas inexistentes por cambio de horario de verano, en vez de dejar que `Date` las normalice silenciosamente.

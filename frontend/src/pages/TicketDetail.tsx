@@ -10,6 +10,8 @@ import {
   TicketEstado,
   TicketPrioridad,
   type Seguimiento,
+  type Ticket,
+  type TicketDetail as TicketDetailResponse,
   type TicketUpdate,
 } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
@@ -60,9 +62,13 @@ import { dateTimeLocalValueToIso, toDateTimeLocalValue } from '@/lib/datetime-lo
 import { getEstadoEmpleadoConfig } from '@/lib/estado-empleado';
 import { puedeCerrarTickets } from '@/lib/roles';
 import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
-import { getUserErrorMessage } from '@/lib/error-messages';
+import {
+  getUserErrorMessage,
+  isTicketVersionConflict,
+} from '@/lib/error-messages';
 import { useAdminAccess, adminErrorMessage } from '@/hooks/use-admin-access';
 import { TicketDataEditDialog } from '@/components/tickets/TicketDataEditDialog';
+import { TicketVersionConflictAlert } from '@/components/tickets/TicketVersionConflictAlert';
 import {
   TICKET_STATE_PROGRESS,
   applyTicketManagementState,
@@ -71,6 +77,12 @@ import {
   ticketToManagementForm,
   type TicketManagementForm,
 } from '@/lib/ticket-edit';
+import {
+  buildVersionedTicketUpdate,
+  createTicketEditBaseline,
+  shouldApplyTicketRevision,
+  type TicketEditBaseline,
+} from '@/lib/ticket-version';
 import { getAssignedDisplayName } from '@/lib/asignacion';
 
 const PROGRESS_STEPS = [
@@ -123,11 +135,12 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
   const includeEmptyParams = adminMode ? { incluir_vacios: true } : undefined;
   const requestOptions = adminMode ? adminRequest : undefined;
   const queryScope = adminMode ? 'admin' : 'operativo';
+  const ticketQueryKey = ['/api/tickets', ticketId, queryScope] as const;
 
   const ticketQuery = useGetTicket(ticketId, includeEmptyParams, {
     query: {
       enabled: !!ticketId && (!adminMode || Boolean(adminKey)),
-      queryKey: ['/api/tickets', ticketId, queryScope],
+      queryKey: ticketQueryKey,
     },
     request: requestOptions,
   });
@@ -153,11 +166,15 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
   // Edit states
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingData, setIsEditingData] = useState(false);
+  const [isReloadingConflict, setIsReloadingConflict] = useState(false);
+  const [versionConflict, setVersionConflict] = useState<
+    'management' | 'data' | null
+  >(null);
   const [editData, setEditData] = useState<TicketManagementForm>(
     EMPTY_MANAGEMENT_FORM,
   );
   const [editBaseline, setEditBaseline] =
-    useState<TicketManagementForm | null>(null);
+    useState<TicketEditBaseline<TicketManagementForm> | null>(null);
   
   // New seguimiento state
   const [newSeguimiento, setNewSeguimiento] = useState('');
@@ -169,16 +186,90 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
         adminMode ? toDateTimeLocalValue(ticket.fecha_limite) : '',
       );
       setEditData(form);
-      setEditBaseline({ ...form });
+      setEditBaseline(createTicketEditBaseline(ticket, form));
+      setVersionConflict(null);
     } else if (!open) {
       setEditBaseline(null);
+      setVersionConflict((current) =>
+        current === 'management' ? null : current,
+      );
     }
     setIsEditing(open);
   };
 
+  const handleDataEditOpenChange = (open: boolean) => {
+    setIsEditingData(open);
+    setVersionConflict((current) => {
+      if (open) return null;
+      return current === 'data' ? null : current;
+    });
+  };
+
+  const cacheSavedTicket = (savedTicket: Ticket) => {
+    queryClient.setQueryData<TicketDetailResponse>(
+      ticketQueryKey,
+      (current) => {
+        if (!current || !shouldApplyTicketRevision(current, savedTicket)) {
+          return current;
+        }
+        return { ...current, ...savedTicket };
+      },
+    );
+  };
+
+  const markVersionConflict = (
+    error: unknown,
+    editor: 'management' | 'data',
+  ) => {
+    setVersionConflict(editor);
+    toast({
+      variant: 'warning',
+      title: 'El ticket cambió en otra sesión',
+      description: `${getUserErrorMessage(error)} Conservamos lo que escribiste.`,
+    });
+  };
+
+  const loadLatestTicket = async (): Promise<Ticket> => {
+    setIsReloadingConflict(true);
+    try {
+      const [ticketResult] = await Promise.all([
+        ticketQuery.refetch({ throwOnError: true }),
+        seguimientosQuery.refetch({ throwOnError: true }),
+      ]);
+      if (ticketResult.isError || !ticketResult.data) {
+        throw ticketResult.error ?? new Error('No se pudo recargar el ticket');
+      }
+      return ticketResult.data;
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'No se pudo cargar la versión actual',
+        description: getUserErrorMessage(error),
+      });
+      throw error;
+    } finally {
+      setIsReloadingConflict(false);
+    }
+  };
+
+  const resolveManagementConflict = async () => {
+    try {
+      const latestTicket = await loadLatestTicket();
+      const latestForm = ticketToManagementForm(
+        latestTicket,
+        adminMode ? toDateTimeLocalValue(latestTicket.fecha_limite) : '',
+      );
+      setEditData(latestForm);
+      setEditBaseline(createTicketEditBaseline(latestTicket, latestForm));
+      setVersionConflict(null);
+    } catch {
+      // El error ya se informó y el draft permanece intacto.
+    }
+  };
+
   const handleUpdateTicket = () => {
     if (!editBaseline) return;
-    const originalFechaLimite = editBaseline.fecha_limite;
+    const originalFechaLimite = editBaseline.values.fecha_limite;
 
     if (adminMode && originalFechaLimite && !editData.fecha_limite) {
       toast({
@@ -189,7 +280,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
       return;
     }
 
-    const updatedData = buildTicketManagementUpdate(editBaseline, editData);
+    const changes = buildTicketManagementUpdate(editBaseline.values, editData);
     // Si el usuario no modificó el control, se omite el campo para conservar
     // también los segundos y milisegundos que datetime-local no muestra.
     if (adminMode && editData.fecha_limite && editData.fecha_limite !== originalFechaLimite) {
@@ -202,10 +293,14 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
         });
         return;
       }
-      updatedData.fecha_limite = fechaLimiteIso;
+      changes.fecha_limite = fechaLimiteIso;
     }
 
-    if (Object.keys(updatedData).length === 0) {
+    const updatedData = buildVersionedTicketUpdate(
+      changes,
+      editBaseline.expectedVersion,
+    );
+    if (!updatedData) {
       handleEditDialogOpenChange(false);
       toast({
         variant: 'info',
@@ -218,11 +313,12 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
     updateTicket.mutate(
       { id: ticketId, params: includeEmptyParams, data: updatedData },
       {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
+        onSuccess: (savedTicket) => {
+          cacheSavedTicket(savedTicket);
+          void queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
           handleEditDialogOpenChange(false);
-          const estadoLabel = updatedData.estado
-            ? PROGRESS_STEPS.find((step) => step.estado === updatedData.estado)?.label
+          const estadoLabel = changes.estado
+            ? PROGRESS_STEPS.find((step) => step.estado === changes.estado)?.label
             : undefined;
           toast({
             variant: 'success',
@@ -231,6 +327,10 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
           });
         },
         onError: (error) => {
+          if (isTicketVersionConflict(error)) {
+            markVersionConflict(error, 'management');
+            return;
+          }
           toast({
             variant: 'destructive',
             title: `No se pudo actualizar el ticket #${ticketId}`,
@@ -247,9 +347,10 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
     updateTicket.mutate(
       { id: ticketId, params: includeEmptyParams, data },
       {
-        onSuccess: () => {
+        onSuccess: (savedTicket) => {
+          cacheSavedTicket(savedTicket);
           setIsEditingData(false);
-          queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
+          void queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
           toast({
             variant: 'success',
             title: 'Datos actualizados',
@@ -257,6 +358,10 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
           });
         },
         onError: (error) => {
+          if (isTicketVersionConflict(error)) {
+            markVersionConflict(error, 'data');
+            return;
+          }
           toast({
             variant: 'destructive',
             title: 'No se pudieron guardar los datos',
@@ -413,7 +518,13 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
           
           <Dialog open={isEditing} onOpenChange={handleEditDialogOpenChange}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="bg-white">Editar Estado</Button>
+              <Button
+                variant="outline"
+                className="bg-white"
+                disabled={isReloadingConflict}
+              >
+                Editar Estado
+              </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
@@ -422,6 +533,12 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
                   Modifica el estado, prioridad o notas de gestión.
                 </DialogDescription>
               </DialogHeader>
+              {versionConflict === 'management' && (
+                <TicketVersionConflictAlert
+                  isReloading={isReloadingConflict}
+                  onReload={() => void resolveManagementConflict()}
+                />
+              )}
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -433,7 +550,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
                           applyTicketManagementState(
                             current,
                             estado as TicketManagementForm['estado'],
-                            editBaseline ?? current,
+                            editBaseline?.values ?? current,
                           ),
                         )
                       }
@@ -542,7 +659,13 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
                 >
                   Cancelar
                 </Button>
-                <Button onClick={handleUpdateTicket} disabled={updateTicket.isPending}>
+                <Button
+                  onClick={handleUpdateTicket}
+                  disabled={
+                    updateTicket.isPending ||
+                    versionConflict === 'management'
+                  }
+                >
                   {updateTicket.isPending ? 'Guardando...' : 'Guardar Cambios'}
                 </Button>
               </DialogFooter>
@@ -554,8 +677,12 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
       <TicketDataEditDialog
         ticket={ticket}
         open={isEditingData}
-        onOpenChange={setIsEditingData}
+        onOpenChange={handleDataEditOpenChange}
         isSaving={updateTicket.isPending}
+        hasVersionConflict={versionConflict === 'data'}
+        isReloadingConflict={isReloadingConflict}
+        onReloadLatest={loadLatestTicket}
+        onVersionConflictResolved={() => setVersionConflict(null)}
         onSave={handleUpdateFunctionalData}
       />
 
@@ -769,7 +896,8 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
                   variant="ghost"
                   size="icon"
                   className="ml-1 h-7 w-7 shrink-0 text-slate-500"
-                  onClick={() => setIsEditingData(true)}
+                  onClick={() => handleDataEditOpenChange(true)}
+                  disabled={isReloadingConflict}
                   aria-label="Editar datos del contacto"
                   title="Editar datos del contacto"
                 >

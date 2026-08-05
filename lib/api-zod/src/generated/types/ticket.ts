@@ -12,6 +12,11 @@ import type { TicketPrioridad } from './ticketPrioridad';
 
 export interface Ticket {
   id: number;
+  /**
+     * Versión monotónica usada para evitar sobrescrituras concurrentes
+     * @minimum 1
+     */
+  readonly version: number;
   conversation_id: string;
   hora: string;
   nombre: string;

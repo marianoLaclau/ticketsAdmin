@@ -97,7 +97,10 @@ describe("repositorio transaccional de prioridad automatica", () => {
       fechaLimiteEsperada: fechaLimite,
       horasHabilesRestantes: 24,
     };
-    assert.equal(await repositorio.promoverSiCoincide(cambio), true);
+    assert.deepEqual(
+      await repositorio.promoverSiCoincide(cambio),
+      { version: 2 },
+    );
 
     const ticket = sqlite
       .prepare("SELECT prioridad, version FROM tickets WHERE id = 1")
@@ -129,7 +132,7 @@ describe("repositorio transaccional de prioridad automatica", () => {
     assert.match(String(seguimientos[0]?.nota), /24 horas hábiles restantes/);
 
     // El mismo compare-and-set ya no coincide: tampoco duplica la auditoria.
-    assert.equal(await repositorio.promoverSiCoincide(cambio), false);
+    assert.equal(await repositorio.promoverSiCoincide(cambio), null);
     const [{ total }] = sqlite
       .prepare("SELECT count(*) AS total FROM seguimientos")
       .all() as Array<{ total: number }>;
@@ -173,6 +176,7 @@ describe("repositorio transaccional de prioridad automatica", () => {
 describe("notificacion de una promocion", () => {
   it("emite ticket_actualizado despues de confirmar el repositorio", async () => {
     const orden: string[] = [];
+    let versionNotificada: number | undefined;
     const repositorio: RepositorioPrioridadAutomatica = {
       listarCandidatos: async () => [{
         id: 7,
@@ -183,18 +187,20 @@ describe("notificacion de una promocion", () => {
       }],
       promoverSiCoincide: async () => {
         orden.push("transaccion_confirmada");
-        return true;
+        return { version: 6 };
       },
     };
 
     await ejecutarCicloPrioridadAutomatica(
       repositorio,
       new Date("2026-07-22T13:00:00.000Z"),
-      () => {
+      (promocion) => {
         orden.push("sse");
+        versionNotificada = promocion.version;
       },
     );
     assert.deepEqual(orden, ["transaccion_confirmada", "sse"]);
+    assert.equal(versionNotificada, 6);
   });
 
   it("construye una nota humana y un payload SSE estable", () => {
@@ -212,6 +218,7 @@ describe("notificacion de una promocion", () => {
     emitirPromocionPrioridadSse(
       {
         ticketId: 9,
+        version: 4,
         prioridadAnterior: "alta",
         prioridadNueva: "urgente",
         horasHabilesRestantes: 12,
@@ -223,6 +230,7 @@ describe("notificacion de una promocion", () => {
       tipo: "ticket_actualizado",
       data: {
         ticket_id: 9,
+        version: 4,
         prioridad: "urgente",
         prioridad_anterior: "alta",
         prioridad_nueva: "urgente",

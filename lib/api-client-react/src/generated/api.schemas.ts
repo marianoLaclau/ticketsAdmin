@@ -56,6 +56,23 @@ export interface LoginRateLimitError {
   retry_after_seconds: number;
 }
 
+export type TicketVersionConflictCode = typeof TicketVersionConflictCode[keyof typeof TicketVersionConflictCode];
+
+
+export const TicketVersionConflictCode = {
+  TICKET_VERSION_CONFLICT: 'TICKET_VERSION_CONFLICT',
+} as const;
+
+export interface TicketVersionConflict {
+  code: TicketVersionConflictCode;
+  error: string;
+  ticket_id: number;
+  /** @minimum 1 */
+  expected_version: number;
+  /** @minimum 1 */
+  current_version: number;
+}
+
 /**
  * Contraseña nueva sin caracteres de control, espacios exteriores ni claves comunes, repetitivas o de ejemplo. Se persiste únicamente como hash.
  * @minLength 16
@@ -312,6 +329,11 @@ export const TicketPrioridad = {
 
 export interface Ticket {
   id: number;
+  /**
+     * Versión monotónica usada para evitar sobrescrituras concurrentes
+     * @minimum 1
+     */
+  readonly version: number;
   conversation_id: string;
   hora: string;
   nombre: string;
@@ -521,6 +543,11 @@ export const TicketUpdatePrioridad = {
 } as const;
 
 export interface TicketUpdate {
+  /**
+     * Versión del ticket observada al abrir el editor
+     * @minimum 1
+     */
+  expected_version: number;
   hora?: string;
   nombre?: string;
   apellido?: string;

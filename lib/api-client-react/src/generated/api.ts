@@ -63,6 +63,7 @@ import type {
   TicketInput,
   TicketListResponse,
   TicketUpdate,
+  TicketVersionConflict,
   UpdateTicketParams
 } from './api.schemas';
 
@@ -1628,7 +1629,9 @@ export const getUpdateTicketUrl = (id: number,
  * Las actualizaciones operativas y el enriquecimiento de contacto,
  * motivo o resumen requieren una sesión válida. Los campos técnicos y
  * el acceso a registros en cuarentena requieren además rol SysAdmin y
- * el header x-admin-key.
+ * el header x-admin-key. El body debe incluir expected_version junto a
+ * por lo menos un campo editable; una versión desactualizada devuelve
+ * TICKET_VERSION_CONFLICT sin persistir ni auditar el intento.
  * @summary Update a ticket
  */
 export const updateTicket = async (id: number,
@@ -1648,7 +1651,7 @@ export const updateTicket = async (id: number,
 
 
 
-export const getUpdateTicketMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const getUpdateTicketMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse | TicketVersionConflict>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>;params?: UpdateTicketParams}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>;params?: UpdateTicketParams}, TContext> => {
 
@@ -1677,12 +1680,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateTicketMutationResult = NonNullable<Awaited<ReturnType<typeof updateTicket>>>
     export type UpdateTicketMutationBody = BodyType<TicketUpdate>
-    export type UpdateTicketMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
+    export type UpdateTicketMutationError = ErrorType<void | FunctionalAccessForbiddenResponse | TicketVersionConflict>
 
     /**
  * @summary Update a ticket
  */
-export const useUpdateTicket = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const useUpdateTicket = <TError = ErrorType<void | FunctionalAccessForbiddenResponse | TicketVersionConflict>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>;params?: UpdateTicketParams}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateTicket>>,

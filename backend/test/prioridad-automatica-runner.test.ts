@@ -19,6 +19,7 @@ function resultado(promociones = 0): ResultadoPrioridadAutomatica {
     evaluados: 3,
     promociones: Array.from({ length: promociones }, (_, index) => ({
       ticketId: index + 1,
+      version: index + 2,
       prioridadAnterior: "media" as const,
       prioridadNueva: "alta" as const,
       horasHabilesRestantes: 24,

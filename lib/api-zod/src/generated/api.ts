@@ -51,6 +51,7 @@ export const ListTicketsQueryParams = zod.object({
   "limit": zod.coerce.number().min(1).max(listTicketsQueryLimitMax).default(listTicketsQueryLimitDefault)
 })
 
+
 export const listTicketsResponseTicketsItemProgresoMin = 0;
 export const listTicketsResponseTicketsItemProgresoMax = 100;
 
@@ -59,6 +60,7 @@ export const listTicketsResponseTicketsItemProgresoMax = 100;
 export const ListTicketsResponse = zod.object({
   "tickets": zod.array(zod.object({
   "id": zod.number(),
+  "version": zod.number().min(1).describe('Versión monotónica usada para evitar sobrescrituras concurrentes'),
   "conversation_id": zod.string(),
   "hora": zod.string(),
   "nombre": zod.string(),
@@ -223,6 +225,7 @@ export const IngestTicketBody = zod.object({
   "progreso": zod.number().min(ingestTicketBodyProgresoMin).max(ingestTicketBodyProgresoMax).default(ingestTicketBodyProgresoDefault)
 })
 
+
 export const ingestTicketResponseTicketProgresoMin = 0;
 export const ingestTicketResponseTicketProgresoMax = 100;
 
@@ -232,6 +235,7 @@ export const IngestTicketResponse = zod.object({
   "created": zod.boolean(),
   "ticket": zod.object({
   "id": zod.number(),
+  "version": zod.number().min(1).describe('Versión monotónica usada para evitar sobrescrituras concurrentes'),
   "conversation_id": zod.string(),
   "hora": zod.string(),
   "nombre": zod.string(),
@@ -294,6 +298,7 @@ export const CreateAdminTicketBody = zod.object({
   "progreso": zod.number().min(createAdminTicketBodyProgresoMin).max(createAdminTicketBodyProgresoMax).default(createAdminTicketBodyProgresoDefault)
 })
 
+
 export const createAdminTicketResponseProgresoMin = 0;
 export const createAdminTicketResponseProgresoMax = 100;
 
@@ -301,6 +306,7 @@ export const createAdminTicketResponseProgresoMax = 100;
 
 export const CreateAdminTicketResponse = zod.object({
   "id": zod.number(),
+  "version": zod.number().min(1).describe('Versión monotónica usada para evitar sobrescrituras concurrentes'),
   "conversation_id": zod.string(),
   "hora": zod.string(),
   "nombre": zod.string(),
@@ -642,6 +648,7 @@ export const GetTicketQueryParams = zod.object({
   "incluir_vacios": zod.boolean().default(getTicketQueryIncluirVaciosDefault).describe('Permite abrir registros en cuarentena; requiere SysAdmin y x-admin-key')
 })
 
+
 export const getTicketResponseOneProgresoMin = 0;
 export const getTicketResponseOneProgresoMax = 100;
 
@@ -649,6 +656,7 @@ export const getTicketResponseOneProgresoMax = 100;
 
 export const GetTicketResponse = zod.object({
   "id": zod.number(),
+  "version": zod.number().min(1).describe('Versión monotónica usada para evitar sobrescrituras concurrentes'),
   "conversation_id": zod.string(),
   "hora": zod.string(),
   "nombre": zod.string(),
@@ -696,7 +704,9 @@ export const GetTicketResponse = zod.object({
  * Las actualizaciones operativas y el enriquecimiento de contacto,
  * motivo o resumen requieren una sesión válida. Los campos técnicos y
  * el acceso a registros en cuarentena requieren además rol SysAdmin y
- * el header x-admin-key.
+ * el header x-admin-key. El body debe incluir expected_version junto a
+ * por lo menos un campo editable; una versión desactualizada devuelve
+ * TICKET_VERSION_CONFLICT sin persistir ni auditar el intento.
  * @summary Update a ticket
  */
 export const UpdateTicketParams = zod.object({
@@ -709,12 +719,14 @@ export const UpdateTicketQueryParams = zod.object({
   "incluir_vacios": zod.boolean().default(updateTicketQueryIncluirVaciosDefault).describe('Permite modificar registros en cuarentena; requiere SysAdmin y x-admin-key')
 })
 
+
 export const updateTicketBodyProgresoMin = 0;
 export const updateTicketBodyProgresoMax = 100;
 
 
 
 export const UpdateTicketBody = zod.object({
+  "expected_version": zod.number().min(1).describe('Versión del ticket observada al abrir el editor'),
   "hora": zod.string().optional(),
   "nombre": zod.string().optional(),
   "apellido": zod.string().optional(),
@@ -734,6 +746,7 @@ export const UpdateTicketBody = zod.object({
   "progreso": zod.number().min(updateTicketBodyProgresoMin).max(updateTicketBodyProgresoMax).optional()
 })
 
+
 export const updateTicketResponseProgresoMin = 0;
 export const updateTicketResponseProgresoMax = 100;
 
@@ -741,6 +754,7 @@ export const updateTicketResponseProgresoMax = 100;
 
 export const UpdateTicketResponse = zod.object({
   "id": zod.number(),
+  "version": zod.number().min(1).describe('Versión monotónica usada para evitar sobrescrituras concurrentes'),
   "conversation_id": zod.string(),
   "hora": zod.string(),
   "nombre": zod.string(),
@@ -901,6 +915,7 @@ export const GetTicketsVencidosQueryParams = zod.object({
   "fecha_hasta": zod.coerce.date().optional().describe('Ultimo dia incluido en el periodo del dashboard (YYYY-MM-DD).')
 })
 
+
 export const getTicketsVencidosResponseProgresoMin = 0;
 export const getTicketsVencidosResponseProgresoMax = 100;
 
@@ -908,6 +923,7 @@ export const getTicketsVencidosResponseProgresoMax = 100;
 
 export const GetTicketsVencidosResponseItem = zod.object({
   "id": zod.number(),
+  "version": zod.number().min(1).describe('Versión monotónica usada para evitar sobrescrituras concurrentes'),
   "conversation_id": zod.string(),
   "hora": zod.string(),
   "nombre": zod.string(),

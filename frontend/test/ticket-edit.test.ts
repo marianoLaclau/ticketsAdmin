@@ -13,6 +13,7 @@ import {
 
 const ticket = {
   id: 1,
+  version: 1,
   conversation_id: 'conv-1',
   hora: '10:30',
   nombre: 'Ana',
@@ -33,7 +34,7 @@ const ticket = {
   audio_url: null,
   notas: null,
   progreso: 0,
-  fecha_creacion: new Date(),
+  fecha_creacion: '2026-08-05T13:30:00Z',
   fecha_limite: null,
   fecha_resolucion: null,
 } as Ticket;

@@ -52,6 +52,7 @@ const TECHNICAL_TICKET_UPDATE_FIELDS = [
 ] as const;
 
 const TICKET_UPDATE_FIELDS = [
+  "expected_version",
   "hora",
   "nombre",
   "apellido",
@@ -113,6 +114,12 @@ type TicketUpdates = Partial<typeof ticketsTable.$inferInsert>;
 type PatchTransactionResult =
   | { kind: "not_found" }
   | { kind: "forbidden" }
+  | {
+      kind: "conflict";
+      ticketId: number;
+      expectedVersion: number;
+      currentVersion: number;
+    }
   | { kind: "unchanged"; ticket: Ticket }
   | { kind: "updated"; ticket: Ticket };
 
@@ -454,8 +461,16 @@ router.patch(
       res.status(400).json({ error: "Datos de actualización inválidos" });
       return;
     }
-    if (Object.keys(req.body).length === 0) {
+    if (
+      Object.keys(req.body).every((field) => field === "expected_version")
+    ) {
       res.status(400).json({ error: "Indicá al menos un campo para actualizar" });
+      return;
+    }
+    if (!Number.isSafeInteger(bodyParsed.data.expected_version)) {
+      res
+        .status(400)
+        .json({ error: "La versión esperada debe ser un entero válido" });
       return;
     }
     if (
@@ -489,6 +504,14 @@ router.patch(
         !puedeCerrarTickets(authUser.rol)
       ) {
         return { kind: "forbidden" };
+      }
+      if (body.expected_version !== current.version) {
+        return {
+          kind: "conflict",
+          ticketId: current.id,
+          expectedVersion: body.expected_version,
+          currentVersion: current.version,
+        };
       }
 
       const requested: TicketUpdates = {};
@@ -571,11 +594,23 @@ router.patch(
 
       const updated = tx
         .update(ticketsTable)
-        .set(actualUpdates)
-        .where(accessCondition)
+        .set({ ...actualUpdates, version: current.version + 1 })
+        .where(
+          and(
+            accessCondition,
+            eq(ticketsTable.version, body.expected_version),
+          ),
+        )
         .returning()
         .get();
-      if (!updated) return { kind: "not_found" };
+      if (!updated) {
+        return {
+          kind: "conflict",
+          ticketId: current.id,
+          expectedVersion: body.expected_version,
+          currentVersion: current.version,
+        };
+      }
 
       const stateChanged = current.estado !== updated.estado;
       const priorityChanged = current.prioridad !== updated.prioridad;
@@ -609,7 +644,7 @@ router.patch(
         .run();
 
       return { kind: "updated", ticket: updated };
-    });
+    }, { behavior: "immediate" });
 
     if (result.kind === "not_found") {
       res.status(404).json({ error: "Ticket no encontrado" });
@@ -617,6 +652,16 @@ router.patch(
     }
     if (result.kind === "forbidden") {
       res.status(403).json({ error: "Solo un administrador puede cerrar tickets" });
+      return;
+    }
+    if (result.kind === "conflict") {
+      res.status(409).json({
+        code: "TICKET_VERSION_CONFLICT",
+        error: "El ticket cambió desde que fue consultado",
+        ticket_id: result.ticketId,
+        expected_version: result.expectedVersion,
+        current_version: result.currentVersion,
+      });
       return;
     }
     if (result.kind === "unchanged") {
@@ -630,6 +675,7 @@ router.patch(
       ticket_id: result.ticket.id,
       estado: result.ticket.estado,
       prioridad: result.ticket.prioridad,
+      version: result.ticket.version,
       asignado_usuario_id: result.ticket.asignado_usuario_id,
       asignado_a: result.ticket.asignado_a,
     });

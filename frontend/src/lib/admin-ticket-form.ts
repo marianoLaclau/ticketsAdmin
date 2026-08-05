@@ -1,8 +1,8 @@
 import type {
   Ticket,
   TicketInput,
-  TicketUpdate,
 } from '@workspace/api-client-react';
+import type { TicketChanges } from './ticket-version';
 
 export interface AdminTicketForm {
   conversation_id: string;
@@ -94,8 +94,8 @@ export function buildAdminTicketInput(form: AdminTicketForm): TicketInput {
 export function buildAdminTicketUpdate(
   baseline: AdminTicketForm,
   form: AdminTicketForm,
-): TicketUpdate {
-  const update: TicketUpdate = {};
+): TicketChanges {
+  const update: TicketChanges = {};
 
   const requiredFields = ['hora', 'nombre', 'apellido', 'motivo'] as const;
   for (const field of requiredFields) {

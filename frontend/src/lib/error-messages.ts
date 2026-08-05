@@ -41,6 +41,10 @@ export function getServerErrorCode(error: unknown): string {
   return typeof payload?.code === 'string' ? payload.code : '';
 }
 
+export function isTicketVersionConflict(error: unknown): boolean {
+  return getServerErrorCode(error) === 'TICKET_VERSION_CONFLICT';
+}
+
 function getRetryAfterSeconds(error: unknown): number | undefined {
   const payload = asRecord(asRecord(error)?.data);
   const value = payload?.retry_after_seconds;
@@ -138,6 +142,9 @@ function knownBusinessMessage(error: unknown): string | undefined {
 }
 
 export function getUserErrorMessage(error: unknown, fallback = DEFAULT_ERROR_MESSAGE): string {
+  if (isTicketVersionConflict(error)) {
+    return 'Otro usuario actualizó este ticket. Revisá la versión más reciente antes de guardar de nuevo.';
+  }
   const businessMessage = knownBusinessMessage(error);
   if (businessMessage) return businessMessage;
 

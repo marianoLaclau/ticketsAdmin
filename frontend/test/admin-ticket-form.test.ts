@@ -10,6 +10,7 @@ import {
 
 const ticket: Ticket = {
   id: 7,
+  version: 1,
   conversation_id: 'conv-7',
   hora: '10:30',
   nombre: 'Ana',

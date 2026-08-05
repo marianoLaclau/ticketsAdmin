@@ -9,6 +9,11 @@ import type { TicketUpdateEstado } from './ticketUpdateEstado';
 import type { TicketUpdatePrioridad } from './ticketUpdatePrioridad';
 
 export interface TicketUpdate {
+  /**
+     * Versión del ticket observada al abrir el editor
+     * @minimum 1
+     */
+  expected_version: number;
   hora?: string;
   nombre?: string;
   apellido?: string;

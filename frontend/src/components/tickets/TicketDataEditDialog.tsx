@@ -18,12 +18,22 @@ import {
   ticketToFunctionalForm,
   type TicketFunctionalForm,
 } from '@/lib/ticket-edit';
+import {
+  buildVersionedTicketUpdate,
+  createTicketEditBaseline,
+  type TicketEditBaseline,
+} from '@/lib/ticket-version';
+import { TicketVersionConflictAlert } from './TicketVersionConflictAlert';
 
 interface TicketDataEditDialogProps {
   ticket: Ticket;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isSaving: boolean;
+  hasVersionConflict: boolean;
+  isReloadingConflict: boolean;
+  onReloadLatest: () => Promise<Ticket>;
+  onVersionConflictResolved: () => void;
   onSave: (update: TicketUpdate) => void;
 }
 
@@ -45,18 +55,24 @@ export function TicketDataEditDialog({
   open,
   onOpenChange,
   isSaving,
+  hasVersionConflict,
+  isReloadingConflict,
+  onReloadLatest,
+  onVersionConflictResolved,
   onSave,
 }: TicketDataEditDialogProps) {
   const initialForm = ticketToFunctionalForm(ticket);
   const [baseline, setBaseline] =
-    useState<TicketFunctionalForm>(initialForm);
+    useState<TicketEditBaseline<TicketFunctionalForm>>(() =>
+      createTicketEditBaseline(ticket, initialForm),
+    );
   const [form, setForm] = useState<TicketFunctionalForm>(initialForm);
   const [validationError, setValidationError] = useState('');
 
   useEffect(() => {
     if (!open) return;
     const snapshot = ticketToFunctionalForm(ticket);
-    setBaseline(snapshot);
+    setBaseline(createTicketEditBaseline(ticket, snapshot));
     setForm({ ...snapshot });
     setValidationError('');
     // Los demás campos de ticket se excluyen a propósito: un SSE recibido con
@@ -65,10 +81,14 @@ export function TicketDataEditDialog({
   }, [open, ticket.id]);
 
   const update = useMemo(
-    () => buildFunctionalTicketUpdateFromBaseline(baseline, form),
+    () =>
+      buildVersionedTicketUpdate(
+        buildFunctionalTicketUpdateFromBaseline(baseline.values, form),
+        baseline.expectedVersion,
+      ),
     [baseline, form],
   );
-  const hasChanges = Object.keys(update).length > 0;
+  const hasChanges = update !== null;
 
   const submit = () => {
     if (!hasChanges) return;
@@ -81,7 +101,20 @@ export function TicketDataEditDialog({
       return;
     }
     setValidationError('');
-    onSave(update);
+    if (update) onSave(update);
+  };
+
+  const reloadLatest = async () => {
+    try {
+      const latestTicket = await onReloadLatest();
+      const snapshot = ticketToFunctionalForm(latestTicket);
+      setBaseline(createTicketEditBaseline(latestTicket, snapshot));
+      setForm({ ...snapshot });
+      setValidationError('');
+      onVersionConflictResolved();
+    } catch {
+      // El padre muestra el error y el draft se conserva para no perder trabajo.
+    }
   };
 
   return (
@@ -93,6 +126,13 @@ export function TicketDataEditDialog({
             Completá o corregí la información obtenida de la llamada. Cada cambio quedará registrado en el historial.
           </DialogDescription>
         </DialogHeader>
+
+        {hasVersionConflict && (
+          <TicketVersionConflictAlert
+            isReloading={isReloadingConflict}
+            onReload={() => void reloadLatest()}
+          />
+        )}
 
         <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2">
           {CONTACT_FIELDS.map(({ field, label, type }) => (
@@ -135,7 +175,10 @@ export function TicketDataEditDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
             Cancelar
           </Button>
-          <Button onClick={submit} disabled={!hasChanges || isSaving}>
+          <Button
+            onClick={submit}
+            disabled={!hasChanges || isSaving || hasVersionConflict}
+          >
             {isSaving ? 'Guardando…' : 'Guardar datos'}
           </Button>
         </DialogFooter>

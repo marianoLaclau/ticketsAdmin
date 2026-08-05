@@ -78,4 +78,6 @@ export * from './ticketSortBy';
 export * from './ticketUpdate';
 export * from './ticketUpdateEstado';
 export * from './ticketUpdatePrioridad';
+export * from './ticketVersionConflict';
+export * from './ticketVersionConflictCode';
 export * from './updateTicketParams';

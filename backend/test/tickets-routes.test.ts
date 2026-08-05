@@ -151,10 +151,24 @@ function jsonRequest(
   body: Record<string, unknown>,
   options: Omit<RequestOptions, "method" | "body"> = {},
 ) {
+  let requestBody = body;
+  if (
+    method === "PATCH" &&
+    !Object.prototype.hasOwnProperty.call(body, "expected_version")
+  ) {
+    const ticketId = Number(/^\/tickets\/(\d+)/.exec(path)?.[1]);
+    const row = Number.isInteger(ticketId)
+      ? (sqlite
+          .prepare("SELECT version FROM tickets WHERE id = ?")
+          .get(ticketId) as { version: number } | undefined)
+      : undefined;
+    requestBody = { expected_version: row?.version ?? 1, ...body };
+  }
+
   return request(path, {
     ...options,
     method,
-    body: JSON.stringify(body),
+    body: JSON.stringify(requestBody),
   });
 }
 
@@ -366,6 +380,7 @@ describe("contrato nullable de tickets", () => {
         : JSON.stringify(parsedDetail.error.issues),
     );
     assertOwnProperties(detail, [
+      "version",
       "telefono",
       "dni",
       "empresa",
@@ -417,7 +432,10 @@ describe("contrato nullable de tickets", () => {
   it("borra notas con null o texto vacío y conserva la auditoría", async () => {
     sqlite.prepare("UPDATE tickets SET notas = ? WHERE id = 1").run("Interna");
 
-    assert.equal(UpdateTicketBody.safeParse({ notas: null }).success, true);
+    assert.equal(
+      UpdateTicketBody.safeParse({ expected_version: 1, notas: null }).success,
+      true,
+    );
     const cleared = await jsonRequest("/tickets/1", "PATCH", { notas: null });
     assert.equal(cleared.status, 200);
     assert.equal(((await cleared.json()) as { notas: string | null }).notas, null);
@@ -449,6 +467,151 @@ describe("contrato nullable de tickets", () => {
     assert.deepEqual(
       audits.map(({ campos_editados }) => JSON.parse(campos_editados ?? "null")),
       [["notas"], ["notas"], ["notas"]],
+    );
+  });
+});
+
+describe("control optimista de versión", () => {
+  it("rechaza precondiciones ausentes o inválidas sin escribir", async () => {
+    const missing = await request("/tickets/1", {
+      method: "PATCH",
+      body: JSON.stringify({ nombre: "Otro nombre" }),
+    });
+    assert.equal(missing.status, 400);
+
+    for (const expected_version of [
+      null,
+      "1",
+      0,
+      -1,
+      1.5,
+      Number.MAX_SAFE_INTEGER + 1,
+    ]) {
+      const response = await jsonRequest("/tickets/1", "PATCH", {
+        expected_version,
+        nombre: "Otro nombre",
+      });
+      assert.equal(response.status, 400);
+    }
+
+    const withoutChanges = await jsonRequest("/tickets/1", "PATCH", {
+      expected_version: 1,
+    });
+    assert.equal(withoutChanges.status, 400);
+
+    assert.deepEqual(
+      sqlite
+        .prepare("SELECT nombre, version FROM tickets WHERE id = 1")
+        .get(),
+      { nombre: "Ana", version: 1 },
+    );
+    assert.equal(
+      (
+        sqlite
+          .prepare("SELECT count(*) AS total FROM seguimientos")
+          .get() as { total: number }
+      ).total,
+      0,
+    );
+  });
+
+  it("impide que un snapshot viejo pise una edición confirmada", async () => {
+    const first = await jsonRequest("/tickets/1", "PATCH", {
+      expected_version: 1,
+      nombre: "Ana actualizada",
+    });
+    assert.equal(first.status, 200);
+    assert.equal(((await first.json()) as { version: number }).version, 2);
+
+    const stale = await jsonRequest("/tickets/1", "PATCH", {
+      expected_version: 1,
+      prioridad: "urgente",
+    });
+    assert.equal(stale.status, 409);
+    assert.deepEqual(await stale.json(), {
+      code: "TICKET_VERSION_CONFLICT",
+      error: "El ticket cambió desde que fue consultado",
+      ticket_id: 1,
+      expected_version: 1,
+      current_version: 2,
+    });
+
+    const staleNoOp = await jsonRequest("/tickets/1", "PATCH", {
+      expected_version: 1,
+      nombre: "Ana actualizada",
+    });
+    assert.equal(staleNoOp.status, 409);
+
+    assert.deepEqual(
+      sqlite
+        .prepare(
+          "SELECT nombre, prioridad, version FROM tickets WHERE id = 1",
+        )
+        .get(),
+      { nombre: "Ana actualizada", prioridad: "media", version: 2 },
+    );
+    assert.equal(
+      (
+        sqlite
+          .prepare("SELECT count(*) AS total FROM seguimientos")
+          .get() as { total: number }
+      ).total,
+      1,
+    );
+
+    const retried = await jsonRequest("/tickets/1", "PATCH", {
+      expected_version: 2,
+      prioridad: "urgente",
+    });
+    assert.equal(retried.status, 200);
+    assert.equal(((await retried.json()) as { version: number }).version, 3);
+  });
+
+  it("confirma como máximo uno de dos PATCH que compiten por la misma versión", async () => {
+    const [first, second] = await Promise.all([
+      jsonRequest("/tickets/1", "PATCH", {
+        expected_version: 1,
+        nombre: "Edición A",
+      }),
+      jsonRequest("/tickets/1", "PATCH", {
+        expected_version: 1,
+        nombre: "Edición B",
+      }),
+    ]);
+
+    assert.deepEqual(
+      [first.status, second.status].sort((left, right) => left - right),
+      [200, 409],
+    );
+    const stored = sqlite
+      .prepare("SELECT nombre, version FROM tickets WHERE id = 1")
+      .get() as { nombre: string; version: number };
+    assert.ok(["Edición A", "Edición B"].includes(stored.nombre));
+    assert.equal(stored.version, 2);
+    assert.equal(
+      (
+        sqlite
+          .prepare("SELECT count(*) AS total FROM seguimientos")
+          .get() as { total: number }
+      ).total,
+      1,
+    );
+  });
+
+  it("un no-op vigente no incrementa versión ni crea auditoría", async () => {
+    const response = await jsonRequest("/tickets/1", "PATCH", {
+      expected_version: 1,
+      nombre: "Ana",
+    });
+    assert.equal(response.status, 200);
+    assert.equal(((await response.json()) as { version: number }).version, 1);
+    assert.equal(
+      (
+        sqlite
+          .prepare("SELECT count(*) AS total FROM seguimientos")
+          .get() as { total: number }
+      ).total,
+      0,
     );
   });
 });
@@ -513,6 +676,7 @@ describe("edición y auditoría atómica", () => {
       nombre: "Ana María",
     });
     assert.equal(noOp.status, 200);
+    assert.equal(((await noOp.json()) as { version: number }).version, 2);
     const [{ total }] = sqlite
       .prepare("SELECT count(*) AS total FROM seguimientos WHERE ticket_id = 1")
       .all() as Array<{ total: number }>;
@@ -534,9 +698,10 @@ describe("edición y auditoría atómica", () => {
     assert.equal(response.status, 500);
 
     const row = sqlite
-      .prepare("SELECT nombre FROM tickets WHERE id = 1")
-      .get() as { nombre: string };
+      .prepare("SELECT nombre, version FROM tickets WHERE id = 1")
+      .get() as { nombre: string; version: number };
     assert.equal(row.nombre, "Ana");
+    assert.equal(row.version, 1);
   });
 
   it("invalida y audita el estado laboral si cambia DNI o empresa", async () => {
