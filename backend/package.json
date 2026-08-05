@@ -17,7 +17,6 @@
     "@workspace/password-policy": "workspace:*",
     "better-sqlite3": "^12.4.1",
     "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
     "drizzle-orm": "catalog:",
     "express": "^5.2.1",
     "pino": "^9.14.0",
@@ -25,7 +24,6 @@
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
-    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "catalog:",
     "esbuild": "0.27.3",

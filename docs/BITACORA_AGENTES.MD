@@ -2,6 +2,17 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-05 — API same-origin sin CORS global
+
+**Agente:** Codex
+**Estado:** décima remediación de la auditoría técnica, implementada localmente.
+
+- Se eliminó `cors()` abierto y las dependencias `cors`/`@types/cors`. La UI ya consume `/api` desde el mismo origen por Vite/Nginx; n8n es servidor-a-servidor y no usa la política CORS del navegador.
+- Express desactiva `X-Powered-By` antes de montar middlewares. Una prueba HTTP real verifica el healthcheck same-origin, un `Origin` no confiable y su preflight: ninguno recibe `Access-Control-Allow-*` ni revela el framework.
+- No se mezclaron TLS, `Secure`, HSTS, CSP ni `trust proxy`: requieren hostname/certificado, migrar consumidores y restringir el acceso directo al backend en commits operativos separados.
+- Archivos principales: `backend/src/app.ts`, manifiesto/lockfile, prueba HTTP y documentación de arquitectura/transporte.
+- Validaciones: 251 pruebas correctas (backend 135, frontend 53, base de datos 11, política compartida 4 e ingesta 48), typecheck y build completos. El build conserva los avisos ya registrados de sourcemaps en cuatro componentes UI y del bundle frontend mayor a 500 kB.
+
 ## 2026-08-05 — Hash no reutilizable para sesiones en reposo
 
 **Agente:** Codex

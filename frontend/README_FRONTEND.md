@@ -1,6 +1,6 @@
 # Frontend — GSB Tickets
 
-React + Vite. Consume la API del backend por `/api/*` (proxeado en dev, servido detrás de nginx en producción — ver `nginx.conf`). No hay estado global tipo Redux/Zustand: **TanStack Query es la fuente de verdad del servidor**, y `useState` local para lo que es puramente de UI (formularios abiertos, filtros no aplicados aún, etc.).
+React + Vite. Consume la API del backend por `/api/*` en el mismo origen (proxeado en dev, servido detrás de nginx en producción — ver `nginx.conf`), por lo que el navegador no necesita CORS. No hay estado global tipo Redux/Zustand: **TanStack Query es la fuente de verdad del servidor**, y `useState` local para lo que es puramente de UI (formularios abiertos, filtros no aplicados aún, etc.).
 
 > Para el panorama general del proyecto ver el [README.md](../README.md) de la raíz. Este documento es el detalle técnico de todo lo que vive en `frontend/`.
 

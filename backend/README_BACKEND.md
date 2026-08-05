@@ -76,11 +76,12 @@ backend/
 
 `app.ts` arma la cadena de middlewares, en este orden:
 
+Antes de montar middlewares desactiva `X-Powered-By`. La API no publica CORS: el navegador consume `/api` desde el mismo origen mediante el proxy de Vite o Nginx, y n8n es un cliente servidor-a-servidor que no depende de esos headers. Esto no reemplaza autenticación ni filtra clientes no-browser; una futura integración web cross-origin deberá declarar y probar sus orígenes explícitamente.
+
 1. `pinoHttp` — loguea método, url (sin querystring) y status code de cada request.
-2. `cors()` — abierto (pensado para red local; no hay whitelist de orígenes).
-3. `cookieParser()` — parsea la cookie de sesión.
-4. `express.json()` / `express.urlencoded()`.
-5. Todo el router se monta bajo `/api`.
+2. `cookieParser()` — parsea la cookie de sesión.
+3. `express.json()` / `express.urlencoded()`.
+4. Todo el router se monta bajo `/api`.
 
 Dentro de `routes/index.ts`, el orden importa:
 

@@ -1,11 +1,14 @@
 import express, { type Express } from "express";
-import cors from "cors";
 import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
+
+// La UI consume /api desde el mismo origen mediante Vite/Nginx y n8n es un
+// cliente servidor-a-servidor. No se publica CORS ni la firma del framework.
+app.disable("x-powered-by");
 
 app.use(
   pinoHttp({
@@ -26,7 +29,6 @@ app.use(
     },
   }),
 );
-app.use(cors());
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
