@@ -466,12 +466,18 @@ sequenceDiagram
 
 Si una auditoría falla, la transacción se revierte. Si un cliente SSE se desconecta, se elimina sin afectar la operación HTTP que ya fue confirmada. Las revocaciones administrativas se notifican únicamente después del commit con `sesion_revocada`; el frontend cierra su `EventSource`, limpia de inmediato toda la caché y reemplaza la ruta por la entrada pública. La raíz consulta `/auth/me` sin datos stale: un `401` muestra el login y un `200` de una cookie instalada en otra pestaña vuelve a montar la identidad y un stream nuevos. Un corte de red común no se interpreta como logout y conserva la reconexión automática.
 
+### Calidad estática
+
+El workspace usa ESLint flat con reglas de TypeScript, promesas y hooks de React. Las fuentes se analizan con información de tipos mediante `projectService`; tests y configuración reciben lint estructural sin obligarlos a formar parte de los `tsconfig` productivos. Código generado, builds y dependencias quedan excluidos. Las expresiones regulares que procesan controles mantienen supresiones locales motivadas, no excepciones globales.
+
+La deuda de `any` explícito está presupuestada de forma decreciente: actualmente se informa como advertencia y `--max-warnings 18` hace fallar el gate si aparece una ocurrencia nueva. El objetivo de los siguientes microcommits es llevar ese presupuesto a cero, no normalizarlo. `pnpm run quality` ejecuta lint antes de codegen, schema, tests, typecheck y builds.
+
 ## 9. Despliegue y migraciones
 
 ```mermaid
 flowchart TD
     git[Push a main]
-    quality[Quality: codegen, schema, tests y build]
+    quality[Quality: lint, codegen, schema, tests y build]
     runner[Runner self-hosted]
     images[Docker Compose build]
     release[Lock, baseline y candidatos inmutables]

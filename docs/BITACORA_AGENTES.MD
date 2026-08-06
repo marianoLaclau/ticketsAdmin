@@ -2,6 +2,17 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — ESLint tipado como compuerta de calidad
+
+**Agente:** Codex
+**Estado:** trigésima séptima remediación de la auditoría técnica, implementada y validada localmente.
+
+- Se incorporó ESLint flat para TypeScript/TSX. Las fuentes productivas usan `projectService` y reglas de promesas; React suma `rules-of-hooks` y dependencias exhaustivas. Tests y configuración se analizan sin tipo, mientras generated, `dist`, `build` y dependencias quedan fuera.
+- `pnpm run lint` exige cero errores y permite como máximo las 18 advertencias `no-explicit-any` ya inventariadas: 14 en Dashboard, tres en el layout y una en Tickets. Cualquier `any` nuevo rompe el gate; los siguientes commits reducirán ese límite hasta cero.
+- Se corrigieron promesas ignoradas, dependencias de hooks, un import duplicado, imports muertos y `@ts-ignore` innecesarios. Las regex que deliberadamente procesan controles conservan la regla activa y llevan una supresión local explicada.
+- Los `throw` de la restauración SQLite salieron del `finally` sin perder el error original: éxito, rollback, cleanup y sus fallos combinados conservan códigos, causas, orden y artefactos. Nuevas regresiones verifican éxito + cleanup fallido, operación + cleanup y las dos causas de `ROLLBACK_FAILED`.
+- `lint` se ejecuta primero dentro de `quality`. ESLint, typecheck, suites del workspace, build y quality completo aprobaron; las pruebas de restore cerraron 30 correctas y una omisión esperada por symlinks en Windows. No se hizo push.
+
 ## 2026-08-06 — Exportación CSV incremental y acotada en memoria
 
 **Agente:** Codex

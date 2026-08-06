@@ -253,6 +253,7 @@ export function assertEvidenceMatches(
 }
 
 function oneLine(message: string): string {
+  // eslint-disable-next-line no-control-regex -- Sanea deliberadamente caracteres de control antes de escribir la CLI.
   return message.replace(/[\u0000-\u001f\u007f]+/g, " ").trim();
 }
 

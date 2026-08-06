@@ -394,7 +394,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
       },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
+          void queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
           setNewSeguimiento('');
           toast({
             variant: 'success',

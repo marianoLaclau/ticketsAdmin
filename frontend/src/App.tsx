@@ -46,7 +46,7 @@ const queryClient = new QueryClient({
       if (esQueryDeSesion && isUnauthorized) {
         clearAuthenticatedQueries(queryClient, getGetMeQueryKey());
       } else if (!esQueryDeSesion && (isUnauthorized || requiresPasswordChange)) {
-        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       }
     },
   }),
@@ -68,7 +68,7 @@ const queryClient = new QueryClient({
       // fallido ya se informa dentro del formulario. El resto de los 401 en
       // mutaciones obliga a revalidar la sesión y, si venció, vuelve a la raíz.
       if (requiresPasswordChange || (!isAdminKeyError && !isLoginAttempt)) {
-        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       }
     },
   }),

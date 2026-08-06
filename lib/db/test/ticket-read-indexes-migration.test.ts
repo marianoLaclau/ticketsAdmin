@@ -17,7 +17,6 @@ import {
 } from "drizzle-orm";
 import {
   seguimientosTable,
-  ticketsCuarentenaTable,
   ticketsTable,
 } from "../src/schema/tickets";
 import { ticketVisibleCondition } from "../src/ticket-visibility";

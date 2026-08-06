@@ -33,6 +33,7 @@ export const BLOCKED_NEW_PASSWORDS = [
 ] as const;
 
 const BLOCKED_PASSWORDS = new Set<string>(BLOCKED_NEW_PASSWORDS);
+// eslint-disable-next-line no-control-regex -- La política rechaza deliberadamente caracteres de control ASCII.
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/u;
 
 function normalizeForBlocklist(password: string): string {

@@ -147,8 +147,14 @@ export default function AdminRolesUsers() {
     },
     { request: adminRequest },
   );
-  const roles = roleCatalogQuery.data?.roles ?? [];
-  const listedRoles = rolesQuery.data?.roles ?? [];
+  const roles = useMemo(
+    () => roleCatalogQuery.data?.roles ?? [],
+    [roleCatalogQuery.data?.roles],
+  );
+  const listedRoles = useMemo(
+    () => rolesQuery.data?.roles ?? [],
+    [rolesQuery.data?.roles],
+  );
   const roleById = useMemo(() => new Map(roles.map((role) => [role.id, role.nombre])), [roles]);
 
   // ---------- Usuarios ----------
@@ -177,6 +183,9 @@ export default function AdminRolesUsers() {
   const users = usersQuery.data?.users ?? [];
   const userTotal = usersQuery.data?.total ?? 0;
   const userTotalPages = Math.max(1, Math.ceil(userTotal / userPageSize));
+  const refetchRoleCatalog = roleCatalogQuery.refetch;
+  const refetchRoles = rolesQuery.refetch;
+  const refetchUsers = usersQuery.refetch;
 
   useEffect(() => {
     if (usersQuery.data && userPage > userTotalPages) setUserPage(userTotalPages);
@@ -184,12 +193,12 @@ export default function AdminRolesUsers() {
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
-      void roleCatalogQuery.refetch();
-      void rolesQuery.refetch();
-      void usersQuery.refetch();
+      void refetchRoleCatalog();
+      void refetchRoles();
+      void refetchUsers();
     }, 350);
     return () => window.clearTimeout(timeout);
-  }, [adminKey]);
+  }, [adminKey, refetchRoleCatalog, refetchRoles, refetchUsers]);
 
   const createUser = useCreateAdminUser({ request: adminRequest });
   const updateUser = useUpdateAdminUser({ request: adminRequest });

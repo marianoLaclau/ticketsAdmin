@@ -369,7 +369,7 @@ export default function Admin() {
       {
         onSuccess: () => {
           setAEliminar(null);
-          refrescarTodo();
+          void refrescarTodo();
           toast({
             variant: 'success',
             title: 'Ticket eliminado',
@@ -408,7 +408,7 @@ export default function Admin() {
       {
         onSuccess: (r) => {
           setResultadoImport(r);
-          refrescarTodo();
+          void refrescarTodo();
           toast({
             dedupeKey: `tickets-imported:${r.insertados}`,
             variant: 'success',
@@ -431,7 +431,7 @@ export default function Admin() {
       {
         onSuccess: (r) => {
           setConfirmTexto('');
-          refrescarTodo();
+          void refrescarTodo();
           toast({
             variant: 'warning',
             title: 'Base de tickets vaciada',
@@ -833,7 +833,7 @@ export default function Admin() {
                 <Input
                   type="file"
                   accept=".csv,text/csv"
-                  onChange={onArchivoSeleccionado}
+                  onChange={(event) => void onArchivoSeleccionado(event)}
                   className="max-w-sm cursor-pointer"
                 />
                 {csvNombre && <span className="text-sm text-muted-foreground">{csvNombre}</span>}

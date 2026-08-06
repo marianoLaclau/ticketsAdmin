@@ -6,6 +6,7 @@ import {
   UserCircle,
   Settings,
   ShieldCheck,
+  LogOut,
 } from 'lucide-react';
 import {
   useGetDashboardStats,
@@ -16,7 +17,6 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { LogOut } from 'lucide-react';
 import { ROL_SYSADMIN } from '@/lib/roles';
 import { getContactDisplayName } from '@/lib/contacto';
 import { getEstadoLabel } from '@/lib/estados';
@@ -27,7 +27,6 @@ import {
 } from '@/lib/realtime-events';
 import { clearRevokedSessionState } from '@/lib/session-state';
 
-// @ts-ignore
 import gsbLogo from '@/assets/gsb-logo.jpg';
 
 /**

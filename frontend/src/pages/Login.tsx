@@ -13,7 +13,6 @@ import { getLoginErrorMessage } from '@/lib/error-messages';
 import { getAuthenticatedEntryPath } from '@/lib/password-change';
 import { clearAuthenticatedQueries } from '@/lib/session-state';
 
-// @ts-ignore
 import gsbLogo from '@/assets/gsb-logo.jpg';
 
 export default function Login() {

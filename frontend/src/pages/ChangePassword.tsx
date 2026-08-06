@@ -36,7 +36,6 @@ import {
   NEW_PASSWORD_MIN_LENGTH,
 } from '@/lib/password-policy';
 
-// @ts-ignore
 import gsbLogo from '@/assets/gsb-logo.jpg';
 
 export default function ChangePassword() {
