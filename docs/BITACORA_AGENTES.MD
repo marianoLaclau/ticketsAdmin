@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Pestaña de usuarios separada del directorio administrativo
+
+**Agente:** Codex
+**Estado:** cuadragésima novena remediación de la auditoría técnica, implementada y validada localmente.
+
+- La consulta, filtros, paginación, formularios y mutaciones de usuarios salieron de `AdminRolesUsers.tsx` hacia `features/admin-directory/AdminUsersTab.tsx`; la página coordinadora bajó de 1.197 a 487 líneas.
+- La frontera recibe únicamente el `RequestInit` administrativo. Conserva un catálogo propio de hasta 100 roles, las mismas query keys e invalidaciones, y ejecuta todos sus hooks de forma incondicional. Los diálogos permanecen montados fuera de `TabsContent`, por lo que cambiar de pestaña no descarta una edición abierta.
+- Se preservaron literalmente textos, clases, identificadores, atributos accesibles, filtros y demoras de recarga. Aprobaron las 85 pruebas del frontend, typecheck, ESLint, `diff --check` y el build en una salida aislada porque el directorio normal estaba abierto por el servidor local. No se hizo push.
+
 ## 2026-08-06 — Modelo puro del directorio administrativo
 
 **Agente:** Codex
