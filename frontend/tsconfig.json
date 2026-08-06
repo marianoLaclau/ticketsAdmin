@@ -8,6 +8,7 @@
     "noUnusedParameters": true,
     "strictFunctionTypes": true,
     "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
     "jsx": "preserve",
     "lib": ["esnext", "dom", "dom.iterable"],
     "resolveJsonModule": true,
