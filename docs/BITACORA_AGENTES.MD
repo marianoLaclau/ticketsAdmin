@@ -2,6 +2,17 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Exportación CSV incremental y acotada en memoria
+
+**Agente:** Codex
+**Estado:** trigésima sexta remediación de la auditoría técnica, implementada y validada localmente.
+
+- `GET /api/tickets/export.csv` conserva el mismo `WHERE` y orden Drizzle del listado, pero ejecuta el SQL compilado mediante el cursor `iterate()` de `better-sqlite3`. Ya no materializa todos los tickets ni construye el archivo completo antes de responder.
+- Encabezado y filas se serializan como fragmentos con paridad byte a byte respecto del contrato anterior: BOM UTF-8, punto y coma, CRLF, textos entrecomillados, neutralización de fórmulas, fechas de Buenos Aires y ausencia de salto final permanecen iguales.
+- La primera fila se prepara antes de enviar headers para conservar los errores HTTP de preflight. Después, `pipeline` regula backpressure; la fuente anticipa como máximo un fragmento fuera del buffer acotado del destino. Un aborto o error cierra explícitamente el iterador y libera el statement.
+- Cada descarga tiene además un deadline absoluto, configurable con `TICKET_CSV_EXPORT_TIMEOUT_MS` y de cinco minutos por defecto. El timer no mantiene vivo el proceso, se limpia de forma idempotente y aborta el pipeline/cursor; así un cliente lento no puede retener indefinidamente el snapshot lector ni favorecer crecimiento ilimitado del WAL.
+- Las regresiones prueban múltiples chunks, parámetros enlazados, cero uso de `.all()`, paridad exacta, backpressure, desconexión, deadline sin esperas reales, fallos de lectura inicial y tardío, filtros de fecha compilados por Drizzle y las integraciones previas de headers/filtros/orden. TypeScript, la suite completa de backend y `git diff --check` aprobaron. No se hizo push.
+
 ## 2026-08-06 — Agregaciones SQL y calendario estable del Dashboard
 
 **Agente:** Codex

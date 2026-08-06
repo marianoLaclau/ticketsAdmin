@@ -319,6 +319,18 @@ describe("listado y exportación de tickets", () => {
     assert.doesNotMatch(csv, /"conv-empty"/);
   });
 
+  it("aplica fechas Drizzle al statement iterado sin perder su codificacion", async () => {
+    const response = await request(
+      "/tickets/export.csv?fecha_desde=2026-07-22&fecha_hasta=2026-07-22&sort_by=id&order=asc",
+    );
+
+    assert.equal(response.status, 200);
+    const csv = await response.text();
+    assert.match(csv, /"conv-1"/);
+    assert.doesNotMatch(csv, /"conv-2"/);
+    assert.doesNotMatch(csv, /"conv-empty"/);
+  });
+
   it("exporta el CSV con el mismo orden compuesto", async () => {
     sqlite
       .prepare("UPDATE tickets SET prioridad = 'media' WHERE id IN (1, 2)")

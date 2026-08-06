@@ -76,6 +76,7 @@ const PRIORIDAD_LABELS: Readonly<Record<string, string>> = {
   urgente: "Urgente",
 };
 
+// eslint-disable-next-line no-control-regex -- Los controles ASCII se ignoran al detectar prefijos de formula.
 const FORMULA_PREFIX = /^[\u0000-\u0020]*[=+\-@]/;
 
 function asValidDate(value: Date | string | number): Date | null {
@@ -173,20 +174,43 @@ export function ticketToCsvRow(
   ];
 }
 
+export function serializeTicketCsvHeader(
+  options: TicketCsvOptions = {},
+): string {
+  const header =
+    TICKET_CSV_HEADERS.map(escapeTicketCsvCell).join(TICKET_CSV_DELIMITER);
+  return options.includeBom === false ? header : `${TICKET_CSV_BOM}${header}`;
+}
+
+export function serializeTicketCsvRow(
+  ticket: TicketCsvRecord,
+  options: TicketCsvOptions = {},
+): string {
+  const timeZone = options.timeZone ?? SLA_TIME_ZONE;
+  return ticketToCsvRow(ticket, timeZone)
+    .map(escapeTicketCsvCell)
+    .join(TICKET_CSV_DELIMITER);
+}
+
+/**
+ * Produce un fragmento por encabezado/fila. No agrega un salto final, para
+ * conservar exactamente el contrato historico del serializador completo.
+ */
+export function* iterateTicketCsvChunks(
+  tickets: Iterable<TicketCsvRecord>,
+  options: TicketCsvOptions = {},
+): Generator<string> {
+  yield serializeTicketCsvHeader(options);
+  for (const ticket of tickets) {
+    yield `${TICKET_CSV_LINE_ENDING}${serializeTicketCsvRow(ticket, options)}`;
+  }
+}
+
 export function serializeTicketsCsv(
   tickets: readonly TicketCsvRecord[],
   options: TicketCsvOptions = {},
 ): string {
-  const timeZone = options.timeZone ?? SLA_TIME_ZONE;
-  const rows = [
-    [...TICKET_CSV_HEADERS],
-    ...tickets.map((ticket) => ticketToCsvRow(ticket, timeZone)),
-  ];
-  const csv = rows
-    .map((row) => row.map(escapeTicketCsvCell).join(TICKET_CSV_DELIMITER))
-    .join(TICKET_CSV_LINE_ENDING);
-
-  return options.includeBom === false ? csv : `${TICKET_CSV_BOM}${csv}`;
+  return [...iterateTicketCsvChunks(tickets, options)].join("");
 }
 
 export function createTicketCsvFilename(

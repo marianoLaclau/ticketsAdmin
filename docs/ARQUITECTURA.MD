@@ -135,6 +135,8 @@ El restore nunca se ejecuta automáticamente después de un deploy fallido: podr
 
 El backend es intencionalmente de instancia única respecto del archivo SQLite. Escalar horizontalmente varios contenedores contra el mismo archivo no forma parte del diseño actual.
 
+La exportación operativa reutiliza el `WHERE` y `ORDER BY` tipados de Drizzle, pero entrega sus filas mediante un cursor incremental de `better-sqlite3`. Un `Readable` conectado por `pipeline` respeta backpressure y cierra el cursor ante desconexiones; así el consumo de memoria no crece con la cantidad total exportada. El serializador por filas conserva exactamente el formato CSV público y prepara la primera fila antes de comprometer los headers HTTP. Un deadline absoluto configurable —cinco minutos por defecto— aborta también clientes que mantengan una descarga indefinidamente lenta, evitando retener sin límite el snapshot lector y páginas antiguas del WAL.
+
 ### Frontend SPA
 
 El frontend usa React, Wouter y TanStack Query:

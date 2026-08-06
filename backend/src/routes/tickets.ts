@@ -2,6 +2,7 @@ import { Router, type NextFunction, type Request, type Response } from "express"
 import {
   db,
   seguimientosTable,
+  sqlite,
   ticketVisibleCondition,
   ticketsTable,
   type Ticket,
@@ -29,10 +30,16 @@ import {
   requireSysAdmin,
   type SessionUser,
 } from "../lib/auth";
+import { createTicketCsvFilename } from "../lib/ticket-csv";
 import {
-  createTicketCsvFilename,
-  serializeTicketsCsv,
-} from "../lib/ticket-csv";
+  createTicketCsvExportDeadline,
+  isTicketCsvClientDisconnect,
+  pipeTicketCsvStream,
+  prepareTicketCsvStream,
+  readTicketCsvExportTimeoutMs,
+  type TicketCsvExportDeadline,
+  type PreparedTicketCsvStream,
+} from "../lib/ticket-csv-stream";
 import {
   buildTicketOrderBy,
   buildTicketWhere,
@@ -42,6 +49,7 @@ import { broadcastEvent } from "../lib/events";
 import { findInvalidRfc3339DateTimeField } from "../lib/rfc3339";
 
 const router = Router();
+const ticketCsvExportTimeoutMs = readTicketCsvExportTimeoutMs();
 
 const TECHNICAL_TICKET_UPDATE_FIELDS = [
   "hora",
@@ -342,7 +350,10 @@ router.get("/tickets", requireAdminForEmptyTickets, async (req, res) => {
 
 // Debe declararse antes de `/:id` para que Express no interprete export.csv
 // como un identificador de ticket.
-router.get("/tickets/export.csv", async (req, res) => {
+router.get("/tickets/export.csv", async (req, res, next) => {
+  let prepared: PreparedTicketCsvStream | undefined;
+  let deadline: TicketCsvExportDeadline | undefined;
+
   const parsed = ExportTicketsCsvQueryParams.safeParse(
     normalizeTicketQuery(req.query),
   );
@@ -368,20 +379,43 @@ router.get("/tickets/export.csv", async (req, res) => {
   const where = buildTicketWhere(parsed.data, [ticketVisibleCondition], {
     now: new Date(),
   });
-  const tickets = await db
+  const query = db
     .select()
     .from(ticketsTable)
     .where(where)
     .orderBy(...buildTicketOrderBy(sortResult.criteria));
 
-  const filename = createTicketCsvFilename();
-  res.set({
-    "Content-Type": "text/csv; charset=utf-8",
-    "Content-Disposition": `attachment; filename="${filename}"`,
-    "Cache-Control": "no-store",
-    "X-Content-Type-Options": "nosniff",
-  });
-  res.status(200).send(serializeTicketsCsv(tickets));
+  try {
+    deadline = createTicketCsvExportDeadline({
+      timeoutMs: ticketCsvExportTimeoutMs,
+    });
+    // `toSQL()` conserva exactamente el WHERE y ORDER BY compartidos con el
+    // listado. Better-sqlite3 aporta el cursor incremental que Drizzle no
+    // expone para su driver sincronico.
+    prepared = prepareTicketCsvStream(sqlite, query.toSQL());
+    const filename = createTicketCsvFilename();
+    res.status(200).set({
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+    });
+    await pipeTicketCsvStream(prepared, res, { signal: deadline.signal });
+  } catch (error) {
+    if (req.aborted || isTicketCsvClientDisconnect(error)) return;
+
+    if (res.headersSent) {
+      res.destroy(error instanceof Error ? error : undefined);
+      return;
+    }
+    next(error);
+  } finally {
+    try {
+      deadline?.dispose();
+    } finally {
+      prepared?.close();
+    }
+  }
 });
 
 router.get("/tickets/:id", requireAdminForEmptyTickets, async (req, res) => {
