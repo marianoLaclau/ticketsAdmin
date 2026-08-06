@@ -47,12 +47,9 @@ import {
   Phone, 
   Mail, 
   Clock, 
-  FileText, 
   CheckCircle2, 
-  PlayCircle,
   MessageSquare,
   History,
-  Headphones,
   Pencil,
 } from 'lucide-react';
 import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
@@ -69,6 +66,7 @@ import {
 import { useAdminAccess, adminErrorMessage } from '@/hooks/use-admin-access';
 import { TicketDataEditDialog } from '@/components/tickets/TicketDataEditDialog';
 import { TicketVersionConflictAlert } from '@/components/tickets/TicketVersionConflictAlert';
+import { TicketCallSummaryCard } from '@/features/ticket-detail/TicketCallSummaryCard';
 import {
   TICKET_STATE_PROGRESS,
   applyTicketManagementState,
@@ -744,48 +742,11 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
         {/* Left Column */}
         <div className="lg:col-span-2 space-y-6">
           
-          {/* Detalles Card */}
-          <Card className="shadow-sm">
-            <CardHeader className="pb-3 border-b border-slate-100">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <FileText className="h-5 w-5 text-primary" />
-                Resumen del Llamado
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-6">
-              <div>
-                <h4 className="text-sm font-medium text-slate-500 mb-1">Descripción</h4>
-                <p className="text-slate-900 whitespace-pre-wrap leading-relaxed">
-                  {ticket.resumen || 'Sin descripción detallada.'}
-                </p>
-              </div>
-
-              {/* Audio Player */}
-              <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
-                <h4 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
-                  <Headphones className="h-4 w-4 text-slate-500" />
-                  Grabación de la Llamada
-                </h4>
-                {ticket.audio_url ? (
-                  <audio controls className="w-full h-10" src={ticket.audio_url}>
-                    Tu navegador no soporta el elemento de audio.
-                  </audio>
-                ) : (
-                  <div className="flex items-center gap-2 text-sm text-slate-500 bg-white border border-slate-200 border-dashed rounded p-3">
-                    <PlayCircle className="h-4 w-4 opacity-50" />
-                    Sin grabación disponible para este caso.
-                  </div>
-                )}
-              </div>
-
-              {ticket.notas && (
-                <div className="bg-amber-50 rounded-lg p-4 border border-amber-100">
-                  <h4 className="text-sm font-medium text-amber-800 mb-1">Notas Internas</h4>
-                  <p className="text-amber-900/80 text-sm whitespace-pre-wrap">{ticket.notas}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <TicketCallSummaryCard
+            summary={ticket.resumen}
+            audioUrl={ticket.audio_url}
+            notes={ticket.notas}
+          />
 
           {/* Seguimientos Timeline */}
           <Card className="shadow-sm">

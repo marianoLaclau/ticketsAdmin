@@ -175,6 +175,8 @@ La pantalla de identidades administrativas se organiza como feature en `frontend
 
 La administración de tickets se modulariza en `frontend/src/features/admin-tickets`. El panel de registros concentra listado, CRUD, caché optimista y resolución de conflictos; sus diálogos son hermanos de `TabsContent` para conservar estado al alternar pestañas. El importador CSV mantiene archivo, simulación y confirmación definitiva, y la zona peligrosa concentra conteo, confirmación y truncado. Las consultas reciben una versión opaca para separar credenciales sucesivas sin exponer la API key en las query keys; la credencial sólo viaja en `RequestInit`. `Admin.tsx` mantiene la elevación, cabecera y composición de pestañas.
 
+El detalle operativo se descompone en `frontend/src/features/ticket-detail`. Las tarjetas sin estado reciben por props fragmentos tipados del contrato `Ticket`; consultas, editores y control optimista permanecen en la página hasta que puedan trasladarse como unidades cohesionadas, sin repartir drafts ni mutaciones entre componentes.
+
 El estado remoto se invalida después de mutaciones y también por eventos SSE. Los errores de sesión (`401`) vuelven a la entrada; los errores de servidor muestran una pantalla recuperable.
 
 ## 3. Contrato y paquetes compartidos

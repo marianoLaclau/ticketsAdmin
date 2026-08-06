@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Resumen visual del llamado extraído
+
+**Agente:** Codex
+**Estado:** quincuagésima cuarta remediación de la auditoría técnica, implementada y validada localmente.
+
+- La tarjeta de descripción, grabación y notas salió de `TicketDetail.tsx` a `features/ticket-detail/TicketCallSummaryCard.tsx`, con tres props derivadas directamente del contrato `Ticket`.
+- El componente es puramente presentacional: no incorpora hooks, consultas ni mutaciones. Se preservaron el fallback de resumen, el condicional de audio sin atributos nuevos, el mensaje de ausencia, las notas truthy, textos, clases y posición en el DOM.
+- La revisión independiente no encontró hallazgos P0/P1/P2. Aprobaron 85 pruebas del frontend, typecheck, ESLint, build aislado y `diff --check`. No se hizo push.
+
 ## 2026-08-06 — CRUD de tickets separado de la página administrativa
 
 **Agente:** Codex
