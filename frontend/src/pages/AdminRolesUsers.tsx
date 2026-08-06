@@ -32,6 +32,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
+import { AdminStatusBadge } from '@/features/admin-directory/AdminStatusBadge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   AlertDialog,
@@ -106,16 +107,6 @@ const emptyRoleForm = (): RoleFormState => ({
   descripcion: '',
   activo: true,
 });
-
-function StatusBadge({ active }: { active: boolean }) {
-  return active ? (
-    <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">Activo</Badge>
-  ) : (
-    <Badge variant="secondary" className="text-slate-500">
-      Inactivo
-    </Badge>
-  );
-}
 
 export default function AdminRolesUsers() {
   const { adminKey, saveAdminKey, adminRequest } = useAdminAccess();
@@ -637,7 +628,7 @@ export default function AdminRolesUsers() {
                           <Badge variant="outline">{roleById.get(user.role_id) ?? `Rol #${user.role_id}`}</Badge>
                         </TableCell>
                         <TableCell>
-                          <StatusBadge active={user.activo} />
+                          <AdminStatusBadge active={user.activo} />
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                           {formatDate(user.fecha_actualizacion)}
@@ -814,7 +805,7 @@ export default function AdminRolesUsers() {
                         </TableCell>
                         <TableCell className="max-w-xl text-muted-foreground">{role.descripcion || '—'}</TableCell>
                         <TableCell>
-                          <StatusBadge active={role.activo} />
+                          <AdminStatusBadge active={role.activo} />
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                           {formatDate(role.fecha_actualizacion)}

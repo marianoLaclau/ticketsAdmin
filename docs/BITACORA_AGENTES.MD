@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Inicio del feature administrativo de identidades
+
+**Agente:** Codex
+**Estado:** cuadragésima séptima remediación de la auditoría técnica, implementada y validada localmente.
+
+- Se inició `features/admin-directory` con el badge de estado compartido por usuarios y roles, extraído literalmente de la página monolítica.
+- Clases, variantes, etiquetas y puntos de uso permanecen iguales; el corte establece el destino de los siguientes paneles sin introducir lógica ni props nuevas.
+- Lint, typecheck y build del frontend aprobaron. No se hizo push.
+
 ## 2026-08-06 — Sesión explícita del borrador de contacto
 
 **Agente:** Codex
