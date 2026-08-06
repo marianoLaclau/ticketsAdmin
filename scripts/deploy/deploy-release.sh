@@ -5,6 +5,8 @@ umask 077
 
 readonly EXPECTED_COMPOSE_PROJECT="ticketsadmin"
 readonly SQLITE_SOURCE_PATH="/data/tickets.db"
+readonly EXPECTED_RUNTIME_EPOCH="readyz-v1"
+EXPECTED_DB_ROLLBACK_EPOCH=""
 
 BACKEND_IMAGE_ID=""
 FRONTEND_IMAGE_ID=""
@@ -18,9 +20,15 @@ REPOSITORY=""
 BACKUP_DIR=""
 LOCK_FILE=""
 EXPECTED_RELEASE_ID=""
+ALLOW_LEGACY_ADOPTION="false"
+ALLOW_FIX_FORWARD_TRANSITION="false"
+EXPECTED_BASELINE_RELEASE=""
+EXPECTED_BASELINE_BACKEND_IMAGE_ID=""
+EXPECTED_BASELINE_FRONTEND_IMAGE_ID=""
 
 COMPOSE_PROJECT=""
 DATA_VOLUME=""
+COMPOSE_CONTRACT_SHA256=""
 FIRST_DEPLOY="false"
 BASELINE_BACKEND_CONTAINER_ID=""
 BASELINE_FRONTEND_CONTAINER_ID=""
@@ -31,6 +39,12 @@ BASELINE_FRONTEND_STARTED_AT=""
 BASELINE_IMAGE_REVISION=""
 BASELINE_IMAGE_SOURCE=""
 BASELINE_RELEASE_ID=""
+BASELINE_RUNTIME_EPOCH=""
+BASELINE_DB_ROLLBACK_EPOCH=""
+BASELINE_COMPOSE_CONTRACT_SHA256=""
+BASELINE_COMPATIBILITY_IDENTIFIED="false"
+BASELINE_FIX_FORWARD_IDENTIFIED="false"
+ROLLBACK_ELIGIBLE="false"
 
 STAGING_DIR=""
 CID_FILE=""
@@ -44,6 +58,10 @@ PUBLISHED_BACKUP_PATH=""
 PUBLISHED_MANIFEST_PATH=""
 DEPLOYED_BACKEND_CONTAINER_ID=""
 DEPLOYED_FRONTEND_CONTAINER_ID=""
+ROLLOUT_STARTED="false"
+RELEASE_VERIFIED="false"
+ROLLBACK_ACTIVE="false"
+FAILURE_PHASE="pre-rollout"
 
 usage() {
   cat <<'EOF'
@@ -59,7 +77,12 @@ Uso:
     --run-attempt <numero> \
     --repository <owner/repo> \
     --backup-dir <ruta-absoluta> \
-    --lock-file <ruta-absoluta>
+    --lock-file <ruta-absoluta> \
+    [--allow-legacy-adoption] \
+    [--allow-fix-forward-transition] \
+    [--expected-baseline-release <release-id>] \
+    [--expected-baseline-backend-image-id <sha256:id>] \
+    [--expected-baseline-frontend-image-id <sha256:id>]
 
 Captura un checkpoint SQLite verificable y despliega el par exacto de
 imagenes bajo un unico lock. No restaura datos automaticamente.
@@ -143,6 +166,31 @@ parse_args() {
         set_option_once LOCK_FILE "$1" "$2"
         shift 2
         ;;
+      --allow-legacy-adoption)
+        [[ "$ALLOW_LEGACY_ADOPTION" == "false" ]] || die "opcion repetida: $1"
+        ALLOW_LEGACY_ADOPTION="true"
+        shift
+        ;;
+      --allow-fix-forward-transition)
+        [[ "$ALLOW_FIX_FORWARD_TRANSITION" == "false" ]] || die "opcion repetida: $1"
+        ALLOW_FIX_FORWARD_TRANSITION="true"
+        shift
+        ;;
+      --expected-baseline-release)
+        require_option_value "$1" "${2:-}"
+        set_option_once EXPECTED_BASELINE_RELEASE "$1" "$2"
+        shift 2
+        ;;
+      --expected-baseline-backend-image-id)
+        require_option_value "$1" "${2:-}"
+        set_option_once EXPECTED_BASELINE_BACKEND_IMAGE_ID "$1" "$2"
+        shift 2
+        ;;
+      --expected-baseline-frontend-image-id)
+        require_option_value "$1" "${2:-}"
+        set_option_once EXPECTED_BASELINE_FRONTEND_IMAGE_ID "$1" "$2"
+        shift 2
+        ;;
       -h | --help)
         usage
         exit 0
@@ -192,6 +240,21 @@ validate_inputs() {
     die "repositorio invalido"
   [[ "$BACKUP_DIR" == /* && "$LOCK_FILE" == /* ]] ||
     die "backup y lock requieren rutas absolutas"
+  [[ "$ALLOW_LEGACY_ADOPTION" != "true" || "$ALLOW_FIX_FORWARD_TRANSITION" != "true" ]] ||
+    die "las autorizaciones legacy y fix-forward son mutuamente excluyentes"
+  if [[ "$ALLOW_LEGACY_ADOPTION" == "true" || "$ALLOW_FIX_FORWARD_TRANSITION" == "true" ]]; then
+    [[ "$EXPECTED_BASELINE_RELEASE" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,255}$ ]] ||
+      die "la autorizacion exige un release baseline esperado valido"
+    [[ "$EXPECTED_BASELINE_BACKEND_IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]] ||
+      die "la autorizacion exige el ID backend exacto del baseline"
+    [[ "$EXPECTED_BASELINE_FRONTEND_IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]] ||
+      die "la autorizacion exige el ID frontend exacto del baseline"
+  else
+    [[ -z "$EXPECTED_BASELINE_RELEASE" &&
+      -z "$EXPECTED_BASELINE_BACKEND_IMAGE_ID" &&
+      -z "$EXPECTED_BASELINE_FRONTEND_IMAGE_ID" ]] ||
+      die "la identidad baseline esperada solo se acepta con una autorizacion explicita"
+  fi
   EXPECTED_RELEASE_ID="git-${REVISION}-run-${RUN_ID}-${RUN_ATTEMPT}"
 
   validate_private_directory "$BACKUP_DIR" "el directorio de backups"
@@ -230,10 +293,43 @@ cleanup_verifier() {
 
 cleanup() {
   local status=$?
-  trap - EXIT
+  local rollback_attempted="false"
+  local rollback_status="not-needed"
+
+  trap - EXIT HUP INT TERM
   set +e
   cleanup_helper
   cleanup_verifier
+
+  if ((status != 0)) && [[ "$ROLLOUT_STARTED" == "true" && "$RELEASE_VERIFIED" != "true" ]]; then
+    if [[ "$FIRST_DEPLOY" == "true" ]]; then
+      if contain_first_deploy_candidate; then
+        rollback_status="first-deploy-contained"
+        printf 'Primer deploy fallido: se detuvieron solo contenedores candidatos y se preservaron los datos.\n' >&2
+      else
+        rollback_status="first-deploy-containment-failed"
+        printf 'Primer deploy fallido: no se pudo contener con seguridad la topologia candidata.\n' >&2
+      fi
+    elif [[ "$ROLLBACK_ELIGIBLE" != "true" ]]; then
+      rollback_status="ineligible-baseline"
+      printf 'Rollback automatico bloqueado: la release anterior no comparte los epochs seguros.\n' >&2
+    else
+      rollback_attempted="true"
+      ROLLBACK_ACTIVE="true"
+      if rollback_application; then
+        rollback_status="succeeded"
+        printf 'Rollback de aplicacion verificado sobre la release %s.\n' "$BASELINE_RELEASE_ID" >&2
+      else
+        rollback_status="failed"
+        printf 'Rollback de aplicacion fallido; se requiere intervencion y no se restauraron datos.\n' >&2
+      fi
+      ROLLBACK_ACTIVE="false"
+    fi
+
+    write_output rollback_attempted "$rollback_attempted"
+    write_output rollback_status "$rollback_status"
+    write_output failure_phase "$FAILURE_PHASE"
+  fi
 
   if [[ -n "$STAGING_DIR" && "$STAGING_DIR" == "$BACKUP_DIR"/.predeploy-backup.* ]]; then
     local candidate
@@ -252,16 +348,19 @@ cleanup() {
   exit "$status"
 }
 
-trap cleanup EXIT
-trap 'exit 129' HUP
-trap 'exit 130' INT
-trap 'exit 143' TERM
+install_traps() {
+  trap cleanup EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+}
 
 validate_candidate() {
   local image_id="$1"
   local image_ref="$2"
   local component="$3"
   local inspected_id referenced_id revision_label source_label release_label
+  local runtime_epoch db_rollback_epoch compose_contract
 
   inspected_id="$(docker image inspect --format '{{.Id}}' "$image_id")" ||
     die "no se pudo inspeccionar la imagen candidata de $component"
@@ -273,12 +372,23 @@ validate_candidate() {
     die "no se pudo leer el origen OCI de $component"
   release_label="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.release-id"}}' "$image_id")" ||
     die "no se pudo leer la identidad de release de $component"
+  runtime_epoch="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.runtime-epoch"}}' "$image_id")" ||
+    die "no se pudo leer el runtime epoch de $component"
+  db_rollback_epoch="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.db-rollback-epoch"}}' "$image_id")" ||
+    die "no se pudo leer el DB rollback epoch de $component"
+  compose_contract="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.compose-contract-sha256"}}' "$image_id")" ||
+    die "no se pudo leer el contrato Compose de $component"
 
   [[ "$inspected_id" == "$image_id" ]] || die "el ID candidato de $component cambio"
   [[ "$referenced_id" == "$image_id" ]] || die "la referencia candidata de $component fue sustituida"
   [[ "$revision_label" == "$REVISION" ]] || die "la revision OCI de $component no coincide"
   [[ "$source_label" == "$IMAGE_SOURCE" ]] || die "el origen OCI de $component no coincide"
   [[ "$release_label" == "$EXPECTED_RELEASE_ID" ]] || die "la identidad de release de $component no coincide"
+  [[ "$runtime_epoch" == "$EXPECTED_RUNTIME_EPOCH" ]] || die "el runtime epoch de $component no coincide"
+  [[ "$db_rollback_epoch" == "$EXPECTED_DB_ROLLBACK_EPOCH" ]] ||
+    die "el DB rollback epoch de $component no coincide"
+  [[ "$compose_contract" == "$COMPOSE_CONTRACT_SHA256" ]] ||
+    die "el contrato Compose de $component no coincide"
 }
 
 revalidate_candidates() {
@@ -286,8 +396,20 @@ revalidate_candidates() {
   validate_candidate "$FRONTEND_IMAGE_ID" "$FRONTEND_IMAGE_REF" "frontend"
 }
 
+resolve_repository_contracts() {
+  local head_revision migration_tree
+
+  head_revision="$(git rev-parse HEAD)" || die "no se pudo identificar el checkout"
+  [[ "$head_revision" == "$REVISION" ]] || die "el checkout no coincide con la revision candidata"
+  migration_tree="$(git rev-parse HEAD:lib/db/drizzle)" ||
+    die "no se pudo identificar la cadena de migraciones"
+  [[ "$migration_tree" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] ||
+    die "Git produjo una identidad de migraciones invalida"
+  EXPECTED_DB_ROLLBACK_EPOCH="drizzle-$migration_tree"
+}
+
 resolve_compose_identity() {
-  local compose_config
+  local compose_config compose_contract
 
   # Compose solo necesita valores sintacticamente validos para resolver la
   # topologia. Los placeholders viven en este proceso hijo: el entorno real
@@ -304,12 +426,42 @@ resolve_compose_identity() {
     die "Compose no informo el nombre del proyecto"
   DATA_VOLUME="$(jq -er '.volumes.tickets_data.name' <<<"$compose_config")" ||
     die "Compose no informo el volumen tickets_data"
+  jq -e '
+    (.services.backend.environment | type) == "object" and
+    (.services.backend.environment | has("WEBHOOK_API_KEY")) and
+    (.services.backend.environment | has("ADMIN_API_KEY")) and
+    (.services.backend.environment | has("BOOTSTRAP_SYSADMIN_PASSWORD"))
+  ' <<<"$compose_config" >/dev/null || die "Compose omitio el contrato de secretos del backend"
+  compose_contract="$(jq -cS '
+    del(.services[].image, .services[].build) |
+    .services.backend.environment.WEBHOOK_API_KEY = "redacted" |
+    .services.backend.environment.ADMIN_API_KEY = "redacted" |
+    .services.backend.environment.BOOTSTRAP_SYSADMIN_PASSWORD = "redacted"
+  ' <<<"$compose_config")" ||
+    die "no se pudo canonicalizar el contrato Compose"
+  COMPOSE_CONTRACT_SHA256="$(printf '%s' "$compose_contract" | sha256sum)"
+  COMPOSE_CONTRACT_SHA256="${COMPOSE_CONTRACT_SHA256%% *}"
   unset compose_config
+  unset compose_contract
 
   [[ "$COMPOSE_PROJECT" == "$EXPECTED_COMPOSE_PROJECT" ]] ||
     die "el proyecto Compose no es ticketsadmin"
   [[ "$DATA_VOLUME" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]+$ ]] ||
     die "Compose produjo un nombre de volumen invalido"
+  [[ "$COMPOSE_CONTRACT_SHA256" =~ ^[a-f0-9]{64}$ ]] ||
+    die "Compose produjo un contrato invalido"
+}
+
+assert_compose_contract_unchanged() {
+  local expected_project="$COMPOSE_PROJECT"
+  local expected_volume="$DATA_VOLUME"
+  local expected_contract="$COMPOSE_CONTRACT_SHA256"
+
+  resolve_compose_identity
+  [[ "$COMPOSE_PROJECT" == "$expected_project" ]] || die "el proyecto Compose cambio durante el release"
+  [[ "$DATA_VOLUME" == "$expected_volume" ]] || die "el volumen Compose cambio durante el release"
+  [[ "$COMPOSE_CONTRACT_SHA256" == "$expected_contract" ]] ||
+    die "el contrato Compose cambio durante el release"
 }
 
 list_service_containers() {
@@ -418,6 +570,8 @@ capture_baseline() {
   local backend_output frontend_output project_output
   local backend_revision frontend_revision backend_source frontend_source
   local backend_release frontend_release backend_ref frontend_ref legacy_backend_release legacy_frontend_release
+  local backend_runtime_epoch frontend_runtime_epoch backend_db_epoch frontend_db_epoch
+  local backend_compose_contract frontend_compose_contract
   local -a backend_containers=()
   local -a frontend_containers=()
   local -a project_containers=()
@@ -478,10 +632,25 @@ capture_baseline() {
     die "no se pudo inspeccionar la identidad del release backend"
   frontend_release="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.release-id"}}' "$BASELINE_FRONTEND_IMAGE_ID")" ||
     die "no se pudo inspeccionar la identidad del release frontend"
+  backend_runtime_epoch="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.runtime-epoch"}}' "$BASELINE_BACKEND_IMAGE_ID")" ||
+    die "no se pudo inspeccionar el runtime epoch del baseline"
+  frontend_runtime_epoch="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.runtime-epoch"}}' "$BASELINE_FRONTEND_IMAGE_ID")" ||
+    die "no se pudo inspeccionar el runtime epoch frontend del baseline"
+  backend_db_epoch="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.db-rollback-epoch"}}' "$BASELINE_BACKEND_IMAGE_ID")" ||
+    die "no se pudo inspeccionar el DB rollback epoch del baseline"
+  frontend_db_epoch="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.db-rollback-epoch"}}' "$BASELINE_FRONTEND_IMAGE_ID")" ||
+    die "no se pudo inspeccionar el DB rollback epoch frontend del baseline"
+  backend_compose_contract="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.compose-contract-sha256"}}' "$BASELINE_BACKEND_IMAGE_ID")" ||
+    die "no se pudo inspeccionar el contrato Compose del baseline"
+  frontend_compose_contract="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.compose-contract-sha256"}}' "$BASELINE_FRONTEND_IMAGE_ID")" ||
+    die "no se pudo inspeccionar el contrato Compose frontend del baseline"
 
   if is_missing_label "$backend_revision" && is_missing_label "$frontend_revision" &&
     is_missing_label "$backend_source" && is_missing_label "$frontend_source" &&
-    is_missing_label "$backend_release" && is_missing_label "$frontend_release"; then
+    is_missing_label "$backend_release" && is_missing_label "$frontend_release" &&
+    is_missing_label "$backend_runtime_epoch" && is_missing_label "$frontend_runtime_epoch" &&
+    is_missing_label "$backend_db_epoch" && is_missing_label "$frontend_db_epoch" &&
+    is_missing_label "$backend_compose_contract" && is_missing_label "$frontend_compose_contract"; then
     backend_ref="$(inspect_container_value "$BASELINE_BACKEND_CONTAINER_ID" '{{.Config.Image}}')"
     frontend_ref="$(inspect_container_value "$BASELINE_FRONTEND_CONTAINER_ID" '{{.Config.Image}}')"
     [[ "$backend_ref" == "ticketsadmin-backend" || "$backend_ref" == "ticketsadmin-backend:latest" ]] ||
@@ -491,6 +660,10 @@ capture_baseline() {
     BASELINE_IMAGE_REVISION="legacy-unversioned"
     BASELINE_IMAGE_SOURCE="legacy-compose-adoption"
     BASELINE_RELEASE_ID="legacy-unversioned-adoption"
+    BASELINE_RUNTIME_EPOCH="legacy-unknown"
+    BASELINE_DB_ROLLBACK_EPOCH="legacy-unknown"
+    BASELINE_COMPOSE_CONTRACT_SHA256="legacy-unknown"
+    ROLLBACK_ELIGIBLE="false"
   else
     [[ "$backend_revision" =~ ^[0-9a-f]{40}$ && "$frontend_revision" == "$backend_revision" ]] ||
       die "backend y frontend activos pertenecen a revisiones distintas"
@@ -516,8 +689,69 @@ capture_baseline() {
         die "el baseline legado no tiene referencias de release verificables"
       BASELINE_RELEASE_ID="$legacy_backend_release"
     fi
+
+    if is_missing_label "$backend_runtime_epoch" && is_missing_label "$frontend_runtime_epoch" &&
+      is_missing_label "$backend_db_epoch" && is_missing_label "$frontend_db_epoch" &&
+      is_missing_label "$backend_compose_contract" && is_missing_label "$frontend_compose_contract"; then
+      BASELINE_RUNTIME_EPOCH="pre-rollback-ledger"
+      BASELINE_DB_ROLLBACK_EPOCH="pre-rollback-ledger"
+      BASELINE_COMPOSE_CONTRACT_SHA256="pre-rollback-ledger"
+      BASELINE_FIX_FORWARD_IDENTIFIED="true"
+      ROLLBACK_ELIGIBLE="false"
+    else
+      [[ "$backend_runtime_epoch" == "$frontend_runtime_epoch" ]] ||
+        die "backend y frontend activos tienen runtime epochs distintos"
+      [[ "$backend_db_epoch" == "$frontend_db_epoch" ]] ||
+        die "backend y frontend activos tienen DB rollback epochs distintos"
+      [[ "$backend_compose_contract" == "$frontend_compose_contract" ]] ||
+        die "backend y frontend activos tienen contratos Compose distintos"
+      [[ "$backend_runtime_epoch" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]] ||
+        die "el runtime epoch del baseline es invalido"
+      [[ "$backend_db_epoch" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]] ||
+        die "el DB rollback epoch del baseline es invalido"
+      [[ "$backend_compose_contract" =~ ^[a-f0-9]{64}$ ]] ||
+        die "el contrato Compose del baseline es invalido"
+      BASELINE_RUNTIME_EPOCH="$backend_runtime_epoch"
+      BASELINE_DB_ROLLBACK_EPOCH="$backend_db_epoch"
+      BASELINE_COMPOSE_CONTRACT_SHA256="$backend_compose_contract"
+      BASELINE_COMPATIBILITY_IDENTIFIED="true"
+      BASELINE_FIX_FORWARD_IDENTIFIED="true"
+      if [[ "$BASELINE_RUNTIME_EPOCH" == "$EXPECTED_RUNTIME_EPOCH" &&
+        "$BASELINE_DB_ROLLBACK_EPOCH" == "$EXPECTED_DB_ROLLBACK_EPOCH" &&
+        "$BASELINE_COMPOSE_CONTRACT_SHA256" == "$COMPOSE_CONTRACT_SHA256" ]]; then
+        ROLLBACK_ELIGIBLE="true"
+      fi
+    fi
   fi
   assert_volume_exclusive_to "$BASELINE_BACKEND_CONTAINER_ID"
+}
+
+authorize_baseline_transition() {
+  if [[ "$FIRST_DEPLOY" == "true" || "$ROLLBACK_ELIGIBLE" == "true" ]]; then
+    return
+  fi
+
+  if [[ "$ALLOW_LEGACY_ADOPTION" == "true" &&
+    "$BASELINE_RELEASE_ID" == "legacy-unversioned-adoption" ]]; then
+    [[ "$EXPECTED_BASELINE_RELEASE" == "$BASELINE_RELEASE_ID" &&
+      "$EXPECTED_BASELINE_BACKEND_IMAGE_ID" == "$BASELINE_BACKEND_IMAGE_ID" &&
+      "$EXPECTED_BASELINE_FRONTEND_IMAGE_ID" == "$BASELINE_FRONTEND_IMAGE_ID" ]] ||
+      die "la adopcion legacy no coincide con el baseline autorizado"
+    printf 'Adopcion legacy autorizada: esta transicion exige fix-forward si el candidato falla.\n' >&2
+    return
+  fi
+
+  if [[ "$ALLOW_FIX_FORWARD_TRANSITION" == "true" &&
+    "$BASELINE_FIX_FORWARD_IDENTIFIED" == "true" ]]; then
+    [[ "$EXPECTED_BASELINE_RELEASE" == "$BASELINE_RELEASE_ID" &&
+      "$EXPECTED_BASELINE_BACKEND_IMAGE_ID" == "$BASELINE_BACKEND_IMAGE_ID" &&
+      "$EXPECTED_BASELINE_FRONTEND_IMAGE_ID" == "$BASELINE_FRONTEND_IMAGE_ID" ]] ||
+      die "la transicion fix-forward no coincide con el baseline autorizado"
+    printf 'Transicion incompatible autorizada: exige fix-forward si el candidato falla.\n' >&2
+    return
+  fi
+
+  die "el baseline no admite rollback; la transicion requiere autorizacion explicita"
 }
 
 revalidate_baseline() {
@@ -701,8 +935,15 @@ create_predeploy_backup() {
     --arg baselineRevision "$BASELINE_IMAGE_REVISION" \
     --arg baselineSource "$BASELINE_IMAGE_SOURCE" \
     --arg baselineReleaseId "$BASELINE_RELEASE_ID" \
+    --arg baselineRuntimeEpoch "$BASELINE_RUNTIME_EPOCH" \
+    --arg baselineDbRollbackEpoch "$BASELINE_DB_ROLLBACK_EPOCH" \
+    --arg baselineComposeContract "$BASELINE_COMPOSE_CONTRACT_SHA256" \
+    --argjson rollbackEligible "$ROLLBACK_ELIGIBLE" \
     --arg backendCandidateImage "$BACKEND_IMAGE_ID" \
     --arg frontendCandidateImage "$FRONTEND_IMAGE_ID" \
+    --arg candidateRuntimeEpoch "$EXPECTED_RUNTIME_EPOCH" \
+    --arg candidateDbRollbackEpoch "$EXPECTED_DB_ROLLBACK_EPOCH" \
+    --arg candidateComposeContract "$COMPOSE_CONTRACT_SHA256" \
     --arg dataVolume "$DATA_VOLUME" \
     --arg source "$SQLITE_SOURCE_PATH" \
     --arg snapshot "$(basename -- "$PUBLISHED_BACKUP_PATH")" \
@@ -722,10 +963,24 @@ create_predeploy_backup() {
         revision: $baselineRevision,
         source: $baselineSource,
         releaseId: $baselineReleaseId,
+        compatibility: {
+          runtimeEpoch: $baselineRuntimeEpoch,
+          dbRollbackEpoch: $baselineDbRollbackEpoch,
+          composeContractSha256: $baselineComposeContract,
+          rollbackEligible: $rollbackEligible
+        },
         backend: {containerId: $backendContainer, imageId: $backendBaselineImage, startedAt: $backendStartedAt},
         frontend: {containerId: $frontendContainer, imageId: $frontendBaselineImage, startedAt: $frontendStartedAt}
       },
-      candidate: {backendImageId: $backendCandidateImage, frontendImageId: $frontendCandidateImage},
+      candidate: {
+        backendImageId: $backendCandidateImage,
+        frontendImageId: $frontendCandidateImage,
+        compatibility: {
+          runtimeEpoch: $candidateRuntimeEpoch,
+          dbRollbackEpoch: $candidateDbRollbackEpoch,
+          composeContractSha256: $candidateComposeContract
+        }
+      },
       dataVolume: {name: $dataVolume, source: $source},
       snapshot: {file: $snapshot, sha256: $sha256, bytes: $bytes, pageCount: $pageCount},
       checks: {integrity: "ok", foreignKeys: "ok", ticketManagerSchema: "ok"}
@@ -749,7 +1004,10 @@ deploy_candidates() {
   TICKETSADMIN_BACKEND_IMAGE="$BACKEND_IMAGE_ID" TICKETSADMIN_FRONTEND_IMAGE="$FRONTEND_IMAGE_ID" docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
 }
 
-verify_deployed_release() {
+verify_running_release() {
+  local expected_backend_image="$1"
+  local expected_frontend_image="$2"
+  local description="$3"
   local backend_output frontend_output project_output deployed_image
   local -a backend_containers=()
   local -a frontend_containers=()
@@ -763,8 +1021,8 @@ verify_deployed_release() {
   [[ -z "$project_output" ]] || mapfile -t project_containers <<<"$project_output"
 
   ((${#backend_containers[@]} == 1 && ${#frontend_containers[@]} == 1)) ||
-    die "el rollout no produjo exactamente un backend y un frontend"
-  ((${#project_containers[@]} == 2)) || die "el rollout dejo una topologia Compose ambigua"
+    die "$description no produjo exactamente un backend y un frontend"
+  ((${#project_containers[@]} == 2)) || die "$description dejo una topologia Compose ambigua"
   DEPLOYED_BACKEND_CONTAINER_ID="${backend_containers[0]}"
   DEPLOYED_FRONTEND_CONTAINER_ID="${frontend_containers[0]}"
   array_contains "$DEPLOYED_BACKEND_CONTAINER_ID" "${project_containers[@]}" ||
@@ -772,15 +1030,81 @@ verify_deployed_release() {
   array_contains "$DEPLOYED_FRONTEND_CONTAINER_ID" "${project_containers[@]}" ||
     die "el frontend desplegado no pertenece al proyecto esperado"
 
-  assert_container_healthy "$DEPLOYED_BACKEND_CONTAINER_ID" "backend desplegado"
-  assert_container_healthy "$DEPLOYED_FRONTEND_CONTAINER_ID" "frontend desplegado"
+  assert_container_healthy "$DEPLOYED_BACKEND_CONTAINER_ID" "backend de $description"
+  assert_container_healthy "$DEPLOYED_FRONTEND_CONTAINER_ID" "frontend de $description"
   deployed_image="$(inspect_container_value "$DEPLOYED_BACKEND_CONTAINER_ID" '{{.Image}}')"
-  [[ "$deployed_image" == "$BACKEND_IMAGE_ID" ]] || die "el backend no ejecuta la imagen candidata exacta"
+  [[ "$deployed_image" == "$expected_backend_image" ]] ||
+    die "el backend no ejecuta la imagen exacta esperada para $description"
   deployed_image="$(inspect_container_value "$DEPLOYED_FRONTEND_CONTAINER_ID" '{{.Image}}')"
-  [[ "$deployed_image" == "$FRONTEND_IMAGE_ID" ]] || die "el frontend no ejecuta la imagen candidata exacta"
+  [[ "$deployed_image" == "$expected_frontend_image" ]] ||
+    die "el frontend no ejecuta la imagen exacta esperada para $description"
   assert_backend_data_mount "$DEPLOYED_BACKEND_CONTAINER_ID"
   assert_data_volume
   assert_volume_exclusive_to "$DEPLOYED_BACKEND_CONTAINER_ID"
+}
+
+verify_deployed_release() {
+  verify_running_release "$BACKEND_IMAGE_ID" "$FRONTEND_IMAGE_ID" "el rollout candidato"
+}
+
+contain_first_deploy_candidate() {
+  (
+    set -Eeuo pipefail
+    local containers_output container_id service image status
+    local -a containers=()
+
+    [[ "$FIRST_DEPLOY" == "true" ]] || die "contencion invocada fuera del primer deploy"
+    containers_output="$(list_project_containers)" ||
+      die "no se pudo inspeccionar el primer deploy fallido"
+    [[ -z "$containers_output" ]] || mapfile -t containers <<<"$containers_output"
+
+    for container_id in "${containers[@]}"; do
+      [[ "$container_id" =~ ^[0-9a-f]{64}$ ]] || die "el primer deploy dejo un contenedor ambiguo"
+      service="$(inspect_container_value "$container_id" '{{index .Config.Labels "com.docker.compose.service"}}')" ||
+        die "no se pudo identificar un servicio del primer deploy"
+      image="$(inspect_container_value "$container_id" '{{.Image}}')" ||
+        die "no se pudo identificar una imagen del primer deploy"
+      case "$service:$image" in
+        "backend:$BACKEND_IMAGE_ID" | "frontend:$FRONTEND_IMAGE_ID") ;;
+        *) die "el primer deploy contiene una identidad ajena a las candidatas" ;;
+      esac
+    done
+
+    if ((${#containers[@]} > 0)); then
+      docker stop --time 30 "${containers[@]}" >/dev/null ||
+        die "Docker no pudo detener las candidatas del primer deploy"
+    fi
+    for container_id in "${containers[@]}"; do
+      status="$(inspect_container_value "$container_id" '{{.State.Status}}')" ||
+        die "no se pudo verificar la contencion del primer deploy"
+      [[ "$status" != "running" ]] || die "una candidata del primer deploy sigue ejecutandose"
+    done
+  )
+}
+
+rollback_application() {
+  (
+    set -Eeuo pipefail
+
+    [[ "$ROLLBACK_ACTIVE" == "true" ]] || die "rollback invocado fuera de una recuperacion"
+    [[ "$FIRST_DEPLOY" != "true" && "$ROLLBACK_ELIGIBLE" == "true" ]] ||
+      die "el baseline no es elegible para rollback"
+    [[ "$(docker image inspect --format '{{.Id}}' "$BASELINE_BACKEND_IMAGE_ID")" == "$BASELINE_BACKEND_IMAGE_ID" ]] ||
+      die "la imagen backend del baseline ya no existe"
+    [[ "$(docker image inspect --format '{{.Id}}' "$BASELINE_FRONTEND_IMAGE_ID")" == "$BASELINE_FRONTEND_IMAGE_ID" ]] ||
+      die "la imagen frontend del baseline ya no existe"
+    assert_compose_contract_unchanged
+
+    TICKETSADMIN_BACKEND_IMAGE="$BASELINE_BACKEND_IMAGE_ID" \
+      TICKETSADMIN_FRONTEND_IMAGE="$BASELINE_FRONTEND_IMAGE_ID" \
+      docker compose up -d --no-build --wait --wait-timeout 180 ||
+      die "Compose no pudo restaurar las imagenes baseline"
+    verify_running_release \
+      "$BASELINE_BACKEND_IMAGE_ID" \
+      "$BASELINE_FRONTEND_IMAGE_ID" \
+      "el rollback"
+    smoke_services
+  )
 }
 
 smoke_services() {
@@ -805,6 +1129,7 @@ write_output() {
 main() {
   local required
 
+  install_traps
   parse_args "$@"
   for required in basename bash chmod curl date dirname docker flock git grep id jq ln mktemp realpath rm rmdir sha256sum stat sync; do
     require_command "$required"
@@ -814,19 +1139,32 @@ main() {
   exec 9>"$LOCK_FILE"
   flock --exclusive --nonblock 9 || die "otro deploy u operacion mantiene el lock"
 
-  revalidate_candidates
+  resolve_repository_contracts
   resolve_compose_identity
+  revalidate_candidates
   capture_baseline
+  authorize_baseline_transition
   assert_fresh_main
   create_predeploy_backup
   assert_fresh_main
   revalidate_baseline
   revalidate_candidates
+  assert_compose_contract_unchanged
+  FAILURE_PHASE="candidate-compose-up"
+  ROLLOUT_STARTED="true"
   deploy_candidates
+  FAILURE_PHASE="candidate-verification"
   verify_deployed_release
+  FAILURE_PHASE="candidate-smoke"
   smoke_services
+  RELEASE_VERIFIED="true"
+  ROLLOUT_STARTED="false"
+  FAILURE_PHASE="completed"
 
   write_output deployed "true"
+  write_output rollback_attempted "false"
+  write_output rollback_status "not-needed"
+  write_output rollback_eligible "$ROLLBACK_ELIGIBLE"
   write_output first_deploy "$FIRST_DEPLOY"
   write_output backup_path "$PUBLISHED_BACKUP_PATH"
   write_output manifest_path "$PUBLISHED_MANIFEST_PATH"
@@ -844,4 +1182,6 @@ main() {
   printf 'Release %s desplegada y verificada.\n' "$REVISION"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

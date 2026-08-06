@@ -73,6 +73,18 @@ test("el workflow delega checkpoint, deploy y smoke a una sola operacion", () =>
   assert.match(release, /--frontend-image-id/);
   assert.match(release, /--backup-dir/);
   assert.match(release, /--lock-file/);
+  assert.match(release, /--allow-legacy-adoption/);
+  assert.match(release, /--allow-fix-forward-transition/);
+  assert.match(release, /--expected-baseline-release/);
+  assert.match(release, /--expected-baseline-backend-image-id/);
+  assert.match(release, /--expected-baseline-frontend-image-id/);
+  assert.match(workflow, /workflow_dispatch:\n\s+inputs:/);
+  assert.match(workflow, /inputs\.allow_legacy_adoption \|\| false/);
+  assert.match(workflow, /inputs\.allow_fix_forward_transition \|\| false/);
+  assert.match(workflow, /inputs\.expected_baseline_release \|\| ''/);
+  assert.match(workflow, /inputs\.expected_baseline_backend_image_id \|\| ''/);
+  assert.match(workflow, /inputs\.expected_baseline_frontend_image_id \|\| ''/);
+  assert.doesNotMatch(workflow, /vars\.TICKETSADMIN_ALLOW_/);
   assert.doesNotMatch(workflow, /name: Deploy and wait for healthy services/);
   assert.doesNotMatch(workflow, /name: Smoke test published services/);
   assert.doesNotMatch(workflow, /run: docker compose up/);
@@ -116,6 +128,15 @@ test("el runner valida capacidades de Compose antes de construir", () => {
   assert.match(preflight, /test ! -L "\$lock_file"/);
   assert.match(preflight, /= "600"/);
   assert.match(preflight, /docker compose config --quiet/);
+  assert.match(preflight, /docker compose config --format json/);
+  assert.match(
+    preflight,
+    /del\(\.services\[\]\.image, \.services\[\]\.build\)/,
+  );
+  assert.match(preflight, /compose_contract_sha256/);
+  assert.match(preflight, /git rev-parse HEAD:lib\/db\/drizzle/);
+  assert.match(preflight, /TICKETSADMIN_DB_ROLLBACK_EPOCH=drizzle-/);
+  assert.match(preflight, /GITHUB_ENV/);
   assert.ok(
     workflow.indexOf("Verify Docker Compose capabilities") <
       workflow.indexOf("Build images"),
@@ -156,6 +177,10 @@ test("cada ejecucion construye y verifica referencias de imagen identificables",
   assert.match(verify, /org\.opencontainers\.image\.revision/);
   assert.match(verify, /org\.opencontainers\.image\.source/);
   assert.match(verify, /io\.ticketsadmin\.release-id/);
+  assert.match(verify, /io\.ticketsadmin\.runtime-epoch/);
+  assert.match(verify, /io\.ticketsadmin\.db-rollback-epoch/);
+  assert.match(verify, /io\.ticketsadmin\.compose-contract-sha256/);
+  assert.match(verify, /TICKETSADMIN_DB_ROLLBACK_EPOCH/);
   assert.match(verify, /test "\$revision" = "\$GITHUB_SHA"/);
   assert.match(verify, /test "\$source" = "\$TICKETSADMIN_IMAGE_SOURCE"/);
   assert.match(
@@ -180,9 +205,20 @@ test("cada ejecucion construye y verifica referencias de imagen identificables",
   for (const dockerfile of [backendDockerfile, frontendDockerfile]) {
     assert.match(dockerfile, /ARG TICKETSADMIN_IMAGE_REVISION=development/);
     assert.match(dockerfile, /ARG TICKETSADMIN_RELEASE_ID=development/);
+    assert.match(
+      dockerfile,
+      /ARG TICKETSADMIN_COMPOSE_CONTRACT_SHA256=development/,
+    );
+    assert.match(dockerfile, /ARG TICKETSADMIN_DB_ROLLBACK_EPOCH=development/);
     assert.match(dockerfile, /org\.opencontainers\.image\.revision/);
     assert.match(dockerfile, /org\.opencontainers\.image\.source/);
     assert.match(dockerfile, /io\.ticketsadmin\.release-id/);
+    assert.match(dockerfile, /io\.ticketsadmin\.runtime-epoch="readyz-v1"/);
+    assert.match(
+      dockerfile,
+      /io\.ticketsadmin\.db-rollback-epoch="\$\{TICKETSADMIN_DB_ROLLBACK_EPOCH\}"/,
+    );
+    assert.match(dockerfile, /io\.ticketsadmin\.compose-contract-sha256/);
     assert.ok(
       dockerfile.indexOf("COPY package.json pnpm-lock.yaml") <
         dockerfile.indexOf("RUN pnpm install --frozen-lockfile"),

@@ -39,10 +39,15 @@ FROM node:24-slim AS runtime
 ARG TICKETSADMIN_IMAGE_REVISION=development
 ARG TICKETSADMIN_IMAGE_SOURCE=local
 ARG TICKETSADMIN_RELEASE_ID=development
+ARG TICKETSADMIN_COMPOSE_CONTRACT_SHA256=development
+ARG TICKETSADMIN_DB_ROLLBACK_EPOCH=development
 
 LABEL org.opencontainers.image.revision="${TICKETSADMIN_IMAGE_REVISION}" \
       org.opencontainers.image.source="${TICKETSADMIN_IMAGE_SOURCE}" \
-      io.ticketsadmin.release-id="${TICKETSADMIN_RELEASE_ID}"
+      io.ticketsadmin.release-id="${TICKETSADMIN_RELEASE_ID}" \
+      io.ticketsadmin.runtime-epoch="readyz-v1" \
+      io.ticketsadmin.db-rollback-epoch="${TICKETSADMIN_DB_ROLLBACK_EPOCH}" \
+      io.ticketsadmin.compose-contract-sha256="${TICKETSADMIN_COMPOSE_CONTRACT_SHA256}"
 
 WORKDIR /app
 ENV NODE_ENV=production

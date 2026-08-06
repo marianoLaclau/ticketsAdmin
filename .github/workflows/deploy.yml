@@ -3,7 +3,33 @@ name: Deploy
 on:
   push:
     branches: [main]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      allow_legacy_adoption:
+        description: Autorizar solo la adopción del baseline histórico sin labels
+        required: true
+        default: false
+        type: boolean
+      allow_fix_forward_transition:
+        description: Autorizar una transición incompatible que exige fix-forward
+        required: true
+        default: false
+        type: boolean
+      expected_baseline_release:
+        description: Release ID exacto del baseline autorizado
+        required: false
+        default: ""
+        type: string
+      expected_baseline_backend_image_id:
+        description: ID sha256 exacto del backend baseline
+        required: false
+        default: ""
+        type: string
+      expected_baseline_frontend_image_id:
+        description: ID sha256 exacto del frontend baseline
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -28,6 +54,12 @@ jobs:
       TICKETSADMIN_IMAGE_REVISION: ${{ github.sha }}
       TICKETSADMIN_IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
       TICKETSADMIN_RELEASE_ID: git-${{ github.sha }}-run-${{ github.run_id }}-${{ github.run_attempt }}
+      TICKETSADMIN_RUNTIME_EPOCH: readyz-v1
+      TICKETSADMIN_ALLOW_LEGACY_ADOPTION: ${{ inputs.allow_legacy_adoption || false }}
+      TICKETSADMIN_ALLOW_FIX_FORWARD_TRANSITION: ${{ inputs.allow_fix_forward_transition || false }}
+      TICKETSADMIN_EXPECTED_BASELINE_RELEASE: ${{ inputs.expected_baseline_release || '' }}
+      TICKETSADMIN_EXPECTED_BASELINE_BACKEND_IMAGE_ID: ${{ inputs.expected_baseline_backend_image_id || '' }}
+      TICKETSADMIN_EXPECTED_BASELINE_FRONTEND_IMAGE_ID: ${{ inputs.expected_baseline_frontend_image_id || '' }}
       # Ambos directorios se preparan una sola vez en el runner. El workflow
       # exige que sean privados, reales y propiedad del usuario del servicio.
       TICKETSADMIN_BACKUP_DIR: /var/lib/ticketsadmin/backups
@@ -87,10 +119,34 @@ jobs:
           test "$(stat -c '%a' -- "$lock_file")" = "600"
           test -w "$lock_file"
           docker compose config --quiet
+          compose_contract="$(
+            docker compose config --format json |
+              jq -ecS '
+                if (
+                  (.services.backend.environment | type) != "object" or
+                  (.services.backend.environment | has("WEBHOOK_API_KEY") | not) or
+                  (.services.backend.environment | has("ADMIN_API_KEY") | not) or
+                  (.services.backend.environment | has("BOOTSTRAP_SYSADMIN_PASSWORD") | not)
+                ) then error("missing backend secret contract") else
+                del(.services[].image, .services[].build) |
+                .services.backend.environment.WEBHOOK_API_KEY = "redacted" |
+                .services.backend.environment.ADMIN_API_KEY = "redacted" |
+                .services.backend.environment.BOOTSTRAP_SYSADMIN_PASSWORD = "redacted"
+                end
+              '
+          )"
+          compose_contract_sha256="$(printf '%s' "$compose_contract" | sha256sum)"
+          compose_contract_sha256="${compose_contract_sha256%% *}"
+          [[ "$compose_contract_sha256" =~ ^[a-f0-9]{64}$ ]]
+          printf 'TICKETSADMIN_COMPOSE_CONTRACT_SHA256=%s\n' "$compose_contract_sha256" >> "$GITHUB_ENV"
+          migration_tree="$(git rev-parse HEAD:lib/db/drizzle)"
+          [[ "$migration_tree" =~ ^([a-f0-9]{40}|[a-f0-9]{64})$ ]]
+          printf 'TICKETSADMIN_DB_ROLLBACK_EPOCH=drizzle-%s\n' "$migration_tree" >> "$GITHUB_ENV"
         env:
           # Solo validan la interpolación; el preflight no crea servicios.
           WEBHOOK_API_KEY: not-used-during-compose-preflight
           ADMIN_API_KEY: not-used-during-compose-preflight
+          BOOTSTRAP_SYSADMIN_PASSWORD: ""
 
       - name: Build images
         if: steps.freshness.outputs.deploy == 'true'
@@ -110,14 +166,20 @@ jobs:
           verify_image() {
             local image="$1"
             local output_name="$2"
-            local revision source release_id image_id
+            local revision source release_id runtime_epoch db_rollback_epoch compose_contract image_id
             revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")"
             source="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.source"}}' "$image")"
             release_id="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.release-id"}}' "$image")"
+            runtime_epoch="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.runtime-epoch"}}' "$image")"
+            db_rollback_epoch="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.db-rollback-epoch"}}' "$image")"
+            compose_contract="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.compose-contract-sha256"}}' "$image")"
             image_id="$(docker image inspect --format '{{.Id}}' "$image")"
             test "$revision" = "$GITHUB_SHA"
             test "$source" = "$TICKETSADMIN_IMAGE_SOURCE"
             test "$release_id" = "$TICKETSADMIN_RELEASE_ID"
+            test "$runtime_epoch" = "$TICKETSADMIN_RUNTIME_EPOCH"
+            test "$db_rollback_epoch" = "$TICKETSADMIN_DB_ROLLBACK_EPOCH"
+            test "$compose_contract" = "$TICKETSADMIN_COMPOSE_CONTRACT_SHA256"
             test -n "$image_id"
             printf 'Candidate %s -> %s (revision %s)\n' "$image" "$image_id" "$revision"
             printf '%s=%s\n' "$output_name" "$image_id" >> "$GITHUB_OUTPUT"
@@ -142,18 +204,48 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          exec bash scripts/deploy/deploy-release.sh \
-            --backend-image-id "${{ steps.candidate_images.outputs.backend_id }}" \
-            --frontend-image-id "${{ steps.candidate_images.outputs.frontend_id }}" \
-            --backend-image-ref "$TICKETSADMIN_BACKEND_IMAGE" \
-            --frontend-image-ref "$TICKETSADMIN_FRONTEND_IMAGE" \
-            --revision "$TICKETSADMIN_IMAGE_REVISION" \
-            --image-source "$TICKETSADMIN_IMAGE_SOURCE" \
-            --run-id "$GITHUB_RUN_ID" \
-            --run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --repository "$GITHUB_REPOSITORY" \
-            --backup-dir "$TICKETSADMIN_BACKUP_DIR" \
+          release_args=(
+            --backend-image-id "${{ steps.candidate_images.outputs.backend_id }}"
+            --frontend-image-id "${{ steps.candidate_images.outputs.frontend_id }}"
+            --backend-image-ref "$TICKETSADMIN_BACKEND_IMAGE"
+            --frontend-image-ref "$TICKETSADMIN_FRONTEND_IMAGE"
+            --revision "$TICKETSADMIN_IMAGE_REVISION"
+            --image-source "$TICKETSADMIN_IMAGE_SOURCE"
+            --run-id "$GITHUB_RUN_ID"
+            --run-attempt "$GITHUB_RUN_ATTEMPT"
+            --repository "$GITHUB_REPOSITORY"
+            --backup-dir "$TICKETSADMIN_BACKUP_DIR"
             --lock-file "$TICKETSADMIN_DEPLOY_LOCK_DIR/deploy.lock"
+          )
+          case "$TICKETSADMIN_ALLOW_LEGACY_ADOPTION" in
+            true) release_args+=(--allow-legacy-adoption) ;;
+            false) ;;
+            *) echo "TICKETSADMIN_ALLOW_LEGACY_ADOPTION must be true or false" >&2; exit 1 ;;
+          esac
+          case "$TICKETSADMIN_ALLOW_FIX_FORWARD_TRANSITION" in
+            true) release_args+=(--allow-fix-forward-transition) ;;
+            false) ;;
+            *) echo "TICKETSADMIN_ALLOW_FIX_FORWARD_TRANSITION must be true or false" >&2; exit 1 ;;
+          esac
+          if [[ "$TICKETSADMIN_ALLOW_LEGACY_ADOPTION" == "true" && "$TICKETSADMIN_ALLOW_FIX_FORWARD_TRANSITION" == "true" ]]; then
+            echo "legacy adoption and fix-forward transition are mutually exclusive" >&2
+            exit 1
+          fi
+          if [[ "$TICKETSADMIN_ALLOW_LEGACY_ADOPTION" == "true" || "$TICKETSADMIN_ALLOW_FIX_FORWARD_TRANSITION" == "true" ]]; then
+            [[ -n "$TICKETSADMIN_EXPECTED_BASELINE_RELEASE" && -n "$TICKETSADMIN_EXPECTED_BASELINE_BACKEND_IMAGE_ID" && -n "$TICKETSADMIN_EXPECTED_BASELINE_FRONTEND_IMAGE_ID" ]] || {
+              echo "the exact baseline release and image IDs are required" >&2
+              exit 1
+            }
+            release_args+=(
+              --expected-baseline-release "$TICKETSADMIN_EXPECTED_BASELINE_RELEASE"
+              --expected-baseline-backend-image-id "$TICKETSADMIN_EXPECTED_BASELINE_BACKEND_IMAGE_ID"
+              --expected-baseline-frontend-image-id "$TICKETSADMIN_EXPECTED_BASELINE_FRONTEND_IMAGE_ID"
+            )
+          elif [[ -n "$TICKETSADMIN_EXPECTED_BASELINE_RELEASE" || -n "$TICKETSADMIN_EXPECTED_BASELINE_BACKEND_IMAGE_ID" || -n "$TICKETSADMIN_EXPECTED_BASELINE_FRONTEND_IMAGE_ID" ]]; then
+            echo "expected baseline identity requires an explicit transition authorization" >&2
+            exit 1
+          fi
+          exec bash scripts/deploy/deploy-release.sh "${release_args[@]}"
         env:
           WEBHOOK_API_KEY: ${{ secrets.WEBHOOK_API_KEY }}
           ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}

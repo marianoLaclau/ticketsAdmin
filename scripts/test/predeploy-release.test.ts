@@ -87,6 +87,9 @@ test("el release usa shell estricto y una interfaz sin credenciales", () => {
     "repository",
     "backup-dir",
     "lock-file",
+    "expected-baseline-release",
+    "expected-baseline-backend-image-id",
+    "expected-baseline-frontend-image-id",
   ]) {
     assert.match(activeRelease, new RegExp(`--${option}\\b`));
   }
@@ -100,6 +103,12 @@ test("el release usa shell estricto y una interfaz sin credenciales", () => {
     /(?:echo|printf)[^\n]*(?:ADMIN_API_KEY|WEBHOOK_API_KEY|BOOTSTRAP_SYSADMIN_PASSWORD)/,
   );
   assert.doesNotMatch(activeRelease, /\beval\b/);
+  assert.match(activeRelease, /--allow-legacy-adoption/);
+  assert.match(activeRelease, /--allow-fix-forward-transition/);
+  assert.match(
+    activeRelease,
+    /autorizaciones legacy y fix-forward son mutuamente excluyentes/,
+  );
 });
 
 test("un unico lock abarca baseline, backup, freshness, rollout y smoke", () => {
@@ -141,17 +150,20 @@ test("un unico lock abarca baseline, backup, freshness, rollout y smoke", () => 
 });
 
 test("confirma imagenes, topologia y volumen despues del rollout", () => {
-  const verification = shellFunction("verify_deployed_release");
+  const verification = shellFunction("verify_running_release");
+  const candidateVerification = shellFunction("verify_deployed_release");
   const main = shellFunction("main");
 
   assert.match(verification, /list_service_containers backend/);
   assert.match(verification, /list_service_containers frontend/);
   assert.match(verification, /list_project_containers/);
-  assert.match(verification, /BACKEND_IMAGE_ID/);
-  assert.match(verification, /FRONTEND_IMAGE_ID/);
   assert.match(verification, /assert_container_healthy/);
   assert.match(verification, /assert_backend_data_mount/);
   assert.match(verification, /assert_data_volume/);
+  assert.match(verification, /expected_backend_image/);
+  assert.match(verification, /expected_frontend_image/);
+  assert.match(candidateVerification, /BACKEND_IMAGE_ID/);
+  assert.match(candidateVerification, /FRONTEND_IMAGE_ID/);
   assertPatternsInOrder(
     main,
     [/deploy_candidates/, /verify_deployed_release/, /smoke_services/],
@@ -197,6 +209,9 @@ test("valida candidatos por ID inmutable y labels OCI antes de usarlos", () => {
   assert.match(activeRelease, /org\.opencontainers\.image\.revision/);
   assert.match(activeRelease, /org\.opencontainers\.image\.source/);
   assert.match(activeRelease, /io\.ticketsadmin\.release-id/);
+  assert.match(activeRelease, /io\.ticketsadmin\.runtime-epoch/);
+  assert.match(activeRelease, /io\.ticketsadmin\.db-rollback-epoch/);
+  assert.match(activeRelease, /io\.ticketsadmin\.compose-contract-sha256/);
   assert.match(activeRelease, /(?:\.Id|\{\{\.Id\}\})/);
   assert.match(activeRelease, /backend[_-]image[_-]id/i);
   assert.match(activeRelease, /frontend[_-]image[_-]id/i);
@@ -205,6 +220,9 @@ test("valida candidatos por ID inmutable y labels OCI antes de usarlos", () => {
   assert.match(activeRelease, /(?:GITHUB_SHA|revision)/i);
   assert.match(activeRelease, /image[_-]source/i);
   assert.match(activeRelease, /EXPECTED_RELEASE_ID/);
+  assert.match(activeRelease, /EXPECTED_RUNTIME_EPOCH/);
+  assert.match(activeRelease, /EXPECTED_DB_ROLLBACK_EPOCH/);
+  assert.match(activeRelease, /COMPOSE_CONTRACT_SHA256/);
 
   assert.match(
     activeRelease,
@@ -273,10 +291,93 @@ test("inspecciona Compose con placeholders locales sin materializar secretos", (
   assert.match(identity, /WEBHOOK_API_KEY=not-used-during-release-inspection/);
   assert.match(identity, /ADMIN_API_KEY=not-used-during-release-inspection/);
   assert.match(identity, /BOOTSTRAP_SYSADMIN_PASSWORD=/);
+  assert.match(identity, /has\("WEBHOOK_API_KEY"\)/);
+  assert.match(identity, /has\("ADMIN_API_KEY"\)/);
+  assert.match(identity, /has\("BOOTSTRAP_SYSADMIN_PASSWORD"\)/);
   assert.match(identity, /docker compose config --format json/);
+  assert.match(identity, /del\(\.services\[\]\.image, \.services\[\]\.build\)/);
+  assert.match(identity, /sha256sum/);
   assert.doesNotMatch(
     identity,
     /\$(?:WEBHOOK_API_KEY|ADMIN_API_KEY|BOOTSTRAP_SYSADMIN_PASSWORD)/,
+  );
+});
+
+test("calcula el epoch de base desde la cadena Git y gatea la adopcion legacy", () => {
+  const repository = shellFunction("resolve_repository_contracts");
+  const authorization = shellFunction("authorize_baseline_transition");
+  const main = shellFunction("main");
+
+  assert.match(repository, /git rev-parse HEAD:lib\/db\/drizzle/);
+  assert.match(
+    repository,
+    /EXPECTED_DB_ROLLBACK_EPOCH="drizzle-\$migration_tree"/,
+  );
+  assertPatternsInOrder(
+    main,
+    [
+      /resolve_repository_contracts/,
+      /revalidate_candidates/,
+      /capture_baseline/,
+      /authorize_baseline_transition/,
+      /deploy_candidates/,
+    ],
+    "los contratos y la autorizacion deben resolverse antes de mutar servicios",
+  );
+  assert.match(authorization, /ROLLBACK_ELIGIBLE/);
+  assert.match(authorization, /ALLOW_LEGACY_ADOPTION/);
+  assert.match(authorization, /ALLOW_FIX_FORWARD_TRANSITION/);
+  assert.match(authorization, /EXPECTED_BASELINE_RELEASE/);
+  assert.match(authorization, /EXPECTED_BASELINE_BACKEND_IMAGE_ID/);
+  assert.match(authorization, /EXPECTED_BASELINE_FRONTEND_IMAGE_ID/);
+  assert.match(authorization, /BASELINE_RELEASE_ID/);
+  assert.match(authorization, /BASELINE_BACKEND_IMAGE_ID/);
+  assert.match(authorization, /BASELINE_FRONTEND_IMAGE_ID/);
+  assert.match(authorization, /BASELINE_FIX_FORWARD_IDENTIFIED/);
+  assert.match(authorization, /legacy-unversioned-adoption/);
+  assert.match(authorization, /die/);
+});
+
+test("revierte solo la aplicacion cuando baseline y candidato son compatibles", () => {
+  const cleanup = shellFunction("cleanup");
+  const rollback = shellFunction("rollback_application");
+  const main = shellFunction("main");
+
+  assert.match(cleanup, /ROLLOUT_STARTED/);
+  assert.match(cleanup, /RELEASE_VERIFIED/);
+  assert.match(cleanup, /ROLLBACK_ELIGIBLE/);
+  assert.match(cleanup, /rollback_application/);
+  assert.match(cleanup, /ineligible-baseline/);
+  assert.match(cleanup, /first-deploy-contained/);
+  assert.match(cleanup, /contain_first_deploy_candidate/);
+  assert.match(rollback, /BASELINE_BACKEND_IMAGE_ID/);
+  assert.match(rollback, /BASELINE_FRONTEND_IMAGE_ID/);
+  assert.match(rollback, /assert_compose_contract_unchanged/);
+  assert.match(
+    rollback,
+    /docker compose up -d --no-build --wait --wait-timeout 180/,
+  );
+  assert.doesNotMatch(rollback, /--remove-orphans/);
+  assertPatternsInOrder(
+    rollback,
+    [/docker compose up/, /verify_running_release/, /smoke_services/],
+    "el rollback debe comprobar el baseline restaurado antes de declararlo exitoso",
+  );
+  assertPatternsInOrder(
+    main,
+    [
+      /assert_compose_contract_unchanged/,
+      /ROLLOUT_STARTED="true"/,
+      /deploy_candidates/,
+      /verify_deployed_release/,
+      /smoke_services/,
+      /RELEASE_VERIFIED="true"/,
+    ],
+    "el rollback debe quedar armado durante toda la fase candidata",
+  );
+  assert.doesNotMatch(
+    rollback,
+    /restore-db\.mjs|docker compose down|docker volume (?:rm|prune)/,
   );
 });
 

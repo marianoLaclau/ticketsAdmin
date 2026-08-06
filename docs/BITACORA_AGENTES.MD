@@ -2,6 +2,20 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Rollback automático de aplicación compatible
+
+**Agente:** Codex
+**Estado:** trigésima remediación de la auditoría técnica, implementada localmente.
+
+- Backend y frontend incorporan tres contratos de compatibilidad: epoch de runtime, identidad Git del árbol completo de migraciones Drizzle y SHA-256 de la configuración Compose canonicalizada. El hash elimina imagen/build y reemplaza las tres credenciales por sentinels antes de calcularse; una credencial omitida invalida el contrato.
+- El orquestador identifica el baseline y las candidatas por IDs inmutables, exige coherencia entre ambos componentes y solo habilita rollback cuando runtime, base y Compose coinciden. Ante un fallo posterior al comienzo del rollout, recrea el par baseline exacto y vuelve a verificar topología, imágenes, health, mount, exclusividad del volumen y los tres smokes HTTP; el job conserva el error original.
+- Un primer deploy fallido no inventa un baseline: inspecciona todos los contenedores del proyecto, demuestra servicio e imagen candidata y detiene únicamente esos IDs. En ningún camino se restaura SQLite, se elimina el volumen, se ejecuta `compose down` ni se hace prune global.
+- La adopción histórica y una transición fix-forward solo pueden autorizarse mediante inputs mutuamente excluyentes de un `workflow_dispatch`; los push automáticos no reciben excepciones. La aprobación queda ligada al `release-id` y a los dos IDs de imagen capturados bajo el mismo lock. También se reconoce de forma controlada el formato de release inmediatamente anterior a los labels de compatibilidad.
+- El contrato Compose, proyecto y volumen se recalculan inmediatamente antes del `up` candidato y del rollback. El runbook aclara la naturaleza cooperativa del lock y que `SIGKILL` o reinicio todavía requieren intervención hasta incorporar el ledger durable.
+- Los E2E ejecutan el `main` real con Docker/Git/curl/jq simulados: upgrade exitoso con checkpoint, reemplazo parcial y rollback exacto, rechazo/aceptación legacy, adopción pre-ledger, baseline o ID discordante y credencial Compose ausente. Auditan todos los comandos Docker, los mounts readonly, la identidad de helpers y que ningún sentinel secreto llegue a stdout, stderr, outputs, manifiestos o eventos.
+- Validaciones: `pnpm run quality` aprobó 391 pruebas de workspace (377 ejecutadas y 14 omisiones justificadas por plataforma), codegen, schema Drizzle, TypeScript y ambos builds. Los ocho E2E de release aprobaron en Linux sin omisiones y una auditoría independiente cerró sin P0/P1. Las imágenes Docker reales se construyeron con los labels nuevos; los tres CLIs empaquetados y `nginx -t` aprobaron sin levantar servicios. Persisten únicamente los avisos frontend ya registrados de sourcemaps y chunk mayor a 500 kB.
+- Archivos principales: workflow, Compose, Dockerfiles, orquestador de release, E2E de rollback y documentación operativa/arquitectónica.
+
 ## 2026-08-06 — Checkpoint automático y rollout serializado
 
 **Agente:** Codex
