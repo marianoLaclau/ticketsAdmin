@@ -771,6 +771,7 @@ describe("restauración SQLite offline", () => {
     const targetPath = path.join(directory, "tickets.db");
     const recoveryPath = path.join(directory, "pre-restore.db");
     const movedStagingPath = path.join(directory, "staging-original-movido");
+    const operationFailure = new Error("fallo después de reemplazar staging");
     let replacementStagingPath = "";
     createClosedDatabase(targetPath, "Anterior");
 
@@ -791,10 +792,29 @@ describe("restauración SQLite offline", () => {
               path.join(replacementStagingPath, "sentinela-ajeno"),
               "no borrar",
             );
-            throw new Error("fallo después de reemplazar staging");
+            throw operationFailure;
           },
         },
       ),
+      (error) => {
+        assert.ok(error instanceof AggregateError);
+        assert.equal(
+          error.message,
+          "La restauración y la limpieza de sus artefactos fallaron",
+        );
+        assert.equal(error.errors.length, 2);
+
+        const [restoreError, cleanupError] = error.errors;
+        assert.ok(restoreError instanceof SqliteRestoreError);
+        assert.equal(restoreError.code, "RESTORE_FAILED");
+        assert.equal(restoreError.cause, operationFailure);
+        assert.ok(cleanupError instanceof Error);
+        assert.match(
+          cleanupError.message,
+          /staging fue retirado o reemplazado/i,
+        );
+        return true;
+      },
     );
 
     assert.equal(
@@ -810,6 +830,65 @@ describe("restauración SQLite offline", () => {
     );
     assert.deepEqual(ticketNames(targetPath), ["Anterior"]);
     assert.deepEqual(ticketNames(recoveryPath), ["Anterior"]);
+    assert.equal(fs.existsSync(`${targetPath}.restore.lock`), true);
+  });
+
+  it("reporta un fallo de cleanup después de restaurar y verificar la base", async () => {
+    const directory = makeTemporaryDirectory();
+    const backupPath = await createRestorableBackup(directory, "Nuevo");
+    const targetPath = path.join(directory, "tickets.db");
+    const recoveryPath = path.join(directory, "pre-restore.db");
+    const movedStagingPath = path.join(directory, "staging-exitoso-movido");
+    let replacementStagingPath = "";
+    createClosedDatabase(targetPath, "Anterior");
+
+    await assert.rejects(
+      restoreVerifiedSqliteBackupInternal(
+        {
+          source: backupPath,
+          target: targetPath,
+          recoveryOutput: recoveryPath,
+          offlineConfirmed: true,
+        },
+        {
+          afterPublish: () => {
+            replacementStagingPath = findRestoreStaging(directory);
+            fs.renameSync(replacementStagingPath, movedStagingPath);
+            fs.mkdirSync(replacementStagingPath);
+            fs.writeFileSync(
+              path.join(replacementStagingPath, "sentinela-ajeno"),
+              "no borrar",
+            );
+          },
+        },
+      ),
+      (error) => {
+        assert.ok(error instanceof SqliteRestoreError);
+        assert.equal(error.code, "RESTORE_FAILED");
+        assert.equal(
+          error.message,
+          "La base fue restaurada y verificada, pero no se pudieron limpiar todos los artefactos operativos",
+        );
+        assert.ok(error.cause instanceof Error);
+        assert.match(
+          error.cause.message,
+          /staging fue retirado o reemplazado/i,
+        );
+        return true;
+      },
+    );
+
+    assert.deepEqual(ticketNames(targetPath), ["Nuevo"]);
+    assert.deepEqual(ticketNames(recoveryPath), ["Anterior"]);
+    assert.equal(
+      fs.readFileSync(
+        path.join(replacementStagingPath, "sentinela-ajeno"),
+        "utf8",
+      ),
+      "no borrar",
+    );
+    assert.equal(fs.existsSync(movedStagingPath), true);
+    assert.equal(fs.existsSync(`${targetPath}.restore.lock`), true);
   });
 
   it("repone la base anterior si falla una comprobación post-publicación", async () => {
@@ -917,6 +996,8 @@ describe("restauración SQLite offline", () => {
     const backupPath = await createRestorableBackup(directory, "Nuevo");
     const targetPath = path.join(directory, "tickets.db");
     const recoveryPath = path.join(directory, "pre-restore.db");
+    const operationFailure = new Error("fallo post-publicación inyectado");
+    const rollbackFailure = new Error("fallo de rollback inyectado");
     createClosedDatabase(targetPath, "Anterior");
 
     await assert.rejects(
@@ -929,15 +1010,24 @@ describe("restauración SQLite offline", () => {
         },
         {
           afterPublish: () => {
-            throw new Error("fallo post-publicación inyectado");
+            throw operationFailure;
           },
           beforeRollbackPublish: async () => {
             await Promise.resolve();
-            throw new Error("fallo de rollback inyectado");
+            throw rollbackFailure;
           },
         },
       ),
-      assertRestoreError("ROLLBACK_FAILED"),
+      (error) => {
+        assert.ok(error instanceof SqliteRestoreError);
+        assert.equal(error.code, "ROLLBACK_FAILED");
+        assert.ok(error.cause instanceof AggregateError);
+        assert.deepEqual(error.cause.errors, [
+          operationFailure,
+          rollbackFailure,
+        ]);
+        return true;
+      },
     );
 
     assert.deepEqual(ticketNames(targetPath), ["Nuevo"]);

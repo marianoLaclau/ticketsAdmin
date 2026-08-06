@@ -546,6 +546,7 @@ export async function restoreVerifiedSqliteBackupInternal(
   let preparedRecovery: PreparedRecovery | null = null;
   let preserveRecoveryArtifacts = false;
   let operationError: unknown;
+  let result: SqliteRestoreResult | null = null;
 
   try {
     const acquiredLock = acquireRestoreLock(paths.lockPath);
@@ -670,7 +671,7 @@ export async function restoreVerifiedSqliteBackupInternal(
     );
     assertNoRuntimeSidecars(paths.targetPath);
 
-    return {
+    result = {
       sourcePath: paths.sourcePath,
       targetPath: paths.targetPath,
       recoveryPath: paths.recoveryPath,
@@ -696,28 +697,27 @@ export async function restoreVerifiedSqliteBackupInternal(
           "La restauración falló y no se pudo reponer automáticamente el estado anterior. Se conservaron recovery, staging y lock para intervención manual",
           { cause: new AggregateError([error, rollbackError]) },
         );
-        throw operationError;
       }
 
-      operationError = new SqliteRestoreError(
-        "RESTORE_FAILED",
-        paths.targetStat
-          ? "La restauración falló después de publicar el candidato; la base anterior fue repuesta desde la copia de recuperación"
-          : "La restauración falló después de publicar el candidato; el destino creado fue retirado",
-        { cause: error },
-      );
-      throw operationError;
+      if (!operationError) {
+        operationError = new SqliteRestoreError(
+          "RESTORE_FAILED",
+          paths.targetStat
+            ? "La restauración falló después de publicar el candidato; la base anterior fue repuesta desde la copia de recuperación"
+            : "La restauración falló después de publicar el candidato; el destino creado fue retirado",
+          { cause: error },
+        );
+      }
+    } else {
+      operationError =
+        error instanceof SqliteRestoreError
+          ? error
+          : new SqliteRestoreError(
+              "RESTORE_FAILED",
+              "La restauración falló antes de reemplazar la base destino",
+              { cause: error },
+            );
     }
-
-    operationError =
-      error instanceof SqliteRestoreError
-        ? error
-        : new SqliteRestoreError(
-            "RESTORE_FAILED",
-            "La restauración falló antes de reemplazar la base destino",
-            { cause: error },
-          );
-    throw operationError;
   } finally {
     let cleanupError: unknown;
     try {
@@ -737,16 +737,26 @@ export async function restoreVerifiedSqliteBackupInternal(
 
     if (cleanupError) {
       if (operationError) {
-        throw new AggregateError(
+        operationError = new AggregateError(
           [operationError, cleanupError],
           "La restauración y la limpieza de sus artefactos fallaron",
         );
+      } else {
+        operationError = new SqliteRestoreError(
+          "RESTORE_FAILED",
+          "La base fue restaurada y verificada, pero no se pudieron limpiar todos los artefactos operativos",
+          { cause: cleanupError },
+        );
       }
-      throw new SqliteRestoreError(
-        "RESTORE_FAILED",
-        "La base fue restaurada y verificada, pero no se pudieron limpiar todos los artefactos operativos",
-        { cause: cleanupError },
-      );
     }
   }
+
+  if (operationError) throw operationError;
+  if (!result) {
+    throw new SqliteRestoreError(
+      "RESTORE_FAILED",
+      "La restauración terminó sin producir un resultado verificable",
+    );
+  }
+  return result;
 }
