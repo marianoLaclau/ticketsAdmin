@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Cierre de la deuda explícita de `any`
+
+**Agente:** Codex
+**Estado:** cuadragésima remediación de la auditoría técnica, implementada y validada localmente.
+
+- El Dashboard dejó de ocultar con `any` que la fecha límite del contrato general de Ticket puede ser nula. Una respuesta inconsistente se omite de la tabla de vencidos en lugar de calcular contra una fecha inválida.
+- `no-explicit-any` pasó de advertencia a error y el gate exige cero warnings. La deuda inventariada bajó de 18 a cero en tres microcommits.
+- Se validaron lint, typecheck y las pruebas del frontend. No se hizo push.
+
 ## 2026-08-06 — Inferencia de tipos en métricas del Dashboard
 
 **Agente:** Codex

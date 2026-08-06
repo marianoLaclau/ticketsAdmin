@@ -548,8 +548,11 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {vencidos.map((ticket: any) => {
-                      const limitDate = new Date(ticket.fecha_limite);
+                    {vencidos.map((ticket) => {
+                      const fechaLimite = ticket.fecha_limite;
+                      if (!fechaLimite) return null;
+
+                      const limitDate = new Date(fechaLimite);
                       const diffHours = Math.floor((today.getTime() - limitDate.getTime()) / (1000 * 60 * 60));
                       const vencioStr = diffHours > 24 ? `${Math.floor(diffHours / 24)}d` : `${diffHours}h`;
                       return (

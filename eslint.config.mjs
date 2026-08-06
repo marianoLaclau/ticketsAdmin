@@ -32,9 +32,7 @@ export default defineConfig(
       // Avoid declaration-order-only rewrites; TypeScript already catches
       // invalid assignments and this gate is focused on behavioral defects.
       'prefer-const': 'off',
-      // Temporary debt: the lint script budgets the final occurrence,
-      // so a new explicit `any` fails quality until this baseline is reduced.
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
