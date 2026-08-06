@@ -56,11 +56,10 @@ frontend/
       admin/AdminHeader.tsx        → header compartido de las pantallas de admin (llave + nav)
       SortableTableHead.tsx         → encabezado accesible para orden server-side
       tickets/TicketDataEditDialog.tsx → edición de datos funcionales del ticket
-      ui/                            → primitivas shadcn/ui (button, dialog, table, toast, password-input, ...)
+      ui/                            → 20 primitivas shadcn/ui efectivamente usadas
     hooks/
       use-admin-access.ts          → llave administrativa persistida por usuario en el navegador
       use-toast.ts                   → sistema de notificaciones
-      use-mobile.tsx                   → media query helper
     lib/
       roles.ts                       → constantes de rol + puedeCerrarTickets() (espejo del backend)
       password-change.ts               → decisión de ruta y validación pura del cambio obligatorio
@@ -212,4 +211,4 @@ El transporte real (`customFetch`) vive en `lib/api-client-react/src/custom-fetc
 
 ## Estilos y componentes UI
 
-Tailwind 4 + shadcn/ui: los componentes en `src/components/ui/` son código generado/copiado (no una dependencia de node_modules), así que se editan directamente cuando hace falta un ajuste. `cn()` (en `lib/utils.ts`) combina `clsx` + `tailwind-merge` para componer clases condicionalmente sin conflictos de especificidad. Los badges de estado/prioridad/categoría de motivo son los únicos elementos de color con significado semántico fijo en todo el sistema — si se agrega un estado o categoría nueva, hay que agregar su color en `utils-tickets.tsx` / `lib/motivos.ts` respectivamente.
+Tailwind 4 + shadcn/ui: `src/components/ui/` conserva únicamente las 20 primitivas que usa la aplicación: `alert-dialog`, `alert`, `badge`, `button`, `card`, `dialog`, `input`, `label`, `password-input`, `progress`, `select`, `skeleton`, `slider`, `switch`, `table`, `tabs`, `textarea`, `toast`, `toaster` y `tooltip`. Son código generado/copiado (no una dependencia de node_modules), así que se editan directamente cuando hace falta un ajuste y una primitiva eliminada puede volver a incorporarse mediante la configuración de `components.json`. `cn()` (en `lib/utils.ts`) combina `clsx` + `tailwind-merge` para componer clases condicionalmente sin conflictos de especificidad. Los badges de estado/prioridad/categoría de motivo son los únicos elementos de color con significado semántico fijo en todo el sistema — si se agrega un estado o categoría nueva, hay que agregar su color en `utils-tickets.tsx` / `lib/motivos.ts` respectivamente.
