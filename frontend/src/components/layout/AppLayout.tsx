@@ -228,7 +228,7 @@ export function Sidebar() {
           <div className="flex justify-between items-center text-sm">
             <span className="text-sidebar-foreground/80">En proceso</span>
             <span className="font-semibold text-blue-400">
-              {stats?.por_estado?.find((e: any) => e.estado === 'en_proceso')?.cantidad || 0}
+              {stats?.por_estado?.find((e) => e.estado === 'en_proceso')?.cantidad || 0}
             </span>
           </div>
           <div className="flex justify-between items-center text-sm">
@@ -236,13 +236,13 @@ export function Sidebar() {
               {getEstadoLabel('pendiente')}
             </span>
             <span className="font-semibold text-amber-400">
-              {stats?.por_estado?.find((e: any) => e.estado === 'pendiente')?.cantidad || 0}
+              {stats?.por_estado?.find((e) => e.estado === 'pendiente')?.cantidad || 0}
             </span>
           </div>
           <div className="flex justify-between items-center text-sm">
             <span className="text-sidebar-foreground/80">Urgentes</span>
             <span className="font-semibold text-red-400">
-              {stats?.por_prioridad?.find((p: any) => p.prioridad === 'urgente')?.cantidad || 0}
+              {stats?.por_prioridad?.find((p) => p.prioridad === 'urgente')?.cantidad || 0}
             </span>
           </div>
         </div>

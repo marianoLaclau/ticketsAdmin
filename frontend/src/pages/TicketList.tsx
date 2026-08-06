@@ -527,7 +527,7 @@ export default function TicketList() {
                   </TableCell>
                 </TableRow>
               ) : (
-                tickets.map((ticket: any) => {
+                tickets.map((ticket) => {
                   const vencido = isVencido(ticket.fecha_limite, ticket.estado);
                   const motivoCategoria = getMotivoCategoriaConfig(ticket.motivo_categoria);
                   const contactoLabel = getContactDisplayName(ticket);

@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Tipado inferido en layout y listado de tickets
+
+**Agente:** Codex
+**Estado:** trigésima octava remediación de la auditoría técnica, implementada y validada localmente.
+
+- Se eliminaron cuatro `any` explícitos que anulaban información ya disponible en el cliente OpenAPI: tres estadísticas del sidebar y cada elemento del listado de tickets.
+- El presupuesto de ESLint bajó de 18 a 14 advertencias; por lo tanto, estas supresiones no pueden reaparecer sin romper el gate.
+- No se modificó el contrato ni el comportamiento de consultas, métricas o renderizado. No se hizo push.
+
 ## 2026-08-06 — ESLint tipado como compuerta de calidad
 
 **Agente:** Codex
