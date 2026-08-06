@@ -459,28 +459,34 @@ flowchart TD
     runner[Runner self-hosted]
     images[Docker Compose build]
     release[Lock, baseline y candidatos inmutables]
+    reconcile{Ledger sin pending<br/>o reconciliado}
     gate{Rollback compatible o<br/>transición autorizada}
     checkpoint[Checkpoint SQLite verificado + manifiesto<br/>salvo instalación vacía]
+    writeAhead[Publicar pending durable<br/>antes de Compose]
     rollout[Up con IDs candidatos exactos]
     verify{Topología, health y<br/>tres smoke tests}
+    promote[Promover current/previous<br/>y limpiar pending]
     active[Release activa]
     rollback[Up con IDs baseline exactos]
     verifyRollback[Verificación completa del rollback]
+    closeRollback[Confirmar current baseline<br/>y limpiar pending]
     contain[Primer deploy: detener solo<br/>contenedores candidatos identificados]
     intervention[Job fallido + intervención<br/>o fix-forward]
     volume[(tickets_data volume)]
 
-    git --> quality --> runner --> images --> release
-    release --> gate
+    git --> quality --> runner --> images --> release --> reconcile
+    reconcile -->|estado válido| gate
+    reconcile -->|corrupto, desconocido<br/>o irrecuperable| intervention
     gate -->|compatible o autorización explícita| checkpoint
     gate -->|sin autorización| intervention
     volume --> checkpoint
-    checkpoint --> rollout
+    checkpoint --> writeAhead --> rollout
     rollout -->|dist/migrate.mjs al arrancar| volume
     rollout --> verify
-    verify -->|correcto| active
+    verify -->|correcto| promote --> active
     verify -->|falla y baseline compatible| rollback --> verifyRollback
-    verifyRollback --> intervention
+    verifyRollback -->|correcto| closeRollback --> intervention
+    verifyRollback -->|falla| intervention
     verify -->|falla en primer deploy| contain --> intervention
     verify -->|falla en transición incompatible autorizada| intervention
 ```
@@ -495,7 +501,25 @@ La imagen candidata del backend abre el volumen solo lectura, sin red ni secreto
 
 `up --no-build --wait` recibe los IDs exactos de las dos candidatas, no tags mutables. El backend es healthy únicamente si `/api/readyz` devuelve su JSON exacto, y Nginx exige simultáneamente la SPA real y el mismo endpoint a través del proxy. El host repite los tres recorridos como smoke antes de liberar el lock. Si el rollout falla y el baseline es compatible, ejecuta otro `up` con sus dos IDs exactos y vuelve a comprobar topología, imágenes, health, mount, exclusividad del volumen y los tres recorridos HTTP; el job conserva el error original aunque la aplicación haya sido recuperada. En un primer deploy fallido solo detiene contenedores cuya identidad candidata pudo demostrar. En ningún caso ejecuta `compose down`, prune, borrado de volumen ni restore automático de SQLite.
 
-El contrato Compose, su proyecto y el volumen se recalculan inmediatamente antes de cada `up`, para impedir que una configuración cambiada durante la operación invalide las garantías. No existe un prune global en el host compartido. Una actualización explícita del backend reinicia también Nginx para renovar su resolución DNS. La semántica sigue siendo single-replica: health + wait y el rollback cubren el instante del release, pero no brindan cero downtime, monitoreo continuo ni recuperación durable después de `SIGKILL` o reinicio del host; ese último caso requiere el ledger operativo del siguiente bloque.
+El contrato Compose, su proyecto y el volumen se recalculan inmediatamente antes de cada `up`, para impedir que una configuración cambiada durante la operación invalide las garantías. No existe un prune global en el host compartido. Una actualización explícita del backend reinicia también Nginx para renovar su resolución DNS.
+
+### Ledger durable y reconciliación
+
+El estado de releases vive fuera del checkout en `/var/lib/ticketsadmin/releases/release-state.json`. Su directorio debe ser real, privado y propiedad del usuario del runner, con modo exacto `0700`; el documento se publica con modo `0600` mediante un temporal en el mismo directorio, sincronización y reemplazo atómico. El contrato distingue tres posiciones:
+
+- `current`: par backend/frontend cuya identidad y funcionamiento fueron confirmados;
+- `previous`: última release desplazada, retenida como evidencia y posible insumo de una recuperación compatible, no como autorización automática;
+- `pending`: registro write-ahead de la candidata, el baseline y sus IDs/contratos exactos, publicado después del checkpoint y antes de cualquier mutación mediante Compose.
+
+La promoción de `pending` a `current` ocurre solamente después de comprobar topología completa, los IDs exactos de ambas imágenes, health de backend y frontend, mount `/data`, exclusividad del volumen y los tres smokes publicados. Un rollback compatible exige la misma verificación antes de confirmar nuevamente el baseline y despejar `pending`. La base SQLite no se restaura en ninguno de estos caminos: checkpoint de datos, rollback de aplicación y restore manual siguen siendo operaciones distintas.
+
+Al comenzar cada intento, y todavía bajo el `flock`, el orquestador reconcilia el ledger antes de aceptar un baseline nuevo. Esto cubre una terminación por `SIGKILL`, caída del runner o reinicio del host: puede consolidar una candidata exacta ya saludable, reconocer un baseline exacto ya recuperado o reconstruir el baseline por IDs inmutables cuando los contratos demuestran que el rollback es seguro. No infiere identidad a partir de tags, fechas ni contenedores parciales.
+
+La política es fail-closed. Un documento vacío, corrupto, sustituido, con permisos incorrectos, versión desconocida o incoherente con la topología detiene el proceso antes de otro `up` y conserva evidencia para intervención. Las adopciones legacy y las transiciones fix-forward carecen deliberadamente de rollback automático: después de una interrupción solo se consolidan hacia adelante si el par candidato exacto ya supera todas las verificaciones; cualquier estado parcial requiere una decisión humana nueva. En un primer deploy parcial no existe `current`: solo puede reintentarse la candidata exacta o contener sus contenedores demostrados, siempre preservando `pending` y `ticketsadmin_tickets_data`. La intención de contener también se escribe antes de detener contenedores, de modo que otro proceso pueda repetirla tras un corte.
+
+Un pending terminal no se edita ni se borra. El operador puede reanudarlo mediante una autorización ligada simultáneamente a su `attemptId` y a la `generation` exacta observada; cualquier cambio concurrente invalida el permiso. Esa vía conserva la política original: un intento compatible converge al baseline y uno first-deploy/legacy/fix-forward solo converge a la candidata exacta. Para legacy/fix-forward, la autorización se transforma antes de Compose en la fase durable `retrying_forward`: un corte con el baseline aún exacto vuelve a intentar los mismos IDs candidatos, mientras que una topología parcial o desconocida retorna a intervención manual. Así el baseline incompatible nunca puede aceptarse por perder contexto entre procesos.
+
+La semántica continúa siendo single-replica. El ledger permite recuperar el proceso de release en el siguiente intento, pero no brinda cero downtime, autohealing ni monitoreo continuo. Un escritor que eluda el lock cooperativo o una pérdida simultánea del ledger y de las imágenes permanece fuera de la garantía.
 
 En local se usa `drizzle-kit push` para iterar rápidamente. En Docker, el backend ejecuta `dist/migrate.mjs` antes de escuchar tráfico. Las migraciones versionadas actuales mantienen una secuencia lineal:
 

@@ -2,6 +2,21 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Ledger durable y recuperación de releases interrumpidas
+
+**Agente:** Codex
+**Estado:** trigésima primera remediación de la auditoría técnica, implementada y validada localmente.
+
+- El despliegue incorpora un estado durable fuera del checkout en `/var/lib/ticketsadmin/releases/release-state.json`. El directorio operativo debe ser real, privado, propiedad del runner y modo `0700`; el documento se publica atómicamente con modo `0600` y falla cerrado si está vacío, corrupto, sustituido, tiene un contrato desconocido o permisos incorrectos.
+- El contrato diferencia `current`, `previous` y `pending`. La intención de rollout se registra como write-ahead después del checkpoint y antes de invocar Compose; una candidata solo se promociona tras demostrar IDs exactos, topología, health, mount `/data`, exclusividad del volumen y los tres smokes HTTP.
+- El siguiente intento reconcilia un `pending` bajo el mismo `flock`: puede confirmar la candidata exacta ya saludable, reconocer un baseline exacto ya recuperado o recrear un baseline compatible por sus dos IDs inmutables. Esto permite retomar de forma determinista después de `SIGKILL`, caída del runner o reinicio del host sin elegir por tags ni adivinar una release.
+- Un rollback de aplicación nunca restaura SQLite. Checkpoint, release y recuperación de datos permanecen separados; tampoco se elimina el volumen, se ejecuta `compose down` ni se hace prune global.
+- Legacy y fix-forward solo pueden consolidarse hacia adelante si la candidata exacta ya está completamente verificada; una topología parcial exige intervención manual. En un primer deploy interrumpido no existe `current`: solo se reintenta o contiene la candidata identificada, conservando ledger y volumen.
+- La contención tiene su propia fase write-ahead `containing_first_deploy`, por lo que puede repetirse después de otro corte. Los estados terminales se reanudan sin editar el JSON mediante `workflow_dispatch`, ligados al `attemptId` y a la `generation` exactos; una autorización obsoleta o una topología desconocida falla cerrada.
+- La recuperación manual falla cerrada si falta el ledger, si cambió su generación o si el contrato Compose deriva. Un retry autorizado legacy/fix-forward persiste primero la fase `retrying_forward`: aun si el proceso se corta antes de Compose, el siguiente intento solo puede volver a verificar y promover la candidata registrada, nunca consolidar el baseline incompatible.
+- Validaciones: las 35 regresiones Linux del ledger, rollout y rollback aprobaron sin omisiones; `bash -n`, TypeScript y ShellCheck aprobaron. El quality gate completo confirmó codegen, esquema Drizzle, suites del workspace y builds; solo permanecen los avisos frontend ya conocidos de sourcemaps y chunk mayor a 500 kB. Una revisión independiente no dejó P0/P1 abiertos.
+- Documentación afectada: contrato operativo de deploy, arquitectura y esta bitácora.
+
 ## 2026-08-06 — Rollback automático de aplicación compatible
 
 **Agente:** Codex

@@ -16,7 +16,8 @@ Quality gate (codegen + schema + tests + typecheck + build)
         │
         ▼  solo push de main con gate aprobado
 Self-hosted runner (corriendo EN el servidor de testing)
-        │  build versionado → IDs → lock + checkpoint → up → smoke/rollback
+        │  build versionado → IDs → lock + recovery → checkpoint → pending
+        │  → up → smoke → promote/rollback
         ▼
 ┌─────────────────────────────────────────────┐
 │  Servidor de testing (IP fija interna)       │
@@ -43,11 +44,12 @@ Self-hosted runner (corriendo EN el servidor de testing)
 - Las migraciones de la base (`lib/db/drizzle/*.sql`) se aplican solas al arrancar el contenedor del backend (ver `backend/src/migrate.ts`), antes de levantar la API. Es idempotente: en cada arranque solo aplica lo que falte.
 - Una vez terminadas las migraciones, Node reemplaza al shell y recibe directamente `SIGTERM`. El backend deja de aceptar tráfico, bloquea altas SSE tardías y espera sockets/prioridad automática; SQLite se cierra recién en `beforeExit`, cubriendo handlers async de clientes abortados. El watchdog es de 20 segundos y Compose concede 30 antes de `SIGKILL`. Durante el migrador y el bootstrap inicial todavía no está instalado todo este ciclo; separarlos en fases cancelables queda como hardening posterior y las migraciones actuales siguen siendo transaccionales.
 - Los pull requests ejecutan `.github/workflows/quality.yml` sin desplegar. El workflow de deploy reutiliza exactamente ese gate y el job self-hosted depende de su resultado; no construye ni reinicia contenedores si hay drift de codegen/schema, una prueba falla, TypeScript no compila o un build falla. Consulta `origin/main` antes de construir y el orquestador lo vuelve a verificar dentro del lock antes del checkpoint y del rollout, por lo que un SHA que quedó obsoleto no toca los servicios.
-- Antes de construir, el runner exige Docker Compose `>= 2.17.0`, comprueba las opciones de espera, las utilidades operativas, los directorios privados de backup/lock y valida Compose con placeholders no sensibles. Una instalación incompatible falla antes de tocar servicios.
+- Antes de construir, el runner exige Docker Compose `>= 2.17.0`, comprueba las opciones de espera, las utilidades operativas, los directorios privados de backup/estado/lock y valida Compose con placeholders no sensibles. Una instalación incompatible falla antes de tocar servicios.
 - El healthcheck del backend consulta `/api/readyz` y valida su JSON exacto. El frontend solo queda healthy si Nginx sirve la SPA real y también puede alcanzar ese JSON a través del proxy `/api`; por eso una fallback HTML no puede enmascarar una API rota. Hay 60 segundos de gracia para migraciones/bootstrap, pero cualquier éxito anticipado habilita el servicio de inmediato.
 - Cada ejecución construye un par backend/frontend con referencias distintas y un tag irrepetible `git-<SHA>-run-<run_id>-<attempt>`. Ambas imágenes llevan la misma revisión, origen OCI, `release-id`, runtime epoch, identidad Git del árbol de migraciones y hash del contrato Compose sin secretos. El runner inspecciona esos labels y los IDs, ejecuta los CLIs empaquetados y `nginx -t`, y recién entonces permite el orquestador. Un rerun no mueve la referencia de una ejecución anterior.
-- Un único `flock` cubre baseline, checkpoint, revalidación, `docker compose up --no-build --wait --wait-timeout 180`, los tres smoke tests y, cuando corresponde, el rollback de aplicación. Compose recibe IDs exactos, nunca reconstruye ni resuelve otro tag. Si falla `up`, la verificación o un smoke, el orquestador vuelve al par baseline solo cuando runtime, migraciones y contrato Compose demuestran compatibilidad; lo vuelve a verificar y mantiene igualmente el job en error. Nunca restaura SQLite, elimina el volumen ni ejecuta `down`/`prune`.
-- No se ejecuta un `docker image prune` global: el host es compartido con otros proyectos y esa operación podría eliminar artefactos ajenos o el único punto de rollback. La retención dirigida se incorporará cuando los manifiestos `current`/`previous` queden consolidados; hasta entonces el espacio se supervisa y cualquier falta de capacidad hace fallar el build antes del rollout.
+- Un único `flock` cubre reconciliación del ledger, baseline, checkpoint, write-ahead, revalidación, `docker compose up --no-build --wait --wait-timeout 180`, los tres smoke tests y, cuando corresponde, el rollback de aplicación. Compose recibe IDs exactos, nunca reconstruye ni resuelve otro tag. Si falla `up`, la verificación o un smoke, el orquestador vuelve al par baseline solo cuando runtime, migraciones y contrato Compose demuestran compatibilidad; lo vuelve a verificar y mantiene igualmente el job en error. Nunca restaura SQLite, elimina el volumen ni ejecuta `down`/`prune`.
+- `/var/lib/ticketsadmin/releases/release-state.json` es el ledger durable del despliegue. Distingue la release confirmada (`current`), la anterior (`previous`) y un intento escrito antes de invocar Compose (`pending`). Solo promociona la candidata después de verificar topología, health, mount `/data`, exclusividad del volumen y los tres recorridos HTTP. El archivo no contiene secretos y se publica atómicamente en modo `0600` dentro de un directorio `0700`.
+- No se ejecuta un `docker image prune` global: el host es compartido con otros proyectos y esa operación podría eliminar artefactos ajenos o los IDs exactos que necesita la recuperación. El ledger aporta identidad para una futura retención dirigida, pero todavía no autoriza eliminaciones automáticas; hasta definir esa política, el espacio se supervisa y cualquier falta de capacidad hace fallar el build antes del rollout.
 - `depends_on.backend.restart: true` hace que una actualización explícita mediante Compose reinicie Nginx y renueve la resolución del nombre `backend`. No reacciona a degradaciones ni reemplazos externos: Compose no es un orquestador con autohealing continuo. La espera y el rollback solo comprueban el instante del release.
 - `docker-compose.yml` fija el nombre de proyecto `ticketsadmin`, de modo que contenedores, red y volumen conservan el mismo namespace aunque el workflow y un operador ejecuten Compose desde checkouts distintos.
 - El backend corre con `TZ=America/Argentina/Buenos_Aires` por defecto (configurable con `TZ`). Los filtros por día calendario usan el timezone local del proceso, igual que en desarrollo.
@@ -95,21 +97,34 @@ git clone https://github.com/marianoLaclau/ticketsAdmin.git /opt/ticketsAdmin
 
 Ese checkout es solo para operación manual y debe actualizarse antes de usar código o configuración nuevos. El nombre fijo `ticketsadmin` de Compose hace que ambos checkouts apunten al mismo proyecto desplegado.
 
-### 1.3. Preparar almacenamiento privado y lock del deploy
+### 1.3. Preparar almacenamiento privado, ledger y lock del deploy
 
-El usuario que ejecuta el runner debe ser dueño de dos directorios reales, no symlinks, con modo exacto `0700`. Se crean una sola vez en el servidor usando esa identidad:
+El usuario que ejecuta el runner debe ser dueño de tres directorios reales, no symlinks, con modo exacto `0700`. Se crean una sola vez en el servidor usando esa identidad:
 
 ```bash
 RUNNER_USER="$(id -un)"
 RUNNER_GROUP="$(id -gn)"
 sudo install -d -m 0700 -o "$RUNNER_USER" -g "$RUNNER_GROUP" \
-  /var/lib/ticketsadmin/backups /var/lock/ticketsadmin
+  /var/lib/ticketsadmin/backups \
+  /var/lib/ticketsadmin/releases \
+  /var/lock/ticketsadmin
 sudo touch /var/lock/ticketsadmin/deploy.lock
 sudo chown "$RUNNER_USER:$RUNNER_GROUP" /var/lock/ticketsadmin/deploy.lock
 sudo chmod 0600 /var/lock/ticketsadmin/deploy.lock
 ```
 
-El workflow no intenta crear ni corregir estas rutas con privilegios: si faltan, son enlaces, pertenecen a otra identidad o tienen permisos más amplios, falla antes del build. Los snapshots permanecen fuera de `GITHUB_WORKSPACE`, por lo que un checkout limpio no los elimina.
+No crear un `release-state.json` vacío. El orquestador publica el primer documento válido mediante un temporal privado, sincronización y reemplazo atómico; el archivo final queda en `/var/lib/ticketsadmin/releases/release-state.json` con modo exacto `0600`. Si el archivo ya existe al migrar el mecanismo, comprobar sus permisos sin editar su contenido:
+
+```bash
+if sudo test -e /var/lib/ticketsadmin/releases/release-state.json; then
+  sudo test -f /var/lib/ticketsadmin/releases/release-state.json
+  sudo test ! -L /var/lib/ticketsadmin/releases/release-state.json
+  sudo chown "$RUNNER_USER:$RUNNER_GROUP" /var/lib/ticketsadmin/releases/release-state.json
+  sudo chmod 0600 /var/lib/ticketsadmin/releases/release-state.json
+fi
+```
+
+El workflow no intenta crear ni corregir estas rutas con privilegios: si faltan, son enlaces, pertenecen a otra identidad o tienen permisos más amplios, falla antes del build. Backups y ledger permanecen fuera de `GITHUB_WORKSPACE`, por lo que un checkout limpio no los elimina. Un ledger ausente es válido únicamente antes de la primera adopción administrada; uno existente vacío, corrupto, con contrato desconocido o permisos incorrectos hace fallar cerrado antes de invocar Compose.
 
 ## 2. Registrar un runner para este repo
 
@@ -231,9 +246,19 @@ con el mismo header `x-api-key` (el valor cargado como secreto `WEBHOOK_API_KEY`
 
   El mismo lock abarca esta captura, la comprobación final de `main`, el rollout, la inspección de los IDs efectivamente desplegados y los smoke tests. El helper tiene un límite de 900 segundos y 1 GiB de `/tmp`; el verificador independiente, 120 segundos y 128 MiB. Un `.db` sin manifiesto o un staging privado puede quedar tras un `SIGKILL` o un corte del host: se conserva para inspección, no cuenta como checkpoint utilizable y nunca se elimina con una limpieza amplia. La primera ejecución sobre el `origin/main` histórico solo admite la adopción descrita arriba y con su opt-in explícito. Cualquier mezcla, referencia manual o incompatibilidad no autorizada falla antes de mutar; tras un rollout exitoso los labels vuelven inaplicable esa excepción.
 
+- **Ledger durable de releases**: bajo el mismo lock, el orquestador lee `/var/lib/ticketsadmin/releases/release-state.json` antes de aceptar un baseline nuevo. `current` identifica el par backend/frontend confirmado, `previous` conserva la última release desplazada y `pending` describe el intento en curso, incluidos sus IDs de imagen exactos, contratos de compatibilidad, baseline y checkpoint. `previous` es evidencia histórica, no permiso suficiente para arrancar una imagen ni restaurar datos.
+
+  Después de crear y fijar el checkpoint, y antes del primer `docker compose up`, el orquestador publica `pending` de forma durable. Una candidata pasa a `current` y la anterior a `previous` únicamente después de demostrar el par exacto, la topología completa, ambos healthchecks, el mount `/data`, la exclusividad de `ticketsadmin_tickets_data` y los tres smokes HTTP. El rollback compatible se cierra con las mismas comprobaciones antes de limpiar `pending`; un estado parcialmente escrito nunca se interpreta como éxito.
+
 - **Rollback de aplicación**: si una release compatible falla después de comenzar el `up`, el mismo proceso y lock recrean backend/frontend con los IDs baseline capturados, sin `--remove-orphans`, y exigen topología, health, mount, exclusividad del volumen y los tres smokes. El job conserva el error original aunque la recuperación funcione. El hash Compose se revalida inmediatamente antes de ambos `up`; un escritor externo que eluda el lock sigue fuera de la garantía cooperativa. El epoch de base deriva automáticamente del árbol Git completo de `lib/db/drizzle`, por lo que cualquier migración nueva deshabilita el rollback hasta una transición fix-forward explícita. En un primer deploy fallido no existe baseline: solo se detienen contenedores cuyo servicio e imagen coinciden exactamente con las candidatas y se preserva el volumen.
 
-- **Cortes abruptos**: el rollback anterior depende del trap del proceso. `SIGKILL`, reinicio del host o caída del runner pueden dejar una topología parcial y el siguiente deploy fallará cerrado, sin intentar adivinar qué release debe prevalecer. Hasta incorporar el ledger durable, detener el runner, conservar checkpoint/manifest e imágenes, inspeccionar con `docker ps -a --no-trunc`, `docker inspect` y `docker volume inspect`, y decidir explícitamente entre completar el par candidato o recuperar el par baseline compatible. Nunca usar `docker compose down -v`, borrar `ticketsadmin_tickets_data` ni restaurar SQLite como reacción automática. En un primer deploy, solo después de demostrar servicio e imagen exactos pueden retirarse los contenedores candidatos detenidos; el volumen se conserva.
+- **Recuperación después de `SIGKILL`, reinicio o caída del runner**: el siguiente intento adquiere el lock y reconcilia cualquier `pending` antes de crear otro checkpoint. Si el par candidato exacto ya está completo y supera todas las verificaciones, lo promociona. Si el baseline compatible exacto ya está sano, registra el rollback. Si hay una topología parcial y el ledger demuestra rollback compatible, recrea únicamente ese baseline por sus dos IDs inmutables y lo vuelve a verificar de punta a punta. Nunca elige por tag, fecha, nombre parecido o estado parcial.
+
+  Un ledger vacío, corrupto, sustituido, con permisos incorrectos, versión desconocida o incoherente con los contenedores hace fallar cerrado antes de mutarlos. Tampoco se repara a mano ni se elimina para “destrabar” el deploy: detener el runner, preservar ledger, checkpoint e imágenes e inspeccionar con `sudo jq . /var/lib/ticketsadmin/releases/release-state.json`, `docker ps -a --no-trunc`, `docker inspect` y `docker volume inspect`.
+
+  Los estados terminales `manual_intervention`, `rollback_failed` y `first_deploy_contained` tampoco se eliminan a mano. Después de corregir la causa y comprobar las identidades, se reanudan únicamente con `workflow_dispatch`, informando `resume_pending_attempt` y `expected_state_generation` exactamente como figuran en el ledger. Ambos valores forman una autorización de un solo estado: si otro intento cambia la generación, no se toca Docker. Para un pending compatible, la reanudación converge al baseline; para primer deploy, legacy o fix-forward, solo reintenta/promociona la candidata exacta. Antes de un `up` legacy/fix-forward autorizado se persiste `retrying_forward`; si el proceso se interrumpe con el baseline todavía exacto, el siguiente run reintenta esa misma candidata y no puede cerrar el intento sobre un baseline incompatible. Una topología parcial o desconocida vuelve a `manual_intervention` y exige otra decisión explícita.
+
+  Las transiciones legacy y fix-forward no tienen un baseline automáticamente recuperable. Tras un corte pueden consolidarse únicamente hacia la candidata: un par candidato exacto y sano se promociona, un `retrying_forward` cortado antes de cambiar el runtime vuelve a intentar los mismos IDs y cualquier estado parcial exige una nueva decisión explícita. En el primer deploy tampoco existe `current`: el reconciliador puede reintentar el par candidato exacto, pero si no logra verificarlo registra `containing_first_deploy` antes de detener solo esos contenedores identificados, conserva `pending` y el volumen, y falla para intervención. Si el proceso vuelve a cortarse durante esa contención, el siguiente intento la repite idempotentemente. En todos los casos está prohibido usar `docker compose down -v`, borrar `ticketsadmin_tickets_data` o restaurar SQLite como reacción automática.
 
 - **No ejecutar `docker compose up` manualmente mientras este mecanismo esté activo**: el lock es cooperativo y un comando directo lo elude. Los cambios normales se hacen mediante el workflow. Una intervención excepcional debe detener el runner y seguir un procedimiento específico; nunca se restaura el checkpoint de forma automática por un fallo de aplicación.
 - **Backup de la base**: no usar `cat`, `cp` ni copiar solamente `/data/tickets.db`; SQLite está en WAL y eso puede omitir transacciones confirmadas. La imagen del backend incluye un CLI que usa la API online de SQLite y publica la copia solo después de verificar integridad, claves foráneas y el esquema histórico mínimo de la aplicación. Para guardar el backup fuera del volumen Docker:
