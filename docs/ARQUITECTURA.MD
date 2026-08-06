@@ -531,6 +531,7 @@ En local se usa `drizzle-kit push` para iterar rápidamente. En Docker, el backe
 0010            → cambio obligatorio de credenciales temporales
 0011            → revocación única de bearer de sesión persistidos en claro
 0012            → versión monotónica de tickets para control optimista
+0013            → índice compuesto de pertenencia e historial de seguimientos
 ```
 
 La columna física conserva el nombre histórico `sesiones.token` para permitir un rollback estructural, pero el schema la expone como `token_hash`. Desde `0011`, toda fila nueva contiene `sha256:<digest>` y el arranque elimina formatos crudos o inválidos después de validar secretos, antes del seed y antes de abrir el puerto. La migración fuerza un único re-login; no se admite un despliegue simultáneo de binarios anteriores y posteriores a este cambio. Un rollback rápido conserva el schema e invalida las sesiones creadas por la otra versión, pero el piso soportado es `06db746`, primer commit cuyo extractor rechaza todo lo que no sea raw de 64 hex.

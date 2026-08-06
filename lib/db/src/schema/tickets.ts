@@ -1,5 +1,11 @@
 import { sql } from "drizzle-orm";
-import { check, sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import {
+  check,
+  index,
+  integer,
+  sqliteTable,
+  text,
+} from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usuariosTable } from "./admin";
@@ -85,32 +91,44 @@ export const insertTicketSchema = createInsertSchema(ticketsTable).omit({
 export type InsertTicket = z.infer<typeof insertTicketSchema>;
 export type Ticket = typeof ticketsTable.$inferSelect;
 
-export const seguimientosTable = sqliteTable("seguimientos", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  ticket_id: integer("ticket_id")
-    .notNull()
-    .references(() => ticketsTable.id, { onDelete: "cascade" }),
-  nota: text("nota").notNull(),
-  estado_anterior: text("estado_anterior"),
-  estado_nuevo: text("estado_nuevo"),
-  prioridad_anterior: text("prioridad_anterior", { enum: PRIORIDADES }),
-  prioridad_nueva: text("prioridad_nueva", { enum: PRIORIDADES }),
-  asignado_anterior_usuario_id: integer(
-    "asignado_anterior_usuario_id",
-  ).references(() => usuariosTable.id, { onDelete: "set null" }),
-  asignado_anterior: text("asignado_anterior"),
-  asignado_nuevo_usuario_id: integer("asignado_nuevo_usuario_id").references(
-    () => usuariosTable.id,
-    { onDelete: "set null" },
-  ),
-  asignado_nuevo: text("asignado_nuevo"),
-  // Lista de nombres de campos modificados. No replica valores sensibles.
-  campos_editados: text("campos_editados", { mode: "json" }).$type<string[]>(),
-  autor: text("autor"),
-  fecha_creacion: integer("fecha_creacion", { mode: "timestamp_ms" })
-    .notNull()
-    .$defaultFn(() => new Date()),
-});
+export const seguimientosTable = sqliteTable(
+  "seguimientos",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    ticket_id: integer("ticket_id")
+      .notNull()
+      .references(() => ticketsTable.id, { onDelete: "cascade" }),
+    nota: text("nota").notNull(),
+    estado_anterior: text("estado_anterior"),
+    estado_nuevo: text("estado_nuevo"),
+    prioridad_anterior: text("prioridad_anterior", { enum: PRIORIDADES }),
+    prioridad_nueva: text("prioridad_nueva", { enum: PRIORIDADES }),
+    asignado_anterior_usuario_id: integer(
+      "asignado_anterior_usuario_id",
+    ).references(() => usuariosTable.id, { onDelete: "set null" }),
+    asignado_anterior: text("asignado_anterior"),
+    asignado_nuevo_usuario_id: integer("asignado_nuevo_usuario_id").references(
+      () => usuariosTable.id,
+      { onDelete: "set null" },
+    ),
+    asignado_nuevo: text("asignado_nuevo"),
+    // Lista de nombres de campos modificados. No replica valores sensibles.
+    campos_editados: text("campos_editados", { mode: "json" }).$type<
+      string[]
+    >(),
+    autor: text("autor"),
+    fecha_creacion: integer("fecha_creacion", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("seguimientos_ticket_fecha_id_idx").on(
+      table.ticket_id,
+      table.fecha_creacion,
+      table.id,
+    ),
+  ],
+);
 
 export const insertSeguimientoSchema = createInsertSchema(
   seguimientosTable,

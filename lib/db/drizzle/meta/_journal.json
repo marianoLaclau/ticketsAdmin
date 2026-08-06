@@ -92,6 +92,13 @@
       "when": 1785952374554,
       "tag": "0012_add_ticket_version",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1786044134974,
+      "tag": "0013_add_seguimientos_lookup_index",
+      "breakpoints": true
     }
   ]
 }

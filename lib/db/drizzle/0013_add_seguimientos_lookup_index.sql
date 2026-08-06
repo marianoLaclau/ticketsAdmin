@@ -1,0 +1,1 @@
+CREATE INDEX `seguimientos_ticket_fecha_id_idx` ON `seguimientos` (`ticket_id`,`fecha_creacion`,`id`);

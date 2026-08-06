@@ -128,7 +128,7 @@ describe("migración de cambio obligatorio de contraseña", () => {
           .prepare("SELECT count(*) AS total FROM __drizzle_migrations")
           .get() as { total: number }
       ).total,
-      13,
+      14,
     );
     assert.equal(sqlite.pragma("foreign_key_check").length, 0);
     assert.equal(sqlite.pragma("integrity_check", { simple: true }), "ok");

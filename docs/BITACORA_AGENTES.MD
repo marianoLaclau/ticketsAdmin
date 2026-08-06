@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Índice medido para seguimientos
+
+**Agente:** Codex
+**Estado:** trigésima segunda remediación de la auditoría técnica, implementada y validada localmente.
+
+- `seguimientos(ticket_id, fecha_creacion, id)` tiene ahora un índice compuesto versionado. Resuelve tanto la comprobación de pertenencia usada por la cuarentena como el historial cronológico de un ticket sin recorrer toda la tabla ni crear una tabla temporal para ordenar.
+- La decisión se tomó sobre `EXPLAIN QUERY PLAN`: antes aparecían `SCAN seguimientos` y `USE TEMP B-TREE FOR ORDER BY`; la regresión exige ahora `SEARCH seguimientos USING INDEX seguimientos_ticket_fecha_id_idx` y ausencia del sort temporal en el historial. Una medición sintética de diagnóstico sobre 10.000 tickets redujo el conteo visible de aproximadamente 338 ms a 40 ms, pero el tiempo no se usa como aserción frágil ni como SLO.
+- La migración `0013` preserva las filas existentes, declara el mismo índice en el schema y forma parte de la cadena completa. No mezcla todavía la materialización de cuarentena, que queda como el siguiente cambio independiente.
+- Validaciones: 55 pruebas de base (54 aprobadas y una omisión esperada de symlink en Windows), migración focalizada, `EXPLAIN`, integridad SQLite, schema Drizzle, TypeScript y `git diff --check` aprobados.
+
 ## 2026-08-06 — Ledger durable y recuperación de releases interrumpidas
 
 **Agente:** Codex
