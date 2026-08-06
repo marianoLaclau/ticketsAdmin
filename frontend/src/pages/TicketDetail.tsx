@@ -43,20 +43,14 @@ import {
 import { 
   ArrowLeft, 
   User, 
-  Building, 
-  Phone, 
-  Mail, 
   Clock, 
   CheckCircle2, 
   MessageSquare,
   History,
-  Pencil,
 } from 'lucide-react';
 import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
 import { getEstadoLabel } from '@/lib/estados';
-import { getContactDisplayEmail, getContactDisplayName, getContactDisplayPhone } from '@/lib/contacto';
 import { dateTimeLocalValueToIso, toDateTimeLocalValue } from '@/lib/datetime-local';
-import { getEstadoEmpleadoConfig } from '@/lib/estado-empleado';
 import { puedeCerrarTickets } from '@/lib/roles';
 import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
 import {
@@ -67,6 +61,7 @@ import { useAdminAccess, adminErrorMessage } from '@/hooks/use-admin-access';
 import { TicketDataEditDialog } from '@/components/tickets/TicketDataEditDialog';
 import { TicketVersionConflictAlert } from '@/components/tickets/TicketVersionConflictAlert';
 import { TicketCallSummaryCard } from '@/features/ticket-detail/TicketCallSummaryCard';
+import { TicketContactCard } from '@/features/ticket-detail/TicketContactCard';
 import { TicketTimingCard } from '@/features/ticket-detail/TicketTimingCard';
 import {
   TICKET_STATE_PROGRESS,
@@ -476,14 +471,6 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
   }
 
   const vencido = isVencido(ticket.fecha_limite, ticket.estado);
-  const contactoLabel = getContactDisplayName(ticket);
-  const telefonoLabel = getContactDisplayPhone(ticket.telefono);
-  const emailLabel = getContactDisplayEmail(ticket.email);
-  const empresaLabel = ticket.empresa?.trim();
-  const estadoEmpleado = getEstadoEmpleadoConfig(
-    empresaLabel,
-    ticket.estado_empleado,
-  );
 
   return (
     <div className="p-8 max-w-6xl mx-auto w-full space-y-6 pb-24">
@@ -860,82 +847,11 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
 
         {/* Right Column */}
         <div className="space-y-6">
-          <Card className="shadow-sm">
-            <CardHeader className="pb-3 border-b border-slate-100">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <User className="h-5 w-5 text-primary" />
-                Datos del Contacto
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="ml-1 h-7 w-7 shrink-0 text-slate-500"
-                  onClick={() => handleDataEditOpenChange(true)}
-                  disabled={isReloadingConflict}
-                  aria-label="Editar datos del contacto"
-                  title="Editar datos del contacto"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4">
-              <div>
-                <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Nombre Completo</h4>
-                <p className="font-medium text-slate-900">{contactoLabel}</p>
-              </div>
-              
-              {empresaLabel && (
-                <div>
-                  <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Empresa</h4>
-                  <p className="text-slate-900 flex items-center gap-2">
-                    <Building className="h-4 w-4 text-slate-400" />
-                    {empresaLabel}
-                  </p>
-                  {estadoEmpleado && (
-                    <p className={`mt-1 flex items-center pl-6 text-sm font-medium ${estadoEmpleado.textClass}`}>
-                      <span
-                        className={`mr-2 h-2 w-2 rounded-full ${estadoEmpleado.dotClass}`}
-                        aria-hidden="true"
-                      />
-                      {estadoEmpleado.label}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {ticket.dni && (
-                <div>
-                  <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">DNI / CUIT</h4>
-                  <p className="text-slate-900 font-mono text-sm">{ticket.dni}</p>
-                </div>
-              )}
-
-              <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">
-                <div className="flex min-h-10 items-center gap-3 py-1 text-sm">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-slate-50">
-                    <Phone className="h-4 w-4 text-slate-500" />
-                  </div>
-                  {telefonoLabel ? (
-                    <span className="break-all text-slate-700">{telefonoLabel}</span>
-                  ) : (
-                    <span className="italic text-slate-500">Teléfono no proporcionado</span>
-                  )}
-                </div>
-
-                <div className="flex min-h-10 items-center gap-3 py-1 text-sm">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-slate-50">
-                    <Mail className="h-4 w-4 text-slate-500" />
-                  </div>
-                  {emailLabel ? (
-                    <span className="break-all text-slate-700">{emailLabel}</span>
-                  ) : (
-                    <span className="italic text-slate-500">Email no proporcionado</span>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <TicketContactCard
+            ticket={ticket}
+            onEdit={() => handleDataEditOpenChange(true)}
+            isEditDisabled={isReloadingConflict}
+          />
 
           <TicketTimingCard
             deadline={ticket.fecha_limite}

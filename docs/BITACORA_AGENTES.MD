@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Datos de contacto separados del detalle
+
+**Agente:** Codex
+**Estado:** quincuagésima sexta remediación de la auditoría técnica, implementada y validada localmente.
+
+- La tarjeta `Datos del Contacto` salió a `features/ticket-detail/TicketContactCard.tsx` con un `Pick` explícito de los siete campos consumidos, un callback semántico de edición y el único estado que bloquea el lápiz.
+- Cálculo de etiquetas, empresa y estado laboral quedó encapsulado junto a la presentación. Se conservaron root sin wrapper, orden, condicionales de empresa/DNI, filas fijas de teléfono y email, textos, clases y atributos accesibles; el diálogo, draft, mutación y conflicto optimista permanecen en la página.
+- La revisión independiente no encontró hallazgos P0/P1/P2. Aprobaron 85 pruebas del frontend, typecheck, ESLint, Prettier acotado, build aislado y `diff --check`. No se hizo push.
+
 ## 2026-08-06 — Tarjeta de tiempos extraída del detalle
 
 **Agente:** Codex
