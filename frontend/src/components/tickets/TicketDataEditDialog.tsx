@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Ticket, TicketUpdate } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,6 +23,10 @@ import {
   createTicketEditBaseline,
   type TicketEditBaseline,
 } from '@/lib/ticket-version';
+import {
+  transitionTicketDraftSession,
+  type TicketDraftSession,
+} from '@/lib/ticket-draft-session';
 import { TicketVersionConflictAlert } from './TicketVersionConflictAlert';
 
 interface TicketDataEditDialogProps {
@@ -68,17 +72,25 @@ export function TicketDataEditDialog({
     );
   const [form, setForm] = useState<TicketFunctionalForm>(initialForm);
   const [validationError, setValidationError] = useState('');
+  const draftSessionRef = useRef<TicketDraftSession>({
+    wasOpen: false,
+    ticketId: null,
+  });
 
   useEffect(() => {
-    if (!open) return;
+    const transition = transitionTicketDraftSession(
+      draftSessionRef.current,
+      open,
+      ticket.id,
+    );
+    draftSessionRef.current = transition.next;
+    if (!transition.shouldReset) return;
+
     const snapshot = ticketToFunctionalForm(ticket);
     setBaseline(createTicketEditBaseline(ticket, snapshot));
     setForm({ ...snapshot });
     setValidationError('');
-    // Los demás campos de ticket se excluyen a propósito: un SSE recibido con
-    // el diálogo abierto no debe mover el baseline capturado al abrirlo.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, ticket.id]);
+  }, [open, ticket]);
 
   const update = useMemo(
     () =>

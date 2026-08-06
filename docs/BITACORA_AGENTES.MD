@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Sesión explícita del borrador de contacto
+
+**Agente:** Codex
+**Estado:** cuadragésima sexta remediación de la auditoría técnica, implementada y validada localmente.
+
+- El editor de datos dejó de excluir dependencias de su efecto. Una transición pura modela apertura, cierre y cambio de ticket, de modo que React puede observar el objeto completo sin borrar el draft ante revisiones SSE del mismo ID.
+- Abrir, reabrir o navegar a otro ticket captura datos + versión nuevos; `reloadLatest` conserva su reinicio intencional independiente ante conflictos optimistas.
+- Cuatro regresiones fijan la transición y su inmutabilidad. Lint, typecheck y pruebas del frontend aprobaron. No se hizo push.
+
 ## 2026-08-06 — Gestión de usuarios separada del router administrativo
 
 **Agente:** Codex
