@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Dependencia directa no utilizada en scripts
+
+**Agente:** Codex
+**Estado:** cuadragésima segunda remediación de la auditoría técnica, implementada y validada localmente.
+
+- Se verificó el grafo actual de imports: no quedan archivos TS/TSX huérfanos en backend o frontend y todos los componentes UI tienen consumidores.
+- `scripts` declaró `drizzle-orm` sin importarlo directamente; el paquete accede a persistencia mediante `@workspace/db`. Se retiró únicamente esa declaración redundante, conservando Drizzle donde sí es dependencia real.
+- Se validaron tests y typecheck de scripts, además del lint global. No se hizo push.
+
 ## 2026-08-06 — Auditoría de tickets separada del transporte HTTP
 
 **Agente:** Codex

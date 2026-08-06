@@ -309,9 +309,6 @@ importers:
       '@workspace/ingesta':
         specifier: workspace:*
         version: link:../lib/ingesta
-      drizzle-orm:
-        specifier: 'catalog:'
-        version: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@12.11.1)
       exceljs:
         specifier: ^4.4.0
         version: 4.4.0
