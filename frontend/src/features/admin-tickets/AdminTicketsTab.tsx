@@ -19,6 +19,7 @@ import { adminErrorMessage } from '@/hooks/use-admin-access';
 import { isTicketVersionConflict } from '@/lib/error-messages';
 import { SortableTableHead } from '@/components/SortableTableHead';
 import { TicketVersionConflictAlert } from '@/components/tickets/TicketVersionConflictAlert';
+import { AdminTicketTableRow } from '@/features/admin-tickets/AdminTicketTableRow';
 
 import { TabsContent } from '@/components/ui/tabs';
 import {
@@ -61,34 +62,13 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Plus,
-  Pencil,
-  Trash2,
   Search,
   ChevronLeft,
   ChevronRight,
-  Eye,
-  Phone,
-  Mail,
-  AlertCircle,
   RotateCcw,
 } from 'lucide-react';
-import {
-  EstadoBadge,
-  PrioridadBadge,
-  formatDate,
-  isVencido,
-} from '@/lib/utils-tickets';
 import { getEstadoLabel } from '@/lib/estados';
-import {
-  getContactDisplayEmail,
-  getContactDisplayName,
-  getContactDisplayPhone,
-} from '@/lib/contacto';
-import {
-  getAssignedDisplayName,
-  hasAssignedDisplayName,
-} from '@/lib/asignacion';
-import { getMotivoCategoriaConfig } from '@/lib/motivos';
+import { getContactDisplayName } from '@/lib/contacto';
 import {
   createDefaultTicketSort,
   isDefaultTicketSort,
@@ -549,187 +529,18 @@ export function AdminTicketsTab({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  tickets.map((t) => {
-                    const conversationId =
-                      t.conversation_id?.trim() || 'Sin ID de conversación';
-                    const phone = getContactDisplayPhone(t.telefono);
-                    const email = getContactDisplayEmail(t.email);
-                    const company = t.empresa?.trim() || 'Sin empresa asociada';
-                    const category = getMotivoCategoriaConfig(
-                      t.motivo_categoria,
-                    );
-                    const reason =
-                      t.motivo?.trim() || 'Sin motivo proporcionado';
-                    const assigned = getAssignedDisplayName(t.asignado_a);
-                    const hasAssigned = hasAssignedDisplayName(t.asignado_a);
-                    const overdue = isVencido(t.fecha_limite, t.estado);
-
-                    return (
-                      <TableRow key={t.id} className="group text-sm">
-                        <TableCell className="font-medium tabular-nums text-muted-foreground">
-                          #{t.id}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col whitespace-nowrap">
-                            <span className="font-medium text-foreground">
-                              {formatDate(t.fecha_creacion).split(',')[0]}
-                            </span>
-                            <span className="text-[11px] tabular-nums text-muted-foreground">
-                              {t.hora?.trim()
-                                ? `${t.hora} hs`
-                                : 'Sin hora proporcionada'}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className="inline-block max-w-[190px] truncate rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px]"
-                            title={conversationId}
-                          >
-                            {conversationId}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="min-w-0 space-y-0.5">
-                            <span
-                              className="block truncate font-semibold text-foreground"
-                              title={getContactDisplayName(t)}
-                            >
-                              {getContactDisplayName(t)}
-                            </span>
-                            <span
-                              className="flex min-w-0 items-center text-[11px] text-muted-foreground"
-                              title={phone ?? 'Sin teléfono proporcionado'}
-                            >
-                              <Phone
-                                className="mr-1 h-3 w-3 shrink-0"
-                                aria-hidden="true"
-                              />
-                              <span className="truncate">
-                                {phone ?? 'Sin teléfono proporcionado'}
-                              </span>
-                            </span>
-                            <span
-                              className="flex min-w-0 items-center text-[11px] text-muted-foreground"
-                              title={email ?? 'Sin email proporcionado'}
-                            >
-                              <Mail
-                                className="mr-1 h-3 w-3 shrink-0"
-                                aria-hidden="true"
-                              />
-                              <span className="truncate">
-                                {email ?? 'Sin email proporcionado'}
-                              </span>
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          <span className="block truncate" title={company}>
-                            {company}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="min-w-0 space-y-1">
-                            <span
-                              className={`inline-flex max-w-full rounded border px-1.5 py-0.5 text-[10px] font-semibold ${category.badgeClass}`}
-                            >
-                              <span className="truncate">{category.label}</span>
-                            </span>
-                            <span
-                              className="block line-clamp-2 text-xs leading-snug text-slate-700"
-                              title={reason}
-                            >
-                              {reason}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <EstadoBadge estado={t.estado} />
-                        </TableCell>
-                        <TableCell>
-                          <PrioridadBadge prioridad={t.prioridad} />
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={`block truncate ${hasAssigned ? 'font-medium text-slate-700' : 'text-muted-foreground'}`}
-                            title={assigned}
-                          >
-                            {assigned}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {t.fecha_limite ? (
-                            <div
-                              className={`flex items-center gap-1.5 whitespace-nowrap text-xs ${overdue ? 'font-semibold text-red-600' : 'text-muted-foreground'}`}
-                            >
-                              {overdue && (
-                                <AlertCircle
-                                  className="h-3.5 w-3.5 shrink-0"
-                                  aria-hidden="true"
-                                />
-                              )}
-                              <span>{formatDate(t.fecha_limite)}</span>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">
-                              Sin vencimiento
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="sticky right-0 z-[1] bg-white text-right shadow-[-4px_0_6px_-6px_rgba(15,23,42,0.45)] group-hover:bg-slate-50/80">
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 gap-1 px-2 text-xs"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setLocation(`/admin/tickets/${t.id}`);
-                              }}
-                              title={`Abrir ticket #${t.id}`}
-                              aria-label={`Abrir ticket #${t.id}`}
-                            >
-                              <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-                              Abrir
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                abrirEditar(t);
-                              }}
-                              disabled={isReloadingTicket}
-                              title={`Editar ticket #${t.id}`}
-                              aria-label={`Editar ticket #${t.id}`}
-                            >
-                              <Pencil
-                                className="h-3.5 w-3.5"
-                                aria-hidden="true"
-                              />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-red-600 hover:text-red-700"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setAEliminar(t);
-                              }}
-                              title={`Eliminar ticket #${t.id}`}
-                              aria-label={`Eliminar ticket #${t.id}`}
-                            >
-                              <Trash2
-                                className="h-3.5 w-3.5"
-                                aria-hidden="true"
-                              />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
+                  tickets.map((ticket) => (
+                    <AdminTicketTableRow
+                      key={ticket.id}
+                      ticket={ticket}
+                      isEditDisabled={isReloadingTicket}
+                      onOpen={(id) =>
+                        setLocation(`/admin/tickets/${id}`)
+                      }
+                      onEdit={abrirEditar}
+                      onDelete={setAEliminar}
+                    />
+                  ))
                 )}
               </TableBody>
             </Table>

@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Fila administrativa de ticket aislada
+
+**Agente:** Codex
+**Estado:** quincuagésima novena remediación de la auditoría técnica, implementada y validada localmente.
+
+- La fila de 11 celdas salió de `AdminTicketsTab.tsx` a `AdminTicketTableRow.tsx` con ticket, bloqueo de edición y tres callbacks semánticos. Query, ramas de tabla, orden, paginación, caché, navegación y diálogos permanecen en el controlador.
+- Derivados, fallbacks, badges, vencimiento y columna sticky se trasladaron literalmente. Abrir, editar y borrar conservan `stopPropagation`, rutas, objetos entregados, títulos, atributos accesibles y la única condición que deshabilita edición.
+- Dos revisiones independientes no encontraron hallazgos P0/P1/P2. Aprobaron 85 pruebas del frontend, typecheck, ESLint, Prettier acotado, build aislado y `diff --check`; el temporal del build fue verificado y eliminado. No se hizo push.
+
 ## 2026-08-06 — Historial del ticket como componente controlado
 
 **Agente:** Codex
