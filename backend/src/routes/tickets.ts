@@ -45,6 +45,11 @@ import {
   buildTicketWhere,
   parseTicketSortQuery,
 } from "../lib/ticket-query";
+import {
+  buildTicketAuditNote,
+  formatTicketAuditAuthor,
+  getTicketAuditEditedFields,
+} from "../lib/ticket-audit";
 import { broadcastEvent } from "../lib/events";
 import { findInvalidRfc3339DateTimeField } from "../lib/rfc3339";
 
@@ -86,36 +91,6 @@ const TICKET_UPDATE_DATE_FIELDS = [
 ] as const;
 
 const OPTIONAL_EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-
-const AUDIT_FIELD_LABELS: Readonly<Record<string, string>> = {
-  hora: "hora",
-  nombre: "nombre",
-  apellido: "apellido",
-  telefono: "teléfono",
-  dni: "DNI / CUIT",
-  empresa: "empresa",
-  estado_empleado: "estado laboral",
-  email: "email",
-  motivo: "motivo",
-  motivo_categoria: "categoría",
-  resumen: "resumen",
-  notificado: "notificación",
-  audio_url: "audio",
-  notas: "notas internas",
-  fecha_limite: "fecha límite",
-  fecha_resolucion: "fecha de resolución",
-  progreso: "progreso",
-};
-
-const STRUCTURED_AUDIT_FIELDS = new Set([
-  "estado",
-  "prioridad",
-  "asignado_usuario_id",
-  "asignado_a",
-  // La categoría cambia como consecuencia del motivo/resumen y no representa
-  // una segunda edición realizada por el usuario.
-  "motivo_categoria",
-]);
 
 type TicketUpdates = Partial<typeof ticketsTable.$inferInsert>;
 
@@ -256,44 +231,6 @@ function sameStoredValue(current: unknown, next: unknown): boolean {
     return current.getTime() === next.getTime();
   }
   return current === next;
-}
-
-function sessionUserName(user: SessionUser): string {
-  return [user.nombre, user.apellido].filter(Boolean).join(" ").trim() || user.email;
-}
-
-function buildAuditNote(
-  current: Ticket,
-  updated: Ticket,
-  changedFields: readonly string[],
-): string {
-  const details: string[] = [];
-
-  if (current.estado !== updated.estado) {
-    details.push(`Estado: ${current.estado} → ${updated.estado}`);
-  }
-  if (current.prioridad !== updated.prioridad) {
-    details.push(`Prioridad: ${current.prioridad} → ${updated.prioridad}`);
-  }
-  if (
-    current.asignado_usuario_id !== updated.asignado_usuario_id ||
-    current.asignado_a !== updated.asignado_a
-  ) {
-    details.push(
-      `Asignación: ${current.asignado_a || "Sin asignar"} → ${updated.asignado_a || "Sin asignar"}`,
-    );
-  }
-
-  const editedLabels = changedFields
-    .filter((field) => !STRUCTURED_AUDIT_FIELDS.has(field))
-    .map((field) => AUDIT_FIELD_LABELS[field] ?? field);
-  if (editedLabels.length > 0) {
-    details.push(`Campos editados: ${editedLabels.join(", ")}`);
-  }
-
-  return details.length > 0
-    ? `Ticket actualizado. ${details.join(". ")}.`
-    : "Ticket actualizado.";
 }
 
 // Listado operativo/administrativo: los filtros y el orden se aplican antes
@@ -516,7 +453,7 @@ router.patch(
     }
 
     const authUser = res.locals.authUser as SessionUser;
-    const autor = sessionUserName(authUser);
+    const autor = formatTicketAuditAuthor(authUser);
     const now = new Date();
     const accessCondition = ticketAccessCondition(
       params.data.id,
@@ -651,14 +588,12 @@ router.patch(
       const assignmentChanged =
         current.asignado_usuario_id !== updated.asignado_usuario_id ||
         current.asignado_a !== updated.asignado_a;
-      const editedFields = changedFields.filter(
-        (field) => !STRUCTURED_AUDIT_FIELDS.has(field),
-      );
+      const editedFields = getTicketAuditEditedFields(changedFields);
 
       tx.insert(seguimientosTable)
         .values({
           ticket_id: current.id,
-          nota: buildAuditNote(current, updated, changedFields),
+          nota: buildTicketAuditNote(current, updated, changedFields),
           estado_anterior: stateChanged ? current.estado : null,
           estado_nuevo: stateChanged ? updated.estado : null,
           prioridad_anterior: priorityChanged ? current.prioridad : null,
@@ -807,7 +742,7 @@ router.post(
     }
 
     const authUser = res.locals.authUser as SessionUser;
-    const autor = sessionUserName(authUser);
+    const autor = formatTicketAuditAuthor(authUser);
     const accessCondition = ticketAccessCondition(
       params.data.id,
       query.data.incluir_vacios,

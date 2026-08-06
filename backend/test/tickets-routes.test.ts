@@ -704,6 +704,10 @@ describe("edición y auditoría atómica", () => {
         autor: "Operadora Uno",
       },
     );
+    assert.equal(
+      detail.seguimientos[0]?.nota,
+      "Ticket actualizado. Estado: nuevo → en_proceso. Prioridad: media → alta. Asignación: Sin asignar → Operadora Uno. Campos editados: nombre, teléfono, motivo.",
+    );
     assert.deepEqual(detail.seguimientos[0]?.campos_editados, [
       "nombre",
       "telefono",

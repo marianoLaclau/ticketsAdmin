@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Auditoría de tickets separada del transporte HTTP
+
+**Agente:** Codex
+**Estado:** cuadragésima primera remediación de la auditoría técnica, implementada y validada localmente.
+
+- La derivación del autor, la selección ordenada de campos editados y la redacción de la nota salieron de `routes/tickets.ts` hacia un módulo de dominio sin dependencias de Express ni de la base.
+- Las constantes internas no se exportan y los helpers aceptan contratos estructurales mínimos, evitando ciclos y acoplamiento con modelos de ejecución.
+- Pruebas unitarias fijan fallbacks, exclusiones, orden, etiquetas y puntuación; una regresión integrada comprueba el cableado exacto dentro del PATCH transaccional.
+- Las 26 pruebas dirigidas, el typecheck de backend, ESLint y `diff --check` aprobaron. No se hizo push.
+
 ## 2026-08-06 — Cierre de la deuda explícita de `any`
 
 **Agente:** Codex
