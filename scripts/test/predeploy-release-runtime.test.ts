@@ -233,6 +233,7 @@ test(
     try {
       const bin = join(directory, "bin");
       const backups = join(directory, "backups");
+      const releases = join(directory, "releases");
       const locks = join(directory, "locks");
       const lockFile = join(locks, "deploy.lock");
       const stateFile = join(directory, "state");
@@ -240,12 +241,13 @@ test(
       const outputFile = join(directory, "github-output");
       mkdirSync(bin, { mode: 0o700 });
       mkdirSync(backups, { mode: 0o700 });
+      mkdirSync(releases, { mode: 0o700 });
       mkdirSync(locks, { mode: 0o700 });
       writeFileSync(lockFile, "", { mode: 0o600 });
       writeFileSync(logFile, "", { mode: 0o600 });
       writeFileSync(outputFile, "", { mode: 0o600 });
 
-      for (const command of ["docker", "git", "curl", "jq"]) {
+      for (const command of ["docker", "git", "curl"]) {
         const commandPath = join(bin, command);
         writeFileSync(commandPath, fakeCommand, { mode: 0o700 });
         chmodSync(commandPath, 0o700);
@@ -302,6 +304,8 @@ test(
           "acme/ticketsadmin",
           "--backup-dir",
           backups,
+          "--state-dir",
+          releases,
           "--lock-file",
           lockFile,
         ],
@@ -330,7 +334,11 @@ test(
         },
       );
 
-      assert.equal(result.status, 0, result.stderr);
+      assert.equal(
+        result.status,
+        0,
+        `${result.stderr}\n${result.stdout}\n${readFileSync(logFile, "utf8")}`,
+      );
       const outputs = readFileSync(outputFile, "utf8");
       assert.match(outputs, /^deployed=true$/m);
       assert.match(outputs, /^first_deploy=true$/m);
@@ -528,6 +536,7 @@ function runRollbackTrapScenario(options: {
   const directory = mkdtempSync(join(tmpdir(), "ticketsadmin-rollback-test-"));
   const bin = join(directory, "bin");
   const backups = join(directory, "backups");
+  const releases = join(directory, "releases");
   const wrapper = join(directory, "run-rollback.sh");
   const stateFile = join(directory, "state");
   const logFile = join(directory, "commands.jsonl");
@@ -536,14 +545,43 @@ function runRollbackTrapScenario(options: {
   const baselineFrontend = `sha256:${"5".repeat(64)}`;
   const candidateBackend = `sha256:${"6".repeat(64)}`;
   const candidateFrontend = `sha256:${"7".repeat(64)}`;
+  const baselineRevision = "8".repeat(40);
+  const candidateRevision = "9".repeat(40);
+  const composeContract = "a".repeat(64);
+  const dbEpoch = `drizzle-${"b".repeat(40)}`;
+  const source = "https://github.example/acme/ticketsadmin";
+  const baselineRelease = {
+    activatedAt: "2026-08-06T10:00:00Z",
+    backendImageId: baselineBackend,
+    composeContractSha256: composeContract,
+    dbRollbackEpoch: dbEpoch,
+    frontendImageId: baselineFrontend,
+    kind: "managed",
+    releaseId: `git-${baselineRevision}-run-400-1`,
+    revision: baselineRevision,
+    runAttempt: "1",
+    runId: "400",
+    runtimeEpoch: "readyz-v1",
+    source,
+  };
+  const candidateRelease = {
+    ...baselineRelease,
+    activatedAt: "2026-08-06T11:00:00Z",
+    backendImageId: candidateBackend,
+    frontendImageId: candidateFrontend,
+    releaseId: `git-${candidateRevision}-run-401-1`,
+    revision: candidateRevision,
+    runId: "401",
+  };
 
   mkdirSync(bin, { mode: 0o700 });
   mkdirSync(backups, { mode: 0o700 });
+  mkdirSync(releases, { mode: 0o700 });
   writeFileSync(stateFile, "candidate\n", { mode: 0o600 });
   writeFileSync(logFile, "", { mode: 0o600 });
   writeFileSync(outputFile, "", { mode: 0o600 });
 
-  for (const command of ["docker", "curl", "jq"]) {
+  for (const command of ["docker", "curl"]) {
     const commandPath = join(bin, command);
     writeFileSync(commandPath, rollbackFakeCommand, { mode: 0o700 });
     chmodSync(commandPath, 0o700);
@@ -556,6 +594,8 @@ set -Eeuo pipefail
 source "$RELEASE_SCRIPT"
 assert_compose_contract_unchanged() { return 0; }
 BACKUP_DIR="$FAKE_BACKUP_DIR"
+RELEASE_STATE_DIR="$FAKE_RELEASE_STATE_DIR"
+REPOSITORY="acme/ticketsadmin"
 COMPOSE_PROJECT="ticketsadmin"
 DATA_VOLUME="ticketsadmin_tickets_data"
 FIRST_DEPLOY="$FAKE_FIRST_DEPLOY"
@@ -563,8 +603,17 @@ BASELINE_BACKEND_IMAGE_ID="$FAKE_BASELINE_BACKEND_IMAGE"
 BASELINE_FRONTEND_IMAGE_ID="$FAKE_BASELINE_FRONTEND_IMAGE"
 BACKEND_IMAGE_ID="$FAKE_CANDIDATE_BACKEND_IMAGE"
 FRONTEND_IMAGE_ID="$FAKE_CANDIDATE_FRONTEND_IMAGE"
-BASELINE_RELEASE_ID="baseline-release"
+BASELINE_RELEASE_ID="$FAKE_BASELINE_RELEASE_ID"
 ROLLBACK_ELIGIBLE="true"
+if [[ "$FIRST_DEPLOY" == "true" ]]; then
+  release_state_begin_pending "$RELEASE_STATE_DIR" "$REPOSITORY" "$COMPOSE_PROJECT" "$DATA_VOLUME" \
+    "null" "$FAKE_CANDIDATE_RELEASE_JSON" "first-deploy" "null"
+else
+  release_state_begin_pending "$RELEASE_STATE_DIR" "$REPOSITORY" "$COMPOSE_PROJECT" "$DATA_VOLUME" \
+    "$FAKE_BASELINE_RELEASE_JSON" "$FAKE_CANDIDATE_RELEASE_JSON" "rollback-compatible" "$FAKE_CHECKPOINT_JSON"
+fi
+release_state_update_pending "$RELEASE_STATE_DIR" "$REPOSITORY" "$COMPOSE_PROJECT" "$DATA_VOLUME" "rolling_out"
+PENDING_REGISTERED="true"
 ROLLOUT_STARTED="true"
 RELEASE_VERIFIED="false"
 FAILURE_PHASE="candidate-smoke"
@@ -587,12 +636,20 @@ exit 42
       RELEASE_SCRIPT: releasePath,
       GITHUB_OUTPUT: outputFile,
       FAKE_BACKUP_DIR: backups,
+      FAKE_RELEASE_STATE_DIR: releases,
       FAKE_STATE_FILE: stateFile,
       FAKE_LOG_FILE: logFile,
       FAKE_BASELINE_BACKEND_IMAGE: baselineBackend,
       FAKE_BASELINE_FRONTEND_IMAGE: baselineFrontend,
+      FAKE_BASELINE_RELEASE_ID: baselineRelease.releaseId,
+      FAKE_BASELINE_RELEASE_JSON: JSON.stringify(baselineRelease),
       FAKE_CANDIDATE_BACKEND_IMAGE: candidateBackend,
       FAKE_CANDIDATE_FRONTEND_IMAGE: candidateFrontend,
+      FAKE_CANDIDATE_RELEASE_JSON: JSON.stringify(candidateRelease),
+      FAKE_CHECKPOINT_JSON: JSON.stringify({
+        manifest: "tickets-predeploy-trap.manifest.json",
+        manifestSha256: "c".repeat(64),
+      }),
       FAKE_FIRST_DEPLOY: String(options.firstDeploy ?? false),
       FAKE_ROLLBACK_FAIL: String(options.rollbackFails ?? false),
       FAKE_SIGNAL: String(options.signal ?? false),

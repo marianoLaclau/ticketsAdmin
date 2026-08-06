@@ -30,6 +30,16 @@ on:
         required: false
         default: ""
         type: string
+      resume_pending_attempt:
+        description: Reanudar el attempt ID terminal exacto (solo intervención controlada)
+        required: false
+        default: ""
+        type: string
+      expected_state_generation:
+        description: Generación exacta del ledger que se autoriza a reanudar
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -60,9 +70,12 @@ jobs:
       TICKETSADMIN_EXPECTED_BASELINE_RELEASE: ${{ inputs.expected_baseline_release || '' }}
       TICKETSADMIN_EXPECTED_BASELINE_BACKEND_IMAGE_ID: ${{ inputs.expected_baseline_backend_image_id || '' }}
       TICKETSADMIN_EXPECTED_BASELINE_FRONTEND_IMAGE_ID: ${{ inputs.expected_baseline_frontend_image_id || '' }}
-      # Ambos directorios se preparan una sola vez en el runner. El workflow
+      TICKETSADMIN_RESUME_PENDING_ATTEMPT: ${{ inputs.resume_pending_attempt || '' }}
+      TICKETSADMIN_EXPECTED_STATE_GENERATION: ${{ inputs.expected_state_generation || '' }}
+      # Estos directorios se preparan una sola vez en el runner. El workflow
       # exige que sean privados, reales y propiedad del usuario del servicio.
       TICKETSADMIN_BACKUP_DIR: /var/lib/ticketsadmin/backups
+      TICKETSADMIN_RELEASE_STATE_DIR: /var/lib/ticketsadmin/releases
       TICKETSADMIN_DEPLOY_LOCK_DIR: /var/lock/ticketsadmin
     steps:
       - name: Checkout
@@ -98,11 +111,13 @@ jobs:
           grep -Eq -- '(^|[[:space:]])--no-build([[:space:]]|$)' <<< "$compose_up_help"
           for required_command in \
             bash curl flock jq sha256sum stat mktemp realpath sync \
-            basename chmod date dirname docker git grep id ln rm rmdir; do
+            basename chmod date dirname docker git grep id ln mv rm rmdir; do
             command -v "$required_command" >/dev/null
           done
           for private_directory in \
-            "$TICKETSADMIN_BACKUP_DIR" "$TICKETSADMIN_DEPLOY_LOCK_DIR"; do
+            "$TICKETSADMIN_BACKUP_DIR" \
+            "$TICKETSADMIN_RELEASE_STATE_DIR" \
+            "$TICKETSADMIN_DEPLOY_LOCK_DIR"; do
             test -d "$private_directory"
             test ! -L "$private_directory"
             test "$(realpath -e -- "$private_directory")" = "$private_directory"
@@ -118,6 +133,18 @@ jobs:
           test "$(stat -c '%u' -- "$lock_file")" = "$(id -u)"
           test "$(stat -c '%a' -- "$lock_file")" = "600"
           test -w "$lock_file"
+          release_state_file="$TICKETSADMIN_RELEASE_STATE_DIR/release-state.json"
+          if test -e "$release_state_file" || test -L "$release_state_file"; then
+            test -f "$release_state_file"
+            test ! -L "$release_state_file"
+            test "$(realpath -e -- "$release_state_file")" = "$release_state_file"
+            test "$(stat -c '%u' -- "$release_state_file")" = "$(id -u)"
+            test "$(stat -c '%a' -- "$release_state_file")" = "600"
+            test "$(stat -c '%h' -- "$release_state_file")" = "1"
+            release_state_bytes="$(stat -c '%s' -- "$release_state_file")"
+            test "$release_state_bytes" -gt 0
+            test "$release_state_bytes" -le 131072
+          fi
           docker compose config --quiet
           compose_contract="$(
             docker compose config --format json |
@@ -215,6 +242,7 @@ jobs:
             --run-attempt "$GITHUB_RUN_ATTEMPT"
             --repository "$GITHUB_REPOSITORY"
             --backup-dir "$TICKETSADMIN_BACKUP_DIR"
+            --state-dir "$TICKETSADMIN_RELEASE_STATE_DIR"
             --lock-file "$TICKETSADMIN_DEPLOY_LOCK_DIR/deploy.lock"
           )
           case "$TICKETSADMIN_ALLOW_LEGACY_ADOPTION" in
@@ -244,6 +272,20 @@ jobs:
           elif [[ -n "$TICKETSADMIN_EXPECTED_BASELINE_RELEASE" || -n "$TICKETSADMIN_EXPECTED_BASELINE_BACKEND_IMAGE_ID" || -n "$TICKETSADMIN_EXPECTED_BASELINE_FRONTEND_IMAGE_ID" ]]; then
             echo "expected baseline identity requires an explicit transition authorization" >&2
             exit 1
+          fi
+          if [[ -n "$TICKETSADMIN_RESUME_PENDING_ATTEMPT" || -n "$TICKETSADMIN_EXPECTED_STATE_GENERATION" ]]; then
+            [[ -n "$TICKETSADMIN_RESUME_PENDING_ATTEMPT" && -n "$TICKETSADMIN_EXPECTED_STATE_GENERATION" ]] || {
+              echo "pending attempt and exact ledger generation are both required" >&2
+              exit 1
+            }
+            [[ "$TICKETSADMIN_ALLOW_LEGACY_ADOPTION" == "false" && "$TICKETSADMIN_ALLOW_FIX_FORWARD_TRANSITION" == "false" ]] || {
+              echo "pending recovery cannot be combined with a transition authorization" >&2
+              exit 1
+            }
+            release_args+=(
+              --resume-pending-attempt "$TICKETSADMIN_RESUME_PENDING_ATTEMPT"
+              --expected-state-generation "$TICKETSADMIN_EXPECTED_STATE_GENERATION"
+            )
           fi
           exec bash scripts/deploy/deploy-release.sh "${release_args[@]}"
         env:

@@ -7,6 +7,12 @@ import test from "node:test";
 const releaseUrl = new URL("../deploy/deploy-release.sh", import.meta.url);
 const releasePath = fileURLToPath(releaseUrl);
 const release = readFileSync(releaseUrl, "utf8").replace(/\r\n?/g, "\n");
+const releaseStateUrl = new URL("../deploy/release-state.sh", import.meta.url);
+const releaseStatePath = fileURLToPath(releaseStateUrl);
+const releaseState = readFileSync(releaseStateUrl, "utf8").replace(
+  /\r\n?/g,
+  "\n",
+);
 const workflow = readFileSync(
   new URL("../../.github/workflows/deploy.yml", import.meta.url),
   "utf8",
@@ -55,6 +61,10 @@ test(
   () => {
     const syntax = spawnSync("bash", ["-n", releasePath], { encoding: "utf8" });
     assert.equal(syntax.status, 0, syntax.stderr);
+    const stateSyntax = spawnSync("bash", ["-n", releaseStatePath], {
+      encoding: "utf8",
+    });
+    assert.equal(stateSyntax.status, 0, stateSyntax.stderr);
 
     const duplicate = spawnSync(
       "bash",
@@ -86,10 +96,13 @@ test("el release usa shell estricto y una interfaz sin credenciales", () => {
     "run-attempt",
     "repository",
     "backup-dir",
+    "state-dir",
     "lock-file",
     "expected-baseline-release",
     "expected-baseline-backend-image-id",
     "expected-baseline-frontend-image-id",
+    "resume-pending-attempt",
+    "expected-state-generation",
   ]) {
     assert.match(activeRelease, new RegExp(`--${option}\\b`));
   }
@@ -109,6 +122,41 @@ test("el release usa shell estricto y una interfaz sin credenciales", () => {
     activeRelease,
     /autorizaciones legacy y fix-forward son mutuamente excluyentes/,
   );
+});
+
+test("persiste y reconcilia el intento antes de aceptar otro rollout", () => {
+  const main = shellFunction("main");
+  const cleanup = shellFunction("cleanup");
+
+  assert.match(release, /source "\$DEPLOY_SCRIPT_DIRECTORY\/release-state\.sh"/);
+  assertPatternsInOrder(
+    main,
+    [
+      /flock\b/,
+      /load_release_state/,
+      /reconcile_release_state/,
+      /capture_baseline/,
+      /create_predeploy_backup/,
+      /register_pending_release/,
+      /release_state_update_pending[^\n]*|release_state_update_pending/,
+      /deploy_candidates/,
+      /smoke_services/,
+      /release_state_promote_candidate/,
+    ],
+    "el ledger debe envolver toda mutacion del runtime",
+  );
+  assertPatternsInOrder(
+    cleanup,
+    [/release_state_update_pending/, /rollback_application/, /release_state_finalize_baseline/],
+    "cleanup debe escribir rolling_back antes de restaurar el baseline",
+  );
+  assert.match(releaseState, /ticketsadmin\.application-release-state/);
+  assert.match(releaseState, /mktemp "\$directory\/\.release-state\.XXXXXX"/);
+  assert.match(releaseState, /chmod 600/);
+  assert.match(releaseState, /sync "\$temporary"/);
+  assert.match(releaseState, /mv -T -- "\$temporary" "\$file"/);
+  assert.match(releaseState, /sync -f "\$directory"/);
+  assert.doesNotMatch(releaseState, /restore-db\.mjs|docker compose down|docker volume (?:rm|prune)/);
 });
 
 test("un unico lock abarca baseline, backup, freshness, rollout y smoke", () => {

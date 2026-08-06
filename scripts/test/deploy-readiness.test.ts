@@ -72,18 +72,23 @@ test("el workflow delega checkpoint, deploy y smoke a una sola operacion", () =>
   assert.match(release, /--backend-image-id/);
   assert.match(release, /--frontend-image-id/);
   assert.match(release, /--backup-dir/);
+  assert.match(release, /--state-dir/);
   assert.match(release, /--lock-file/);
   assert.match(release, /--allow-legacy-adoption/);
   assert.match(release, /--allow-fix-forward-transition/);
   assert.match(release, /--expected-baseline-release/);
   assert.match(release, /--expected-baseline-backend-image-id/);
   assert.match(release, /--expected-baseline-frontend-image-id/);
+  assert.match(release, /--resume-pending-attempt/);
+  assert.match(release, /--expected-state-generation/);
   assert.match(workflow, /workflow_dispatch:\n\s+inputs:/);
   assert.match(workflow, /inputs\.allow_legacy_adoption \|\| false/);
   assert.match(workflow, /inputs\.allow_fix_forward_transition \|\| false/);
   assert.match(workflow, /inputs\.expected_baseline_release \|\| ''/);
   assert.match(workflow, /inputs\.expected_baseline_backend_image_id \|\| ''/);
   assert.match(workflow, /inputs\.expected_baseline_frontend_image_id \|\| ''/);
+  assert.match(workflow, /inputs\.resume_pending_attempt \|\| ''/);
+  assert.match(workflow, /inputs\.expected_state_generation \|\| ''/);
   assert.doesNotMatch(workflow, /vars\.TICKETSADMIN_ALLOW_/);
   assert.doesNotMatch(workflow, /name: Deploy and wait for healthy services/);
   assert.doesNotMatch(workflow, /name: Smoke test published services/);
@@ -115,6 +120,7 @@ test("el runner valida capacidades de Compose antes de construir", () => {
     /bash curl flock jq sha256sum stat mktemp realpath sync/,
   );
   assert.match(preflight, /TICKETSADMIN_BACKUP_DIR/);
+  assert.match(preflight, /TICKETSADMIN_RELEASE_STATE_DIR/);
   assert.match(preflight, /TICKETSADMIN_DEPLOY_LOCK_DIR/);
   assert.match(preflight, /test ! -L "\$private_directory"/);
   assert.match(preflight, /realpath -e -- "\$private_directory"/);
@@ -127,6 +133,10 @@ test("el runner valida capacidades de Compose antes de construir", () => {
   );
   assert.match(preflight, /test ! -L "\$lock_file"/);
   assert.match(preflight, /= "600"/);
+  assert.match(preflight, /release-state\.json/);
+  assert.match(preflight, /stat -c '%h'/);
+  assert.match(preflight, /release_state_bytes/);
+  assert.match(preflight, /131072/);
   assert.match(preflight, /docker compose config --quiet/);
   assert.match(preflight, /docker compose config --format json/);
   assert.match(
