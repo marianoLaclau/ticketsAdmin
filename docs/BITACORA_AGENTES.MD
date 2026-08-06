@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Ciclo de vida explícito del stream SSE
+
+**Agente:** Codex
+**Estado:** cuadragésima cuarta remediación de la auditoría técnica, implementada y validada localmente.
+
+- `useEventosEnVivo` dejó de silenciar `react-hooks/exhaustive-deps`: declara la navegación estable de Wouter y la instancia de QueryClient que determinan el ciclo de la conexión.
+- El hook usa directamente la función estable de toasts y ya no se suscribe a cada cambio de su estado global; los avisos siguen siendo idénticos sin provocar rerenders del layout.
+- Lint, typecheck y pruebas del frontend aprobaron. No se hizo push.
+
 ## 2026-08-06 — CRUD de roles separado del router administrativo
 
 **Agente:** Codex

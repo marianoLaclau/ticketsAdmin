@@ -16,7 +16,7 @@ import {
   useLogout,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useToast } from '@/hooks/use-toast';
+import { toast as showToast, useToast } from '@/hooks/use-toast';
 import { ROL_SYSADMIN } from '@/lib/roles';
 import { getContactDisplayName } from '@/lib/contacto';
 import { getEstadoLabel } from '@/lib/estados';
@@ -38,7 +38,6 @@ import gsbLogo from '@/assets/gsb-logo.jpg';
 function useEventosEnVivo() {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   useEffect(() => {
     const es = new EventSource('/api/events');
@@ -53,7 +52,7 @@ function useEventosEnVivo() {
         // sesión válida, montará también un EventSource nuevo.
         es.close();
         clearRevokedSessionState(queryClient);
-        toast({
+        showToast({
           dedupeKey: 'session-revoked',
           variant: 'warning',
           title: 'Sesión finalizada',
@@ -68,7 +67,7 @@ function useEventosEnVivo() {
       void queryClient.invalidateQueries();
       if (data.tipo === 'ticket_creado') {
         const contacto = getContactDisplayName(data);
-        toast({
+        showToast({
           ...(data.ticket_id
             ? { dedupeKey: `ticket-created:${data.ticket_id}` }
             : {}),
@@ -78,7 +77,7 @@ function useEventosEnVivo() {
         });
       } else if (data.tipo === 'tickets_importados') {
         const cantidad = data.cantidad ?? 0;
-        toast({
+        showToast({
           dedupeKey: `tickets-imported:${data.cantidad_total ?? cantidad}`,
           variant: 'info',
           title: 'Importación disponible',
@@ -87,8 +86,7 @@ function useEventosEnVivo() {
       }
     };
     return () => es.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [navigate, queryClient]);
 }
 
 export function Sidebar() {
