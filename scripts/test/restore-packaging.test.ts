@@ -44,8 +44,7 @@ test("empaqueta y expone el restore offline sin atajos destructivos", () => {
     /"restore-db": path\.resolve\([^\n]+restore-db\.ts/,
   );
   assert.match(backendBuild, /spawnSync\(process\.execPath/);
-  assert.match(backendBuild, /restoreBundle, "--help"/);
-  assert.match(backendBuild, /restoreSmoke\.status !== 0/);
+  assert.match(backendBuild, /\["restore-db", "--confirm-stopped"\]/);
   assert.match(restoreCli, /--confirm-stopped/);
   assert.match(restoreCli, /--recovery-output/);
   assert.match(restoreCli, /restoreVerifiedSqliteBackup/);
@@ -70,4 +69,21 @@ test("empaqueta y expone el restore offline sin atajos destructivos", () => {
     deployRunbook.indexOf('svc.sh" stop') <
       deployRunbook.indexOf("cancelar cualquier run de **Deploy**"),
   );
+});
+
+test("empaqueta la evidencia SQLite usada por automatización", () => {
+  assert.equal(
+    rootPackage.scripts?.["verify:db"],
+    "pnpm --filter @workspace/scripts run verify-db",
+  );
+  assert.equal(scriptsPackage.scripts?.["verify-db"], "tsx ./src/verify-db.ts");
+  assert.match(backendBuild, /"backup-db": path\.resolve\([^\n]+backup-db\.ts/);
+  assert.match(backendBuild, /"verify-db": path\.resolve\([^\n]+verify-db\.ts/);
+  assert.match(backendBuild, /\["backup-db", "--json"\]/);
+  assert.match(backendBuild, /\["verify-db", "--expect-evidence"\]/);
+  assert.match(backendBuild, /smoke\.status !== 0/);
+  assert.match(backendBuild, /failure\.status !== 2/);
+  assert.match(backendBuild, /failure\.stdout !== ""/);
+  assert.match(backendBuild, /ticketsadmin\.sqlite-evidence/);
+  assert.match(backendBuild, /INVALID_ARGUMENT/);
 });

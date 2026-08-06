@@ -2,6 +2,19 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Evidencia SQLite transportable para el predeploy
+
+**Agente:** Codex
+**Estado:** vigesimoctava remediación de la auditoría técnica, implementada localmente.
+
+- `backup-db.mjs --json`, ejecutado directamente sin el wrapper de pnpm, reabre el pathname ya publicado y emite exactamente una evidencia v1 con operación, formato single-file, SHA-256, bytes, páginas y los checks de integridad/FK/schema. El modo humano anterior se conserva.
+- El nuevo `verify:db` abre una copia transportada en readonly, rechaza WAL/sidecars y vuelve a ejecutar todos los checks. `--expect-evidence` ignora las rutas y compara estrictamente almacenamiento, SHA-256, bytes y páginas.
+- Los errores JSON no incluyen stack ni variables de entorno: usan contrato, código y exit estables para distinguir argumentos/evidencia inválidos, fallo físico y mismatch. Los CLIs siguen sin imprimir API keys ni bootstrap.
+- Backend empaqueta `backup-db.mjs`, `verify-db.mjs` y `restore-db.mjs`; el build ejecuta el `--help` de los tres artefactos finales como smoke real.
+- Las regresiones E2E crean un backup, simulan su transporte a otra ruta, prueban evidencia alterada, argumentos/contratos ajenos y una segunda SQLite físicamente válida con igual tamaño y páginas: esta última se rechaza solamente por SHA-256.
+- Archivos principales: contratos/CLIs en `scripts/src`, empaquetado backend, scripts del workspace, pruebas y documentación operativa.
+- Validaciones: 15 pruebas de scripts y 364 pruebas totales aprobadas. `pnpm run quality` confirmó codegen sin drift, schema Drizzle, todos los tests, TypeScript y builds; el backend ejecutó además los tres smokes de CLI y el envelope JSON de los bundles finales. Solo permanecen los avisos frontend ya registrados de sourcemaps y chunk mayor a 500 kB.
+
 ## 2026-08-06 — Imágenes de release identificables y despliegue sin rebuild
 
 **Agente:** Codex

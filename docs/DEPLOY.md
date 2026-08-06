@@ -202,24 +202,40 @@ con el mismo header `x-api-key` (el valor cargado como secreto `WEBHOOK_API_KEY`
 - **Ver logs**: `WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose logs -f backend` (o `frontend`).
 - **Ver estado**: `WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose ps`
 - **Backup de la base**: no usar `cat`, `cp` ni copiar solamente `/data/tickets.db`; SQLite está en WAL y eso puede omitir transacciones confirmadas. La imagen del backend incluye un CLI que usa la API online de SQLite y publica la copia solo después de verificar integridad, claves foráneas y el esquema histórico mínimo de la aplicación. Para guardar el backup fuera del volumen Docker:
+
   ```bash
+  umask 077
   TICKETSADMIN_BACKUP_DIR="/var/lib/ticketsadmin/backups"
   sudo install -d -m 0700 -o "$USER" -g "$(id -gn)" "$TICKETSADMIN_BACKUP_DIR"
   BACKUP_NAME="tickets-$(date -u +%Y%m%dT%H%M%SZ).db"
+  EVIDENCE_NAME="$BACKUP_NAME.evidence.json"
   WEBHOOK_API_KEY=not-used-by-backup ADMIN_API_KEY=not-used-by-backup docker compose exec -T backend \
-    node dist/backup-db.mjs --output "/tmp/$BACKUP_NAME"
+    node dist/backup-db.mjs --output "/tmp/$BACKUP_NAME" --json \
+    > "$TICKETSADMIN_BACKUP_DIR/$EVIDENCE_NAME"
   WEBHOOK_API_KEY=not-used-by-backup ADMIN_API_KEY=not-used-by-backup docker compose cp \
     "backend:/tmp/$BACKUP_NAME" "$TICKETSADMIN_BACKUP_DIR/$BACKUP_NAME"
+  BACKEND_CONTAINER_ID="$(WEBHOOK_API_KEY=not-used-by-backup ADMIN_API_KEY=not-used-by-backup docker compose ps -q backend)"
+  BACKEND_IMAGE_ID="$(docker inspect --format '{{.Image}}' "$BACKEND_CONTAINER_ID")"
+  docker run --rm --network none --read-only \
+    --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+    --volume "$TICKETSADMIN_BACKUP_DIR:/evidence:ro" \
+    "$BACKEND_IMAGE_ID" node dist/verify-db.mjs \
+    --source "/evidence/$BACKUP_NAME" \
+    --expect-evidence "/evidence/$EVIDENCE_NAME" --json
   WEBHOOK_API_KEY=not-used-by-backup ADMIN_API_KEY=not-used-by-backup docker compose exec -T backend \
     rm -f "/tmp/$BACKUP_NAME"
   ```
-  Los placeholders solo satisfacen la interpolación de Compose: `exec` usa el entorno real del backend que ya está corriendo y no lo modifica. El destino es obligatorio y nunca se sobrescribe; una ejecución exitosa informa `Integridad: ok`. El archivo se crea `0600` en Linux porque contiene PII, hashes de contraseña y hashes de sesión. El `cp` extrae la copia ya verificada y el último comando elimina el temporal del contenedor. El directorio externo debe ser privado (`0700`, o ACL equivalente) y tener una política explícita de retención.
+
+  Los placeholders solo satisfacen la interpolación de Compose: `exec` usa el entorno real del backend que ya está corriendo y no lo modifica. El destino es obligatorio y nunca se sobrescribe. `backup-db.mjs --json` deja una única evidencia `ticketsadmin.sqlite-evidence` v1; luego, un contenedor efímero de la misma imagen reabre la copia ya transportada y exige la misma tupla SHA-256/bytes/páginas además de integridad, FK y esquema. El comando de verificación también responde con una sola línea JSON y cualquier exit distinto de cero invalida el checkpoint. La ruta puede cambiar sin invalidar la identidad del artefacto.
+
+  El archivo SQLite se crea `0600` en Linux porque contiene PII, hashes de contraseña y hashes de sesión; `umask 077` protege también la evidencia. El `cp` extrae la copia ya verificada y el último comando elimina el temporal del contenedor. El directorio externo debe ser privado (`0700`, o ACL equivalente) y tener una política explícita de retención. El workflow automatizado agregará además exclusión mutua y publicación atómica en el siguiente bloque operativo.
+
 - **Cambios de schema**: si se modifica `lib/db/src/schema/tickets.ts`, hay que generar la migración ANTES de mergear a main:
   ```bash
   pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts
   ```
   Esto crea un nuevo archivo en `lib/db/drizzle/`. Commitear ese archivo junto con el cambio de schema — el próximo deploy lo aplica solo.
-- **Rollback rápido**: `git revert` el commit problemático y pushear — el pipeline redeploya la versión anterior. Si el commit incluía un cambio estructural ya aplicado, diseñar una migración *forward* compatible y específica; no asumir que revertir código revierte la base ni improvisar una inversa destructiva. `0011` es una excepción de datos deliberada: no cambia columnas, su `DELETE` no es reversible y **no** se debe restaurar un backup ni crear una migración inversa para recuperar sesiones. El rollback funciona sobre la columna existente y exige re-login, pero solo está soportado hasta `06db746`; restaurar una base anterior o arrancar código más viejo reintroduciría el riesgo de bearer reutilizables y además podría perder datos funcionales posteriores.
+- **Rollback rápido**: `git revert` el commit problemático y pushear — el pipeline redeploya la versión anterior. Si el commit incluía un cambio estructural ya aplicado, diseñar una migración _forward_ compatible y específica; no asumir que revertir código revierte la base ni improvisar una inversa destructiva. `0011` es una excepción de datos deliberada: no cambia columnas, su `DELETE` no es reversible y **no** se debe restaurar un backup ni crear una migración inversa para recuperar sesiones. El rollback funciona sobre la columna existente y exige re-login, pero solo está soportado hasta `06db746`; restaurar una base anterior o arrancar código más viejo reintroduciría el riesgo de bearer reutilizables y además podría perder datos funcionales posteriores.
 
 ### Restauración manual de SQLite
 

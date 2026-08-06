@@ -395,7 +395,7 @@ Ver también la tabla en el [README raíz](../README.md#configuración). Las que
 
 ## Build y despliegue
 
-`build.mjs` bundlea API, migrador y utilidades operativas con esbuild a `dist/index.mjs`, `dist/migrate.mjs`, `dist/backup-db.mjs` y `dist/restore-db.mjs` (ESM). `better-sqlite3` (y otro puñado de paquetes nativos, ver la lista `external` en `build.mjs`) queda **fuera** del bundle — por eso `better-sqlite3` es dependencia directa de `@workspace/backend` y no transitiva.
+`build.mjs` bundlea API, migrador y utilidades operativas con esbuild a `dist/index.mjs`, `dist/migrate.mjs`, `dist/backup-db.mjs`, `dist/verify-db.mjs` y `dist/restore-db.mjs` (ESM). `better-sqlite3` (y otro puñado de paquetes nativos, ver la lista `external` en `build.mjs`) queda **fuera** del bundle — por eso `better-sqlite3` es dependencia directa de `@workspace/backend` y no transitiva.
 
 En Docker (`Dockerfile.backend`): se buildea, se arma un `node_modules` de producción sin symlinks vía `pnpm --filter @workspace/backend deploy --prod --legacy` (necesario en pnpm 11 para este workspace), y el `CMD` corre `dist/migrate.mjs` antes que `dist/index.mjs` — las migraciones se aplican siempre antes de aceptar tráfico. Detalle completo de la infraestructura en [docs/DEPLOY.md](../docs/DEPLOY.md).
 
@@ -409,7 +409,9 @@ En Docker (`Dockerfile.backend`): se buildea, se arma un `node_modules` de produ
 4. Fuerza modo `0600` en POSIX, sincroniza archivo/directorio cuando la plataforma lo permite y recién entonces publica mediante un hard link no-clobber (nunca sobrescribe un destino existente).
 5. Ante cualquier error elimina solamente sus temporales; un archivo de salida visible siempre es una copia completa y verificada.
 
-CLI: `scripts/src/backup-db.ts`, expuesto como `pnpm run backup:db -- --output <archivo> [--source <db>]`. Carga el `.env` del workspace y resuelve `TICKETS_DB_PATH` igual que el resto del sistema.
+CLI: `scripts/src/backup-db.ts`, expuesto para uso humano como `pnpm run backup:db -- --output <archivo> [--source <db>]`. Carga el `.env` del workspace y resuelve `TICKETS_DB_PATH` igual que el resto del sistema. Para automatización se ejecuta directamente `node dist/backup-db.mjs ... --json`, sin atravesar el wrapper de pnpm: reabre el pathname ya publicado y emite una sola evidencia versionada con SHA-256, bytes, páginas y los checks aplicados; un error usa stderr sin stack y un código estable.
+
+`pnpm run verify:db -- --source <copia> --expect-evidence <evidencia.json>` ofrece la salida humana. El contrato automatizable usa directamente `node dist/verify-db.mjs ... --json`, porque pnpm agrega su propio output de lifecycle. La ruta puede cambiar, pero almacenamiento, hash, bytes y páginas deben coincidir exactamente; también vuelve a ejecutar integridad, FK y esquema mínimo en readonly. Esta es la barrera que usará el backup predeploy antes de habilitar un rollout; la integración al workflow se mantiene en un commit operativo separado.
 
 Los backups contienen PII, hashes de contraseña y hashes de sesión. En Windows el `chmod` de Node no reemplaza ACL correctas sobre la carpeta de destino; esa carpeta debe quedar accesible solo para el operador autorizado.
 

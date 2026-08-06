@@ -9,7 +9,8 @@
     "import-excel": "tsx ./src/import-excel.ts",
     "restore-db": "tsx ./src/restore-db.ts",
     "test": "tsx --test ./test/*.test.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "verify-db": "tsx ./src/verify-db.ts"
   },
   "dependencies": {
     "@workspace/db": "workspace:*",

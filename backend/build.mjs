@@ -21,6 +21,7 @@ async function buildAll() {
       migrate: path.resolve(artifactDir, "src/migrate.ts"),
       "backup-db": path.resolve(artifactDir, "../scripts/src/backup-db.ts"),
       "restore-db": path.resolve(artifactDir, "../scripts/src/restore-db.ts"),
+      "verify-db": path.resolve(artifactDir, "../scripts/src/verify-db.ts"),
     },
     platform: "node",
     bundle: true,
@@ -125,26 +126,66 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     },
   });
 
-  const restoreBundle = path.join(distDir, "restore-db.mjs");
-  const restoreSmoke = spawnSync(process.execPath, [restoreBundle, "--help"], {
-    cwd: artifactDir,
-    encoding: "utf8",
-    windowsHide: true,
-  });
-  if (
-    restoreSmoke.error ||
-    restoreSmoke.status !== 0 ||
-    !restoreSmoke.stdout.includes("--confirm-stopped")
-  ) {
-    throw new Error(
-      [
-        "El bundle restore-db.mjs no superó su smoke test de ejecución",
-        restoreSmoke.error?.message,
-        restoreSmoke.stderr,
-      ]
-        .filter(Boolean)
-        .join("\n"),
-    );
+  const cliSmokeContracts = [
+    ["backup-db", "--json"],
+    ["restore-db", "--confirm-stopped"],
+    ["verify-db", "--expect-evidence"],
+  ];
+  for (const [bundleName, expectedHelp] of cliSmokeContracts) {
+    const bundle = path.join(distDir, `${bundleName}.mjs`);
+    const smoke = spawnSync(process.execPath, [bundle, "--help"], {
+      cwd: artifactDir,
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    if (
+      smoke.error ||
+      smoke.status !== 0 ||
+      !smoke.stdout.includes(expectedHelp)
+    ) {
+      throw new Error(
+        [
+          `El bundle ${bundleName}.mjs no superó su smoke test de ejecución`,
+          smoke.error?.message,
+          smoke.stderr,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      );
+    }
+  }
+
+  for (const bundleName of ["backup-db", "verify-db"]) {
+    const bundle = path.join(distDir, `${bundleName}.mjs`);
+    const failure = spawnSync(process.execPath, [bundle, "--json"], {
+      cwd: artifactDir,
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    let payload;
+    try {
+      payload = JSON.parse(failure.stderr.trim());
+    } catch {
+      payload = undefined;
+    }
+    if (
+      failure.error ||
+      failure.status !== 2 ||
+      failure.stdout !== "" ||
+      payload?.contract !== "ticketsadmin.sqlite-evidence" ||
+      payload?.error?.code !== "INVALID_ARGUMENT"
+    ) {
+      throw new Error(
+        [
+          `El bundle ${bundleName}.mjs no respetó el contrato JSON de error`,
+          failure.error?.message,
+          failure.stdout,
+          failure.stderr,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      );
+    }
   }
 }
 

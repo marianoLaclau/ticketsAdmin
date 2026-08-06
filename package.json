@@ -13,7 +13,8 @@
     "quality": "pnpm run codegen:check && pnpm run schema:check && pnpm test && pnpm run build",
     "restore:db": "pnpm --filter @workspace/scripts run restore-db",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./backend\" --filter \"./frontend\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./backend\" --filter \"./frontend\" --filter \"./scripts\" --if-present run typecheck",
+    "verify:db": "pnpm --filter @workspace/scripts run verify-db"
   },
   "packageManager": "pnpm@11.13.1",
   "private": true,
