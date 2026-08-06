@@ -311,7 +311,11 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
     }
 
     updateTicket.mutate(
-      { id: ticketId, params: includeEmptyParams, data: updatedData },
+      {
+        id: ticketId,
+        ...(includeEmptyParams ? { params: includeEmptyParams } : {}),
+        data: updatedData,
+      },
       {
         onSuccess: (savedTicket) => {
           cacheSavedTicket(savedTicket);
@@ -345,7 +349,11 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
 
   const handleUpdateFunctionalData = (data: TicketUpdate) => {
     updateTicket.mutate(
-      { id: ticketId, params: includeEmptyParams, data },
+      {
+        id: ticketId,
+        ...(includeEmptyParams ? { params: includeEmptyParams } : {}),
+        data,
+      },
       {
         onSuccess: (savedTicket) => {
           cacheSavedTicket(savedTicket);
@@ -381,7 +389,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
     createSeguimiento.mutate(
       {
         id: ticketId,
-        params: includeEmptyParams,
+        ...(includeEmptyParams ? { params: includeEmptyParams } : {}),
         data: { nota: seguimiento },
       },
       {
@@ -433,10 +441,14 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
             ? adminErrorMessage(detailError)
             : 'No fue posible obtener el ticket o su historial. Reintentá o volvé al inicio.'}
         homeHref={adminMode ? '/admin' : '/dashboard'}
-        onRetry={notFound ? undefined : () => {
-          void ticketQuery.refetch();
-          void seguimientosQuery.refetch();
-        }}
+        {...(notFound
+          ? {}
+          : {
+              onRetry: () => {
+                void ticketQuery.refetch();
+                void seguimientosQuery.refetch();
+              },
+            })}
         isRetrying={ticketQuery.isFetching || seguimientosQuery.isFetching}
       />
     );

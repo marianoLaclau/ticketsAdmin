@@ -48,8 +48,6 @@ describe('eventos en tiempo real', () => {
         ticket_id: 12,
         nombre: 'Ana',
         apellido: null,
-        motivo: undefined,
-        cantidad: undefined,
         cantidad_total: 4,
       },
     );

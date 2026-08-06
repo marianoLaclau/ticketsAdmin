@@ -70,7 +70,9 @@ function useEventosEnVivo() {
       if (data.tipo === 'ticket_creado') {
         const contacto = getContactDisplayName(data);
         toast({
-          dedupeKey: data.ticket_id ? `ticket-created:${data.ticket_id}` : undefined,
+          ...(data.ticket_id
+            ? { dedupeKey: `ticket-created:${data.ticket_id}` }
+            : {}),
           variant: 'info',
           title: 'Nuevo llamado recibido',
           description: [contacto, data.motivo || null].filter(Boolean).join(' — '),

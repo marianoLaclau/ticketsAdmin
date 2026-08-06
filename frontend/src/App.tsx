@@ -121,9 +121,11 @@ function PublicEntry() {
   return (
     <ErrorPage
       status={esErrorDeConexion ? 503 : errorStatus}
-      message={esErrorDeConexion ? 'No pudimos verificar tu sesión porque el servidor no responde.' : undefined}
+      {...(esErrorDeConexion
+        ? { message: 'No pudimos verificar tu sesión porque el servidor no responde.' }
+        : {})}
       homeHref={import.meta.env.BASE_URL}
-      onRetry={puedeReintentar ? () => void refetch() : undefined}
+      {...(puedeReintentar ? { onRetry: () => void refetch() } : {})}
       isRetrying={isFetching}
     />
   );
@@ -168,9 +170,11 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <ErrorPage
         status={esErrorDeConexion ? 503 : errorStatus}
-        message={esErrorDeConexion ? 'No pudimos verificar tu sesión porque el servidor no responde.' : undefined}
+        {...(esErrorDeConexion
+          ? { message: 'No pudimos verificar tu sesión porque el servidor no responde.' }
+          : {})}
         homeHref={import.meta.env.BASE_URL}
-        onRetry={puedeReintentar ? () => void refetch() : undefined}
+        {...(puedeReintentar ? { onRetry: () => void refetch() } : {})}
         isRetrying={isFetching}
       />
     );

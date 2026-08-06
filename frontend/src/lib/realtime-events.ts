@@ -36,17 +36,21 @@ export function parseRealtimeEvent(payload: string): RealtimeEvent | null {
   if (typeof record.tipo !== 'string' || !record.tipo.trim()) return null;
 
   const ticketId = record.ticket_id;
+  const nombre = optionalString(record.nombre);
+  const apellido = optionalString(record.apellido);
+  const motivo = optionalString(record.motivo);
+  const cantidad = optionalFiniteNumber(record.cantidad);
+  const cantidadTotal = optionalFiniteNumber(record.cantidad_total);
   return {
     tipo: record.tipo,
-    ticket_id:
-      typeof ticketId === 'number' || typeof ticketId === 'string'
-        ? ticketId
-        : undefined,
-    nombre: optionalString(record.nombre),
-    apellido: optionalString(record.apellido),
-    motivo: optionalString(record.motivo),
-    cantidad: optionalFiniteNumber(record.cantidad),
-    cantidad_total: optionalFiniteNumber(record.cantidad_total),
+    ...(typeof ticketId === 'number' || typeof ticketId === 'string'
+      ? { ticket_id: ticketId }
+      : {}),
+    ...(nombre === undefined ? {} : { nombre }),
+    ...(apellido === undefined ? {} : { apellido }),
+    ...(motivo === undefined ? {} : { motivo }),
+    ...(cantidad === undefined ? {} : { cantidad }),
+    ...(cantidadTotal === undefined ? {} : { cantidad_total: cantidadTotal }),
   };
 }
 

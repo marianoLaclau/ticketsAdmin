@@ -273,7 +273,9 @@ export default function Admin() {
         cambiarEstadoDialogo(false);
         void refrescarTodo();
         toast({
-          dedupeKey: dedupeCreated ? `ticket-created:${savedTicket.id}` : undefined,
+          ...(dedupeCreated
+            ? { dedupeKey: `ticket-created:${savedTicket.id}` }
+            : {}),
           variant: 'success',
           title: titulo,
           description: contacto,

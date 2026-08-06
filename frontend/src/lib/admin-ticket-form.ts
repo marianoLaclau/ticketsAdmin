@@ -72,19 +72,27 @@ export function ticketToAdminTicketForm(ticket: Ticket): AdminTicketForm {
 }
 
 export function buildAdminTicketInput(form: AdminTicketForm): TicketInput {
+  const telefono = cleanOptional(form.telefono);
+  const dni = cleanOptional(form.dni);
+  const empresa = cleanOptional(form.empresa);
+  const email = cleanOptional(form.email);
+  const resumen = cleanOptional(form.resumen);
+  const notas = cleanOptional(form.notas);
+  const audioUrl = cleanOptional(form.audio_url);
+
   return {
     conversation_id: cleanRequired(form.conversation_id),
     hora: cleanRequired(form.hora),
     nombre: cleanRequired(form.nombre),
     apellido: cleanRequired(form.apellido),
-    telefono: cleanOptional(form.telefono),
-    dni: cleanOptional(form.dni),
-    empresa: cleanOptional(form.empresa),
-    email: cleanOptional(form.email),
+    ...(telefono === undefined ? {} : { telefono }),
+    ...(dni === undefined ? {} : { dni }),
+    ...(empresa === undefined ? {} : { empresa }),
+    ...(email === undefined ? {} : { email }),
     motivo: cleanRequired(form.motivo),
-    resumen: cleanOptional(form.resumen),
-    notas: cleanOptional(form.notas),
-    audio_url: cleanOptional(form.audio_url),
+    ...(resumen === undefined ? {} : { resumen }),
+    ...(notas === undefined ? {} : { notas }),
+    ...(audioUrl === undefined ? {} : { audio_url: audioUrl }),
     estado: form.estado,
     prioridad: form.prioridad,
   };
