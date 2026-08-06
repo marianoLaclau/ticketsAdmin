@@ -33,6 +33,17 @@ import {
 } from 'lucide-react';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { AdminStatusBadge } from '@/features/admin-directory/AdminStatusBadge';
+import {
+  createAdminRoleForm,
+  createAdminUserForm,
+  createEmptyAdminRoleForm,
+  createEmptyAdminUserForm,
+  createNewAdminUserForm,
+  createRoleNameMap,
+  filterAdminRoles,
+  type AdminRoleFormState,
+  type AdminUserFormState,
+} from '@/features/admin-directory/model';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   AlertDialog,
@@ -74,40 +85,6 @@ import {
 } from '@/lib/password-policy';
 import { esRolSistema } from '@/lib/roles';
 
-type UserFormState = {
-  nombre: string;
-  apellido: string;
-  username: string;
-  password: string;
-  passwordRepetida: string;
-  email: string;
-  roleId: string;
-  activo: boolean;
-};
-
-type RoleFormState = {
-  nombre: string;
-  descripcion: string;
-  activo: boolean;
-};
-
-const emptyUserForm = (): UserFormState => ({
-  nombre: '',
-  apellido: '',
-  username: '',
-  password: '',
-  passwordRepetida: '',
-  email: '',
-  roleId: '',
-  activo: true,
-});
-
-const emptyRoleForm = (): RoleFormState => ({
-  nombre: '',
-  descripcion: '',
-  activo: true,
-});
-
 export default function AdminRolesUsers() {
   const { adminKey, saveAdminKey, adminRequest } = useAdminAccess();
   const { toast } = useToast();
@@ -146,7 +123,7 @@ export default function AdminRolesUsers() {
     () => rolesQuery.data?.roles ?? [],
     [rolesQuery.data?.roles],
   );
-  const roleById = useMemo(() => new Map(roles.map((role) => [role.id, role.nombre])), [roles]);
+  const roleById = useMemo(() => createRoleNameMap(roles), [roles]);
 
   // ---------- Usuarios ----------
   const [userPage, setUserPage] = useState(1);
@@ -196,7 +173,7 @@ export default function AdminRolesUsers() {
   const resetPassword = useResetAdminUserPassword({ request: adminRequest });
   const [userDialogOpen, setUserDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
-  const [userForm, setUserForm] = useState<UserFormState>(emptyUserForm);
+  const [userForm, setUserForm] = useState<AdminUserFormState>(createEmptyAdminUserForm);
 
   // Reestablecer contraseña (la "llavesita" de cada usuario)
   const [passwordUser, setPasswordUser] = useState<AdminUser | null>(null);
@@ -253,25 +230,13 @@ export default function AdminRolesUsers() {
 
   const openCreateUser = () => {
     setEditingUser(null);
-    setUserForm({
-      ...emptyUserForm(),
-      roleId: String(roles.find((role) => role.activo)?.id ?? ''),
-    });
+    setUserForm(createNewAdminUserForm(roles));
     setUserDialogOpen(true);
   };
 
   const openEditUser = (user: AdminUser) => {
     setEditingUser(user);
-    setUserForm({
-      nombre: user.nombre,
-      apellido: user.apellido ?? '',
-      username: user.username ?? '',
-      password: '',
-      passwordRepetida: '',
-      email: user.email,
-      roleId: String(user.role_id),
-      activo: user.activo,
-    });
+    setUserForm(createAdminUserForm(user));
     setUserDialogOpen(true);
   };
 
@@ -382,23 +347,13 @@ export default function AdminRolesUsers() {
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<AdminRole | null>(null);
   const [roleToDelete, setRoleToDelete] = useState<AdminRole | null>(null);
-  const [roleForm, setRoleForm] = useState<RoleFormState>(emptyRoleForm);
+  const [roleForm, setRoleForm] = useState<AdminRoleFormState>(createEmptyAdminRoleForm);
   const editingSystemRole = Boolean(editingRole && esRolSistema(editingRole.nombre));
 
-  const visibleRoles = useMemo(() => {
-    const search = roleSearch.trim().toLocaleLowerCase('es');
-    return listedRoles.filter((role) => {
-      const matchesSearch =
-        !search ||
-        role.nombre.toLocaleLowerCase('es').includes(search) ||
-        (role.descripcion ?? '').toLocaleLowerCase('es').includes(search);
-      const matchesStatus =
-        roleStatusFilter === '_all' ||
-        (roleStatusFilter === 'active' && role.activo) ||
-        (roleStatusFilter === 'inactive' && !role.activo);
-      return matchesSearch && matchesStatus;
-    });
-  }, [listedRoles, roleSearch, roleStatusFilter]);
+  const visibleRoles = useMemo(
+    () => filterAdminRoles(listedRoles, roleSearch, roleStatusFilter),
+    [listedRoles, roleSearch, roleStatusFilter],
+  );
 
   const createRole = useCreateAdminRole({ request: adminRequest });
   const updateRole = useUpdateAdminRole({ request: adminRequest });
@@ -406,17 +361,13 @@ export default function AdminRolesUsers() {
 
   const openCreateRole = () => {
     setEditingRole(null);
-    setRoleForm(emptyRoleForm());
+    setRoleForm(createEmptyAdminRoleForm());
     setRoleDialogOpen(true);
   };
 
   const openEditRole = (role: AdminRole) => {
     setEditingRole(role);
-    setRoleForm({
-      nombre: role.nombre,
-      descripcion: role.descripcion ?? '',
-      activo: role.activo,
-    });
+    setRoleForm(createAdminRoleForm(role));
     setRoleDialogOpen(true);
   };
 

@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Modelo puro del directorio administrativo
+
+**Agente:** Codex
+**Estado:** cuadragésima octava remediación de la auditoría técnica, implementada y validada localmente.
+
+- La inicialización de formularios, conversión para edición, selección del primer rol activo, mapa de etiquetas y filtro de roles salieron de la página a `features/admin-directory/model.ts`.
+- La página consume esas funciones sin cambiar estado, consultas, mutaciones ni DOM. Los opcionales nulos, roles inactivos ya asignados y contraseñas vacías al editar conservan su semántica.
+- Tres grupos de regresiones fijan formularios, catálogos, búsqueda por descripción y estado. Lint, typecheck, pruebas y build del frontend aprobaron. No se hizo push.
+
 ## 2026-08-06 — Inicio del feature administrativo de identidades
 
 **Agente:** Codex
