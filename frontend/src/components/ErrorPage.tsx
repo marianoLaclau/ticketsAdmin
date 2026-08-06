@@ -150,17 +150,17 @@ type ErrorBoundaryState = {
 
 /** Último recurso para errores de render que React no puede recuperar. */
 export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { hasError: false };
+  override state: ErrorBoundaryState = { hasError: false };
 
   static getDerivedStateFromError(): ErrorBoundaryState {
     return { hasError: true };
   }
 
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
+  override componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('Error de render no controlado', error, info);
   }
 
-  render() {
+  override render() {
     if (this.state.hasError) {
       return <ErrorPage status={500} onRetry={() => window.location.reload()} />;
     }
