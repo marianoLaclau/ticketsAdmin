@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Progreso visual con fuentes canónicas
+
+**Agente:** Codex
+**Estado:** quincuagésima séptima remediación de la auditoría técnica, implementada y validada localmente.
+
+- El tracker salió a `features/ticket-detail/TicketProgressCard.tsx` con sólo estado y progreso. Su orden visual es explícito, mientras porcentajes y etiquetas provienen de `TICKET_STATE_PROGRESS` y `getEstadoLabel`, eliminando cinco objetos duplicados de la página.
+- Se preservaron `progreso || 0`, ancho sin clamp, completitud por porcentaje y estado actual independiente; un ajuste manual inconsistente continúa representándose igual. El toast usa la misma etiqueta canónica y mantiene sus textos para los cinco estados válidos.
+- Dos revisiones independientes no encontraron hallazgos P0/P1/P2. Aprobaron 85 pruebas del frontend, typecheck, ESLint, Prettier acotado, build aislado y `diff --check`. No se hizo push.
+
 ## 2026-08-06 — Datos de contacto separados del detalle
 
 **Agente:** Codex

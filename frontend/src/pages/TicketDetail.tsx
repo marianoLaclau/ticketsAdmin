@@ -44,7 +44,6 @@ import {
   ArrowLeft, 
   User, 
   Clock, 
-  CheckCircle2, 
   MessageSquare,
   History,
 } from 'lucide-react';
@@ -62,9 +61,9 @@ import { TicketDataEditDialog } from '@/components/tickets/TicketDataEditDialog'
 import { TicketVersionConflictAlert } from '@/components/tickets/TicketVersionConflictAlert';
 import { TicketCallSummaryCard } from '@/features/ticket-detail/TicketCallSummaryCard';
 import { TicketContactCard } from '@/features/ticket-detail/TicketContactCard';
+import { TicketProgressCard } from '@/features/ticket-detail/TicketProgressCard';
 import { TicketTimingCard } from '@/features/ticket-detail/TicketTimingCard';
 import {
-  TICKET_STATE_PROGRESS,
   applyTicketManagementState,
   buildTicketManagementUpdate,
   getFunctionalFieldLabel,
@@ -78,34 +77,6 @@ import {
   type TicketEditBaseline,
 } from '@/lib/ticket-version';
 import { getAssignedDisplayName } from '@/lib/asignacion';
-
-const PROGRESS_STEPS = [
-  {
-    estado: TicketEstado.nuevo,
-    value: TICKET_STATE_PROGRESS.nuevo,
-    label: 'Nuevo',
-  },
-  {
-    estado: TicketEstado.en_proceso,
-    value: TICKET_STATE_PROGRESS.en_proceso,
-    label: 'En Proceso',
-  },
-  {
-    estado: TicketEstado.pendiente,
-    value: TICKET_STATE_PROGRESS.pendiente,
-    label: getEstadoLabel(TicketEstado.pendiente),
-  },
-  {
-    estado: TicketEstado.resuelto,
-    value: TICKET_STATE_PROGRESS.resuelto,
-    label: 'Resuelto',
-  },
-  {
-    estado: TicketEstado.cerrado,
-    value: TICKET_STATE_PROGRESS.cerrado,
-    label: 'Cerrado',
-  },
-];
 
 const EMPTY_MANAGEMENT_FORM: TicketManagementForm = {
   estado: TicketEstado.nuevo,
@@ -316,7 +287,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
           void queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
           handleEditDialogOpenChange(false);
           const estadoLabel = changes.estado
-            ? PROGRESS_STEPS.find((step) => step.estado === changes.estado)?.label
+            ? getEstadoLabel(changes.estado)
             : undefined;
           toast({
             variant: 'success',
@@ -684,46 +655,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
         onSave={handleUpdateFunctionalData}
       />
 
-      {/* Progress Tracker */}
-      <Card className="border-slate-200 shadow-sm overflow-hidden">
-        <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
-          <h3 className="font-semibold text-sm text-slate-700">Progreso del Caso</h3>
-          <span className="font-bold text-primary">{ticket.progreso || 0}%</span>
-        </div>
-        <CardContent className="p-6">
-          <div className="relative">
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-slate-100 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-primary transition-all duration-500" 
-                style={{ width: `${ticket.progreso || 0}%` }}
-              />
-            </div>
-            
-            <div className="relative flex justify-between">
-              {PROGRESS_STEPS.map((step) => {
-                const isCompleted = (ticket.progreso || 0) >= step.value;
-                const isCurrent = ticket.estado === step.estado;
-                
-                return (
-                  <div key={step.value} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-                    <div 
-                      className={`h-6 w-6 rounded-full flex items-center justify-center border-2 transition-colors z-10 bg-white
-                        ${isCompleted ? 'border-primary text-primary' : 'border-slate-200 text-slate-300'}
-                        ${isCurrent ? 'ring-4 ring-primary/20' : ''}
-                      `}
-                    >
-                      {isCompleted ? <CheckCircle2 className="h-4 w-4" /> : <div className="h-2 w-2 rounded-full bg-current" />}
-                    </div>
-                    <span className={`max-w-full px-1 text-center text-xs font-medium leading-tight ${isCurrent ? 'text-primary' : isCompleted ? 'text-slate-700' : 'text-slate-400'}`}>
-                      {step.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <TicketProgressCard estado={ticket.estado} progreso={ticket.progreso} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
