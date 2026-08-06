@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — CRUD de roles separado del router administrativo
+
+**Agente:** Codex
+**Estado:** cuadragésima tercera remediación de la auditoría técnica, implementada y validada localmente.
+
+- Las cuatro rutas de catálogo y CRUD de roles salieron de `admin.ts` a un router hijo con paths relativos. El padre lo monta después de `requireSysAdmin` y `requireAdminKey`, preservando el orden observable de los controles.
+- Cuatro helpers usados también por usuarios se movieron a un módulo puro compartido; no se duplicaron ni se introdujeron imports circulares.
+- Una regresión específica comprueba SysAdmin sin clave, Operador con clave y el recorrido real de alta + listado filtrado/paginado. Las reglas previas de PATCH, DELETE, roles base y revocación continúan cubiertas por RBAC.
+- Aprobaron 50 pruebas RBAC, cinco de operaciones Admin, typecheck de backend, ESLint y `diff --check`. No se hizo push.
+
 ## 2026-08-06 — Dependencia directa no utilizada en scripts
 
 **Agente:** Codex

@@ -1517,6 +1517,71 @@ describe("política de contraseñas nuevas", () => {
   });
 });
 
+describe("catálogo administrativo de roles", () => {
+  it("mantiene el subrouter detrás del rol SysAdmin y la clave administrativa", async () => {
+    const sysAdminCookie = await adminSession();
+    const withoutAdminKey = await requestWithSession(
+      "/admin/roles",
+      sysAdminCookie,
+    );
+    assert.equal(withoutAdminKey.status, 401);
+    assert.deepEqual(await withoutAdminKey.json(), {
+      error: "Clave de administración inválida",
+    });
+
+    const operatorLogin = await login("operadora");
+    assert.equal(operatorLogin.status, 200);
+    const asOperator = await adminRequest(
+      "/admin/roles",
+      sessionCookie(operatorLogin),
+    );
+    assert.equal(asOperator.status, 403);
+    assert.deepEqual(await asOperator.json(), {
+      error: "Requiere rol SysAdmin",
+    });
+  });
+
+  it("conserva el alta y el catálogo filtrado y paginado", async () => {
+    const cookie = await adminSession();
+    const create = await adminRequest("/admin/roles", cookie, {
+      method: "POST",
+      body: JSON.stringify({
+        nombre: "Cobranza estratégica",
+        descripcion: "Atención de acuerdos de cobranza",
+        activo: true,
+      }),
+    });
+    assert.equal(create.status, 201);
+    const created = (await create.json()) as {
+      id: number;
+      nombre: string;
+      descripcion: string | null;
+      activo: boolean;
+    };
+    assert.equal(created.nombre, "Cobranza estratégica");
+    assert.equal(created.descripcion, "Atención de acuerdos de cobranza");
+    assert.equal(created.activo, true);
+
+    const catalog = await adminRequest(
+      "/admin/roles?search=Cobranza&page=1&limit=1",
+      cookie,
+    );
+    assert.equal(catalog.status, 200);
+    const payload = (await catalog.json()) as {
+      roles: Array<{ id: number; nombre: string }>;
+      total: number;
+      page: number;
+      limit: number;
+    };
+    assert.equal(payload.total, 1);
+    assert.equal(payload.page, 1);
+    assert.equal(payload.limit, 1);
+    assert.equal(payload.roles.length, 1);
+    assert.equal(payload.roles[0]?.id, created.id);
+    assert.equal(payload.roles[0]?.nombre, created.nombre);
+  });
+});
+
 describe("roles base protegidos", () => {
   it("impide renombrar, desactivar o eliminar cada rol del sistema", async () => {
     const cookie = await adminSession();

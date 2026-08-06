@@ -98,6 +98,8 @@ Las reglas importantes viven fuera de los handlers cuando pueden reutilizarse:
 - `backend/src/lib/dashboard-queries.ts`: agregaciones SQL de KPIs y motivos, separadas del transporte HTTP.
 - `backend/src/lib/dashboard-date-range.ts`: períodos y día operativo en la zona estable de Buenos Aires.
 - `backend/src/lib/reclasificar-motivos.ts`: reconciliación conservadora de Embargos.
+- `backend/src/routes/admin-roles.ts`: catálogo y CRUD de roles, montado detrás del doble guard del router administrativo padre.
+- `backend/src/routes/admin-route-helpers.ts`: normalizadores y detección de restricciones compartidos por roles y usuarios.
 - `lib/db/src/ticket-visibility.ts`: regla compartida para cuarentena de registros vacíos.
 
 El Dashboard no carga filas completas para volver a contarlas en memoria. Sus KPIs principales se calculan con agregaciones condicionales y los motivos con `GROUP BY`; las lecturas que componen un mismo resultado se ejecutan en una transacción diferida para compartir snapshot. La cohorte del período se determina por `fecha_creacion`, mientras que “nuevos hoy” y “resueltos hoy” conservan su alcance diario global. Todo límite calendario usa `America/Argentina/Buenos_Aires` y no la zona local del host.
