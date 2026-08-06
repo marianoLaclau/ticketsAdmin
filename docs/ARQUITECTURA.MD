@@ -173,7 +173,7 @@ Las pantallas principales son:
 
 La pantalla de identidades administrativas se organiza como feature en `frontend/src/features/admin-directory`. La página conserva la elevación SysAdmin y la composición de pestañas; los paneles de usuarios y roles concentran sus respectivas consultas, filtros, formularios, diálogos y mutaciones. El request administrativo cruza esas fronteras como una única dependencia y la API key no se incorpora a query keys ni se replica en otro estado cliente. Las invalidaciones por prefijo mantienen sincronizados ambos catálogos sin acoplar sus estados locales.
 
-La administración de tickets se modulariza en `frontend/src/features/admin-tickets`. El importador CSV conserva en una sola unidad el archivo seleccionado, su simulación y la confirmación definitiva; sólo esta última invalida globalmente los datos remotos. La página mantiene la elevación administrativa y la composición de pestañas, sin duplicar la API key dentro del feature.
+La administración de tickets se modulariza en `frontend/src/features/admin-tickets`. El importador CSV conserva en una sola unidad el archivo seleccionado, su simulación y la confirmación definitiva; sólo esta última invalida globalmente los datos remotos. La zona peligrosa concentra conteo, confirmación y truncado. Sus consultas reciben una versión opaca para separar credenciales sucesivas sin exponer la API key en las query keys; la credencial sólo viaja en `RequestInit`. La página mantiene la elevación administrativa y la composición de pestañas.
 
 El estado remoto se invalida después de mutaciones y también por eventos SSE. Los errores de sesión (`401`) vuelven a la entrada; los errores de servidor muestran una pantalla recuperable.
 

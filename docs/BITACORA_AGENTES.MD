@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Zona peligrosa administrativa aislada
+
+**Agente:** Codex
+**Estado:** quincuagésima segunda remediación de la auditoría técnica, implementada y validada localmente.
+
+- El conteo total, la confirmación y el truncado salieron de `Admin.tsx` a `features/admin-tickets/AdminDangerZoneTab.tsx`; estado, consulta, mutación y presentación permanecen en una sola unidad cohesionada.
+- La consulta conserva `incluir_vacios`, se habilita sólo con elevación administrativa y separa cachés mediante una versión opaca. La API key viaja únicamente en `RequestInit` y nunca forma parte de la query key. El borrado mantiene la confirmación literal `BORRAR` y sólo después del éxito limpia, invalida globalmente y notifica.
+- La comparación independiente no encontró hallazgos P0/P1/P2. Aprobaron 85 pruebas del frontend, typecheck, ESLint, Prettier acotado, build aislado y `diff --check`. No se hizo push.
+
 ## 2026-08-06 — Importador CSV separado de la página administrativa
 
 **Agente:** Codex
