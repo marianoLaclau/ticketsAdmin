@@ -458,18 +458,28 @@ flowchart LR
     quality[Quality: codegen, schema, tests y build]
     runner[Runner self-hosted]
     images[Docker Compose build]
+    release[Lock, baseline y candidatos inmutables]
+    checkpoint[Checkpoint SQLite verificado + manifiesto]
     backendc[Contenedor backend]
     frontendc[Contenedor frontend / Nginx]
     volume[(tickets_data volume)]
 
-    git --> quality --> runner --> images
-    images --> backendc
-    images --> frontendc
+    git --> quality --> runner --> images --> release
+    volume --> checkpoint
+    release --> checkpoint
+    checkpoint --> backendc
+    checkpoint --> frontendc
     backendc -->|dist/migrate.mjs al arrancar| volume
     frontendc -->|depende del backend saludable| backendc
 ```
 
-El runner valida Docker Compose `>= 2.17.0` y la configuración antes del build. Cada ejecución crea referencias separadas e irrepetibles para backend y frontend, identificadas por SHA/run/attempt y por labels OCI; inspecciona los IDs y ejecuta los CLIs y `nginx -t` antes de permitir el rollout. `up --no-build --wait` solo puede usar ese par ya verificado: el backend es healthy únicamente si `/api/readyz` devuelve su JSON exacto, y Nginx exige simultáneamente la SPA real y el mismo endpoint a través del proxy. Después, el host repite los tres recorridos como smoke test. No existe un prune global en el host compartido. Una actualización explícita del backend reinicia también Nginx para renovar su resolución DNS. La semántica sigue siendo single-replica: health + wait detectan un rollout fallido, pero no brindan cero downtime ni monitoreo continuo; backup predeploy y rollback de aplicación se implementan como fases posteriores y nunca implican restaurar datos automáticamente.
+El runner valida Docker Compose `>= 2.17.0` y la configuración antes del build. Cada ejecución crea referencias separadas e irrepetibles para backend y frontend, identificadas por SHA/run/attempt y por labels OCI; inspecciona los IDs y ejecuta los CLIs y `nginx -t` antes de permitir el rollout.
+
+Un único orquestador mantiene un `flock` cooperativo desde la captura del baseline hasta terminar los smoke tests. Para una instalación existente exige exactamente un backend y un frontend saludables de la misma release, conserva sus IDs/imágenes/instante de arranque, valida que `/data` sea el volumen esperado y rechaza cualquier otro contenedor que lo monte. Backend y frontend nuevos comparten el label `io.ticketsadmin.release-id`, además de revisión y origen OCI. Existe una adopción acotada para el despliegue histórico de `origin/main`: solo acepta el par sin labels con las referencias Compose exactas `ticketsadmin-backend[:latest]`/`ticketsadmin-frontend[:latest]`; después del primer éxito todas las releases quedan identificadas y esa excepción deja de aplicar.
+
+La imagen candidata del backend abre el volumen solo lectura, sin red ni secretos, genera el snapshot online en un helper aislado y el host vuelve a verificar el archivo transportado contra evidencia SHA-256/bytes/páginas. El `.db` se publica sin overwrite y se fija nuevamente por inode/hash antes de publicar un manifiesto versionado como marcador final de completitud. Una topología parcial, duplicada, sustituida, un holder externo o un volumen huérfano hacen fallar cerrado; el primer deploy solo omite el checkpoint cuando los listados exitosos confirman que no existen contenedores ni volumen.
+
+`up --no-build --wait` recibe los IDs exactos de las dos candidatas, no tags mutables. El backend es healthy únicamente si `/api/readyz` devuelve su JSON exacto, y Nginx exige simultáneamente la SPA real y el mismo endpoint a través del proxy. El host repite los tres recorridos como smoke antes de liberar el lock. No existe un prune global en el host compartido. Una actualización explícita del backend reinicia también Nginx para renovar su resolución DNS. La semántica sigue siendo single-replica: health + wait detectan un rollout fallido, pero no brindan cero downtime ni monitoreo continuo. El rollback de aplicación queda como fase separada y nunca restaura SQLite automáticamente.
 
 En local se usa `drizzle-kit push` para iterar rápidamente. En Docker, el backend ejecuta `dist/migrate.mjs` antes de escuchar tráfico. Las migraciones versionadas actuales mantienen una secuencia lineal:
 

@@ -62,7 +62,7 @@ lib/
   api-client-react/ → hooks React Query generados
   api-zod/          → schemas Zod generados
   password-policy/  → política pura compartida por backend y frontend
-scripts/    → utilidades CLI (importador histórico, backup SQLite)
+scripts/    → utilidades CLI (importación/backup/restore) y orquestador de release
 data/       → base SQLite (gitignoreado, solo en desarrollo local)
 docs/       → README.md, ARQUITECTURA.MD, FLUJO.md, DEPLOY.md, BITACORA_AGENTES.MD
 Dockerfile.backend, Dockerfile.frontend, docker-compose.yml → despliegue en contenedores

@@ -38,9 +38,11 @@ RUN pnpm --filter @workspace/backend deploy --prod --legacy /prod/backend
 FROM node:24-slim AS runtime
 ARG TICKETSADMIN_IMAGE_REVISION=development
 ARG TICKETSADMIN_IMAGE_SOURCE=local
+ARG TICKETSADMIN_RELEASE_ID=development
 
 LABEL org.opencontainers.image.revision="${TICKETSADMIN_IMAGE_REVISION}" \
-      org.opencontainers.image.source="${TICKETSADMIN_IMAGE_SOURCE}"
+      org.opencontainers.image.source="${TICKETSADMIN_IMAGE_SOURCE}" \
+      io.ticketsadmin.release-id="${TICKETSADMIN_RELEASE_ID}"
 
 WORKDIR /app
 ENV NODE_ENV=production

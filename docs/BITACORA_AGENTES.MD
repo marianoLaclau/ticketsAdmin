@@ -2,6 +2,22 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Checkpoint automático y rollout serializado
+
+**Agente:** Codex
+**Estado:** vigesimonovena remediación de la auditoría técnica, implementada localmente.
+
+- `scripts/deploy/deploy-release.sh` concentra bajo un solo `flock` la identidad de candidatas, baseline, freshness de `main`, checkpoint, revalidación, `compose up`, inspección post-rollout y smoke. Build permanece fuera del lock; ninguna credencial viaja por argumentos ni al helper.
+- La topología falla cerrada ante pares parciales/duplicados, servicios orphan, health degradado, mount incorrecto, volumen huérfano o cualquier otro contenedor activo o detenido que conserve `ticketsadmin_tickets_data`. La ausencia del volumen se decide mediante un listado exitoso y coincidencia exacta: un error del daemon nunca se interpreta como primer deploy.
+- Backend y frontend comparten ahora `io.ticketsadmin.release-id` además de revisión/origen OCI. La adopción del `origin/main` histórico solo acepta una vez el par saludable sin labels y con las referencias Compose originales; cualquier baseline mixto o manual se rechaza.
+- La candidata backend crea el snapshot desde el volumen readonly en un helper sin red, capabilities ni secretos y con expiración. El host extrae por `docker exec ... cat`, compara SHA-256/bytes/páginas y otro contenedor aislado con watchdog ejecuta `verify-db.mjs` sobre el staging readonly.
+- El `.db` se publica mediante hardlink no-clobber y se vuelve a fijar por inode/hash. El manifiesto v1, sin entorno ni secretos, se sincroniza y publica último como marcador de completitud. Nunca se restaura SQLite por un fallo de release.
+- Compose recibe los IDs exactos, no las referencias, y después del `up` se comprueban nuevamente cantidad de contenedores, imagen ejecutada, health, mount y exclusividad del volumen antes de los tres smokes HTTP.
+- El workflow exige herramientas, directorios `0700` y lock `0600` preprovisionados. `.gitattributes` fija LF para shell; el runbook documenta preparación, adopción y operación cooperativa.
+- Pruebas: contratos estáticos del workflow/orquestador, sintaxis Bash, parser duplicado y un harness Linux real con Docker/Git/curl/jq simulados que recorrió el primer deploy completo y confirmó IDs/outputs sin filtrar sentinels. El rollback de aplicación sobre las imágenes baseline queda en el siguiente commit; nunca incluirá restauración automática de datos.
+- Validaciones: 378 pruebas totales aprobadas por `pnpm run quality` (375 ejecutadas y 3 omisiones justificadas por Windows), sin drift de OpenAPI ni schema, con TypeScript y builds completos. Un contenedor Linux ejecutó además las 14 pruebas portables sin omisiones. Se construyeron las dos imágenes Docker reales, se inspeccionaron sus IDs/labels y aprobaron los tres CLIs empaquetados y `nginx -t`; solo permanecen los avisos frontend ya registrados de sourcemaps y chunk mayor a 500 kB.
+- Archivos principales: workflow, Compose, Dockerfiles, orquestador de release, pruebas y documentación operativa/arquitectónica.
+
 ## 2026-08-06 — Evidencia SQLite transportable para el predeploy
 
 **Agente:** Codex

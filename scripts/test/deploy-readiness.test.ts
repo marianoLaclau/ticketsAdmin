@@ -63,23 +63,24 @@ test("Compose publica readiness end-to-end", () => {
   assert.match(frontend, /\{"status":"ready"\}/);
 });
 
-test("el deploy espera, prueba ambos puertos y diagnostica fallos", () => {
-  const deploy = workflowStep("Deploy and wait for healthy services");
-  const smoke = workflowStep("Smoke test published services");
+test("el workflow delega checkpoint, deploy y smoke a una sola operacion", () => {
+  const release = workflowStep("Create checkpoint and deploy verified release");
   const diagnostics = workflowStep("Deployment diagnostics");
 
+  assert.match(release, /bash scripts\/deploy\/deploy-release\.sh/);
+  assert.match(release, /id: release/);
+  assert.match(release, /--backend-image-id/);
+  assert.match(release, /--frontend-image-id/);
+  assert.match(release, /--backup-dir/);
+  assert.match(release, /--lock-file/);
+  assert.doesNotMatch(workflow, /name: Deploy and wait for healthy services/);
+  assert.doesNotMatch(workflow, /name: Smoke test published services/);
+  assert.doesNotMatch(workflow, /run: docker compose up/);
+
   assert.match(
-    deploy,
-    /docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180/,
+    diagnostics,
+    /if: failure\(\) && steps\.release\.outcome == 'failure'/,
   );
-  assert.match(smoke, /5000\/api\/readyz\)" = '\{"status":"ready"\}'/);
-  assert.match(
-    smoke,
-    /spa="\$\(curl -fsS --max-time 5 http:\/\/127\.0\.0\.1:3000\/\)"/,
-  );
-  assert.match(smoke, /grep -Fq '<div id="root"><\/div>' <<< "\$spa"/);
-  assert.match(smoke, /3000\/api\/readyz\)" = '\{"status":"ready"\}'/);
-  assert.match(diagnostics, /if: failure\(\)/);
   assert.match(
     diagnostics,
     /docker compose logs --no-color --tail=100 backend frontend/,
@@ -96,7 +97,24 @@ test("el runner valida capacidades de Compose antes de construir", () => {
   assert.match(preflight, /--wait\(\[\[:space:\]\]\|\$\)/);
   assert.match(preflight, /--wait-timeout\(\[\[:space:\]\]\|\$\)/);
   assert.match(preflight, /--no-build\(\[\[:space:\]\]\|\$\)/);
-  assert.match(preflight, /command -v curl >\/dev\/null/);
+  assert.match(preflight, /command -v "\$required_command" >\/dev\/null/);
+  assert.match(
+    preflight,
+    /bash curl flock jq sha256sum stat mktemp realpath sync/,
+  );
+  assert.match(preflight, /TICKETSADMIN_BACKUP_DIR/);
+  assert.match(preflight, /TICKETSADMIN_DEPLOY_LOCK_DIR/);
+  assert.match(preflight, /test ! -L "\$private_directory"/);
+  assert.match(preflight, /realpath -e -- "\$private_directory"/);
+  assert.match(preflight, /stat -c '%u'/);
+  assert.match(preflight, /stat -c '%a'/);
+  assert.match(preflight, /= "700"/);
+  assert.match(
+    preflight,
+    /lock_file="\$TICKETSADMIN_DEPLOY_LOCK_DIR\/deploy\.lock"/,
+  );
+  assert.match(preflight, /test ! -L "\$lock_file"/);
+  assert.match(preflight, /= "600"/);
   assert.match(preflight, /docker compose config --quiet/);
   assert.ok(
     workflow.indexOf("Verify Docker Compose capabilities") <
@@ -109,7 +127,7 @@ test("cada ejecucion construye y verifica referencias de imagen identificables",
   const backend = serviceBlock("backend");
   const frontend = serviceBlock("frontend");
   const verify = workflowStep("Verify candidate image identities");
-  const deploy = workflowStep("Deploy and wait for healthy services");
+  const release = workflowStep("Create checkpoint and deploy verified release");
 
   assert.match(
     backend,
@@ -137,11 +155,9 @@ test("cada ejecucion construye y verifica referencias de imagen identificables",
   assert.match(verify, /docker image inspect/);
   assert.match(verify, /org\.opencontainers\.image\.revision/);
   assert.match(verify, /org\.opencontainers\.image\.source/);
+  assert.match(verify, /io\.ticketsadmin\.release-id/);
   assert.match(verify, /test "\$revision" = "\$GITHUB_SHA"/);
-  assert.match(
-    verify,
-    /test "\$source" = "\$TICKETSADMIN_IMAGE_SOURCE"/,
-  );
+  assert.match(verify, /test "\$source" = "\$TICKETSADMIN_IMAGE_SOURCE"/);
   assert.match(
     verify,
     /verify_image "\$TICKETSADMIN_BACKEND_IMAGE" backend_id/,
@@ -152,17 +168,21 @@ test("cada ejecucion construye y verifica referencias de imagen identificables",
   );
   assert.match(verify, /GITHUB_OUTPUT/);
   assert.match(verify, /node dist\/backup-db\.mjs --help/);
+  assert.match(verify, /node dist\/verify-db\.mjs --help/);
   assert.match(verify, /node dist\/restore-db\.mjs --help/);
   assert.match(
     verify,
     /--network none --add-host backend:127\.0\.0\.1[\s\S]*--entrypoint nginx[\s\S]*"\$TICKETSADMIN_FRONTEND_IMAGE" -t/,
   );
-  assert.match(deploy, /--no-build/);
+  assert.match(release, /steps\.candidate_images\.outputs\.backend_id/);
+  assert.match(release, /steps\.candidate_images\.outputs\.frontend_id/);
 
   for (const dockerfile of [backendDockerfile, frontendDockerfile]) {
     assert.match(dockerfile, /ARG TICKETSADMIN_IMAGE_REVISION=development/);
+    assert.match(dockerfile, /ARG TICKETSADMIN_RELEASE_ID=development/);
     assert.match(dockerfile, /org\.opencontainers\.image\.revision/);
     assert.match(dockerfile, /org\.opencontainers\.image\.source/);
+    assert.match(dockerfile, /io\.ticketsadmin\.release-id/);
     assert.ok(
       dockerfile.indexOf("COPY package.json pnpm-lock.yaml") <
         dockerfile.indexOf("RUN pnpm install --frozen-lockfile"),
@@ -179,7 +199,7 @@ test("cada ejecucion construye y verifica referencias de imagen identificables",
   );
   assert.ok(
     workflow.indexOf("Verify candidate image identities") <
-      workflow.indexOf("Recheck main before restarting services"),
+      workflow.indexOf("Create checkpoint and deploy verified release"),
   );
 
   assert.match(dockerIgnore, /^\.pnpm-store$/m);

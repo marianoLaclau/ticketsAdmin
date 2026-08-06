@@ -27,6 +27,11 @@ jobs:
       TICKETSADMIN_FRONTEND_IMAGE: ticketsadmin-frontend:git-${{ github.sha }}-run-${{ github.run_id }}-${{ github.run_attempt }}
       TICKETSADMIN_IMAGE_REVISION: ${{ github.sha }}
       TICKETSADMIN_IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
+      TICKETSADMIN_RELEASE_ID: git-${{ github.sha }}-run-${{ github.run_id }}-${{ github.run_attempt }}
+      # Ambos directorios se preparan una sola vez en el runner. El workflow
+      # exige que sean privados, reales y propiedad del usuario del servicio.
+      TICKETSADMIN_BACKUP_DIR: /var/lib/ticketsadmin/backups
+      TICKETSADMIN_DEPLOY_LOCK_DIR: /var/lock/ticketsadmin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,7 +64,28 @@ jobs:
           grep -Eq -- '(^|[[:space:]])--wait([[:space:]]|$)' <<< "$compose_up_help"
           grep -Eq -- '(^|[[:space:]])--wait-timeout([[:space:]]|$)' <<< "$compose_up_help"
           grep -Eq -- '(^|[[:space:]])--no-build([[:space:]]|$)' <<< "$compose_up_help"
-          command -v curl >/dev/null
+          for required_command in \
+            bash curl flock jq sha256sum stat mktemp realpath sync \
+            basename chmod date dirname docker git grep id ln rm rmdir; do
+            command -v "$required_command" >/dev/null
+          done
+          for private_directory in \
+            "$TICKETSADMIN_BACKUP_DIR" "$TICKETSADMIN_DEPLOY_LOCK_DIR"; do
+            test -d "$private_directory"
+            test ! -L "$private_directory"
+            test "$(realpath -e -- "$private_directory")" = "$private_directory"
+            test "$(stat -c '%u' -- "$private_directory")" = "$(id -u)"
+            test "$(stat -c '%a' -- "$private_directory")" = "700"
+            test -w "$private_directory"
+            test -x "$private_directory"
+          done
+          lock_file="$TICKETSADMIN_DEPLOY_LOCK_DIR/deploy.lock"
+          test -f "$lock_file"
+          test ! -L "$lock_file"
+          test "$(realpath -e -- "$lock_file")" = "$lock_file"
+          test "$(stat -c '%u' -- "$lock_file")" = "$(id -u)"
+          test "$(stat -c '%a' -- "$lock_file")" = "600"
+          test -w "$lock_file"
           docker compose config --quiet
         env:
           # Solo validan la interpolación; el preflight no crea servicios.
@@ -84,12 +110,14 @@ jobs:
           verify_image() {
             local image="$1"
             local output_name="$2"
-            local revision source image_id
+            local revision source release_id image_id
             revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")"
             source="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.source"}}' "$image")"
+            release_id="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.release-id"}}' "$image")"
             image_id="$(docker image inspect --format '{{.Id}}' "$image")"
             test "$revision" = "$GITHUB_SHA"
             test "$source" = "$TICKETSADMIN_IMAGE_SOURCE"
+            test "$release_id" = "$TICKETSADMIN_RELEASE_ID"
             test -n "$image_id"
             printf 'Candidate %s -> %s (revision %s)\n' "$image" "$image_id" "$revision"
             printf '%s=%s\n' "$output_name" "$image_id" >> "$GITHUB_OUTPUT"
@@ -101,27 +129,31 @@ jobs:
           docker run --rm --network none "$TICKETSADMIN_BACKEND_IMAGE" \
             node dist/backup-db.mjs --help >/dev/null
           docker run --rm --network none "$TICKETSADMIN_BACKEND_IMAGE" \
+            node dist/verify-db.mjs --help >/dev/null
+          docker run --rm --network none "$TICKETSADMIN_BACKEND_IMAGE" \
             node dist/restore-db.mjs --help >/dev/null
           docker run --rm --network none --add-host backend:127.0.0.1 \
             --entrypoint nginx \
             "$TICKETSADMIN_FRONTEND_IMAGE" -t
 
-      - name: Recheck main before restarting services
-        id: freshness_after_build
+      - name: Create checkpoint and deploy verified release
+        id: release
         if: steps.freshness.outputs.deploy == 'true'
         shell: bash
         run: |
-          git fetch --no-tags origin main
-          if [ "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)" ]; then
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "deploy=false" >> "$GITHUB_OUTPUT"
-            echo "A newer main commit arrived during the build; restart is skipped."
-          fi
-
-      - name: Deploy and wait for healthy services
-        if: steps.freshness_after_build.outputs.deploy == 'true'
-        run: docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
+          set -euo pipefail
+          exec bash scripts/deploy/deploy-release.sh \
+            --backend-image-id "${{ steps.candidate_images.outputs.backend_id }}" \
+            --frontend-image-id "${{ steps.candidate_images.outputs.frontend_id }}" \
+            --backend-image-ref "$TICKETSADMIN_BACKEND_IMAGE" \
+            --frontend-image-ref "$TICKETSADMIN_FRONTEND_IMAGE" \
+            --revision "$TICKETSADMIN_IMAGE_REVISION" \
+            --image-source "$TICKETSADMIN_IMAGE_SOURCE" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --repository "$GITHUB_REPOSITORY" \
+            --backup-dir "$TICKETSADMIN_BACKUP_DIR" \
+            --lock-file "$TICKETSADMIN_DEPLOY_LOCK_DIR/deploy.lock"
         env:
           WEBHOOK_API_KEY: ${{ secrets.WEBHOOK_API_KEY }}
           ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
@@ -129,18 +161,8 @@ jobs:
           # credencial ya cambiada ignora el valor y nunca se resetea.
           BOOTSTRAP_SYSADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_SYSADMIN_PASSWORD }}
 
-      - name: Smoke test published services
-        if: steps.freshness_after_build.outputs.deploy == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(curl -fsS --max-time 5 http://127.0.0.1:5000/api/readyz)" = '{"status":"ready"}'
-          spa="$(curl -fsS --max-time 5 http://127.0.0.1:3000/)"
-          grep -Fq '<div id="root"></div>' <<< "$spa"
-          test "$(curl -fsS --max-time 5 http://127.0.0.1:3000/api/readyz)" = '{"status":"ready"}'
-
       - name: Deployment diagnostics
-        if: failure() && steps.freshness_after_build.outputs.deploy == 'true'
+        if: failure() && steps.release.outcome == 'failure'
         shell: bash
         run: |
           docker compose ps || true

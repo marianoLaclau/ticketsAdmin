@@ -10,6 +10,7 @@ services:
       args:
         TICKETSADMIN_IMAGE_REVISION: ${TICKETSADMIN_IMAGE_REVISION:-development}
         TICKETSADMIN_IMAGE_SOURCE: ${TICKETSADMIN_IMAGE_SOURCE:-local}
+        TICKETSADMIN_RELEASE_ID: ${TICKETSADMIN_RELEASE_ID:-development}
     restart: unless-stopped
     stop_grace_period: 30s
     ports:
@@ -50,6 +51,7 @@ services:
       args:
         TICKETSADMIN_IMAGE_REVISION: ${TICKETSADMIN_IMAGE_REVISION:-development}
         TICKETSADMIN_IMAGE_SOURCE: ${TICKETSADMIN_IMAGE_SOURCE:-local}
+        TICKETSADMIN_RELEASE_ID: ${TICKETSADMIN_RELEASE_ID:-development}
     restart: unless-stopped
     ports:
       - "3000:80"
