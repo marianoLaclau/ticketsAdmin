@@ -395,7 +395,7 @@ Ver también la tabla en el [README raíz](../README.md#configuración). Las que
 
 ## Build y despliegue
 
-`build.mjs` bundlea `src/index.ts` **y** `src/migrate.ts` con esbuild a `dist/index.mjs` / `dist/migrate.mjs` (ESM). `better-sqlite3` (y otro puñado de paquetes nativos, ver la lista `external` en `build.mjs`) queda **fuera** del bundle — por eso `better-sqlite3` es dependencia directa de `@workspace/backend` y no transitiva.
+`build.mjs` bundlea API, migrador y utilidades operativas con esbuild a `dist/index.mjs`, `dist/migrate.mjs`, `dist/backup-db.mjs` y `dist/restore-db.mjs` (ESM). `better-sqlite3` (y otro puñado de paquetes nativos, ver la lista `external` en `build.mjs`) queda **fuera** del bundle — por eso `better-sqlite3` es dependencia directa de `@workspace/backend` y no transitiva.
 
 En Docker (`Dockerfile.backend`): se buildea, se arma un `node_modules` de producción sin symlinks vía `pnpm --filter @workspace/backend deploy --prod --legacy` (necesario en pnpm 11 para este workspace), y el `CMD` corre `dist/migrate.mjs` antes que `dist/index.mjs` — las migraciones se aplican siempre antes de aceptar tráfico. Detalle completo de la infraestructura en [docs/DEPLOY.md](../docs/DEPLOY.md).
 
@@ -404,13 +404,18 @@ En Docker (`Dockerfile.backend`): se buildea, se arma un `node_modules` de produ
 `lib/db/src/backup.ts` (`createVerifiedSqliteBackup`) usa la API de backup online de better-sqlite3 (incluye transacciones confirmadas que todavía estén solo en el WAL, no en el archivo principal):
 
 1. Copia a un archivo temporal `.partial` mediante un snapshot online, no con una copia directa del `.db`.
-2. Corre `PRAGMA integrity_check`, `foreign_key_check` y comprueba tablas más columnas históricas mínimas de TicketManager, sin exigir el ledger opcional de migraciones.
-3. Fuerza modo `0600` en POSIX, sincroniza archivo/directorio cuando la plataforma lo permite y recién entonces publica mediante un hard link no-clobber (nunca sobrescribe un destino existente).
-4. Ante cualquier error elimina solamente sus temporales; un archivo de salida visible siempre es una copia completa y verificada.
+2. Normaliza el candidato privado a journal `DELETE`; el snapshot publicado queda autocontenido y no necesita archivos `-wal/-shm`. El verificador rechaza un header WAL o sidecars antes de abrirlos para no crearlos ni consumir estado externo.
+3. Corre `PRAGMA integrity_check`, `foreign_key_check`, comprueba tablas más columnas históricas mínimas de TicketManager y calcula SHA-256, sin exigir el ledger opcional de migraciones.
+4. Fuerza modo `0600` en POSIX, sincroniza archivo/directorio cuando la plataforma lo permite y recién entonces publica mediante un hard link no-clobber (nunca sobrescribe un destino existente).
+5. Ante cualquier error elimina solamente sus temporales; un archivo de salida visible siempre es una copia completa y verificada.
 
 CLI: `scripts/src/backup-db.ts`, expuesto como `pnpm run backup:db -- --output <archivo> [--source <db>]`. Carga el `.env` del workspace y resuelve `TICKETS_DB_PATH` igual que el resto del sistema.
 
 Los backups contienen PII, hashes de contraseña y hashes de sesión. En Windows el `chmod` de Node no reemplaza ACL correctas sobre la carpeta de destino; esa carpeta debe quedar accesible solo para el operador autorizado.
+
+`lib/db/src/restore.ts` expone una restauración deliberadamente offline. Valida el candidato con las mismas reglas del backup, usa un lock exclusivo y controla la identidad `dev/ino` en cada transición. Si el destino existe, primero publica una recovery verificada y no-clobber, fijada también por inode y SHA-256; recién después consolida WAL y exige que SQLite pueda volver temporalmente a journal `DELETE`, por lo que una conexión activa hace fallar la operación conservando esa recovery. Un destino existente se reemplaza con `rename` atómico; uno originalmente ausente se crea con hard link no-clobber y rechaza archivos o sidecars que aparezcan durante la preparación. La comprobación posterior compara integridad, esquema, inode y SHA-256. Si falla, repone la recovery solo si tanto el archivo visible como la recovery siguen siendo exactamente los fijados por la operación; ante una sustitución ajena o un doble fallo conserva recovery, staging y lock para intervención manual.
+
+CLI: `pnpm run restore:db -- --source <backup> --recovery-output <recovery> --confirm-stopped [--target <db>]`. `--allow-missing-target` queda reservado para una recuperación excepcional sobre un volumen vacío. El CLI no puede demostrar que un proceso externo esté detenido: `--confirm-stopped` es una precondición operativa, no un bypass técnico. El build ejecuta además el `--help` del bundle final como smoke test, no solo comprueba su fuente. El procedimiento Docker completo está en [docs/DEPLOY.md](../docs/DEPLOY.md#restauración-manual-de-sqlite).
 
 ## Convenciones de error
 

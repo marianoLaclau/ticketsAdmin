@@ -2,6 +2,21 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Restauración SQLite offline con recovery previa
+
+**Agente:** Codex
+**Estado:** vigesimosexta remediación de la auditoría técnica, implementada localmente.
+
+- Se agregó una primitiva separada del proceso web: exige confirmación offline, canonicaliza rutas y aliases, rechaza destinos simbólicos o relaciones base/sidecar y coordina intentos mediante un lock exclusivo cuya identidad `dev/ino` bigint se revalida durante toda la operación.
+- Un destino existente publica primero una recovery privada, verificada y no-clobber, y la fija por inode más SHA-256 para impedir que un rollback consuma una copia sustituida; recién después consolida WAL y debe poder volver a journal `DELETE`. Una conexión activa, un lock/recovery sustituido o sidecars persistentes hacen fallar cerrado sin eliminar archivos ajenos.
+- Cada backup privado se normaliza a journal `DELETE` antes de verificar y publicar; el verificador rechaza headers WAL o sidecars sin crearlos ni consumirlos. Así backup, recovery, candidato instalado y rollback son snapshots autocontenidos y comparan integridad, FK, esquema, bytes, páginas y SHA-256 estable. Un destino existente usa `rename` atómico; uno originalmente ausente usa hard link no-clobber, por lo que una aparición concurrente nunca se sobrescribe sin recovery.
+- Los temporales viven en staging `0700`, conservan `uid`/`gid`/modo tradicional, hacen `fsync` y ya no se limpian recursivamente: solo se desvinculan nombres e inodes conocidos y el directorio debe quedar vacío. Un staging reemplazado se preserva.
+- Una falla posterior a la publicación repone la base anterior solo si el path visible continúa siendo exactamente el inode publicado. Si también falla ese rollback, recovery, staging y lock se conservan deliberadamente para intervención manual.
+- El CLI local y su bundle Docker exigen `--confirm-stopped`; no ofrecen `--force`. La restauración de un volumen vacío requiere además `--allow-missing-target`; el build ejecuta el `--help` del artefacto final como smoke real.
+- El runbook separa rollback de aplicación y recuperación de datos: detiene y verifica el runner dedicado, falla ante cualquier servicio activo, usa una release compatible ya identificada, reinicia los mismos contenedores con `compose start` y nunca restaura SQLite automáticamente tras un deploy fallido.
+- Archivos principales: primitiva/tipos/CLI de restore, helpers operativos, empaquetado backend, suites de base/scripts, arquitectura y runbook.
+- Validaciones: 30 escenarios de restauración y 11 de backup; 53 pruebas de `@workspace/db` (52 aprobadas y una omitida localmente porque Windows no permitió crear el symlink final), 5 de scripts y 354 pruebas totales. `pnpm run quality` aprobó codegen sin drift, schema Drizzle, tests, typecheck y builds; tres revisiones independientes cerraron con 0 P0/P1/P2. Permanecen solo los avisos ya conocidos de sourcemaps en cuatro componentes UI y del chunk frontend mayor a 500 kB.
+
 ## 2026-08-05 — Backup SQLite endurecido y probado
 
 **Agente:** Codex
@@ -13,7 +28,7 @@ Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada 
 - Se centralizaron verificación y operaciones de archivo para sostener el siguiente bloque de restauración sin duplicar reglas.
 - Las regresiones reales cubren WAL confirmado, escritura no confirmada, corrupción, esquema ajeno, FK huérfana, destino existente, mismo inode, permisos, concurrencia y limpieza de temporales.
 - Archivos principales: `lib/db/src/backup.ts`, `lib/db/src/sqlite-verification.ts`, `lib/db/src/sqlite-files.ts`, suite de base y documentación operativa.
-- Validaciones: 8 regresiones específicas, 20 pruebas de `@workspace/db` y 319 pruebas totales aprobadas; `pnpm run quality` confirmó además codegen sin drift, cadena Drizzle, typecheck y builds de producción. Permanecen únicamente los avisos ya registrados de sourcemaps en cuatro componentes UI y del bundle frontend mayor a 500 kB.
+- Validaciones: 8 regresiones específicas, 20 pruebas de `@workspace/db` y 320 pruebas totales aprobadas; `pnpm run quality` confirmó además codegen sin drift, cadena Drizzle, typecheck y builds de producción. Permanecen únicamente los avisos ya registrados de sourcemaps en cuatro componentes UI y del bundle frontend mayor a 500 kB.
 
 ## 2026-08-05 — Readiness aplicada al despliegue
 

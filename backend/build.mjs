@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +20,7 @@ async function buildAll() {
       index: path.resolve(artifactDir, "src/index.ts"),
       migrate: path.resolve(artifactDir, "src/migrate.ts"),
       "backup-db": path.resolve(artifactDir, "../scripts/src/backup-db.ts"),
+      "restore-db": path.resolve(artifactDir, "../scripts/src/restore-db.ts"),
     },
     platform: "node",
     bundle: true,
@@ -108,7 +110,7 @@ async function buildAll() {
     sourcemap: "linked",
     plugins: [
       // pino relies on workers to handle logging, instead of externalizing it we use a plugin to handle it
-      esbuildPluginPino({ transports: ["pino-pretty"] })
+      esbuildPluginPino({ transports: ["pino-pretty"] }),
     ],
     // Make sure packages that are cjs only (e.g. express) but are bundled continue to work in our esm output file
     banner: {
@@ -122,6 +124,28 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     `,
     },
   });
+
+  const restoreBundle = path.join(distDir, "restore-db.mjs");
+  const restoreSmoke = spawnSync(process.execPath, [restoreBundle, "--help"], {
+    cwd: artifactDir,
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  if (
+    restoreSmoke.error ||
+    restoreSmoke.status !== 0 ||
+    !restoreSmoke.stdout.includes("--confirm-stopped")
+  ) {
+    throw new Error(
+      [
+        "El bundle restore-db.mjs no superó su smoke test de ejecución",
+        restoreSmoke.error?.message,
+        restoreSmoke.stderr,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    );
+  }
 }
 
 buildAll().catch((err) => {

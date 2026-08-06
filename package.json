@@ -11,6 +11,7 @@
     "test": "pnpm -r --if-present run test",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "quality": "pnpm run codegen:check && pnpm run schema:check && pnpm test && pnpm run build",
+    "restore:db": "pnpm --filter @workspace/scripts run restore-db",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./backend\" --filter \"./frontend\" --filter \"./scripts\" --if-present run typecheck"
   },

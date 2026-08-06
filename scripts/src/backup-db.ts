@@ -1,10 +1,17 @@
 #!/usr/bin/env node
 
-import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { createVerifiedSqliteBackup } from "@workspace/db/backup";
+import {
+  createVerifiedSqliteBackup,
+  TICKET_MANAGER_SQLITE_VERIFICATION,
+} from "@workspace/db/backup";
 import { resolveDbPath } from "@workspace/db/db-path";
+import {
+  loadWorkspaceEnv,
+  readOptionValue,
+  resolveInvocationDirectory,
+} from "./lib/cli-environment";
 
 const USAGE = `Uso:
   pnpm run backup:db -- --output <archivo.db> [--source <tickets.db>]
@@ -41,12 +48,12 @@ function parseArgs(args: string[]): CliOptions {
     }
 
     if (argument === "-o" || argument === "--output") {
-      options.output = readValue(args, ++index, argument);
+      options.output = readOptionValue(args, ++index, argument);
       continue;
     }
 
     if (argument === "-s" || argument === "--source") {
-      options.source = readValue(args, ++index, argument);
+      options.source = readOptionValue(args, ++index, argument);
       continue;
     }
 
@@ -54,35 +61,6 @@ function parseArgs(args: string[]): CliOptions {
   }
 
   return options;
-}
-
-function readValue(args: string[], index: number, option: string): string {
-  const value = args[index];
-  if (!value || value.startsWith("-")) {
-    throw new Error(`Falta el valor de ${option}`);
-  }
-  return value;
-}
-
-function loadWorkspaceEnv(startDirectory: string): void {
-  let directory = startDirectory;
-
-  while (true) {
-    const envPath = path.join(directory, ".env");
-    if (fs.existsSync(envPath)) {
-      process.loadEnvFile(envPath);
-      return;
-    }
-
-    const parent = path.dirname(directory);
-    if (
-      parent === directory ||
-      fs.existsSync(path.join(directory, "pnpm-workspace.yaml"))
-    ) {
-      return;
-    }
-    directory = parent;
-  }
 }
 
 async function main(): Promise<void> {
@@ -97,34 +75,18 @@ async function main(): Promise<void> {
     throw new Error(`--output es obligatorio\n\n${USAGE}`);
   }
 
-  const invocationDirectory = path.resolve(
-    process.env.INIT_CWD ?? process.cwd(),
-  );
+  const invocationDirectory = resolveInvocationDirectory();
   loadWorkspaceEnv(invocationDirectory);
 
   const sourcePath = options.source
     ? path.resolve(invocationDirectory, options.source)
     : resolveDbPath(invocationDirectory);
   const outputPath = path.resolve(invocationDirectory, options.output);
-  const result = await createVerifiedSqliteBackup(sourcePath, outputPath, {
-    checkForeignKeys: true,
-    // El ledger de migraciones es opcional: desarrollo puede crear el mismo
-    // esquema mediante drizzle-kit push. Las dos tablas iniciales identifican
-    // también backups históricos que el migrador todavía puede actualizar.
-    requiredTables: ["tickets", "seguimientos"],
-    requiredColumns: {
-      tickets: [
-        "id",
-        "conversation_id",
-        "hora",
-        "nombre",
-        "apellido",
-        "motivo",
-        "fecha_creacion",
-      ],
-      seguimientos: ["id", "ticket_id", "nota", "fecha_creacion"],
-    },
-  });
+  const result = await createVerifiedSqliteBackup(
+    sourcePath,
+    outputPath,
+    TICKET_MANAGER_SQLITE_VERIFICATION,
+  );
 
   console.log("Backup SQLite creado y verificado");
   console.log(`Origen: ${result.sourcePath}`);
@@ -132,6 +94,7 @@ async function main(): Promise<void> {
   console.log(`Integridad: ${result.integrity}`);
   console.log(`Páginas: ${result.pageCount}`);
   console.log(`Bytes: ${result.bytes}`);
+  console.log(`SHA-256: ${result.sha256}`);
 }
 
 main().catch((error: unknown) => {

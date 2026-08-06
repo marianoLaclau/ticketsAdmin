@@ -201,12 +201,13 @@ con el mismo header `x-api-key` (el valor cargado como secreto `WEBHOOK_API_KEY`
 - **Ver estado**: `WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose ps`
 - **Backup de la base**: no usar `cat`, `cp` ni copiar solamente `/data/tickets.db`; SQLite está en WAL y eso puede omitir transacciones confirmadas. La imagen del backend incluye un CLI que usa la API online de SQLite y publica la copia solo después de verificar integridad, claves foráneas y el esquema histórico mínimo de la aplicación. Para guardar el backup fuera del volumen Docker:
   ```bash
-  mkdir -p "$HOME/backups/ticketsadmin"
+  TICKETSADMIN_BACKUP_DIR="/var/lib/ticketsadmin/backups"
+  sudo install -d -m 0700 -o "$USER" -g "$(id -gn)" "$TICKETSADMIN_BACKUP_DIR"
   BACKUP_NAME="tickets-$(date -u +%Y%m%dT%H%M%SZ).db"
   WEBHOOK_API_KEY=not-used-by-backup ADMIN_API_KEY=not-used-by-backup docker compose exec -T backend \
     node dist/backup-db.mjs --output "/tmp/$BACKUP_NAME"
   WEBHOOK_API_KEY=not-used-by-backup ADMIN_API_KEY=not-used-by-backup docker compose cp \
-    "backend:/tmp/$BACKUP_NAME" "$HOME/backups/ticketsadmin/$BACKUP_NAME"
+    "backend:/tmp/$BACKUP_NAME" "$TICKETSADMIN_BACKUP_DIR/$BACKUP_NAME"
   WEBHOOK_API_KEY=not-used-by-backup ADMIN_API_KEY=not-used-by-backup docker compose exec -T backend \
     rm -f "/tmp/$BACKUP_NAME"
   ```
@@ -217,3 +218,132 @@ con el mismo header `x-api-key` (el valor cargado como secreto `WEBHOOK_API_KEY`
   ```
   Esto crea un nuevo archivo en `lib/db/drizzle/`. Commitear ese archivo junto con el cambio de schema — el próximo deploy lo aplica solo.
 - **Rollback rápido**: `git revert` el commit problemático y pushear — el pipeline redeploya la versión anterior. Si el commit incluía un cambio estructural ya aplicado, diseñar una migración *forward* compatible y específica; no asumir que revertir código revierte la base ni improvisar una inversa destructiva. `0011` es una excepción de datos deliberada: no cambia columnas, su `DELETE` no es reversible y **no** se debe restaurar un backup ni crear una migración inversa para recuperar sesiones. El rollback funciona sobre la columna existente y exige re-login, pero solo está soportado hasta `06db746`; restaurar una base anterior o arrancar código más viejo reintroduciría el riesgo de bearer reutilizables y además podría perder datos funcionales posteriores.
+
+### Restauración manual de SQLite
+
+Restaurar datos y volver atrás código son decisiones distintas. **Nunca se restaura automáticamente un backup por un deploy fallido**, porque podría borrar tickets o gestiones recibidas después de crear ese backup. Este procedimiento se usa solo cuando se decidió recuperar un punto de datos concreto.
+
+Precondiciones:
+
+1. Identificar el backup, la release que lo generó y el alcance de datos que se perdería. Verificar explícitamente que la release actualmente desplegada sea compatible con ese esquema; si no lo es, preparar por separado el rollback de aplicación antes de iniciar esta intervención. La verificación física no garantiza por sí sola compatibilidad semántica.
+2. Pausar el workflow de n8n o su reintento de ingesta y avisar la ventana de mantenimiento.
+3. Deshabilitar primero el workflow **Deploy** en GitHub Actions para impedir nuevas asignaciones. No alcanza con mirar que la cola esté vacía mientras el runner todavía puede recibir trabajo.
+4. Detener el runner dedicado de `ticketsAdmin`. Con el servicio ya inactivo, cancelar ejecuciones `queued`/`in_progress` y esperar a que todas queden en estado terminal; si alguna había comenzado, comprobar también que no dejó un build o proceso hijo activo. **No avanzar** mientras falte cualquiera de estas comprobaciones.
+5. Ejecutar desde el mismo checkout/configuración que administra los contenedores actualmente desplegados. Este procedimiento reinicia exactamente esos contenedores detenidos; no construye ni selecciona implícitamente otra release.
+6. Mantener backup y recovery fuera del checkout, en un directorio privado. No borrar ninguna copia hasta validar funcionalmente el sistema.
+
+```bash
+set -euo pipefail
+
+TICKETSADMIN_RUNNER_DIR="$HOME/actions-runner-ticketsAdmin"
+RUNNER_SERVICE="$(sudo cat "$TICKETSADMIN_RUNNER_DIR/.service")"
+sudo "$TICKETSADMIN_RUNNER_DIR/svc.sh" stop
+if sudo systemctl is-active --quiet "$RUNNER_SERVICE"; then
+  echo "El runner dedicado sigue activo; restauración abortada" >&2
+  exit 1
+fi
+```
+
+Con el runner offline, volver a GitHub Actions: cancelar cualquier run de **Deploy** pendiente o activo y esperar a que no quede ninguno fuera de estado terminal. Este es un control humano obligatorio porque el host no conserva una credencial de GitHub con la cual probarlo automáticamente. Recién después ejecutar el bloque siguiente:
+
+```bash
+set -euo pipefail
+
+TICKETSADMIN_RECOVERY_DIR="/var/lib/ticketsadmin/recovery"
+RESTORE_SOURCE="/var/lib/ticketsadmin/backups/tickets-AAAA-MM-DD.db"
+RESTORE_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+sudo install -d -m 0700 -o "$USER" -g "$(id -gn)" "$TICKETSADMIN_RECOVERY_DIR"
+test -f "$RESTORE_SOURCE"
+chmod 0600 "$RESTORE_SOURCE"
+
+BACKEND_CONTAINER_ID="$(WEBHOOK_API_KEY=not-used-during-restore ADMIN_API_KEY=not-used-during-restore \
+  docker compose ps -a -q backend)"
+test -n "$BACKEND_CONTAINER_ID"
+if [[ "$BACKEND_CONTAINER_ID" == *$'\n'* ]]; then
+  echo "Se encontró más de un contenedor backend; restauración abortada" >&2
+  exit 1
+fi
+BACKEND_IMAGE_ID="$(docker inspect --format '{{.Image}}' "$BACKEND_CONTAINER_ID")"
+TICKETS_VOLUME_NAME="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}' "$BACKEND_CONTAINER_ID")"
+test -n "$BACKEND_IMAGE_ID"
+test -n "$TICKETS_VOLUME_NAME"
+printf 'Restore con backend=%s image=%s volume=%s\n' \
+  "$BACKEND_CONTAINER_ID" "$BACKEND_IMAGE_ID" "$TICKETS_VOLUME_NAME"
+
+WEBHOOK_API_KEY=not-used-during-restore ADMIN_API_KEY=not-used-during-restore \
+  docker compose stop frontend backend
+
+RUNNING_SERVICES="$(WEBHOOK_API_KEY=not-used-during-restore ADMIN_API_KEY=not-used-during-restore \
+  docker compose ps --status running --services)"
+if [[ -n "$RUNNING_SERVICES" ]]; then
+  printf 'Compose conserva servicios activos: %s\n' "$RUNNING_SERVICES" >&2
+  exit 1
+fi
+
+VOLUME_HOLDERS="$(docker ps -q --filter "volume=$TICKETS_VOLUME_NAME")"
+if [[ -n "$VOLUME_HOLDERS" ]]; then
+  printf 'Hay contenedores ajenos usando el volumen SQLite: %s\n' "$VOLUME_HOLDERS" >&2
+  exit 1
+fi
+
+docker run --rm --network none \
+  --volume "$TICKETS_VOLUME_NAME:/data" \
+  --volume "$RESTORE_SOURCE:/restore/source.db:ro" \
+  --volume "$TICKETSADMIN_RECOVERY_DIR:/recovery" \
+  "$BACKEND_IMAGE_ID" node dist/restore-db.mjs \
+  --source /restore/source.db \
+  --target /data/tickets.db \
+  --recovery-output "/recovery/pre-restore-$RESTORE_STAMP.db" \
+  --confirm-stopped
+
+sudo chown "$(id -u):$(id -g)" \
+  "$TICKETSADMIN_RECOVERY_DIR/pre-restore-$RESTORE_STAMP.db"
+chmod 0600 "$TICKETSADMIN_RECOVERY_DIR/pre-restore-$RESTORE_STAMP.db"
+```
+
+El comando one-shot usa por ID exacto la imagen del contenedor backend detenido y descubre desde ese contenedor el volumen montado en `/data`; no depende de una tag que otro build haya podido mover, no ejecuta migraciones y no levanta la API. Los placeholders anteriores solo permiten interpolar Compose y no se usan para autenticar nada. Si el destino existe, la operación se niega a avanzar sin publicar antes `pre-restore-*.db`; tampoco sobrescribe una recovery anterior. `--allow-missing-target` solo corresponde a un volumen realmente vacío y requiere revisar dos veces la ruta.
+
+Si informa `ROLLBACK_FAILED`, **no borrar** `.ticketmanager-restore-*`, `tickets.db.restore.lock` ni la recovery: el lock queda a propósito para impedir nuevos intentos hasta inspeccionar cuál snapshot está instalado. Un lock huérfano después de una caída también se investiga antes de retirarlo; no existe un `--force` que lo saltee.
+
+Tras una restauración exitosa, reiniciar exactamente los contenedores que se detuvieron con `docker compose start`. A diferencia de `up`, `start` no crea ni reemplaza servicios ausentes; si alguno ya no existe, falla y obliga a preparar de forma separada una release explícitamente compatible. El arranque vuelve a ejecutar sus migraciones y debe alcanzar estado healthy antes de los tres smoke tests:
+
+```bash
+set -euo pipefail
+
+docker compose --env-file /etc/ticketsadmin/compose.env start backend frontend
+BACKEND_CONTAINER_ID="$(docker compose --env-file /etc/ticketsadmin/compose.env ps -a -q backend)"
+FRONTEND_CONTAINER_ID="$(docker compose --env-file /etc/ticketsadmin/compose.env ps -a -q frontend)"
+test -n "$BACKEND_CONTAINER_ID"
+test -n "$FRONTEND_CONTAINER_ID"
+
+for ATTEMPT in $(seq 1 90); do
+  BACKEND_HEALTH="$(docker inspect --format '{{.State.Health.Status}}' "$BACKEND_CONTAINER_ID")"
+  FRONTEND_HEALTH="$(docker inspect --format '{{.State.Health.Status}}' "$FRONTEND_CONTAINER_ID")"
+  if [[ "$BACKEND_HEALTH" == "healthy" && "$FRONTEND_HEALTH" == "healthy" ]]; then
+    break
+  fi
+  if [[ "$ATTEMPT" == "90" ]]; then
+    echo "Los contenedores no alcanzaron estado healthy en 180 segundos" >&2
+    exit 1
+  fi
+  sleep 2
+done
+
+test "$(curl -fsS --max-time 5 http://127.0.0.1:5000/api/readyz)" = '{"status":"ready"}'
+SPA="$(curl -fsS --max-time 5 http://127.0.0.1:3000/)"
+grep -Fq '<div id="root"></div>' <<< "$SPA"
+test "$(curl -fsS --max-time 5 http://127.0.0.1:3000/api/readyz)" = '{"status":"ready"}'
+```
+
+Revisar tickets recientes, usuarios/roles, autenticación y una gestión completa antes de reactivar n8n. La recovery previa permanece retenida hasta cerrar formalmente la intervención.
+
+Por último, comprobar otra vez en GitHub que no haya un deploy obsoleto en cola, reactivar el runner dedicado y verificar su servicio. Reactivar el workflow **Deploy** en GitHub recién después de este bloque; n8n se reanuda al final de la ventana de mantenimiento:
+
+```bash
+set -euo pipefail
+
+TICKETSADMIN_RUNNER_DIR="$HOME/actions-runner-ticketsAdmin"
+RUNNER_SERVICE="$(sudo cat "$TICKETSADMIN_RUNNER_DIR/.service")"
+sudo "$TICKETSADMIN_RUNNER_DIR/svc.sh" start
+sudo systemctl is-active --quiet "$RUNNER_SERVICE"
+```
