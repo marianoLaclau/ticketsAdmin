@@ -81,7 +81,15 @@ export const ticketsTable = sqliteTable(
     fecha_limite: integer("fecha_limite", { mode: "timestamp_ms" }),
     fecha_resolucion: integer("fecha_resolucion", { mode: "timestamp_ms" }),
   },
-  (table) => [check("tickets_version_positive", sql`${table.version} >= 1`)],
+  (table) => [
+    check("tickets_version_positive", sql`${table.version} >= 1`),
+    index("tickets_fecha_creacion_id_idx").on(table.fecha_creacion, table.id),
+    index("tickets_fecha_limite_id_idx").on(table.fecha_limite, table.id),
+    index("tickets_fecha_resolucion_id_idx").on(
+      table.fecha_resolucion,
+      table.id,
+    ),
+  ],
 );
 
 export const insertTicketSchema = createInsertSchema(ticketsTable).omit({
@@ -134,6 +142,10 @@ export const seguimientosTable = sqliteTable(
   (table) => [
     index("seguimientos_ticket_fecha_id_idx").on(
       table.ticket_id,
+      table.fecha_creacion,
+      table.id,
+    ),
+    index("seguimientos_fecha_creacion_id_idx").on(
       table.fecha_creacion,
       table.id,
     ),

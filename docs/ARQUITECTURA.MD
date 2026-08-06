@@ -332,6 +332,8 @@ Es la auditoría temporal del ticket. Registra notas manuales, alta automática 
 
 `campos_editados` contiene únicamente nombres de campos, no una copia de valores sensibles.
 
+Las lecturas cronológicas se apoyan en índices con el ID como desempate estable. `0015` agrega índices por creación, vencimiento y resolución de tickets, y por creación global de seguimientos. Su inclusión está respaldada por `EXPLAIN QUERY PLAN` sobre las consultas reales de actividad, vencidos y conteos diarios; no se crean índices para búsquedas o expresiones que SQLite no pueda aprovechar.
+
 ### `roles`, `usuarios` y `sesiones`
 
 - `roles` define el catálogo de perfiles. Los nombres base `SysAdmin`, `Administrador` y `Operador` son identidades reservadas y activas; los perfiles personalizados sí admiten ciclo de vida propio.
@@ -541,6 +543,7 @@ En local, `pnpm --filter @workspace/db run push` combina `drizzle-kit push` con 
 0012            → versión monotónica de tickets para control optimista
 0013            → índice compuesto de pertenencia e historial de seguimientos
 0014            → proyección materializada y transaccional de cuarentena
+0015            → índices temporales medidos para lecturas operativas
 ```
 
 La columna física conserva el nombre histórico `sesiones.token` para permitir un rollback estructural, pero el schema la expone como `token_hash`. Desde `0011`, toda fila nueva contiene `sha256:<digest>` y el arranque elimina formatos crudos o inválidos después de validar secretos, antes del seed y antes de abrir el puerto. La migración fuerza un único re-login; no se admite un despliegue simultáneo de binarios anteriores y posteriores a este cambio. Un rollback rápido conserva el schema e invalida las sesiones creadas por la otra versión, pero el piso soportado es `06db746`, primer commit cuyo extractor rechaza todo lo que no sea raw de 64 hex.

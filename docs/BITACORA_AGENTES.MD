@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Índices temporales medidos para lecturas operativas
+
+**Agente:** Codex
+**Estado:** trigésima cuarta remediación de la auditoría técnica, implementada y validada localmente.
+
+- La migración aditiva `0015` incorpora cuatro índices compuestos: `tickets(fecha_creacion, id)`, `tickets(fecha_limite, id)`, `tickets(fecha_resolucion, id)` y `seguimientos(fecha_creacion, id)`. Cubren actividad reciente, vencidos y conteos diarios sin modificar datos ni contratos HTTP.
+- La selección se basó en los planes reales de las consultas del producto. La regresión crea datos representativos, compara resultados antes y después de migrar y exige con `EXPLAIN QUERY PLAN` búsquedas por cada índice, además de eliminar los ordenamientos temporales de los tres listados cronológicos medidos.
+- No se agregó un índice para la búsqueda libre con `%texto%` ni para el orden visual combinado por fecha/hora: SQLite no puede aprovechar de forma fiable un B-tree convencional en esos casos. Esas optimizaciones requieren, respectivamente, FTS o una clave de orden materializada y quedan separadas para no sumar índices sin beneficio demostrado.
+- Schema Drizzle, snapshot, journal y prueba de la cadena completa quedaron alineados. Integridad, claves foráneas, paridad de resultados, `schema:check`, TypeScript y 66 pruebas de base aprobaron; una prueba de symlink permanece omitida de forma esperada en Windows. No se hizo push.
+
 ## 2026-08-06 — Cuarentena materializada y transaccional
 
 **Agente:** Codex
