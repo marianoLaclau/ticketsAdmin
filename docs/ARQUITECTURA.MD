@@ -470,7 +470,7 @@ Si una auditoría falla, la transacción se revierte. Si un cliente SSE se desco
 
 El workspace usa ESLint flat con reglas de TypeScript, promesas y hooks de React. Las fuentes se analizan con información de tipos mediante `projectService`; tests y configuración reciben lint estructural sin obligarlos a formar parte de los `tsconfig` productivos. Código generado, builds y dependencias quedan excluidos. Las expresiones regulares que procesan controles mantienen supresiones locales motivadas, no excepciones globales.
 
-La deuda de `any` explícito está presupuestada de forma decreciente: actualmente se informa como advertencia y `--max-warnings 14` hace fallar el gate si aparece una ocurrencia nueva. El objetivo de los siguientes microcommits es llevar ese presupuesto a cero, no normalizarlo. `pnpm run quality` ejecuta lint antes de codegen, schema, tests, typecheck y builds.
+La deuda de `any` explícito está presupuestada de forma decreciente: actualmente se informa como advertencia y `--max-warnings 1` hace fallar el gate si aparece una ocurrencia nueva. El único caso restante oculta que `fecha_limite` es nullable en el contrato general y se corrige por separado con un guard explícito. `pnpm run quality` ejecuta lint antes de codegen, schema, tests, typecheck y builds.
 
 ## 9. Despliegue y migraciones
 

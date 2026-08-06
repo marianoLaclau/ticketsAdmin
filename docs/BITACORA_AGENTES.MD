@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Inferencia de tipos en métricas del Dashboard
+
+**Agente:** Codex
+**Estado:** trigésima novena remediación de la auditoría técnica, implementada y validada localmente.
+
+- Se eliminaron 13 `any` de reducciones, búsquedas, gráficos y actividad reciente; todos sus tipos ya estaban determinados por las respuestas OpenAPI o por Recharts.
+- El presupuesto temporal de ESLint bajó de 14 a una advertencia. El último caso se aisló porque requiere manejar de forma explícita una fecha límite nullable, no sólo borrar una anotación.
+- No cambió el cálculo ni la presentación de las métricas. No se hizo push.
+
 ## 2026-08-06 — Tipado inferido en layout y listado de tickets
 
 **Agente:** Codex

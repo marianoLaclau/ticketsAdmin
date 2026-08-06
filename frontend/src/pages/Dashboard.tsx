@@ -148,12 +148,12 @@ export default function Dashboard() {
     periodo === 'todo' ? stats?.resueltos_hoy : stats?.resueltos_periodo;
 
   // Estado derived values
-  const totalEstados = stats?.por_estado?.reduce((acc: number, curr: any) => acc + curr.cantidad, 0) || 0;
-  const nuevosSinRevisar = stats?.por_estado?.find((e: any) => e.estado === 'nuevo')?.cantidad || 0;
-  const enProceso       = stats?.por_estado?.find((e: any) => e.estado === 'en_proceso')?.cantidad || 0;
-  const resueltos       = stats?.por_estado?.find((e: any) => e.estado === 'resuelto')?.cantidad || 0;
-  const cerrados        = stats?.por_estado?.find((e: any) => e.estado === 'cerrado')?.cantidad || 0;
-  const pendientes      = stats?.por_estado?.find((e: any) => e.estado === 'pendiente')?.cantidad || 0;
+  const totalEstados = stats?.por_estado?.reduce((acc, curr) => acc + curr.cantidad, 0) || 0;
+  const nuevosSinRevisar = stats?.por_estado?.find((e) => e.estado === 'nuevo')?.cantidad || 0;
+  const enProceso       = stats?.por_estado?.find((e) => e.estado === 'en_proceso')?.cantidad || 0;
+  const resueltos       = stats?.por_estado?.find((e) => e.estado === 'resuelto')?.cantidad || 0;
+  const cerrados        = stats?.por_estado?.find((e) => e.estado === 'cerrado')?.cantidad || 0;
+  const pendientes      = stats?.por_estado?.find((e) => e.estado === 'pendiente')?.cantidad || 0;
   const total           = stats?.total || 0;
 
   // Rendimiento metrics
@@ -182,7 +182,7 @@ export default function Dashboard() {
   const maxMotivo = motivosSorted[0]?.cantidad || 1;
 
   // Prioridad — reshape for recharts
-  const prioridadData = (stats?.por_prioridad ?? []).map((p: any) => ({
+  const prioridadData = (stats?.por_prioridad ?? []).map((p) => ({
     name: PRIORIDAD_LABEL[p.prioridad] ?? p.prioridad,
     cantidad: p.cantidad,
     color: PRIORIDAD_COLOR[p.prioridad] ?? '#94a3b8',
@@ -338,7 +338,7 @@ export default function Dashboard() {
                 <>
                   {/* Segmented bar */}
                   <div className="h-5 w-full bg-slate-100 rounded-full overflow-hidden flex">
-                    {stats?.por_estado?.map((e: any, i: number) => {
+                    {stats?.por_estado?.map((e, i) => {
                       const pct = (e.cantidad / totalEstados) * 100;
                       const color = ESTADO_COLOR[e.estado]?.bar ?? '#94a3b8';
                       return (
@@ -353,7 +353,7 @@ export default function Dashboard() {
                   </div>
                   {/* Legend */}
                   <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3">
-                    {stats?.por_estado?.map((e: any) => {
+                    {stats?.por_estado?.map((e) => {
                       const cfg = ESTADO_COLOR[e.estado];
                       return (
                         <div key={e.estado} className="flex items-center gap-1.5">
@@ -488,10 +488,10 @@ export default function Dashboard() {
                       <Tooltip
                         cursor={{ fill: '#f1f5f9' }}
                         contentStyle={{ borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
-                        formatter={(v: any) => [v, 'tickets']}
+                        formatter={(v) => [v, 'tickets']}
                       />
                       <Bar dataKey="cantidad" radius={[4, 4, 0, 0]}>
-                        {prioridadData.map((entry: any, i: number) => (
+                        {prioridadData.map((entry, i) => (
                           <Cell key={i} fill={entry.color} />
                         ))}
                       </Bar>
@@ -502,7 +502,7 @@ export default function Dashboard() {
                 {/* Mini legend */}
                 {!loadingStats && prioridadData.length > 0 && (
                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
-                    {prioridadData.map((p: any) => (
+                    {prioridadData.map((p) => (
                       <div key={p.name} className="flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: p.color }} />
                         <span className="text-[11px] text-muted-foreground">{p.name}</span>
@@ -597,7 +597,7 @@ export default function Dashboard() {
                 <p className="text-sm text-slate-400 text-center py-8">Sin actividad reciente</p>
               ) : (
                 <div className="space-y-4">
-                  {actividades.map((a: any, idx: number) => {
+                  {actividades.map((a, idx) => {
                     const isNew = a.tipo === 'ticket_creado';
                     return (
                       <div key={idx} className="relative pl-5">
