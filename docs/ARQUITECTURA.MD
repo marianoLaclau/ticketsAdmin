@@ -99,6 +99,7 @@ Las reglas importantes viven fuera de los handlers cuando pueden reutilizarse:
 - `backend/src/lib/dashboard-date-range.ts`: períodos y día operativo en la zona estable de Buenos Aires.
 - `backend/src/lib/reclasificar-motivos.ts`: reconciliación conservadora de Embargos.
 - `backend/src/routes/admin-roles.ts`: catálogo y CRUD de roles, montado detrás del doble guard del router administrativo padre.
+- `backend/src/routes/admin-users.ts`: listado, alta, edición y reset de usuarios con transacciones y revocación posterior al commit.
 - `backend/src/routes/admin-route-helpers.ts`: normalizadores y detección de restricciones compartidos por roles y usuarios.
 - `lib/db/src/ticket-visibility.ts`: regla compartida para cuarentena de registros vacíos.
 

@@ -1582,6 +1582,53 @@ describe("catálogo administrativo de roles", () => {
   });
 });
 
+describe("catálogo administrativo de usuarios", () => {
+  it("conserva el guard padre y expone el listado sin hashes", async () => {
+    const sysAdminCookie = await adminSession();
+    const withoutAdminKey = await requestWithSession(
+      "/admin/users",
+      sysAdminCookie,
+    );
+    assert.equal(withoutAdminKey.status, 401);
+    assert.deepEqual(await withoutAdminKey.json(), {
+      error: "Clave de administración inválida",
+    });
+
+    const operatorLogin = await login("operadora");
+    assert.equal(operatorLogin.status, 200);
+    const asOperator = await adminRequest(
+      "/admin/users",
+      sessionCookie(operatorLogin),
+    );
+    assert.equal(asOperator.status, 403);
+    assert.deepEqual(await asOperator.json(), {
+      error: "Requiere rol SysAdmin",
+    });
+
+    const catalog = await adminRequest(
+      "/admin/users?page=1&limit=20",
+      sysAdminCookie,
+    );
+    assert.equal(catalog.status, 200);
+    const payload = (await catalog.json()) as {
+      users: Array<Record<string, unknown>>;
+      total: number;
+      page: number;
+      limit: number;
+    };
+    assert.equal(payload.page, 1);
+    assert.equal(payload.limit, 20);
+    assert.ok(payload.total > 0);
+    assert.ok(payload.users.length > 0);
+    for (const user of payload.users) {
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(user, "password_hash"),
+        false,
+      );
+    }
+  });
+});
+
 describe("roles base protegidos", () => {
   it("impide renombrar, desactivar o eliminar cada rol del sistema", async () => {
     const cookie = await adminSession();

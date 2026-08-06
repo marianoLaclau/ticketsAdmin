@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Gestión de usuarios separada del router administrativo
+
+**Agente:** Codex
+**Estado:** cuadragésima quinta remediación de la auditoría técnica, implementada y validada localmente.
+
+- Listado, alta, edición y reset de usuarios salieron a `admin-users.ts` con paths relativos. `admin.ts` quedó reducido a 109 líneas: doble guard, alta manual y composición de roles, usuarios y operaciones masivas.
+- Se preservaron la selección pública que nunca expone `password_hash`, scrypt fuera del lock, escritura + revocación de sesiones dentro de la transacción, protección del último SysAdmin y cierre SSE/reset del limiter sólo después del commit.
+- La nueva caracterización verifica los estados 401/403 del guard, alcance exitoso del GET y ausencia de hashes. La cobertura previa continúa fijando altas, PATCH, resets, concurrencia, rollback, roles inactivos y cambios reales o nulos de rol.
+- Aprobaron 61 pruebas dirigidas, typecheck de backend, ESLint y `diff --check`. No se hizo push.
+
 ## 2026-08-06 — Ciclo de vida explícito del stream SSE
 
 **Agente:** Codex
