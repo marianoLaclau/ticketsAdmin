@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -9,6 +10,11 @@ import {
   type TicketVisibilityInput,
 } from "../src/ticket-visibility";
 import { ticketsTable, type Ticket } from "../src/schema/tickets";
+
+const quarantineMigrationSql = readFileSync(
+  new URL("../drizzle/0014_materialize_ticket_quarantine.sql", import.meta.url),
+  "utf8",
+).replaceAll("--> statement-breakpoint", "");
 
 const ticketVacio: Partial<Ticket> = {
   nombre: "  Sin nombre proporcionado  ",
@@ -85,8 +91,9 @@ describe("esTicketVacio", () => {
 });
 
 describe("condiciones SQL de visibilidad", () => {
-  it("mantienen la misma clasificacion que el helper puro", () => {
+  it("consultan el marcador materializado con la misma clasificación", () => {
     const sqlite = new Database(":memory:");
+    sqlite.pragma("foreign_keys = ON");
     sqlite.exec(`
       CREATE TABLE tickets (
         id INTEGER PRIMARY KEY,
@@ -142,9 +149,12 @@ describe("condiciones SQL de visibilidad", () => {
       ...ticketVacio,
       notificado: 0,
     });
-    sqlite.prepare(
-      "INSERT INTO seguimientos (id, ticket_id, nota) VALUES (?, ?, ?)",
-    ).run(1, 3, "Registro revisado");
+    sqlite
+      .prepare(
+        "INSERT INTO seguimientos (id, ticket_id, nota) VALUES (?, ?, ?)",
+      )
+      .run(1, 3, "Registro revisado");
+    sqlite.exec(quarantineMigrationSql);
 
     const database = drizzle(sqlite);
     const vacios = database

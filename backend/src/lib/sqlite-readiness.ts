@@ -4,13 +4,14 @@ interface SqliteReadinessDatabase {
 }
 
 /**
- * Comprueba que el handle y el esquema minimo de tickets esten disponibles.
- * La consulta no recorre datos: solo prepara y lee, como maximo, una fila.
+ * Comprueba que el handle y el esquema mínimo operativo estén disponibles.
+ * Las consultas no recorren datos: solo preparan y leen, como máximo, una fila.
  */
 export function probeSqliteReadiness(
   database: SqliteReadinessDatabase,
 ): boolean {
   if (!database.open) return false;
   database.prepare("SELECT id, version FROM tickets LIMIT 1").get();
+  database.prepare("SELECT ticket_id FROM tickets_cuarentena LIMIT 1").get();
   return true;
 }

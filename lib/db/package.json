@@ -11,8 +11,9 @@
     "./schema": "./src/schema/index.ts"
   },
   "scripts": {
-    "push": "drizzle-kit push --config ./drizzle.config.ts",
-    "push-force": "drizzle-kit push --force --config ./drizzle.config.ts",
+    "push": "drizzle-kit push --config ./drizzle.config.ts && pnpm run reconcile-quarantine",
+    "push-force": "drizzle-kit push --force --config ./drizzle.config.ts && pnpm run reconcile-quarantine",
+    "reconcile-quarantine": "tsx ./src/ensure-ticket-quarantine-cli.ts",
     "test": "tsx --test ./test/*.test.ts"
   },
   "dependencies": {

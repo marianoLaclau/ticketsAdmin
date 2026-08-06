@@ -66,12 +66,13 @@ bootstrap.close();
 const [
   { default: webhooksRouter },
   { default: adminRouter },
-  { sqlite },
+  { ensureTicketQuarantineProjection, sqlite },
 ] = await Promise.all([
   import("../src/routes/webhooks.ts"),
   import("../src/routes/admin.ts"),
   import("@workspace/db"),
 ]);
+ensureTicketQuarantineProjection(sqlite);
 
 const app = express();
 app.use(express.json());
@@ -167,13 +168,21 @@ describe("fecha límite en altas de tickets", () => {
 
     it(`${path} acepta RFC3339 con zona y conserva el instante`, async () => {
       const deadline = "2026-07-30T09:45:30-03:00";
-      const response = await createRequest(path, `valid-${path.slice(1)}`, deadline);
+      const response = await createRequest(
+        path,
+        `valid-${path.slice(1)}`,
+        deadline,
+      );
       assert.equal(response.status, 201);
 
       const { fecha_limite } = sqlite
         .prepare("SELECT fecha_limite FROM tickets LIMIT 1")
         .get() as { fecha_limite: number };
       assert.equal(fecha_limite, Date.parse(deadline));
+      const { total_cuarentena } = sqlite
+        .prepare("SELECT count(*) AS total_cuarentena FROM tickets_cuarentena")
+        .get() as { total_cuarentena: number };
+      assert.equal(total_cuarentena, 0);
     });
   }
 });
@@ -227,5 +236,15 @@ describe("ingesta integrada desde Serin", () => {
         nota: "Los datos fueron extraídos y persistidos desde Serin con el DNI proporcionado.",
       },
     ]);
+    assert.equal(
+      (
+        sqlite
+          .prepare(
+            "SELECT count(*) AS total FROM tickets_cuarentena WHERE ticket_id = ?",
+          )
+          .get(ticket.id) as { total: number }
+      ).total,
+      0,
+    );
   });
 });

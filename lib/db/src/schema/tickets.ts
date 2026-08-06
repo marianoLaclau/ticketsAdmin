@@ -91,6 +91,16 @@ export const insertTicketSchema = createInsertSchema(ticketsTable).omit({
 export type InsertTicket = z.infer<typeof insertTicketSchema>;
 export type Ticket = typeof ticketsTable.$inferSelect;
 
+/**
+ * Proyección interna materializada. Una fila indica que el ticket permanece
+ * en cuarentena; mantenerla corresponde a los triggers de la migración.
+ */
+export const ticketsCuarentenaTable = sqliteTable("tickets_cuarentena", {
+  ticket_id: integer("ticket_id")
+    .primaryKey()
+    .references(() => ticketsTable.id, { onDelete: "cascade" }),
+});
+
 export const seguimientosTable = sqliteTable(
   "seguimientos",
   {

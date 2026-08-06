@@ -65,10 +65,12 @@ bootstrap.exec(`
 `);
 bootstrap.close();
 
-const [{ default: adminRouter }, { sqlite }] = await Promise.all([
-  import("../src/routes/admin.ts"),
-  import("@workspace/db"),
-]);
+const [{ default: adminRouter }, { ensureTicketQuarantineProjection, sqlite }] =
+  await Promise.all([
+    import("../src/routes/admin.ts"),
+    import("@workspace/db"),
+  ]);
+ensureTicketQuarantineProjection(sqlite);
 
 const app = express();
 app.use(express.json());
@@ -110,7 +112,9 @@ function adminPost(path: "/admin/import" | "/admin/truncate", body: unknown) {
   });
 }
 
-function tableCount(table: "tickets" | "seguimientos"): number {
+function tableCount(
+  table: "tickets" | "seguimientos" | "tickets_cuarentena",
+): number {
   const row = sqlite
     .prepare(`SELECT count(*) AS total FROM ${table}`)
     .get() as { total: number };
@@ -150,13 +154,14 @@ describe("operaciones administrativas masivas", () => {
 
     const csv = [
       "conversation_id;nombre;motivo",
-      "primero;Ana;Consulta",
+      "primero;Sin nombre proporcionado;Sin especificar",
       "forzar-fallo;Bruno;Consulta",
     ].join("\n");
     const failed = await adminPost("/admin/import", { csv });
 
     assert.equal(failed.status, 500);
     assert.equal(tableCount("tickets"), 0);
+    assert.equal(tableCount("tickets_cuarentena"), 0);
 
     sqlite.exec("DROP TRIGGER fail_import_row");
     const imported = await adminPost("/admin/import", { csv });
@@ -176,6 +181,7 @@ describe("operaciones administrativas masivas", () => {
       advertencias: [],
     });
     assert.equal(tableCount("tickets"), 2);
+    assert.equal(tableCount("tickets_cuarentena"), 1);
   });
 
   it("serializa importaciones simultaneas del mismo ticket", async () => {
@@ -254,6 +260,14 @@ describe("operaciones administrativas masivas", () => {
          VALUES (?, 'Seguimiento', 1)`,
       )
       .run(ticket.id);
+    sqlite
+      .prepare(
+        `INSERT INTO tickets
+         (conversation_id, hora, nombre, apellido, motivo, fecha_creacion)
+         VALUES ('vacio', '09:00', 'Sin nombre proporcionado', '', 'Sin especificar', 1)`,
+      )
+      .run();
+    assert.equal(tableCount("tickets_cuarentena"), 1);
     sqlite.exec(`
       CREATE TRIGGER fail_ticket_delete
       BEFORE DELETE ON tickets
@@ -264,18 +278,20 @@ describe("operaciones administrativas masivas", () => {
 
     const failed = await adminPost("/admin/truncate", { confirmar: true });
     assert.equal(failed.status, 500);
-    assert.equal(tableCount("tickets"), 1);
+    assert.equal(tableCount("tickets"), 2);
     assert.equal(tableCount("seguimientos"), 1);
+    assert.equal(tableCount("tickets_cuarentena"), 1);
 
     sqlite.exec("DROP TRIGGER fail_ticket_delete");
     const truncated = await adminPost("/admin/truncate", { confirmar: true });
     assert.equal(truncated.status, 200);
     assert.deepEqual(await truncated.json(), {
-      tickets_eliminados: 1,
+      tickets_eliminados: 2,
       seguimientos_eliminados: 1,
     });
     assert.equal(tableCount("tickets"), 0);
     assert.equal(tableCount("seguimientos"), 0);
+    assert.equal(tableCount("tickets_cuarentena"), 0);
 
     const next = sqlite
       .prepare(

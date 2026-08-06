@@ -233,7 +233,7 @@ El webhook es idempotente: un reintento con el mismo `conversation_id` devuelve 
 
 ## 5. Modelo de datos
 
-La base contiene cinco tablas principales. Las fechas se almacenan como timestamp Unix en milisegundos; Drizzle las expone como `Date`.
+La base contiene cinco tablas de dominio y una proyección interna de cuarentena. Las fechas se almacenan como timestamp Unix en milisegundos; Drizzle las expone como `Date`.
 
 ```mermaid
 erDiagram
@@ -242,6 +242,7 @@ erDiagram
     USUARIOS o|--o{ TICKETS : asigna
     USUARIOS o|--o{ SEGUIMIENTOS : referencia
     TICKETS ||--o{ SEGUIMIENTOS : registra
+    TICKETS ||--o| TICKETS_CUARENTENA : clasifica
 
     ROLES {
         integer id PK
@@ -300,6 +301,9 @@ erDiagram
         text autor
         timestamp fecha_creacion
     }
+    TICKETS_CUARENTENA {
+        integer ticket_id PK, FK
+    }
 ```
 
 ### `tickets`
@@ -317,6 +321,10 @@ Es la entidad operativa principal:
 - `fecha_limite` representa el vencimiento SLA; `fecha_resolucion` se completa al resolver/cerrar y se limpia al reabrir.
 
 Los registros completamente vacíos permanecen almacenados para auditoría, pero se excluyen de Tickets y Dashboard mediante una condición AND. SysAdmin puede abrirlos desde Administración.
+
+### `tickets_cuarentena`
+
+Es una proyección interna uno-a-cero-o-uno: la presencia del `ticket_id` indica cuarentena. `0014` hace el backfill histórico y triggers de SQLite recalculan la pertenencia dentro de la misma transacción cuando cambia un campo funcional o un seguimiento. La clave primaria permite que listados y agregaciones consulten pertenencia sin reevaluar toda la regla ni recorrer el historial; el `ON DELETE CASCADE` impide marcadores huérfanos. El ticket sigue siendo la única fuente de verdad y la regla pura compartida conserva la clasificación previa a la escritura.
 
 ### `seguimientos`
 
@@ -521,7 +529,7 @@ Un pending terminal no se edita ni se borra. El operador puede reanudarlo median
 
 La semántica continúa siendo single-replica. El ledger permite recuperar el proceso de release en el siguiente intento, pero no brinda cero downtime, autohealing ni monitoreo continuo. Un escritor que eluda el lock cooperativo o una pérdida simultánea del ledger y de las imágenes permanece fuera de la garantía.
 
-En local se usa `drizzle-kit push` para iterar rápidamente. En Docker, el backend ejecuta `dist/migrate.mjs` antes de escuchar tráfico. Las migraciones versionadas actuales mantienen una secuencia lineal:
+En local, `pnpm --filter @workspace/db run push` combina `drizzle-kit push` con una reconciliación transaccional de invariantes no expresables por el schema declarativo. Así se conservan las bases históricas sin ledger sin fingir que ejecutaron migraciones. El backend vuelve a validar tabla, FK y fingerprint de los cinco triggers antes de cualquier seed o tarea; una base versionada incompleta falla cerrada. En Docker, `dist/migrate.mjs` ejecuta la cadena real antes de iniciar la API. Las migraciones versionadas actuales mantienen una secuencia lineal:
 
 ```text
 0000 ... 0006  → schema base y categorías iniciales
@@ -532,6 +540,7 @@ En local se usa `drizzle-kit push` para iterar rápidamente. En Docker, el backe
 0011            → revocación única de bearer de sesión persistidos en claro
 0012            → versión monotónica de tickets para control optimista
 0013            → índice compuesto de pertenencia e historial de seguimientos
+0014            → proyección materializada y transaccional de cuarentena
 ```
 
 La columna física conserva el nombre histórico `sesiones.token` para permitir un rollback estructural, pero el schema la expone como `token_hash`. Desde `0011`, toda fila nueva contiene `sha256:<digest>` y el arranque elimina formatos crudos o inválidos después de validar secretos, antes del seed y antes de abrir el puerto. La migración fuerza un único re-login; no se admite un despliegue simultáneo de binarios anteriores y posteriores a este cambio. Un rollback rápido conserva el schema e invalida las sesiones creadas por la otra versión, pero el piso soportado es `06db746`, primer commit cuyo extractor rechaza todo lo que no sea raw de 64 hex.

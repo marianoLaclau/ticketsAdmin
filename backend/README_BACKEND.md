@@ -310,10 +310,11 @@ No se puede borrar un rol con usuarios asignados (`409`), aunque esté inactivo.
 
 ### Migraciones
 
-- **Desarrollo local**: `pnpm --filter @workspace/db run push` (drizzle-kit push, sin archivos de migración — rápido para iterar).
+- **Desarrollo local**: `pnpm --filter @workspace/db run push` ejecuta `drizzle-kit push` y luego reconcilia los invariantes SQL que el schema declarativo no puede representar. Esto conserva las bases locales históricas sin ledger y deja instalados el backfill y los triggers de cuarentena.
 - **Cambiar el schema para que llegue a Docker/producción**: después de editar `lib/db/src/schema/*.ts`, correr `pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts` y **commitear** el SQL generado en `lib/db/drizzle/`. El contenedor corre `backend/dist/migrate.mjs` (compilado desde `src/migrate.ts`) al arrancar, que aplica cualquier migración pendiente vía el migrator de drizzle-orm — idempotente, no rompe si ya estaban aplicadas.
 - Si se olvida generar la migración, el deploy en Docker arranca con el schema viejo (el volumen persiste entre deploys) y las columnas/tablas nuevas no existen ahí.
-- **v0.5 y hardening posterior**: después de `0007_add_estado_empleado.sql`, `0008_v05_auditoria_ticket.sql` agrega los campos de auditoría a `seguimientos`, `0009_add_embargos_category.sql` ejecuta el backfill conservador de Embargos, `0010_require_password_change.sql` incorpora credenciales temporales y `0011_invalidate_plaintext_sessions.sql` revoca los bearer que se persistían antes del hash de sesión. Esta última migración obliga a iniciar sesión una vez; no modifica usuarios, roles ni claves foráneas.
+- El backend valida la proyección antes de seed, reclasificación y prioridad. Una instalación completa es un no-op; una base local sin ledger puede repararse transaccionalmente desde `0014`, pero una base con ledger incompleto se rechaza para no encubrir una migración omitida. No se debe ejecutar `push` con otro escritor activo.
+- **v0.5 y hardening posterior**: después de `0007_add_estado_empleado.sql`, `0008_v05_auditoria_ticket.sql` agrega auditoría, `0009_add_embargos_category.sql` ejecuta el backfill de Embargos, `0010` incorpora credenciales temporales, `0011` revoca bearer históricos, `0012` agrega control optimista, `0013` indexa seguimientos y `0014` materializa la cuarentena.
 
 ## Categorización de motivos
 

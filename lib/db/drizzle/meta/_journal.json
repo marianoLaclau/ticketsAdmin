@@ -99,6 +99,13 @@
       "when": 1786044134974,
       "tag": "0013_add_seguimientos_lookup_index",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1786044497874,
+      "tag": "0014_materialize_ticket_quarantine",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,18 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Cuarentena materializada y transaccional
+
+**Agente:** Codex
+**Estado:** trigésima tercera remediación de la auditoría técnica, implementada y validada localmente.
+
+- La clasificación de tickets completamente vacíos deja de recalcular una condición extensa y un `NOT EXISTS` sobre seguimientos en cada listado, contador o gráfico. La migración `0014` hace un backfill exacto hacia la proyección interna `tickets_cuarentena(ticket_id)` sin modificar ni eliminar tickets.
+- Triggers de SQLite mantienen esa proyección dentro de la misma transacción ante altas y cambios de tickets, y ante altas, bajas o movimientos de seguimientos. Completar o gestionar un registro lo vuelve visible inmediatamente; si se revierten todos sus datos operativos y no quedan seguimientos, vuelve a cuarentena.
+- La regla pura `esTicketVacio` continúa siendo el oráculo previo a persistencia y conserva los marcadores históricos y el mismo conjunto Unicode de espacios. Las consultas públicas resuelven ahora la pertenencia mediante la clave primaria del marcador, sin recorrer `seguimientos`.
+- El flujo local conserva compatibilidad con las bases históricas creadas mediante `drizzle-kit push`, que no tienen ledger. Drizzle y el reconciliador cargan la misma `.env` raíz antes de resolver `TICKETS_DB_PATH`; luego `push` encadena una reconciliación basada directamente en la SQL versionada `0014`. El backend valida tabla, FK, registro/hash exacto de la migración, cuerpos literales de los cinco triggers y paridad real de marcadores antes de cualquier servicio. La reparación ocurre bajo `BEGIN IMMEDIATE`; una base con ledger incompleto, trigger adicional o tabla incompatible falla cerrada en vez de ser maquillada.
+- Los fixtures de rutas, importación y truncate ejercitan la proyección. La suite cubre paridad de backfill, cadena completa, instalación legacy, no-op migrado, trigger alterado, rollback de DDL, todos los campos funcionales, metadatos ignorados, múltiples seguimientos, movimientos, cascadas, integridad y planes `EXPLAIN`.
+- Validaciones: 65 pruebas de base (64 aprobadas y una omisión esperada de symlink en Windows), 166/166 de backend y quality gate completo aprobados. También se ejecutó el `push` real sobre una SQLite temporal y el bundle construido arrancó contra ella con readiness `200`; schema Drizzle, codegen, TypeScript, builds, formato e integridad SQLite quedaron verdes. Las regresiones incluyen `.env` raíz, alteración de literales SQL y desincronización manual de marcadores. Persisten únicamente los avisos frontend ya conocidos de sourcemaps y chunk mayor a 500 kB. No se hizo push.
+
 ## 2026-08-06 — Índice medido para seguimientos
 
 **Agente:** Codex

@@ -1,5 +1,5 @@
 import "./lib/load-env";
-import { sqlite } from "@workspace/db";
+import { ensureTicketQuarantineProjection, sqlite } from "@workspace/db";
 import app from "./app";
 import { beginEventClientShutdown } from "./lib/events";
 import { logger } from "./lib/logger";
@@ -24,6 +24,11 @@ if (Number.isNaN(port) || port <= 0) {
 // Un backend sin credenciales entre servicios no debe abrir el puerto ni
 // reportarse saludable. Los valores nunca se incluyen en el error.
 validateServiceSecrets();
+
+// Las bases locales históricas creadas con drizzle-kit push no tienen ledger:
+// instala y verifica allí la misma proyección definida por 0014. En una base
+// versionada, cualquier drift falla cerrado en vez de ocultar una migración.
+ensureTicketQuarantineProjection(sqlite);
 
 // La migración de digest revoca las sesiones una vez. Repetir esta limpieza
 // en cada arranque cubre también un eventual rollback que haya creado nuevos

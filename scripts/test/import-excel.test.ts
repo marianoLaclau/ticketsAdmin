@@ -24,7 +24,8 @@ for (const path of [
 }
 
 process.env.TICKETS_DB_PATH = databasePath;
-const { sqlite } = await import("@workspace/db");
+const { ensureTicketQuarantineProjection, sqlite } =
+  await import("@workspace/db");
 sqlite.exec(`
   CREATE TABLE tickets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,7 +54,14 @@ sqlite.exec(`
     fecha_limite INTEGER,
     fecha_resolucion INTEGER
   );
+  CREATE TABLE seguimientos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    nota TEXT NOT NULL,
+    fecha_creacion INTEGER NOT NULL
+  );
 `);
+ensureTicketQuarantineProjection(sqlite);
 
 function runImporter() {
   return spawnSync(
@@ -78,6 +86,14 @@ function ticketCount(): number {
     sqlite.prepare("SELECT count(*) AS total FROM tickets").get() as {
       total: number;
     }
+  ).total;
+}
+
+function quarantineCount(): number {
+  return (
+    sqlite
+      .prepare("SELECT count(*) AS total FROM tickets_cuarentena")
+      .get() as { total: number }
   ).total;
 }
 
@@ -107,7 +123,7 @@ describe("importador CLI", () => {
       csvPath,
       [
         "conversation_id;nombre;motivo",
-        "primero;Ana;Consulta",
+        "primero;Sin nombre proporcionado;Sin especificar",
         "forzar-fallo;Bruno;Consulta",
       ].join("\n"),
       "utf8",
@@ -124,11 +140,13 @@ describe("importador CLI", () => {
     const failed = runImporter();
     assert.equal(failed.status, 1, failed.stdout);
     assert.equal(ticketCount(), 0);
+    assert.equal(quarantineCount(), 0);
 
     sqlite.exec("DROP TRIGGER fail_import_row");
     const imported = runImporter();
     assert.equal(imported.status, 0, imported.stderr);
     assert.match(imported.stdout, /Insertados:\s+2/);
     assert.equal(ticketCount(), 2);
+    assert.equal(quarantineCount(), 1);
   });
 });

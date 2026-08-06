@@ -152,7 +152,7 @@ Un ticket entra en cuarentena únicamente cuando **todas** estas condiciones se 
 
 No participan de la decisión `id`, `conversation_id`, `hora`, las fechas, `motivo_categoria` ni `audio_url`: son identificadores, datos técnicos o valores generados automáticamente y, por sí solos, no convierten el registro en un ticket operativo.
 
-La cuarentena se aplica de forma derivada en cada consulta. Por eso, un registro que ya tenga seguimientos no se oculta; y si un SysAdmin completa un dato o cambia alguno de los valores operativos anteriores, vuelve automáticamente a Tickets y al Dashboard. No necesita un proceso de recuperación ni un backfill.
+La decisión conserva esta regla derivada, pero su resultado se materializa en la tabla interna `tickets_cuarentena`. La migración `0014` clasifica los registros históricos una sola vez y triggers de SQLite mantienen la proyección atómicamente ante cambios del ticket o de sus seguimientos. Por eso, un registro que ya tenga seguimientos no se oculta; y si un SysAdmin completa un dato o cambia alguno de los valores operativos anteriores, vuelve automáticamente a Tickets y al Dashboard sin un proceso manual de recuperación. La tabla no reemplaza ni reescribe el ticket: solo evita recalcular toda la condición en cada consulta.
 
 Mientras permanece vacío queda fuera de:
 
@@ -293,7 +293,7 @@ La promoción comprueba nuevamente estado, prioridad y vencimiento antes de escr
 
 Estas filas son metadatos administrativos, no identidades autenticables. No guardan contraseña, hash ni token y todavía no gobiernan permisos efectivos dentro de la aplicación.
 
-**Cambios de schema**: en desarrollo local se editan los archivos de `lib/db/src/schema/` y se corre `pnpm --filter @workspace/db run push`. Para que el cambio llegue al servidor de testing hay que además generar la migración SQL y commitearla; el contenedor la aplica al arrancar. La secuencia integrada conserva `0007_add_estado_empleado.sql`; v0.5 continúa con `0008_v05_auditoria_ticket.sql` y `0009_add_embargos_category.sql`; el hardening suma `0010_require_password_change.sql` y `0011_invalidate_plaintext_sessions.sql`. Esta última revoca una sola vez las sesiones antiguas para que SQLite deje de contener bearer reutilizables. A continuación, antes de escuchar requests, el backend sanea formatos de sesión inseguros y promueve idempotentemente a Embargos los históricos que cumplen el clasificador actual.
+**Cambios de schema**: en desarrollo local se editan los archivos de `lib/db/src/schema/` y se corre `pnpm --filter @workspace/db run push`. Ese script encadena `drizzle-kit push` con la reconciliación de invariantes que Drizzle no representa; debe ejecutarse sin otro escritor activo. Para que el cambio llegue al servidor hay que generar y commitear su migración SQL: el contenedor aplica la cadena versionada al arrancar. Antes de escuchar requests, el backend verifica también la proyección de cuarentena; puede completar una base local legacy sin ledger, pero rechaza una base versionada incompleta.
 
 ## 4. El importador del histórico
 

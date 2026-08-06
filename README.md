@@ -76,7 +76,7 @@ Las carpetas `data/`, `backups/`, `tmp/`, `node_modules/`, `dist/` y `.pnpm-stor
 ```bash
 pnpm install
 cp .env.example .env        # completar las claves; en una base nueva, también el bootstrap
-pnpm --filter @workspace/db run push   # crea/actualiza el schema en data/tickets.db
+pnpm --filter @workspace/db run push   # actualiza schema + invariantes locales
 
 pnpm --filter @workspace/backend run dev    # API en :5000
 pnpm --filter @workspace/frontend run dev   # UI en :3000
@@ -94,7 +94,7 @@ Abrir http://localhost:3000. En una base nueva, el primer arranque crea el usuar
 - `pnpm run codegen` — regenera hooks y schemas Zod desde el spec OpenAPI
 - `pnpm run codegen:check` — regenera y falla si falta commitear cualquier artefacto OpenAPI, incluso archivos nuevos
 - `pnpm run quality` — quality gate completo: codegen sin drift, migraciones, pruebas, typecheck y builds
-- `pnpm --filter @workspace/db run push` — aplica cambios de schema a la base SQLite (dev only)
+- `pnpm --filter @workspace/db run push` — aplica el schema en una base local sin ledger y reconcilia sus invariantes SQL (dev only)
 - `pnpm --filter @workspace/scripts run import-excel -- <archivo.xlsx|csv> [--dry-run] [--sheet <nombre>]` — importa el histórico de llamadas (idempotente por conversation_id)
 - `pnpm run backup:db -- --output ./backups/tickets-AAAA-MM-DD.db` — backup SQLite consistente con WAL; valida integridad, claves foráneas y esquema mínimo, usa permisos restrictivos y nunca sobrescribe archivos
 - `pnpm run verify:db -- --source ./backups/tickets-AAAA-MM-DD.db --expect-evidence ./backups/evidencia.json` — reabre una copia transportada y exige que SHA-256, bytes y páginas coincidan con la evidencia del backup; para parsear JSON en automatización se ejecutan directamente los bundles `.mjs`, sin el output adicional de pnpm
@@ -135,9 +135,9 @@ Copiar `.env.example` a `.env` en la raíz:
 - **Los secretos de servicio se validan antes de abrir el puerto**: `WEBHOOK_API_KEY` y `ADMIN_API_KEY` deben existir, ser diferentes, tener al menos 32 caracteres y no usar placeholders, controles ni espacios exteriores. `.env.example` los deja vacíos deliberadamente; un backend mal configurado no llega a anunciarse listo.
 - **Transporte web same-origin**: React llama a `/api` mediante Vite/Nginx y el webhook de n8n es servidor-a-servidor. El backend no publica CORS para orígenes arbitrarios ni expone `X-Powered-By`; Nginx oculta su versión y agrega `nosniff`, protección anti-iframe, política de referrer y permisos mínimos.
 - **Texto recibido preservado frente a procesos automáticos, categoría derivada**: el clasificador y los backfills nunca reescriben `ticket.motivo` ni `ticket.resumen`; solo calculan `ticket.motivo_categoria`. Un usuario autenticado sí puede corregir explícitamente esos datos desde el detalle, y esa edición queda auditada; al cambiar motivo o resumen se recalcula la categoría.
-- **Cuarentena derivada, sin borrar ni reescribir**: un ticket queda fuera de la operación únicamente cuando, por una condición AND, no contiene nombre/apellido, teléfono, DNI, empresa, email, motivo, resumen ni notas, no tiene seguimientos y conserva todos sus valores operativos iniciales. IDs, fechas, hora, categoría derivada y `audio_url` no se consideran contenido porque son datos técnicos o automáticos. Administración puede incluir estos registros con `incluir_vacios=true`, protegido por sesión SysAdmin y `ADMIN_API_KEY`; al completar o gestionar el ticket deja de cumplir la regla y reaparece automáticamente. La definición exacta está en [docs/FLUJO.md](docs/FLUJO.md#cuarentena-administrativa-de-registros-vacíos).
+- **Cuarentena derivada y materializada, sin borrar ni reescribir**: un ticket queda fuera de la operación únicamente cuando, por una condición AND, no contiene nombre/apellido, teléfono, DNI, empresa, email, motivo, resumen ni notas, no tiene seguimientos y conserva todos sus valores operativos iniciales. IDs, fechas, hora, categoría derivada y `audio_url` no se consideran contenido porque son datos técnicos o automáticos. La pertenencia se mantiene transaccionalmente en una proyección interna para no recalcular la regla en cada consulta. Administración puede incluir estos registros con `incluir_vacios=true`, protegido por sesión SysAdmin y `ADMIN_API_KEY`; al completar o gestionar el ticket deja de cumplir la regla y reaparece automáticamente. La definición exacta está en [docs/FLUJO.md](docs/FLUJO.md#cuarentena-administrativa-de-registros-vacíos).
 - Los tickets **no se crean a mano** en el flujo normal: la vía de alta es el webhook (o el importador). El alta manual existe solo dentro del panel `/admin` (`POST /api/admin/tickets`), pensado para corrección de datos.
-- **Migraciones en Docker, `push` en desarrollo local**: en local se usa `drizzle-kit push` contra `data/tickets.db`. En Docker el contenedor corre `dist/migrate.mjs` antes de levantar la API. La secuencia integrada incorpora `0007_add_estado_empleado.sql`, `0008_v05_auditoria_ticket.sql` (trazabilidad) y `0009_add_embargos_category.sql` (backfill inicial); luego el arranque reconcilia idempotentemente la categoría derivada con el clasificador vigente.
+- **Migraciones en Docker, `push` protegido en desarrollo local**: el comando local aplica `drizzle-kit push` contra `data/tickets.db` y después instala/verifica los invariantes que Drizzle no representa, como los triggers de cuarentena. El backend repite esa verificación antes de servir: solo repara bases legacy sin ledger y falla cerrado si una base versionada está incompleta. En Docker, `dist/migrate.mjs` aplica la cadena hasta `0014` antes de levantar la API.
 
 ## Gotchas
 

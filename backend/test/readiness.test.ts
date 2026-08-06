@@ -82,6 +82,10 @@ describe("sonda SQLite de readiness", () => {
     database.exec(
       "CREATE TABLE tickets (id INTEGER PRIMARY KEY, version INTEGER NOT NULL)",
     );
+    assert.throws(() => probeSqliteReadiness(database), /no such table/i);
+    database.exec(
+      "CREATE TABLE tickets_cuarentena (ticket_id INTEGER PRIMARY KEY)",
+    );
     assert.equal(probeSqliteReadiness(database), true);
 
     database.close();

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, describe, it } from "node:test";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { AddressInfo } from "node:net";
 import Database from "better-sqlite3";
@@ -13,6 +13,20 @@ import {
 
 const testDirectory = join(process.cwd(), "tmp", "backend-route-tests");
 const databasePath = join(testDirectory, `tickets-${process.pid}.db`);
+const indexMigrationSql = readFileSync(
+  new URL(
+    "../../lib/db/drizzle/0013_add_seguimientos_lookup_index.sql",
+    import.meta.url,
+  ),
+  "utf8",
+).replaceAll("--> statement-breakpoint", "");
+const quarantineMigrationSql = readFileSync(
+  new URL(
+    "../../lib/db/drizzle/0014_materialize_ticket_quarantine.sql",
+    import.meta.url,
+  ),
+  "utf8",
+).replaceAll("--> statement-breakpoint", "");
 mkdirSync(testDirectory, { recursive: true });
 rmSync(databasePath, { force: true });
 
@@ -87,6 +101,8 @@ bootstrap.exec(`
     fecha_creacion INTEGER NOT NULL
   );
 `);
+bootstrap.exec(indexMigrationSql);
+bootstrap.exec(quarantineMigrationSql);
 bootstrap.close();
 
 const [{ default: ticketsRouter }, { sqlite }] = await Promise.all([
@@ -399,11 +415,17 @@ describe("contrato nullable de tickets", () => {
 
     const detailWithoutPhone = { ...detail };
     delete detailWithoutPhone.telefono;
-    assert.equal(GetTicketResponse.safeParse(detailWithoutPhone).success, false);
+    assert.equal(
+      GetTicketResponse.safeParse(detailWithoutPhone).success,
+      false,
+    );
 
     const detailWithoutHistory = { ...detail };
     delete detailWithoutHistory.seguimientos;
-    assert.equal(GetTicketResponse.safeParse(detailWithoutHistory).success, false);
+    assert.equal(
+      GetTicketResponse.safeParse(detailWithoutHistory).success,
+      false,
+    );
 
     const history = detail.seguimientos;
     assert.ok(Array.isArray(history));
@@ -438,7 +460,10 @@ describe("contrato nullable de tickets", () => {
     );
     const cleared = await jsonRequest("/tickets/1", "PATCH", { notas: null });
     assert.equal(cleared.status, 200);
-    assert.equal(((await cleared.json()) as { notas: string | null }).notas, null);
+    assert.equal(
+      ((await cleared.json()) as { notas: string | null }).notas,
+      null,
+    );
 
     const restored = await jsonRequest("/tickets/1", "PATCH", {
       notas: "  Nueva nota  ",
@@ -451,7 +476,10 @@ describe("contrato nullable de tickets", () => {
 
     const blank = await jsonRequest("/tickets/1", "PATCH", { notas: "   " });
     assert.equal(blank.status, 200);
-    assert.equal(((await blank.json()) as { notas: string | null }).notas, null);
+    assert.equal(
+      ((await blank.json()) as { notas: string | null }).notas,
+      null,
+    );
 
     const stored = sqlite
       .prepare("SELECT notas FROM tickets WHERE id = 1")
@@ -465,7 +493,9 @@ describe("contrato nullable de tickets", () => {
       .all() as Array<{ campos_editados: string | null }>;
     assert.equal(audits.length, 3);
     assert.deepEqual(
-      audits.map(({ campos_editados }) => JSON.parse(campos_editados ?? "null")),
+      audits.map(({ campos_editados }) =>
+        JSON.parse(campos_editados ?? "null"),
+      ),
       [["notas"], ["notas"], ["notas"]],
     );
   });
@@ -500,16 +530,14 @@ describe("control optimista de versión", () => {
     assert.equal(withoutChanges.status, 400);
 
     assert.deepEqual(
-      sqlite
-        .prepare("SELECT nombre, version FROM tickets WHERE id = 1")
-        .get(),
+      sqlite.prepare("SELECT nombre, version FROM tickets WHERE id = 1").get(),
       { nombre: "Ana", version: 1 },
     );
     assert.equal(
       (
-        sqlite
-          .prepare("SELECT count(*) AS total FROM seguimientos")
-          .get() as { total: number }
+        sqlite.prepare("SELECT count(*) AS total FROM seguimientos").get() as {
+          total: number;
+        }
       ).total,
       0,
     );
@@ -544,17 +572,15 @@ describe("control optimista de versión", () => {
 
     assert.deepEqual(
       sqlite
-        .prepare(
-          "SELECT nombre, prioridad, version FROM tickets WHERE id = 1",
-        )
+        .prepare("SELECT nombre, prioridad, version FROM tickets WHERE id = 1")
         .get(),
       { nombre: "Ana actualizada", prioridad: "media", version: 2 },
     );
     assert.equal(
       (
-        sqlite
-          .prepare("SELECT count(*) AS total FROM seguimientos")
-          .get() as { total: number }
+        sqlite.prepare("SELECT count(*) AS total FROM seguimientos").get() as {
+          total: number;
+        }
       ).total,
       1,
     );
@@ -590,9 +616,9 @@ describe("control optimista de versión", () => {
     assert.equal(stored.version, 2);
     assert.equal(
       (
-        sqlite
-          .prepare("SELECT count(*) AS total FROM seguimientos")
-          .get() as { total: number }
+        sqlite.prepare("SELECT count(*) AS total FROM seguimientos").get() as {
+          total: number;
+        }
       ).total,
       1,
     );
@@ -607,9 +633,9 @@ describe("control optimista de versión", () => {
     assert.equal(((await response.json()) as { version: number }).version, 1);
     assert.equal(
       (
-        sqlite
-          .prepare("SELECT count(*) AS total FROM seguimientos")
-          .get() as { total: number }
+        sqlite.prepare("SELECT count(*) AS total FROM seguimientos").get() as {
+          total: number;
+        }
       ).total,
       0,
     );

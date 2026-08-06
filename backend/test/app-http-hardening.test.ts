@@ -33,7 +33,10 @@ closeDatabase = () => {
   if (sqlite.open) sqlite.close();
 };
 sqlite.exec(
-  "CREATE TABLE tickets (id INTEGER PRIMARY KEY, version INTEGER NOT NULL)",
+  `
+  CREATE TABLE tickets (id INTEGER PRIMARY KEY, version INTEGER NOT NULL);
+  CREATE TABLE tickets_cuarentena (ticket_id INTEGER PRIMARY KEY);
+  `,
 );
 server = app.listen(0);
 await new Promise<void>((resolve) => server.once("listening", resolve));

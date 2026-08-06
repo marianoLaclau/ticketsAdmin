@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { ensureTicketQuarantineProjection } from "../src/ticket-quarantine-projection";
 
 const migrationSql = readFileSync(
   new URL("../drizzle/0010_require_password_change.sql", import.meta.url),
@@ -128,8 +129,11 @@ describe("migración de cambio obligatorio de contraseña", () => {
           .prepare("SELECT count(*) AS total FROM __drizzle_migrations")
           .get() as { total: number }
       ).total,
-      14,
+      15,
     );
+    assert.deepEqual(ensureTicketQuarantineProjection(sqlite), {
+      repaired: false,
+    });
     assert.equal(sqlite.pragma("foreign_key_check").length, 0);
     assert.equal(sqlite.pragma("integrity_check", { simple: true }), "ok");
     sqlite.close();
