@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Pestaña de roles separada del directorio administrativo
+
+**Agente:** Codex
+**Estado:** quincuagésima remediación de la auditoría técnica, implementada y validada localmente.
+
+- La consulta, filtro, formularios, protecciones y mutaciones de roles salieron a `features/admin-directory/AdminRolesTab.tsx`. `AdminRolesUsers.tsx` quedó en 31 líneas y sólo coordina elevación administrativa, cabecera y pestañas.
+- El componente recibe el mismo `RequestInit` estable que usuarios. Conserva catálogo acotado, búsqueda remota, filtro local, debounce de 350 ms e invalidaciones cruzadas: alta, edición y activación refrescan roles + usuarios; borrar refresca roles.
+- Una comparación independiente confirmó paridad literal de contenido, diálogos, textos, clases, IDs, atributos accesibles y protección de roles del sistema, sin hallazgos P0/P1/P2. Aprobaron 85 pruebas del frontend, typecheck, ESLint, build y `diff --check`. No se hizo push.
+
 ## 2026-08-06 — Pestaña de usuarios separada del directorio administrativo
 
 **Agente:** Codex

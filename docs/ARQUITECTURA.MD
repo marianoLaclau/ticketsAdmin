@@ -171,7 +171,7 @@ Las pantallas principales son:
 - `/admin`: CRUD, importación, cuarentena y zona peligrosa.
 - `/admin/roles-usuarios`: gestión de usuarios y roles para SysAdmin.
 
-La pantalla de identidades administrativas se organiza como feature en `frontend/src/features/admin-directory`. La página conserva la elevación SysAdmin y la composición de pestañas; el panel de usuarios concentra su consulta, filtros, formularios, diálogos y mutaciones. El request administrativo cruza esa frontera como una única dependencia y la API key no se incorpora a query keys ni se replica en otro estado cliente.
+La pantalla de identidades administrativas se organiza como feature en `frontend/src/features/admin-directory`. La página conserva la elevación SysAdmin y la composición de pestañas; los paneles de usuarios y roles concentran sus respectivas consultas, filtros, formularios, diálogos y mutaciones. El request administrativo cruza esas fronteras como una única dependencia y la API key no se incorpora a query keys ni se replica en otro estado cliente. Las invalidaciones por prefijo mantienen sincronizados ambos catálogos sin acoplar sus estados locales.
 
 El estado remoto se invalida después de mutaciones y también por eventos SSE. Los errores de sesión (`401`) vuelven a la entrada; los errores de servidor muestran una pantalla recuperable.
 
