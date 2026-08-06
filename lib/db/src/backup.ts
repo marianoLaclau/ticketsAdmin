@@ -5,15 +5,19 @@ import process from "node:process";
 import Database from "better-sqlite3";
 import {
   areSameExistingFile,
+  areRelatedSqliteArtifactPaths,
   assertRegularFile,
   createPrivateFile,
   createPrivateStagingDirectory,
   pathEntryExists,
-  removeSqliteArtifacts,
+  removePrivateStagingDirectory,
+  resolveExistingPath,
+  resolvePotentialPath,
   syncDirectory,
   syncFile,
 } from "./sqlite-files";
 import {
+  normalizeSqliteSnapshotForPublication,
   verifySqliteFile,
   type SqliteVerificationOptions,
   type SqliteVerificationResult,
@@ -34,14 +38,17 @@ export async function createVerifiedSqliteBackup(
   output: string,
   verification: SqliteVerificationOptions = {},
 ): Promise<SqliteBackupResult> {
-  const sourcePath = path.resolve(source);
-  const outputPath = path.resolve(output);
+  const requestedSourcePath = path.resolve(source);
+  assertRegularFile(requestedSourcePath, "La base de origen");
+  const sourcePath = resolveExistingPath(requestedSourcePath);
+  const outputPath = resolvePotentialPath(output);
 
-  if (areSameExistingFile(sourcePath, outputPath)) {
+  if (
+    areSameExistingFile(sourcePath, outputPath) ||
+    areRelatedSqliteArtifactPaths(sourcePath, outputPath)
+  ) {
     throw new Error("El destino del backup no puede ser la base de origen");
   }
-
-  assertRegularFile(sourcePath, "La base de origen");
 
   if (pathEntryExists(outputPath)) {
     throw new Error(`El destino ya existe; elegí otro nombre: ${outputPath}`);
@@ -49,11 +56,11 @@ export async function createVerifiedSqliteBackup(
 
   const outputDirectory = path.dirname(outputPath);
   fs.mkdirSync(outputDirectory, { recursive: true });
-  const stagingDirectory = createPrivateStagingDirectory(
+  const staging = createPrivateStagingDirectory(
     outputDirectory,
     `.${path.basename(outputPath)}.${process.pid}.${randomUUID()}.staging-`,
   );
-  const temporaryPath = path.join(stagingDirectory, "snapshot.partial");
+  const temporaryPath = path.join(staging.path, "snapshot.partial");
 
   let sourceDatabase: Database.Database | undefined;
 
@@ -72,6 +79,11 @@ export async function createVerifiedSqliteBackup(
     sourceDatabase.close();
     sourceDatabase = undefined;
 
+    // SQLite backup inherits the source journal mode. Normalize the isolated
+    // destination before verification so the published snapshot never needs
+    // adjacent WAL/SHM files to represent committed data.
+    normalizeSqliteSnapshotForPublication(temporaryPath);
+
     // Preserve the invariant even if a filesystem altered the requested mode;
     // Windows still needs appropriate directory ACLs.
     fs.chmodSync(temporaryPath, 0o600);
@@ -82,7 +94,7 @@ export async function createVerifiedSqliteBackup(
     // process created the destination while the snapshot was being checked.
     fs.linkSync(temporaryPath, outputPath);
     syncDirectory(outputDirectory);
-    fs.rmSync(temporaryPath);
+    fs.unlinkSync(temporaryPath);
     syncDirectory(outputDirectory);
 
     return {
@@ -92,8 +104,7 @@ export async function createVerifiedSqliteBackup(
     };
   } finally {
     sourceDatabase?.close();
-    removeSqliteArtifacts(temporaryPath);
-    fs.rmSync(stagingDirectory, { recursive: true, force: true });
+    removePrivateStagingDirectory(staging, ["snapshot.partial"]);
   }
 }
 
@@ -102,3 +113,4 @@ export type {
   SqliteVerificationOptions,
   SqliteVerificationResult,
 } from "./sqlite-verification";
+export { TICKET_MANAGER_SQLITE_VERIFICATION } from "./sqlite-verification";

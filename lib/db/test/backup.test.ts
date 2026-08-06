@@ -6,30 +6,21 @@ import { afterEach, describe, it } from "node:test";
 import Database from "better-sqlite3";
 import {
   createVerifiedSqliteBackup,
+  TICKET_MANAGER_SQLITE_VERIFICATION,
   verifySqliteFile,
-  type SqliteVerificationOptions,
 } from "../src/backup";
 import {
   createPrivateFile,
   createPrivateStagingDirectory,
+  removePrivateStagingDirectory,
 } from "../src/sqlite-files";
+import {
+  createApplicationDatabase as createFixtureDatabase,
+  insertTicket,
+  ticketNames,
+} from "./support/sqlite-fixture";
 
-const APP_VERIFICATION: SqliteVerificationOptions = {
-  checkForeignKeys: true,
-  requiredTables: ["tickets", "seguimientos"],
-  requiredColumns: {
-    tickets: [
-      "id",
-      "conversation_id",
-      "hora",
-      "nombre",
-      "apellido",
-      "motivo",
-      "fecha_creacion",
-    ],
-    seguimientos: ["id", "ticket_id", "nota", "fecha_creacion"],
-  },
-};
+const APP_VERIFICATION = TICKET_MANAGER_SQLITE_VERIFICATION;
 
 const temporaryDirectories = new Set<string>();
 const openDatabases = new Set<Database.Database>();
@@ -56,45 +47,9 @@ function makeTemporaryDirectory(): string {
 }
 
 function createApplicationDatabase(databasePath: string): Database.Database {
-  const database = new Database(databasePath);
+  const database = createFixtureDatabase(databasePath);
   openDatabases.add(database);
-  database.pragma("foreign_keys = ON");
-  database.exec(`
-    CREATE TABLE tickets (
-      id INTEGER PRIMARY KEY,
-      conversation_id TEXT NOT NULL UNIQUE,
-      hora TEXT NOT NULL,
-      nombre TEXT NOT NULL,
-      apellido TEXT NOT NULL,
-      motivo TEXT NOT NULL,
-      fecha_creacion INTEGER NOT NULL
-    );
-    CREATE TABLE seguimientos (
-      id INTEGER PRIMARY KEY,
-      ticket_id INTEGER NOT NULL REFERENCES tickets(id),
-      nota TEXT NOT NULL,
-      fecha_creacion INTEGER NOT NULL
-    );
-  `);
   return database;
-}
-
-function ticketNames(databasePath: string): string[] {
-  const database = new Database(databasePath, {
-    readonly: true,
-    fileMustExist: true,
-  });
-  try {
-    return (
-      database
-        .prepare("SELECT nombre FROM tickets ORDER BY id")
-        .all() as Array<{
-        nombre: string;
-      }>
-    ).map(({ nombre }) => nombre);
-  } finally {
-    database.close();
-  }
 }
 
 function assertNoTemporaryArtifacts(directory: string): void {
@@ -117,21 +72,9 @@ describe("backup SQLite verificado", () => {
     source.pragma("journal_mode = WAL");
     source.pragma("wal_autocheckpoint = 0");
     source.pragma("wal_checkpoint(TRUNCATE)");
-    source
-      .prepare(
-        `INSERT INTO tickets
-          (id, conversation_id, hora, nombre, apellido, motivo, fecha_creacion)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(1, "conv-1", "10:00", "Confirmado", "Test", "Consulta", 1);
+    insertTicket(source, 1, "Confirmado");
     source.exec("BEGIN IMMEDIATE");
-    source
-      .prepare(
-        `INSERT INTO tickets
-          (id, conversation_id, hora, nombre, apellido, motivo, fecha_creacion)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(2, "conv-2", "10:01", "Sin confirmar", "Test", "Consulta", 2);
+    insertTicket(source, 2, "Sin confirmar");
 
     const result = await createVerifiedSqliteBackup(
       sourcePath,
@@ -143,6 +86,15 @@ describe("backup SQLite verificado", () => {
     assert.equal(result.integrity, "ok");
     assert.ok(result.pageCount > 0);
     assert.equal(result.bytes, fs.statSync(outputPath).size);
+    assert.match(result.sha256, /^[0-9a-f]{64}$/);
+    const published = new Database(outputPath, {
+      readonly: true,
+      fileMustExist: true,
+    });
+    assert.equal(published.pragma("journal_mode", { simple: true }), "delete");
+    published.close();
+    assert.equal(fs.existsSync(`${outputPath}-wal`), false);
+    assert.equal(fs.existsSync(`${outputPath}-shm`), false);
     if (process.platform !== "win32") {
       assert.equal(fs.statSync(outputPath).mode & 0o777, 0o600);
     }
@@ -150,6 +102,25 @@ describe("backup SQLite verificado", () => {
     source.exec("ROLLBACK");
     source.close();
     assertNoTemporaryArtifacts(directory);
+  });
+
+  it("rechaza un snapshot WAL sin crear ni consumir sidecars", () => {
+    const directory = makeTemporaryDirectory();
+    const sourcePath = path.join(directory, "wal-no-cerrado.db");
+    const source = createApplicationDatabase(sourcePath);
+    source.pragma("journal_mode = WAL");
+    insertTicket(source, 1, "Confirmado");
+    source.close();
+    assert.equal(fs.existsSync(`${sourcePath}-wal`), false);
+    assert.equal(fs.existsSync(`${sourcePath}-shm`), false);
+
+    assert.throws(
+      () => verifySqliteFile(sourcePath, APP_VERIFICATION),
+      /journal mode WAL|autocontenido/i,
+    );
+
+    assert.equal(fs.existsSync(`${sourcePath}-wal`), false);
+    assert.equal(fs.existsSync(`${sourcePath}-shm`), false);
   });
 
   it("rechaza claves foráneas rotas sin publicar una copia", async () => {
@@ -253,13 +224,17 @@ describe("backup SQLite verificado", () => {
         directory,
         ".permission-probe-",
       );
-      const observedPartial = path.join(observedStaging, "snapshot.partial");
+      const observedPartial = path.join(
+        observedStaging.path,
+        "snapshot.partial",
+      );
       createPrivateFile(observedPartial);
       if (process.platform !== "win32") {
-        assert.equal(fs.statSync(observedStaging).mode & 0o777, 0o700);
+        assert.equal(fs.statSync(observedStaging.path).mode & 0o777, 0o700);
         assert.equal(fs.statSync(observedPartial).mode & 0o777, 0o600);
       }
-      fs.rmSync(observedStaging, { recursive: true, force: true });
+      fs.unlinkSync(observedPartial);
+      fs.rmdirSync(observedStaging.path);
 
       await createVerifiedSqliteBackup(
         sourcePath,
@@ -300,13 +275,7 @@ describe("backup SQLite verificado", () => {
     const sourcePath = path.join(directory, "origen.db");
     const outputPath = path.join(directory, "copia.db");
     const source = createApplicationDatabase(sourcePath);
-    source
-      .prepare(
-        `INSERT INTO tickets
-          (id, conversation_id, hora, nombre, apellido, motivo, fecha_creacion)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(1, "conv-1", "10:00", "Único", "Test", "Consulta", 1);
+    insertTicket(source, 1, "Único");
     source.close();
 
     const results = await Promise.allSettled([
@@ -328,5 +297,39 @@ describe("backup SQLite verificado", () => {
       "ok",
     );
     assertNoTemporaryArtifacts(directory);
+  });
+
+  it("rechaza publicar un backup como sidecar de su propia fuente", async () => {
+    const directory = makeTemporaryDirectory();
+    const sourcePath = path.join(directory, "origen.db");
+    const outputPath = `${sourcePath}-wal`;
+    const source = createApplicationDatabase(sourcePath);
+    source.close();
+
+    await assert.rejects(
+      createVerifiedSqliteBackup(sourcePath, outputPath, APP_VERIFICATION),
+      /no puede ser la base de origen/i,
+    );
+
+    assert.equal(fs.existsSync(outputPath), false);
+    assertNoTemporaryArtifacts(directory);
+  });
+
+  it("preserva un staging reemplazado y nunca lo borra recursivamente", () => {
+    const directory = makeTemporaryDirectory();
+    const staging = createPrivateStagingDirectory(directory, ".cleanup-probe-");
+    const movedPath = path.join(directory, "staging-original-movido");
+    fs.renameSync(staging.path, movedPath);
+    fs.mkdirSync(staging.path);
+    const sentinelPath = path.join(staging.path, "sentinela-ajeno");
+    fs.writeFileSync(sentinelPath, "no borrar");
+
+    assert.throws(
+      () => removePrivateStagingDirectory(staging, ["snapshot.partial"]),
+      /retirado o reemplazado/i,
+    );
+
+    assert.equal(fs.readFileSync(sentinelPath, "utf8"), "no borrar");
+    assert.equal(fs.existsSync(movedPath), true);
   });
 });

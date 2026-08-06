@@ -106,7 +106,28 @@ Las reglas importantes viven fuera de los handlers cuando pueden reutilizarse:
 - Drizzle ORM como acceso tipado de la aplicación;
 - migraciones ejecutadas por el migrador de Drizzle en producción.
 
-La excepción deliberada es el backup online: usa la API nativa de `better-sqlite3` para obtener un snapshot consistente aunque haya commits en WAL. Antes de publicar valida integridad física, claves foráneas y la identidad mínima del esquema; el archivo queda `0600` en POSIX, se sincroniza cuando la plataforma lo soporta y se publica con una operación no-clobber. Las pruebas cubren además que una transacción sin confirmar no ingrese al respaldo.
+La excepción deliberada es el backup online: usa la API nativa de `better-sqlite3` para obtener un snapshot consistente aunque haya commits en WAL. El candidato aislado se normaliza a journal `DELETE`; por eso el archivo publicado es autocontenido y nunca depende de `-wal/-shm`. Antes de publicar valida integridad física, claves foráneas, identidad mínima del esquema y SHA-256; queda `0600` en POSIX, se sincroniza cuando la plataforma lo soporta y se publica con una operación no-clobber. Las pruebas cubren además que una transacción sin confirmar no ingrese al respaldo y que verificar un header WAL no cree sidecars.
+
+La restauración es una operación de recuperación con la aplicación detenida, no parte del request path ni del rollback automático de una release. Node no puede probar de forma portable que otro proceso no tenga abierto el archivo; por eso el operador debe confirmar el outage y la primitiva agrega defensas fail-closed: lock exclusivo, identidad estable del archivo, recovery previa, checkpoint, salida temporal de WAL, ausencia de sidecars, SHA-256 y publicación atómica en el mismo directorio.
+
+```mermaid
+flowchart LR
+    source[Backup elegido] --> candidate[Candidato privado: integridad, FK, esquema y SHA-256]
+    target[tickets.db actual] --> recovery[Publicar recovery verificada y no-clobber]
+    recovery --> checkpoint[Checkpoint, journal DELETE y cero sidecars]
+    candidate --> publish{El destino existía}
+    checkpoint --> publish
+    publish -->|sí| rename[rename atómico]
+    publish -->|no| link[hard link no-clobber]
+    rename --> smoke[Reabrir, revalidar inode y SHA-256]
+    link --> smoke
+    smoke -->|falla| rollback[Republicar recovery]
+    smoke -->|ok| ready[Arranque, migraciones y readiness]
+```
+
+Si el destino no existía, una aparición concurrente o cualquier sidecar hace fallar la operación sin sobrescribir ni borrar ese estado ajeno. Si existía, se revalida su identidad antes de recovery, checkpoint, publicación y rollback. En POSIX se conservan usuario, grupo y modo tradicional; ACL y atributos extendidos requieren una política operativa del filesystem y no forman parte de la garantía portable de Node.
+
+El restore nunca se ejecuta automáticamente después de un deploy fallido: podría descartar tickets o gestiones confirmadas entre el backup y el fallo. El rollback de aplicación conserva la base actual; recuperar datos desde un snapshot requiere una decisión operativa separada y trazable.
 
 El backend es intencionalmente de instancia única respecto del archivo SQLite. Escalar horizontalmente varios contenedores contra el mismo archivo no forma parte del diseño actual.
 

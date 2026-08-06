@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
-import { assertRegularFile } from "./sqlite-files";
+import { SQLITE_RUNTIME_SUFFIXES, pathEntryExists } from "./sqlite-files";
 
 export interface SqliteVerificationOptions {
   checkForeignKeys?: boolean;
@@ -12,7 +14,30 @@ export interface SqliteVerificationResult {
   integrity: "ok";
   pageCount: number;
   bytes: number;
+  sha256: string;
 }
+
+/**
+ * Oldest application shape that remains a valid migration source. The Drizzle
+ * ledger is intentionally not required because local databases may have been
+ * created with `drizzle-kit push`.
+ */
+export const TICKET_MANAGER_SQLITE_VERIFICATION = {
+  checkForeignKeys: true,
+  requiredTables: ["tickets", "seguimientos"],
+  requiredColumns: {
+    tickets: [
+      "id",
+      "conversation_id",
+      "hora",
+      "nombre",
+      "apellido",
+      "motivo",
+      "fecha_creacion",
+    ],
+    seguimientos: ["id", "ticket_id", "nota", "fecha_creacion"],
+  },
+} as const satisfies SqliteVerificationOptions;
 
 function assertRequiredColumns(
   database: Database.Database,
@@ -58,19 +83,146 @@ function assertRequiredTables(
   }
 }
 
+function calculateSha256(filePath: string): string {
+  const hash = createHash("sha256");
+  const descriptor = fs.openSync(filePath, "r");
+  const buffer = Buffer.allocUnsafe(1024 * 1024);
+
+  try {
+    let bytesRead: number;
+    do {
+      bytesRead = fs.readSync(descriptor, buffer, 0, buffer.length, null);
+      if (bytesRead > 0) {
+        hash.update(buffer.subarray(0, bytesRead));
+      }
+    } while (bytesRead > 0);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+
+  return hash.digest("hex");
+}
+
+function presentRuntimeSidecars(databasePath: string): string[] {
+  return SQLITE_RUNTIME_SUFFIXES.map(
+    (suffix) => `${databasePath}${suffix}`,
+  ).filter(pathEntryExists);
+}
+
+function assertNoRuntimeSidecars(databasePath: string): void {
+  const present = presentRuntimeSidecars(databasePath);
+  if (present.length > 0) {
+    throw new Error(
+      `El snapshot no es autocontenido; conserva sidecars SQLite: ${present.join(", ")}`,
+    );
+  }
+}
+
+function assertRollbackJournalHeader(databasePath: string): void {
+  const descriptor = fs.openSync(databasePath, "r");
+  const header = Buffer.alloc(20);
+  let bytesRead: number;
+  try {
+    bytesRead = fs.readSync(descriptor, header, 0, header.length, 0);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+
+  const sqliteSignature = "SQLite format 3\0";
+  if (
+    bytesRead >= header.length &&
+    header.subarray(0, 16).toString("binary") === sqliteSignature &&
+    (header[18] === 2 || header[19] === 2)
+  ) {
+    throw new Error(
+      "El snapshot conserva journal mode WAL y no es un archivo autocontenido",
+    );
+  }
+}
+
+/** Converts a private SQLite candidate into a closed single-file snapshot. */
+export function normalizeSqliteSnapshotForPublication(input: string): void {
+  const databasePath = path.resolve(input);
+  readRegularFileStat(databasePath, "El candidato a normalizar");
+  assertNoRuntimeSidecars(databasePath);
+
+  const database = new Database(databasePath, {
+    fileMustExist: true,
+    timeout: 5_000,
+  });
+  try {
+    const journalMode = database.pragma("journal_mode = DELETE", {
+      simple: true,
+    });
+    if (
+      typeof journalMode !== "string" ||
+      journalMode.toLowerCase() !== "delete"
+    ) {
+      throw new Error(
+        `SQLite no pudo normalizar el snapshot a journal DELETE: ${String(journalMode)}`,
+      );
+    }
+  } finally {
+    database.close();
+  }
+
+  assertNoRuntimeSidecars(databasePath);
+  assertRollbackJournalHeader(databasePath);
+}
+
+function assertFileUnchanged(
+  before: fs.BigIntStats,
+  after: fs.BigIntStats,
+  filePath: string,
+): void {
+  if (
+    before.dev !== after.dev ||
+    before.ino !== after.ino ||
+    before.size !== after.size ||
+    before.mtimeNs !== after.mtimeNs ||
+    before.ctimeNs !== after.ctimeNs
+  ) {
+    throw new Error(
+      `La base cambió mientras se verificaba y no es un snapshot estable: ${filePath}`,
+    );
+  }
+}
+
+function readRegularFileStat(
+  filePath: string,
+  description: string,
+): fs.BigIntStats {
+  const stat = fs.statSync(filePath, {
+    bigint: true,
+    throwIfNoEntry: false,
+  });
+  if (!stat?.isFile()) {
+    throw new Error(`${description} no existe o no es un archivo: ${filePath}`);
+  }
+  if (stat.ino === 0n) {
+    throw new Error(
+      `${description} está en un filesystem que no expone una identidad de archivo estable: ${filePath}`,
+    );
+  }
+  return stat;
+}
+
 /** Verifies a closed SQLite snapshot without modifying it. */
 export function verifySqliteFile(
   input: string,
   options: SqliteVerificationOptions = {},
 ): SqliteVerificationResult {
   const databasePath = path.resolve(input);
-  const stat = assertRegularFile(databasePath, "La base a verificar");
+  const initialStat = readRegularFileStat(databasePath, "La base a verificar");
+  assertNoRuntimeSidecars(databasePath);
+  assertRollbackJournalHeader(databasePath);
   const database = new Database(databasePath, {
     readonly: true,
     fileMustExist: true,
     timeout: 5_000,
   });
 
+  let pageCount: number;
   try {
     const integrityResult = database.pragma("integrity_check", {
       simple: true,
@@ -93,19 +245,27 @@ export function verifySqliteFile(
     assertRequiredTables(database, options.requiredTables ?? []);
     assertRequiredColumns(database, options.requiredColumns ?? {});
 
-    const pageCount = database.pragma("page_count", { simple: true });
-    if (typeof pageCount !== "number") {
+    const pageCountResult = database.pragma("page_count", { simple: true });
+    if (typeof pageCountResult !== "number") {
       throw new Error(
-        `SQLite devolvió un page_count inválido: ${String(pageCount)}`,
+        `SQLite devolvió un page_count inválido: ${String(pageCountResult)}`,
       );
     }
-
-    return {
-      integrity: "ok",
-      pageCount,
-      bytes: stat.size,
-    };
+    pageCount = pageCountResult;
   } finally {
     database.close();
   }
+
+  assertNoRuntimeSidecars(databasePath);
+  const sha256 = calculateSha256(databasePath);
+  const finalStat = readRegularFileStat(databasePath, "La base verificada");
+  assertFileUnchanged(initialStat, finalStat, databasePath);
+  assertNoRuntimeSidecars(databasePath);
+
+  return {
+    integrity: "ok",
+    pageCount,
+    bytes: Number(finalStat.size),
+    sha256,
+  };
 }
