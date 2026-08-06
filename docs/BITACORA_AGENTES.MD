@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Historial del ticket como componente controlado
+
+**Agente:** Codex
+**Estado:** quincuagésima octava remediación de la auditoría técnica, implementada y validada localmente.
+
+- Formulario de nota y timeline salieron a `features/ticket-detail/TicketHistoryCard.tsx` mediante props controladas. El componente conserva presentación y adaptación del evento, sin poseer hooks, estado remoto ni mutaciones.
+- Query, error global, refetch coordinado, mutación, draft y reset siguen en `TicketDetail`: el texto se limpia sólo después del éxito y se conserva ante errores. Orden, conectores y condiciones de cambios de estado, prioridad, asignación y campos editados se trasladaron literalmente.
+- Dos revisiones independientes no encontraron hallazgos P0/P1/P2. Aprobaron 85 pruebas del frontend, typecheck, ESLint, Prettier acotado, build aislado y `diff --check`. No se hizo push.
+
 ## 2026-08-06 — Progreso visual con fuentes canónicas
 
 **Agente:** Codex
