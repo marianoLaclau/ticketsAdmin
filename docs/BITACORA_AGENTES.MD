@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Tarjeta de tiempos extraída del detalle
+
+**Agente:** Codex
+**Estado:** quincuagésima quinta remediación de la auditoría técnica, implementada y validada localmente.
+
+- Fecha límite, resolución y estado visual de vencimiento salieron a `features/ticket-detail/TicketTimingCard.tsx`, con campos tipados desde `Ticket` y un booleano explícito para la condición derivada.
+- El componente no posee hooks ni estado. Conserva clases condicionales, formato de fechas, fallback `No definida`, render truthy de resolución, textos y estructura; `Clock` y `formatDate` permanecen también en la página porque todavía tienen otros consumidores.
+- La revisión independiente no encontró hallazgos P0/P1/P2. Aprobaron 85 pruebas del frontend, typecheck, ESLint, Prettier acotado, build aislado y `diff --check`. No se hizo push.
+
 ## 2026-08-06 — Resumen visual del llamado extraído
 
 **Agente:** Codex

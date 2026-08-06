@@ -67,6 +67,7 @@ import { useAdminAccess, adminErrorMessage } from '@/hooks/use-admin-access';
 import { TicketDataEditDialog } from '@/components/tickets/TicketDataEditDialog';
 import { TicketVersionConflictAlert } from '@/components/tickets/TicketVersionConflictAlert';
 import { TicketCallSummaryCard } from '@/features/ticket-detail/TicketCallSummaryCard';
+import { TicketTimingCard } from '@/features/ticket-detail/TicketTimingCard';
 import {
   TICKET_STATE_PROGRESS,
   applyTicketManagementState,
@@ -936,31 +937,11 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
             </CardContent>
           </Card>
 
-          <Card className={`shadow-sm ${vencido ? 'border-red-200' : ''}`}>
-            <CardHeader className={`pb-3 border-b ${vencido ? 'bg-red-50/50 border-red-100' : 'border-slate-100'}`}>
-              <CardTitle className={`text-lg flex items-center gap-2 ${vencido ? 'text-red-700' : ''}`}>
-                <Clock className="h-5 w-5" />
-                Tiempos
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4">
-              <div>
-                <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Fecha Límite</h4>
-                <p className={`font-medium ${vencido ? 'text-red-600' : 'text-slate-900'}`}>
-                  {ticket.fecha_limite ? formatDate(ticket.fecha_limite) : 'No definida'}
-                </p>
-              </div>
-              
-              {ticket.fecha_resolucion && (
-                <div>
-                  <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Resolución</h4>
-                  <p className="text-slate-900">
-                    {formatDate(ticket.fecha_resolucion)}
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <TicketTimingCard
+            deadline={ticket.fecha_limite}
+            resolvedAt={ticket.fecha_resolucion}
+            overdue={vencido}
+          />
         </div>
       </div>
     </div>
