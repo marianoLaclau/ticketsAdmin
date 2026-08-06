@@ -1,4 +1,4 @@
-import { Router, type Response } from "express";
+import { Router, type RequestHandler, type Response } from "express";
 import {
   db,
   ticketsTable,
@@ -24,16 +24,16 @@ import {
   GetMotivoStatsQueryParams,
   GetTicketsVencidosQueryParams,
 } from "@workspace/api-zod";
-import {
-  MOTIVO_CATEGORIA_LABELS,
-  SERIN_SEGUIMIENTO_NOTA,
-  type MotivoCategoria,
-} from "@workspace/ingesta";
+import { SERIN_SEGUIMIENTO_NOTA } from "@workspace/ingesta";
 import {
   isDashboardDateRangeValid,
   normalizeDashboardDateQuery,
   type DashboardDateRange,
 } from "../lib/dashboard-date-range";
+import {
+  consultarDashboardStats,
+  consultarMotivosDashboard,
+} from "../lib/dashboard-queries";
 
 const router = Router();
 
@@ -53,106 +53,29 @@ function dateRangeConditions(
   return conditions;
 }
 
+type DashboardStatsHandlerOptions = {
+  now?: () => Date;
+};
+
+/** Permite fijar el reloj en pruebas sin alterar el reloj global del proceso. */
+export function crearDashboardStatsHandler({
+  now = () => new Date(),
+}: DashboardStatsHandlerOptions = {}): RequestHandler {
+  return (req, res) => {
+    const parsed = GetDashboardStatsQueryParams.safeParse(
+      normalizeDashboardDateQuery(req.query),
+    );
+    if (!parsed.success || !isDashboardDateRangeValid(parsed.data)) {
+      invalidPeriod(res);
+      return;
+    }
+
+    res.json(consultarDashboardStats(db, parsed.data, now()));
+  };
+}
+
 // Dashboard statistics. The main cohort is filtered by ticket creation date.
-router.get("/dashboard/stats", async (req, res) => {
-  const parsed = GetDashboardStatsQueryParams.safeParse(
-    normalizeDashboardDateQuery(req.query),
-  );
-  if (!parsed.success || !isDashboardDateRangeValid(parsed.data)) {
-    invalidPeriod(res);
-    return;
-  }
-
-  const range = parsed.data;
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const todayEnd = new Date(todayStart);
-  todayEnd.setDate(todayEnd.getDate() + 1);
-  const createdInPeriod = dateRangeConditions(ticketsTable.fecha_creacion, range);
-
-  const [allTickets, vencidosResult, resueltosHoy, nuevosHoy] =
-    await Promise.all([
-      db
-        .select()
-        .from(ticketsTable)
-        .where(and(ticketVisibleCondition, ...createdInPeriod)),
-      db
-        .select({ id: ticketsTable.id })
-        .from(ticketsTable)
-        .where(
-          and(
-            ticketVisibleCondition,
-            ...createdInPeriod,
-            lt(ticketsTable.fecha_limite, now),
-            not(inArray(ticketsTable.estado, ["resuelto", "cerrado"])),
-          ),
-        ),
-      db
-        .select({ id: ticketsTable.id })
-        .from(ticketsTable)
-        .where(
-          and(
-            ticketVisibleCondition,
-            gte(ticketsTable.fecha_resolucion, todayStart),
-            lt(ticketsTable.fecha_resolucion, todayEnd),
-          ),
-        ),
-      db
-        .select({ id: ticketsTable.id })
-        .from(ticketsTable)
-        .where(
-          and(
-            ticketVisibleCondition,
-            gte(ticketsTable.fecha_creacion, todayStart),
-            lt(ticketsTable.fecha_creacion, todayEnd),
-          ),
-        ),
-    ]);
-
-  const estadoCounts: Record<string, number> = {};
-  const prioridadCounts: Record<string, number> = {};
-  let totalResolutionMs = 0;
-  let resolvedCount = 0;
-  let finalizadosPeriodo = 0;
-
-  for (const ticket of allTickets) {
-    estadoCounts[ticket.estado] = (estadoCounts[ticket.estado] || 0) + 1;
-    prioridadCounts[ticket.prioridad] =
-      (prioridadCounts[ticket.prioridad] || 0) + 1;
-    if (ticket.estado === "resuelto" || ticket.estado === "cerrado") {
-      finalizadosPeriodo++;
-    }
-    if (ticket.fecha_resolucion && ticket.fecha_creacion) {
-      totalResolutionMs +=
-        ticket.fecha_resolucion.getTime() - ticket.fecha_creacion.getTime();
-      resolvedCount++;
-    }
-  }
-
-  const por_estado = Object.entries(estadoCounts).map(([estado, cantidad]) => ({
-    estado,
-    cantidad,
-  }));
-  const por_prioridad = Object.entries(prioridadCounts).map(
-    ([prioridad, cantidad]) => ({ prioridad, cantidad }),
-  );
-  const tiempoPromedio =
-    resolvedCount > 0
-      ? totalResolutionMs / resolvedCount / 3_600_000
-      : null;
-
-  res.json({
-    total: allTickets.length,
-    por_estado,
-    por_prioridad,
-    vencidos: vencidosResult.length,
-    resueltos_hoy: resueltosHoy.length,
-    nuevos_hoy: nuevosHoy.length,
-    resueltos_periodo: finalizadosPeriodo,
-    nuevos_periodo: allTickets.length,
-    tiempo_promedio_resolucion: tiempoPromedio,
-  });
-});
+router.get("/dashboard/stats", crearDashboardStatsHandler());
 
 // Recent activity is filtered by the actual date of each event.
 router.get("/dashboard/actividad-reciente", async (req, res) => {
@@ -262,30 +185,7 @@ router.get("/dashboard/motivos", async (req, res) => {
     return;
   }
 
-  const tickets = await db
-    .select()
-    .from(ticketsTable)
-    .where(
-      and(
-        ticketVisibleCondition,
-        ...dateRangeConditions(ticketsTable.fecha_creacion, parsed.data),
-      ),
-    );
-  const motivoCounts = new Map<MotivoCategoria, number>();
-  for (const ticket of tickets) {
-    motivoCounts.set(
-      ticket.motivo_categoria,
-      (motivoCounts.get(ticket.motivo_categoria) ?? 0) + 1,
-    );
-  }
-  const result = [...motivoCounts.entries()]
-    .map(([categoria, cantidad]) => ({
-      categoria,
-      motivo: MOTIVO_CATEGORIA_LABELS[categoria],
-      cantidad,
-    }))
-    .sort((left, right) => right.cantidad - left.cantidad);
-  res.json(result);
+  res.json(consultarMotivosDashboard(db, parsed.data));
 });
 
 export default router;

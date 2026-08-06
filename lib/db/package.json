@@ -8,7 +8,8 @@
     "./backup": "./src/backup.ts",
     "./db-path": "./src/db-path.ts",
     "./restore": "./src/restore.ts",
-    "./schema": "./src/schema/index.ts"
+    "./schema": "./src/schema/index.ts",
+    "./ticket-visibility": "./src/ticket-visibility.ts"
   },
   "scripts": {
     "push": "drizzle-kit push --config ./drizzle.config.ts && pnpm run reconcile-quarantine",

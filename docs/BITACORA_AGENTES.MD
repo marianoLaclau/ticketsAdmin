@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Agregaciones SQL y calendario estable del Dashboard
+
+**Agente:** Codex
+**Estado:** trigésima quinta remediación de la auditoría técnica, implementada y validada localmente.
+
+- Los endpoints de estadísticas y motivos dejaron de materializar todos los tickets para contarlos en JavaScript. Totales, vencidos, finalizados y promedio se resuelven mediante una agregación condicional; estados, prioridades y motivos usan `GROUP BY`, conservando el contrato y la exclusión de cuarentena. El ID mínimo formaliza el orden estable de primera aparición y los valores históricos fuera del catálogo siguen incluidos en los desgloses.
+- Las lecturas necesarias para los KPIs comparten una transacción diferida y, por lo tanto, el mismo snapshot de SQLite. Los contadores “hoy” permanecen globales respecto del período seleccionado, igual que antes.
+- El día operativo se calcula explícitamente en `America/Argentina/Buenos_Aires`, sin depender de la zona horaria del proceso. El handler permite inyectar el reloj en pruebas, lo que cubre medianoche, rango inclusivo, período invertido y contratos Zod de manera determinista.
+- Se agregaron pruebas puras de las consultas y pruebas HTTP reales para rango, cuarentena, orden, promedio y errores. TypeScript y las 172 pruebas de backend aprobaron; una revisión independiente no dejó hallazgos críticos ni altos. No se hizo push.
+
 ## 2026-08-06 — Índices temporales medidos para lecturas operativas
 
 **Agente:** Codex
