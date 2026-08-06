@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Importador CSV separado de la página administrativa
+
+**Agente:** Codex
+**Estado:** quincuagésima primera remediación de la auditoría técnica, implementada y validada localmente.
+
+- El estado del archivo, la simulación automática, la confirmación y la presentación del resultado salieron de `Admin.tsx` a `features/admin-tickets/AdminCsvImportTab.tsx`. La pestaña recibe únicamente el `RequestInit` elevado y no crea otra instancia de acceso administrativo.
+- Se preservaron una única mutación, el vaciado del input para reseleccionar el mismo archivo, payloads `dry_run`, mensajes, deduplicación e invalidación global sólo después de una importación definitiva exitosa. El análisis previo no altera ninguna caché.
+- La comparación independiente no encontró diferencias funcionales ni visuales. Aprobaron 85 pruebas del frontend, typecheck, ESLint, Prettier acotado al archivo nuevo, build aislado y `diff --check`. No se hizo push.
+
 ## 2026-08-06 — Pestaña de roles separada del directorio administrativo
 
 **Agente:** Codex
