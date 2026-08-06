@@ -2,9 +2,14 @@ name: ticketsadmin
 
 services:
   backend:
+    image: ${TICKETSADMIN_BACKEND_IMAGE:-ticketsadmin-backend:local}
+    pull_policy: never
     build:
       context: .
       dockerfile: Dockerfile.backend
+      args:
+        TICKETSADMIN_IMAGE_REVISION: ${TICKETSADMIN_IMAGE_REVISION:-development}
+        TICKETSADMIN_IMAGE_SOURCE: ${TICKETSADMIN_IMAGE_SOURCE:-local}
     restart: unless-stopped
     stop_grace_period: 30s
     ports:
@@ -37,9 +42,14 @@ services:
       start_period: 60s
 
   frontend:
+    image: ${TICKETSADMIN_FRONTEND_IMAGE:-ticketsadmin-frontend:local}
+    pull_policy: never
     build:
       context: .
       dockerfile: Dockerfile.frontend
+      args:
+        TICKETSADMIN_IMAGE_REVISION: ${TICKETSADMIN_IMAGE_REVISION:-development}
+        TICKETSADMIN_IMAGE_SOURCE: ${TICKETSADMIN_IMAGE_SOURCE:-local}
     restart: unless-stopped
     ports:
       - "3000:80"

@@ -20,6 +20,13 @@ jobs:
     needs: quality
     runs-on: self-hosted
     timeout-minutes: 45
+    env:
+      # Un rerun produce otro tag y nunca mueve el artefacto de una ejecución
+      # anterior. La revisión OCI conserva el SHA fuente completo.
+      TICKETSADMIN_BACKEND_IMAGE: ticketsadmin-backend:git-${{ github.sha }}-run-${{ github.run_id }}-${{ github.run_attempt }}
+      TICKETSADMIN_FRONTEND_IMAGE: ticketsadmin-frontend:git-${{ github.sha }}-run-${{ github.run_id }}-${{ github.run_attempt }}
+      TICKETSADMIN_IMAGE_REVISION: ${{ github.sha }}
+      TICKETSADMIN_IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,6 +58,7 @@ jobs:
           compose_up_help="$(docker compose up --help)"
           grep -Eq -- '(^|[[:space:]])--wait([[:space:]]|$)' <<< "$compose_up_help"
           grep -Eq -- '(^|[[:space:]])--wait-timeout([[:space:]]|$)' <<< "$compose_up_help"
+          grep -Eq -- '(^|[[:space:]])--no-build([[:space:]]|$)' <<< "$compose_up_help"
           command -v curl >/dev/null
           docker compose config --quiet
         env:
@@ -67,6 +75,37 @@ jobs:
           WEBHOOK_API_KEY: not-used-during-image-build
           ADMIN_API_KEY: not-used-during-image-build
 
+      - name: Verify candidate image identities
+        id: candidate_images
+        if: steps.freshness.outputs.deploy == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          verify_image() {
+            local image="$1"
+            local output_name="$2"
+            local revision source image_id
+            revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")"
+            source="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.source"}}' "$image")"
+            image_id="$(docker image inspect --format '{{.Id}}' "$image")"
+            test "$revision" = "$GITHUB_SHA"
+            test "$source" = "$TICKETSADMIN_IMAGE_SOURCE"
+            test -n "$image_id"
+            printf 'Candidate %s -> %s (revision %s)\n' "$image" "$image_id" "$revision"
+            printf '%s=%s\n' "$output_name" "$image_id" >> "$GITHUB_OUTPUT"
+          }
+
+          verify_image "$TICKETSADMIN_BACKEND_IMAGE" backend_id
+          verify_image "$TICKETSADMIN_FRONTEND_IMAGE" frontend_id
+
+          docker run --rm --network none "$TICKETSADMIN_BACKEND_IMAGE" \
+            node dist/backup-db.mjs --help >/dev/null
+          docker run --rm --network none "$TICKETSADMIN_BACKEND_IMAGE" \
+            node dist/restore-db.mjs --help >/dev/null
+          docker run --rm --network none --add-host backend:127.0.0.1 \
+            --entrypoint nginx \
+            "$TICKETSADMIN_FRONTEND_IMAGE" -t
+
       - name: Recheck main before restarting services
         id: freshness_after_build
         if: steps.freshness.outputs.deploy == 'true'
@@ -82,7 +121,7 @@ jobs:
 
       - name: Deploy and wait for healthy services
         if: steps.freshness_after_build.outputs.deploy == 'true'
-        run: docker compose up -d --remove-orphans --wait --wait-timeout 180
+        run: docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180
         env:
           WEBHOOK_API_KEY: ${{ secrets.WEBHOOK_API_KEY }}
           ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
@@ -99,10 +138,6 @@ jobs:
           spa="$(curl -fsS --max-time 5 http://127.0.0.1:3000/)"
           grep -Fq '<div id="root"></div>' <<< "$spa"
           test "$(curl -fsS --max-time 5 http://127.0.0.1:3000/api/readyz)" = '{"status":"ready"}'
-
-      - name: Clean up dangling images
-        if: success() && steps.freshness_after_build.outputs.deploy == 'true'
-        run: docker image prune -f
 
       - name: Deployment diagnostics
         if: failure() && steps.freshness_after_build.outputs.deploy == 'true'

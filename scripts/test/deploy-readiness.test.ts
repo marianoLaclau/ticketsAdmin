@@ -10,6 +10,18 @@ const workflow = readFileSync(
   new URL("../../.github/workflows/deploy.yml", import.meta.url),
   "utf8",
 ).replace(/\r\n?/g, "\n");
+const backendDockerfile = readFileSync(
+  new URL("../../Dockerfile.backend", import.meta.url),
+  "utf8",
+).replace(/\r\n?/g, "\n");
+const frontendDockerfile = readFileSync(
+  new URL("../../Dockerfile.frontend", import.meta.url),
+  "utf8",
+).replace(/\r\n?/g, "\n");
+const dockerIgnore = readFileSync(
+  new URL("../../.dockerignore", import.meta.url),
+  "utf8",
+).replace(/\r\n?/g, "\n");
 const activeCompose = compose.replace(/#[^\n]*/g, "");
 
 const escapeRegExp = (value: string): string =>
@@ -54,12 +66,11 @@ test("Compose publica readiness end-to-end", () => {
 test("el deploy espera, prueba ambos puertos y diagnostica fallos", () => {
   const deploy = workflowStep("Deploy and wait for healthy services");
   const smoke = workflowStep("Smoke test published services");
-  const prune = workflowStep("Clean up dangling images");
   const diagnostics = workflowStep("Deployment diagnostics");
 
   assert.match(
     deploy,
-    /docker compose up -d --remove-orphans --wait --wait-timeout 180/,
+    /docker compose up -d --remove-orphans --no-build --wait --wait-timeout 180/,
   );
   assert.match(smoke, /5000\/api\/readyz\)" = '\{"status":"ready"\}'/);
   assert.match(
@@ -68,11 +79,6 @@ test("el deploy espera, prueba ambos puertos y diagnostica fallos", () => {
   );
   assert.match(smoke, /grep -Fq '<div id="root"><\/div>' <<< "\$spa"/);
   assert.match(smoke, /3000\/api\/readyz\)" = '\{"status":"ready"\}'/);
-  assert.match(
-    prune,
-    /if: success\(\) && steps\.freshness_after_build\.outputs\.deploy == 'true'/,
-  );
-  assert.match(prune, /run: docker image prune -f/);
   assert.match(diagnostics, /if: failure\(\)/);
   assert.match(
     diagnostics,
@@ -80,11 +86,7 @@ test("el deploy espera, prueba ambos puertos y diagnostica fallos", () => {
   );
   assert.doesNotMatch(diagnostics, /--follow|logs\s+-f/);
 
-  assert.ok(
-    workflow.indexOf("Clean up dangling images") >
-      workflow.indexOf("Smoke test published services"),
-    "prune debe ocurrir despues del smoke",
-  );
+  assert.doesNotMatch(workflow, /docker image prune/);
 });
 
 test("el runner valida capacidades de Compose antes de construir", () => {
@@ -93,6 +95,7 @@ test("el runner valida capacidades de Compose antes de construir", () => {
   assert.match(preflight, /compose_up_help="\$\(docker compose up --help\)"/);
   assert.match(preflight, /--wait\(\[\[:space:\]\]\|\$\)/);
   assert.match(preflight, /--wait-timeout\(\[\[:space:\]\]\|\$\)/);
+  assert.match(preflight, /--no-build\(\[\[:space:\]\]\|\$\)/);
   assert.match(preflight, /command -v curl >\/dev\/null/);
   assert.match(preflight, /docker compose config --quiet/);
   assert.ok(
@@ -100,4 +103,86 @@ test("el runner valida capacidades de Compose antes de construir", () => {
       workflow.indexOf("Build images"),
     "el preflight debe ocurrir antes del build",
   );
+});
+
+test("cada ejecucion construye y verifica referencias de imagen identificables", () => {
+  const backend = serviceBlock("backend");
+  const frontend = serviceBlock("frontend");
+  const verify = workflowStep("Verify candidate image identities");
+  const deploy = workflowStep("Deploy and wait for healthy services");
+
+  assert.match(
+    backend,
+    /image: \$\{TICKETSADMIN_BACKEND_IMAGE:-ticketsadmin-backend:local\}/,
+  );
+  assert.match(
+    frontend,
+    /image: \$\{TICKETSADMIN_FRONTEND_IMAGE:-ticketsadmin-frontend:local\}/,
+  );
+  assert.match(backend, /pull_policy:\s*never/);
+  assert.match(frontend, /pull_policy:\s*never/);
+  assert.match(backend, /TICKETSADMIN_IMAGE_REVISION:/);
+  assert.match(frontend, /TICKETSADMIN_IMAGE_REVISION:/);
+
+  assert.match(
+    workflow,
+    /TICKETSADMIN_BACKEND_IMAGE: ticketsadmin-backend:git-\$\{\{ github\.sha \}\}-run-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}/,
+  );
+  assert.match(
+    workflow,
+    /TICKETSADMIN_FRONTEND_IMAGE: ticketsadmin-frontend:git-\$\{\{ github\.sha \}\}-run-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}/,
+  );
+  assert.doesNotMatch(workflow, /(?:backend|frontend):latest/);
+
+  assert.match(verify, /docker image inspect/);
+  assert.match(verify, /org\.opencontainers\.image\.revision/);
+  assert.match(verify, /org\.opencontainers\.image\.source/);
+  assert.match(verify, /test "\$revision" = "\$GITHUB_SHA"/);
+  assert.match(
+    verify,
+    /test "\$source" = "\$TICKETSADMIN_IMAGE_SOURCE"/,
+  );
+  assert.match(
+    verify,
+    /verify_image "\$TICKETSADMIN_BACKEND_IMAGE" backend_id/,
+  );
+  assert.match(
+    verify,
+    /verify_image "\$TICKETSADMIN_FRONTEND_IMAGE" frontend_id/,
+  );
+  assert.match(verify, /GITHUB_OUTPUT/);
+  assert.match(verify, /node dist\/backup-db\.mjs --help/);
+  assert.match(verify, /node dist\/restore-db\.mjs --help/);
+  assert.match(
+    verify,
+    /--network none --add-host backend:127\.0\.0\.1[\s\S]*--entrypoint nginx[\s\S]*"\$TICKETSADMIN_FRONTEND_IMAGE" -t/,
+  );
+  assert.match(deploy, /--no-build/);
+
+  for (const dockerfile of [backendDockerfile, frontendDockerfile]) {
+    assert.match(dockerfile, /ARG TICKETSADMIN_IMAGE_REVISION=development/);
+    assert.match(dockerfile, /org\.opencontainers\.image\.revision/);
+    assert.match(dockerfile, /org\.opencontainers\.image\.source/);
+    assert.ok(
+      dockerfile.indexOf("COPY package.json pnpm-lock.yaml") <
+        dockerfile.indexOf("RUN pnpm install --frozen-lockfile"),
+    );
+    assert.ok(
+      dockerfile.indexOf("RUN pnpm install --frozen-lockfile") <
+        dockerfile.indexOf("COPY . ."),
+    );
+  }
+
+  assert.ok(
+    workflow.indexOf("Build images") <
+      workflow.indexOf("Verify candidate image identities"),
+  );
+  assert.ok(
+    workflow.indexOf("Verify candidate image identities") <
+      workflow.indexOf("Recheck main before restarting services"),
+  );
+
+  assert.match(dockerIgnore, /^\.pnpm-store$/m);
+  assert.match(dockerIgnore, /^tmp$/m);
+  assert.match(dockerIgnore, /^\*\*\/node_modules$/m);
 });

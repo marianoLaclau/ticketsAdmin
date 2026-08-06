@@ -1,12 +1,15 @@
 **/node_modules
 **/dist
 **/.tsbuildinfo
+**/coverage
 .git
 .github
 .claude
 .agents
+.pnpm-store
 data
 backups
+tmp
 .env
 .env.example
 *.md

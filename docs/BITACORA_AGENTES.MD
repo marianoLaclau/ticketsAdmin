@@ -2,6 +2,20 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — Imágenes de release identificables y despliegue sin rebuild
+
+**Agente:** Codex
+**Estado:** vigesimoséptima remediación de la auditoría técnica, implementada localmente.
+
+- Compose dejó de depender de tags implícitas: backend y frontend reciben referencias separadas, con defaults locales explícitos y `pull_policy: never` para que el servidor no sustituya un artefacto por una descarga inesperada.
+- Cada ejecución de GitHub Actions usa un tag único que combina SHA completo, `run_id` y `run_attempt`. Las imágenes registran además revisión y repositorio en labels OCI.
+- Después del build se inspeccionan el ID y la revisión de ambas candidatas; también se ejecutan los bundles de backup/restore y `nginx -t` sin red. El rollout usa `--no-build`, por lo que solo puede arrancar el par previamente comprobado.
+- Se eliminó el `docker image prune -f` global: el runner comparte host con otros proyectos y no debe limpiar artefactos fuera de `ticketsAdmin` ni destruir el futuro punto de rollback.
+- `.dockerignore` excluye ahora el store local de pnpm, temporales y cobertura. La construcción diagnóstica reveló que esos directorios inflaban el contexto de 166,20 kB a 403,50 MB; no forman parte de ningún artefacto de producción.
+- Los Dockerfiles copian primero manifests y lockfile, instalan dependencias y recién después incorporan el código. Cambiar TypeScript deja de invalidar innecesariamente la capa costosa de `pnpm install`.
+- Archivos principales: Compose, ambos Dockerfiles, workflow de deploy, contrato operativo y pruebas estáticas del pipeline.
+- Validaciones: Compose aceptó la configuración; las 6 pruebas de scripts y las 355 pruebas totales aprobaron. `pnpm run quality` confirmó además codegen sin drift, schema Drizzle, TypeScript y builds. Dos construcciones Docker reales produjeron ambos artefactos, ejecutaron sus CLIs y validaron Nginx; solo permanecen los avisos frontend ya registrados de sourcemaps y chunk mayor a 500 kB.
+
 ## 2026-08-06 — Restauración SQLite offline con recovery previa
 
 **Agente:** Codex
@@ -38,7 +52,7 @@ Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada 
 - El healthcheck del backend dejó de aceptar liveness como disponibilidad: consulta `/api/readyz`, exige HTTP 200 y el cuerpo exacto `{"status":"ready"}`. El período inicial de 60 segundos cubre migraciones, bootstrap y reconciliaciones sin retrasar un éxito temprano.
 - El frontend queda healthy únicamente si Nginx sirve el mount point real de React y el proxy devuelve el JSON exacto de readiness. Las descargas se capturan antes del grep para conservar el código de error de `wget`; una fallback SPA, un 503 o una respuesta truncada no pueden producir un falso positivo.
 - Compose espera ambos servicios durante hasta 180 segundos. `depends_on.restart` reinicia Nginx ante reemplazos explícitos del backend para renovar su DNS interno; se documentó que no responde a degradaciones, auto-restarts ni reemplazos externos.
-- El runner valida antes del build que Docker Compose sea al menos 2.17, soporte `--wait`/`--wait-timeout`, disponga de `curl` y acepte la configuración. Tras el rollout hace smoke sobre API directa, SPA y API proxied; el prune ocurre solo después del éxito y un fallo deja estado más logs acotados para diagnóstico.
+- El runner valida antes del build que Docker Compose sea al menos 2.17, soporte `--wait`/`--wait-timeout`, disponga de `curl` y acepte la configuración. Tras el rollout hace smoke sobre API directa, SPA y API proxied. En ese commit el prune ocurría solo después del éxito; el 2026-08-06 se retiró por afectar globalmente al host compartido.
 - Se agregaron regresiones estáticas por bloque de servicio/step, normalizadas para LF/CRLF, que evitan coincidencias accidentales entre SPA y API y verifican orden, condiciones, contenido, límites de diagnóstico y proxy Nginx.
 - Archivos principales: Compose, workflow de deploy, pruebas operativas, arquitectura y runbook.
 - Validaciones: `docker compose config --quiet`, 6 pruebas focalizadas y 312 pruebas totales aprobadas. El gate completo se ejecuta sobre el commit local antes de continuar al siguiente bloque.

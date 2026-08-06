@@ -16,7 +16,7 @@ Quality gate (codegen + schema + tests + typecheck + build)
         │
         ▼  solo push de main con gate aprobado
 Self-hosted runner (corriendo EN el servidor de testing)
-        │  build → up --wait → smoke publicado
+        │  build versionado → verifica IDs → up --no-build → smoke
         ▼
 ┌─────────────────────────────────────────────┐
 │  Servidor de testing (IP fija interna)       │
@@ -45,7 +45,9 @@ Self-hosted runner (corriendo EN el servidor de testing)
 - Los pull requests ejecutan `.github/workflows/quality.yml` sin desplegar. El workflow de deploy reutiliza exactamente ese gate y el job self-hosted depende de su resultado; no construye ni reinicia contenedores si hay drift de codegen/schema, una prueba falla, TypeScript no compila o un build falla. Consulta `origin/main` antes de construir y nuevamente justo antes de reiniciar los servicios, por lo que omite un SHA que quedó obsoleto incluso durante el build.
 - Antes de construir, el runner exige Docker Compose `>= 2.17.0`, comprueba las opciones de espera, la presencia de `curl` y valida el archivo con placeholders no sensibles. Una instalación incompatible falla antes de tocar servicios.
 - El healthcheck del backend consulta `/api/readyz` y valida su JSON exacto. El frontend solo queda healthy si Nginx sirve la SPA real y también puede alcanzar ese JSON a través del proxy `/api`; por eso una fallback HTML no puede enmascarar una API rota. Hay 60 segundos de gracia para migraciones/bootstrap, pero cualquier éxito anticipado habilita el servicio de inmediato.
-- `docker compose up --wait --wait-timeout 180` convierte un servicio no saludable en un deploy fallido. Después se repiten tres smoke tests desde el host sobre API directa, SPA y proxy. Las imágenes colgantes se eliminan únicamente tras ese éxito; ante un fallo se publican estado y hasta 100 líneas de logs, sin seguimiento infinito.
+- Cada ejecución construye un par backend/frontend con referencias distintas y un tag irrepetible `git-<SHA>-run-<run_id>-<attempt>`. Ambas imágenes llevan `org.opencontainers.image.revision=<SHA>`; el runner inspecciona label e ID, ejecuta los CLIs empaquetados y `nginx -t`, y recién entonces vuelve a comprobar `main`. Un rerun no mueve la referencia de una ejecución anterior.
+- `docker compose up --no-build --wait --wait-timeout 180` convierte un servicio no saludable en un deploy fallido y no puede reconstruir ni sustituir silenciosamente el artefacto ya verificado. Después se repiten tres smoke tests desde el host sobre API directa, SPA y proxy. Ante un fallo se publican estado y hasta 100 líneas de logs, sin seguimiento infinito.
+- No se ejecuta un `docker image prune` global: el host es compartido con otros proyectos y esa operación podría eliminar artefactos ajenos o el único punto de rollback. La retención dirigida se incorporará cuando los manifiestos `current`/`previous` queden consolidados; hasta entonces el espacio se supervisa y cualquier falta de capacidad hace fallar el build antes del rollout.
 - `depends_on.backend.restart: true` hace que una actualización explícita mediante Compose reinicie Nginx y renueve la resolución del nombre `backend`. No reacciona a degradaciones ni reemplazos externos: Compose no es un orquestador con autohealing por health. La espera confirma un instante y tampoco implica rollback automático; ese mecanismo se trata por separado.
 - `docker-compose.yml` fija el nombre de proyecto `ticketsadmin`, de modo que contenedores, red y volumen conservan el mismo namespace aunque el workflow y un operador ejecuten Compose desde checkouts distintos.
 - El backend corre con `TZ=America/Argentina/Buenos_Aires` por defecto (configurable con `TZ`). Los filtros por día calendario usan el timezone local del proceso, igual que en desarrollo.
