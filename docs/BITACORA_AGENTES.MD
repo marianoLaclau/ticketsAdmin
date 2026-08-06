@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-06 — CRUD de tickets separado de la página administrativa
+
+**Agente:** Codex
+**Estado:** quincuagésima tercera remediación de la auditoría técnica, implementada y validada localmente.
+
+- Listado, búsqueda, orden múltiple, paginación, alta, edición, borrado y sus diálogos salieron a `features/admin-tickets/AdminTicketsTab.tsx`. `Admin.tsx` quedó como coordinador fino de acceso, cabecera y tres pestañas.
+- La frontera recibe `RequestInit`, presencia de elevación y una versión opaca. Conserva `incluir_vacios`, compatibilidad de orden, caché exacta, actualización condicionada por revisión, PATCH mínimo, no-op, draft, guard contra respuestas tardías y recarga del conflicto con la misma credencial; el secreto nunca entra en la query key.
+- Dos revisiones independientes compararon lógica y JSX contra el origen sin hallazgos P0/P1/P2. Aprobaron 85 pruebas del frontend, typecheck, ESLint, Prettier acotado, build aislado y `diff --check`. El componente cohesivo grande es una frontera intermedia y se subdividirá en microcommits posteriores. No se hizo push.
+
 ## 2026-08-06 — Zona peligrosa administrativa aislada
 
 **Agente:** Codex
