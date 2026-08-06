@@ -74,13 +74,16 @@ ensureTicketQuarantineProjection(sqlite);
 
 const app = express();
 app.use(express.json());
-app.use((_req, res, next) => {
+app.use((req, res, next) => {
   res.locals.authUser = {
     id: 1,
     nombre: "Sistema",
     apellido: "Admin",
     email: "sysadmin@example.test",
-    rol: "SysAdmin",
+    rol:
+      typeof req.headers["x-test-role"] === "string"
+        ? req.headers["x-test-role"]
+        : "SysAdmin",
   };
   next();
 });
@@ -142,6 +145,27 @@ after(async () => {
 });
 
 describe("operaciones administrativas masivas", () => {
+  it("conserva el doble guard del router administrativo padre", async () => {
+    const withoutAdminKey = await fetch(`${baseUrl}/admin/import`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    assert.equal(withoutAdminKey.status, 401);
+
+    const withoutSysAdminRole = await fetch(`${baseUrl}/admin/truncate`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-admin-key": "bulk-admin-key",
+        "x-test-role": "Operador",
+      },
+      body: JSON.stringify({ confirmar: true }),
+    });
+    assert.equal(withoutSysAdminRole.status, 403);
+    assert.equal(tableCount("tickets"), 0);
+  });
+
   it("revierte toda la importacion si falla el insert de una fila", async () => {
     sqlite.exec(`
       CREATE TRIGGER fail_import_row
