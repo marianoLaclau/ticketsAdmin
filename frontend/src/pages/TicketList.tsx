@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   exportTicketsCsv,
   useListTickets,
-  TicketEstado,
-  TicketPrioridad,
   TicketSortBy,
   type ListTicketsEstado,
   type ListTicketsPrioridad,
@@ -11,24 +9,17 @@ import {
 } from '@workspace/api-client-react';
 import { useLocation } from 'wouter';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import {
-  Search,
   Filter,
   ChevronLeft,
   ChevronRight,
-  Download,
-  Loader2,
 } from 'lucide-react';
-import { getEstadoLabel } from '@/lib/estados';
-import { MOTIVO_CATEGORIA_OPTIONS } from '@/lib/motivos';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
 import { SortableTableHead } from '@/components/SortableTableHead';
+import { TicketListFiltersPanel } from '@/features/ticket-list/TicketListFiltersPanel';
 import { TicketListTableRow } from '@/features/ticket-list/TicketListTableRow';
 import { TicketSortToolbar } from '@/features/ticket-list/TicketSortToolbar';
 import { useToast } from '@/hooks/use-toast';
@@ -112,18 +103,6 @@ export default function TicketList() {
   const total = listResponse?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  const hasFilters =
-    search ||
-    estadoFilter !== '_all' ||
-    prioridadFilter !== '_all' ||
-    motivoCategoriaFilter !== '_all' ||
-    vencidosFilter ||
-    fechaDesde ||
-    fechaHasta ||
-    horaDesde ||
-    horaHasta ||
-    empresa;
-
   const clearFilters = () => {
     setSearch('');
     setEstadoFilter('_all');
@@ -194,195 +173,35 @@ export default function TicketList() {
         </div>
       </div>
 
-      {/* Filters Bar - Structured Rows */}
-      <div className="shrink-0 space-y-2 rounded-md border border-border bg-card p-2 shadow-sm">
-        <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_185px_165px]">
-          <div className="flex h-8 min-w-0 items-center lg:col-span-2 xl:col-span-1">
-            <Search className="ml-2.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <Input
-              aria-label="Buscar tickets"
-              placeholder="Buscar contacto, empresa o motivo..."
-              className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-sm shadow-none focus-visible:ring-0"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-
-          <Label htmlFor="tickets-estado" className="sr-only">
-            Filtrar por estado
-          </Label>
-          <Select value={estadoFilter} onValueChange={setEstadoFilter}>
-            <SelectTrigger
-              id="tickets-estado"
-              className="h-8 w-full min-w-0 justify-start gap-1.5 border-slate-200 bg-slate-50 text-xs [&>svg]:ml-auto"
-            >
-              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Estado:</span>
-              <SelectValue className="min-w-0 truncate" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_all">Todos</SelectItem>
-              <SelectItem value={TicketEstado.nuevo}>Nuevo</SelectItem>
-              <SelectItem value={TicketEstado.en_proceso}>En Proceso</SelectItem>
-              <SelectItem value={TicketEstado.pendiente}>{getEstadoLabel(TicketEstado.pendiente)}</SelectItem>
-              <SelectItem value={TicketEstado.resuelto}>Resuelto</SelectItem>
-              <SelectItem value={TicketEstado.cerrado}>Cerrado</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Label htmlFor="tickets-prioridad" className="sr-only">
-            Filtrar por prioridad
-          </Label>
-          <Select value={prioridadFilter} onValueChange={setPrioridadFilter}>
-            <SelectTrigger
-              id="tickets-prioridad"
-              className="h-8 w-full min-w-0 justify-start gap-1.5 border-slate-200 bg-slate-50 text-xs [&>svg]:ml-auto"
-            >
-              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                Prioridad:
-              </span>
-              <SelectValue className="min-w-0 truncate" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_all">Todas</SelectItem>
-              <SelectItem value={TicketPrioridad.baja}>Baja</SelectItem>
-              <SelectItem value={TicketPrioridad.media}>Media</SelectItem>
-              <SelectItem value={TicketPrioridad.alta}>Alta</SelectItem>
-              <SelectItem value={TicketPrioridad.urgente}>Urgente</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 xl:grid-cols-[220px_minmax(0,1.3fr)_minmax(0,1fr)]">
-          <Label htmlFor="tickets-categoria" className="sr-only">
-            Filtrar por categoría
-          </Label>
-          <Select value={motivoCategoriaFilter} onValueChange={setMotivoCategoriaFilter}>
-            <SelectTrigger
-              id="tickets-categoria"
-              className="h-8 w-full min-w-0 justify-start gap-1.5 border-slate-200 bg-slate-50 text-xs lg:col-span-2 xl:col-span-1 [&>svg]:ml-auto"
-            >
-              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                Categoría:
-              </span>
-              <SelectValue className="min-w-0 truncate" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_all">Todas</SelectItem>
-              {MOTIVO_CATEGORIA_OPTIONS.map((categoria) => (
-                <SelectItem key={categoria.value} value={categoria.value}>
-                  {categoria.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Dates */}
-          <div className="flex h-8 min-w-0 items-center overflow-hidden rounded-md border border-slate-200 bg-slate-50">
-            <span className="pl-2 pr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Fecha:</span>
-            <input
-              type="date"
-              aria-label="Fecha desde"
-              className="h-full min-w-0 flex-1 border-none bg-transparent px-1.5 text-xs text-slate-700 outline-none"
-              value={fechaDesde}
-              onChange={(e) => setFechaDesde(e.target.value)}
-              title="Fecha Desde"
-            />
-            <span className="text-slate-300">-</span>
-            <input
-              type="date"
-              aria-label="Fecha hasta"
-              className="h-full min-w-0 flex-1 border-none bg-transparent px-1.5 text-xs text-slate-700 outline-none"
-              value={fechaHasta}
-              onChange={(e) => setFechaHasta(e.target.value)}
-              title="Fecha Hasta"
-            />
-          </div>
-
-          {/* Times */}
-          <div className="flex h-8 min-w-0 items-center overflow-hidden rounded-md border border-slate-200 bg-slate-50">
-            <span className="pl-2 pr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Hora:</span>
-            <input
-              type="time"
-              aria-label="Hora desde"
-              className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-xs text-slate-700 outline-none"
-              value={horaDesde}
-              onChange={(e) => setHoraDesde(e.target.value)}
-              title="Hora Desde"
-            />
-            <span className="text-slate-300">-</span>
-            <input
-              type="time"
-              aria-label="Hora hasta"
-              className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-xs text-slate-700 outline-none"
-              value={horaHasta}
-              onChange={(e) => setHoraHasta(e.target.value)}
-              title="Hora Hasta"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-2 lg:grid-cols-[minmax(220px,1fr)_auto]">
-          <div className="relative min-w-0">
-            <span className="pointer-events-none absolute left-2.5 top-1/2 z-10 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-              Empresa:
-            </span>
-            <Input
-              aria-label="Filtrar por empresa"
-              placeholder="Todas"
-              className="h-8 w-full bg-slate-50 pl-[68px] text-xs border-slate-200"
-              value={empresa}
-              onChange={(e) => setEmpresa(e.target.value)}
-            />
-          </div>
-
-          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap lg:flex-nowrap">
-            <div className="flex h-8 w-full min-w-0 items-center space-x-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 sm:w-auto">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Plazo:</span>
-              <Switch
-                id="vencidos-mode"
-                checked={vencidosFilter}
-                onCheckedChange={setVencidosFilter}
-                className="scale-75 origin-left"
-              />
-              <Label
-                htmlFor="vencidos-mode"
-                className="cursor-pointer whitespace-nowrap text-xs font-medium text-slate-700"
-              >
-                Solo vencidos
-              </Label>
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void handleExportCsv()}
-              disabled={isExporting}
-              aria-label="Exportar todos los tickets filtrados a CSV"
-              className="h-8 w-full whitespace-nowrap bg-white px-2.5 text-xs sm:w-auto"
-            >
-              {isExporting ? (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-              ) : (
-                <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-              )}
-              {isExporting ? 'Exportando…' : 'Exportar CSV'}
-            </Button>
-
-            {hasFilters && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={clearFilters}
-                className="h-8 w-full px-2 text-xs text-slate-500 hover:text-slate-900 sm:w-auto"
-              >
-                Limpiar filtros
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
+      <TicketListFiltersPanel
+        values={{
+          search,
+          estado: estadoFilter,
+          prioridad: prioridadFilter,
+          motivoCategoria: motivoCategoriaFilter,
+          vencidos: vencidosFilter,
+          fechaDesde,
+          fechaHasta,
+          horaDesde,
+          horaHasta,
+          empresa,
+        }}
+        onChange={{
+          search: setSearch,
+          estado: setEstadoFilter,
+          prioridad: setPrioridadFilter,
+          motivoCategoria: setMotivoCategoriaFilter,
+          vencidos: setVencidosFilter,
+          fechaDesde: setFechaDesde,
+          fechaHasta: setFechaHasta,
+          horaDesde: setHoraDesde,
+          horaHasta: setHoraHasta,
+          empresa: setEmpresa,
+        }}
+        isExporting={isExporting}
+        onExport={handleExportCsv}
+        onClear={clearFilters}
+      />
 
       {/* Table Area */}
       <div className="flex-1 bg-card border border-border rounded-md shadow-sm overflow-hidden flex flex-col">

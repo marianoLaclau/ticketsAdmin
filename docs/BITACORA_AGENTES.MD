@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Panel de filtros de tickets aislado
+
+**Agente:** Codex
+**Estado:** septuagésima remediación de la auditoría técnica, implementada y validada localmente.
+
+- Las tres filas de filtros salieron de `TicketList.tsx` a `features/ticket-list/TicketListFiltersPanel.tsx` como vista controlada, sin hooks, con diez valores y diez callbacks explícitos.
+- Los estados, reinicio de página, consulta, exportación, toasts y limpieza permanecen en el padre. Se conservaron mapeos, orden, opciones, sentinelas, clases responsive, IDs, etiquetas ARIA, spinner y condición de filtros activos.
+- La revisión cruzada no encontró hallazgos P0/P1/P2. Aprobaron las 9 pruebas dirigidas, typecheck, ESLint, Prettier, build aislado y `diff --check`; el temporal fue eliminado. No se hizo push.
+
 ## 2026-08-07 — Código muerto del frontend re-auditado
 
 **Agente:** Codex
