@@ -2,6 +2,14 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Retiro de scaffolding vacío del backend
+
+**Agente:** Codex
+**Estado:** centésima quincuagésima sexta remediación de la auditoría técnica, implementada localmente.
+
+- Se eliminaron dos placeholders `.gitkeep`: `src/lib` ya contiene los módulos reales del backend y `src/middlewares` era un scaffold vacío sin imports, configuración ni documentación que dependieran de esa ruta. Git deja de publicar una estructura que sugería una separación de middlewares inexistente.
+- Una búsqueda repo-wide confirmó que las referencias conceptuales a middlewares describen la composición real en `app.ts`, rutas y `src/lib/auth.ts`, no el directorio retirado. Aprobaron typecheck y build del backend, ESLint global y `git diff --check`. No se hizo push.
+
 ## 2026-08-07 — Poda de aliases frontend sin consumidores
 
 **Agente:** Codex
