@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Link, useLocation } from 'wouter';
+import React, { useEffect } from "react";
+import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
   Ticket,
@@ -7,27 +7,27 @@ import {
   Settings,
   ShieldCheck,
   LogOut,
-} from 'lucide-react';
+} from "lucide-react";
 import {
   useGetDashboardStats,
   getGetDashboardStatsQueryKey,
   useGetMe,
   getGetMeQueryKey,
   useLogout,
-} from '@workspace/api-client-react';
-import { useQueryClient } from '@tanstack/react-query';
-import { toast as showToast, useToast } from '@/hooks/use-toast';
-import { ROL_SYSADMIN } from '@/lib/roles';
-import { getContactDisplayName } from '@/lib/contacto';
-import { getEstadoLabel } from '@/lib/estados';
-import { getUserErrorMessage } from '@/lib/error-messages';
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast as showToast, useToast } from "@/hooks/use-toast";
+import { ROL_SYSADMIN } from "@/lib/roles";
+import { getContactDisplayName } from "@/lib/contacto";
+import { getEstadoLabel } from "@/lib/estados";
+import { getUserErrorMessage } from "@/lib/error-messages";
 import {
   isSessionRevokedEvent,
   parseRealtimeEvent,
-} from '@/lib/realtime-events';
-import { clearRevokedSessionState } from '@/lib/session-state';
+} from "@/lib/realtime-events";
+import { clearRevokedSessionState } from "@/lib/session-state";
 
-import gsbLogo from '@/assets/gsb-logo.jpg';
+import gsbLogo from "@/assets/gsb-logo.jpg";
 
 /**
  * Escucha los eventos del backend (SSE) y refresca los datos en el momento
@@ -40,7 +40,7 @@ function useEventosEnVivo() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const es = new EventSource('/api/events');
+    const es = new EventSource("/api/events");
     es.onmessage = (e) => {
       const data = parseRealtimeEvent(e.data);
       if (!data) return;
@@ -53,35 +53,37 @@ function useEventosEnVivo() {
         es.close();
         clearRevokedSessionState(queryClient);
         showToast({
-          dedupeKey: 'session-revoked',
-          variant: 'warning',
-          title: 'Sesión finalizada',
+          dedupeKey: "session-revoked",
+          variant: "warning",
+          title: "Sesión finalizada",
           description:
-            'Tus permisos o credenciales cambiaron. Volvé a iniciar sesión.',
+            "Tus permisos o credenciales cambiaron. Volvé a iniciar sesión.",
         });
-        navigate('/', { replace: true });
+        navigate("/", { replace: true });
         return;
       }
 
       // Cualquier evento implica datos nuevos: refrescar listados y stats
       void queryClient.invalidateQueries();
-      if (data.tipo === 'ticket_creado') {
+      if (data.tipo === "ticket_creado") {
         const contacto = getContactDisplayName(data);
         showToast({
           ...(data.ticket_id
             ? { dedupeKey: `ticket-created:${data.ticket_id}` }
             : {}),
-          variant: 'info',
-          title: 'Nuevo llamado recibido',
-          description: [contacto, data.motivo || null].filter(Boolean).join(' — '),
+          variant: "info",
+          title: "Nuevo llamado recibido",
+          description: [contacto, data.motivo || null]
+            .filter(Boolean)
+            .join(" — "),
         });
-      } else if (data.tipo === 'tickets_importados') {
+      } else if (data.tipo === "tickets_importados") {
         const cantidad = data.cantidad ?? 0;
         showToast({
           dedupeKey: `tickets-imported:${data.cantidad_total ?? cantidad}`,
-          variant: 'info',
-          title: 'Importación disponible',
-          description: `${cantidad} ${cantidad === 1 ? 'llamado nuevo' : 'llamados nuevos'} en el listado.`,
+          variant: "info",
+          title: "Importación disponible",
+          description: `${cantidad} ${cantidad === 1 ? "llamado nuevo" : "llamados nuevos"} en el listado.`,
         });
       }
     };
@@ -95,7 +97,10 @@ export function Sidebar() {
   const { toast } = useToast();
   // Refresco periódico para que el badge de nuevos funcione como notificación
   const { data: stats } = useGetDashboardStats(undefined, {
-    query: { queryKey: getGetDashboardStatsQueryKey(), refetchInterval: 30_000 },
+    query: {
+      queryKey: getGetDashboardStatsQueryKey(),
+      refetchInterval: 30_000,
+    },
   });
   const { data: me } = useGetMe({
     query: { queryKey: getGetMeQueryKey() },
@@ -117,11 +122,11 @@ export function Sidebar() {
       },
       onError: (error) => {
         toast({
-          variant: 'destructive',
-          title: 'No se pudo cerrar la sesión',
+          variant: "destructive",
+          title: "No se pudo cerrar la sesión",
           description: getUserErrorMessage(
             error,
-            'Reintentá en unos segundos. Tu sesión continúa abierta.',
+            "Reintentá en unos segundos. Tu sesión continúa abierta.",
           ),
         });
       },
@@ -129,15 +134,17 @@ export function Sidebar() {
   };
 
   const nuevosSinAbrir =
-    stats?.por_estado?.find((e) => e.estado === 'nuevo')?.cantidad ?? 0;
+    stats?.por_estado?.find((e) => e.estado === "nuevo")?.cantidad ?? 0;
 
   // El acceso a Administración solo existe para el rol SysAdmin (el backend
   // lo valida igual; esto es para que los demás ni siquiera lo vean).
   const esSysAdmin = me?.rol === ROL_SYSADMIN;
   const links = [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/tickets', label: 'Tickets', icon: Ticket },
-    ...(esSysAdmin ? [{ href: '/admin', label: 'Administración', icon: Settings }] : []),
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/tickets", label: "Tickets", icon: Ticket },
+    ...(esSysAdmin
+      ? [{ href: "/admin", label: "Administración", icon: Settings }]
+      : []),
   ];
 
   return (
@@ -161,7 +168,8 @@ export function Sidebar() {
         <nav className="space-y-1.5 px-3">
           {links.map((link) => {
             const Icon = link.icon;
-            const isActive = location === link.href || location.startsWith(`${link.href}/`);
+            const isActive =
+              location === link.href || location.startsWith(`${link.href}/`);
 
             return (
               <Link
@@ -169,25 +177,27 @@ export function Sidebar() {
                 href={link.href}
                 className={`group flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md transition-all ${
                   isActive
-                    ? 'bg-sidebar-accent text-sidebar-primary border-l-2 border-sidebar-primary -ml-[2px] pl-[14px]'
-                    : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+                    ? "bg-sidebar-accent text-sidebar-primary border-l-2 border-sidebar-primary -ml-[2px] pl-[14px]"
+                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 }`}
-                data-testid={`nav-link-${link.label.toLowerCase().replace(' ', '-')}`}
+                data-testid={`nav-link-${link.label.toLowerCase().replace(" ", "-")}`}
               >
                 <div className="flex items-center">
-                  <Icon className={`mr-3 h-[18px] w-[18px] flex-shrink-0 ${isActive ? 'text-sidebar-primary' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground'}`} />
+                  <Icon
+                    className={`mr-3 h-[18px] w-[18px] flex-shrink-0 ${isActive ? "text-sidebar-primary" : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground"}`}
+                  />
                   {link.label}
                 </div>
 
-                {link.href === '/admin' && (
+                {link.href === "/admin" && (
                   <ShieldCheck
                     className="h-4 w-4 flex-shrink-0 text-sidebar-foreground/60"
                     aria-label="Acceso administrativo"
                   />
                 )}
-                
+
                 {/* Notificaciones: nuevos sin abrir (ámbar) y vencidos (rojo) */}
-                {link.href === '/tickets' && (
+                {link.href === "/tickets" && (
                   <span className="flex items-center gap-1.5">
                     {nuevosSinAbrir > 0 && (
                       <span
@@ -226,21 +236,24 @@ export function Sidebar() {
           <div className="flex justify-between items-center text-sm">
             <span className="text-sidebar-foreground/80">En proceso</span>
             <span className="font-semibold text-blue-400">
-              {stats?.por_estado?.find((e) => e.estado === 'en_proceso')?.cantidad || 0}
+              {stats?.por_estado?.find((e) => e.estado === "en_proceso")
+                ?.cantidad || 0}
             </span>
           </div>
           <div className="flex justify-between items-center text-sm">
             <span className="max-w-[150px] text-xs leading-tight text-sidebar-foreground/80">
-              {getEstadoLabel('pendiente')}
+              {getEstadoLabel("pendiente")}
             </span>
             <span className="font-semibold text-amber-400">
-              {stats?.por_estado?.find((e) => e.estado === 'pendiente')?.cantidad || 0}
+              {stats?.por_estado?.find((e) => e.estado === "pendiente")
+                ?.cantidad || 0}
             </span>
           </div>
           <div className="flex justify-between items-center text-sm">
             <span className="text-sidebar-foreground/80">Urgentes</span>
             <span className="font-semibold text-red-400">
-              {stats?.por_prioridad?.find((p) => p.prioridad === 'urgente')?.cantidad || 0}
+              {stats?.por_prioridad?.find((p) => p.prioridad === "urgente")
+                ?.cantidad || 0}
             </span>
           </div>
         </div>
@@ -254,10 +267,10 @@ export function Sidebar() {
           </div>
           <div className="overflow-hidden flex-1">
             <p className="text-xs font-semibold text-sidebar-foreground truncate">
-              {me ? [me.nombre, me.apellido].filter(Boolean).join(' ') : '...'}
+              {me ? [me.nombre, me.apellido].filter(Boolean).join(" ") : "..."}
             </p>
             <p className="text-[10px] text-sidebar-foreground/60 truncate">
-              {me?.rol ?? ''}
+              {me?.rol ?? ""}
             </p>
           </div>
           <button

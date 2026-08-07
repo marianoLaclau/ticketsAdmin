@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Layout principal normalizado
+
+**Agente:** Codex
+**Estado:** nonagésima tercera remediación de la auditoría técnica, implementada localmente.
+
+- `frontend/src/components/layout/AppLayout.tsx` se normalizó con Prettier antes de modificar SSE o navegación móvil. El diff sólo ajusta comillas, reflow e indentación.
+- El código TSX previo y posterior produce un AST runtime equivalente; sesión, sidebar, logout, navegación, badges y eventos permanecen iguales.
+- Se validarán Prettier, ESLint, pruebas frontend, typecheck y build antes de commitear. No se hizo push.
+
 ## 2026-08-07 — Dashboard adaptable y navegable por teclado
 
 **Agente:** Codex
