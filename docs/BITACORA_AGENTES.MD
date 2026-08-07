@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Codec de período del Dashboard
+
+**Agente:** Codex
+**Estado:** centésima décima sexta remediación de la auditoría técnica, implementada localmente.
+
+- Se agregó un contrato puro para representar en URL `todo`, semana, mes y rangos personalizados; omite el valor predeterminado y canonicaliza parámetros duplicados, ajenos o manipulados.
+- Los rangos personalizados exigen dos fechas calendario reales y ordenadas. La cobertura de períodos es exhaustiva respecto del tipo y el saneamiento tolera propiedades heredadas, getters hostiles y proxies revocados sin lanzar errores.
+- Aprobaron las 124 pruebas frontend —13 nuevas del codec—, Prettier, ESLint, typecheck, `git diff --check` y revisión cruzada sin hallazgos P0/P1 tras corregir sus observaciones. La pantalla todavía no consume este codec. No se hizo push.
+
 ## 2026-08-07 — Validación calendario compartida
 
 **Agente:** Codex
