@@ -42,13 +42,15 @@ export function detectarCambiosCategoriaMotivo(
       return [];
     }
 
-    return [{
-      ticketId: ticket.id,
-      categoriaAnterior: ticket.motivoCategoria,
-      categoriaNueva,
-      motivoEsperado: ticket.motivo,
-      resumenEsperado: ticket.resumen,
-    }];
+    return [
+      {
+        ticketId: ticket.id,
+        categoriaAnterior: ticket.motivoCategoria,
+        categoriaNueva,
+        motivoEsperado: ticket.motivo,
+        resumenEsperado: ticket.resumen,
+      },
+    ];
   });
 }
 

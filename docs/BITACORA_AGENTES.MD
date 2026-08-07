@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Reconciliador de categorías normalizado
+
+**Agente:** Codex
+**Estado:** octogésima remediación de la auditoría técnica, implementada localmente.
+
+- `backend/src/lib/reclasificar-motivos.ts` se ajustó a la política Prettier explícita. El único cambio indexable expande un arreglo con objeto a varias líneas; SQL, transacción, compare-and-set y reglas de clasificación permanecen intactos.
+- Se eligió este helper por ser el menor desvío backend restante y contar con una prueba SQLite dedicada que cubre preservación de datos, versión e idempotencia.
+- Se validarán Prettier, ESLint, la prueba dirigida y el typecheck backend antes de commitear. No se hizo push.
+
 ## 2026-08-07 — Utilidades de sesión normalizadas
 
 **Agente:** Codex
