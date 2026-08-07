@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Contrato de retorno administrativo
+
+**Agente:** Codex
+**Estado:** centésima vigésima sexta remediación de la auditoría técnica, implementada localmente.
+
+- La navegación hacia un detalle administrativo dispone de un estado discriminado propio y un retorno canónico a `/admin`, conservando búsqueda, orden y paginación pero forzando siempre la pestaña segura de Registros.
+- Un parser compartido mantiene separados los orígenes operativo y administrativo; rechaza esquemas externos, rutas relativas a protocolo, hashes, subrutas, otras pestañas, queries no canónicas y propiedades heredadas.
+- Toda inspección parte de `unknown` y queda dentro del límite defensivo: getters hostiles y proxies revocados devuelven `undefined` sin propagar excepciones. Aprobaron las 147 pruebas frontend —8 nuevas del contrato administrativo—, Prettier, ESLint, typecheck, `git diff --check` y dos rondas de revisión cruzada sin hallazgos P0/P1/P2 después de corregir el caso de proxy revocado. La UI todavía no consume este estado; esa integración queda en el próximo commit. No se hizo push.
+
 ## 2026-08-07 — Tabla administrativa sincronizada con la URL
 
 **Agente:** Codex
