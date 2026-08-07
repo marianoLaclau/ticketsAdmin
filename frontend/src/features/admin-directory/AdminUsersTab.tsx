@@ -171,6 +171,7 @@ export function AdminUsersTab({
   const userTotalPages = Math.max(1, Math.ceil(userTotal / userPageSize));
   const userResultsAvailable =
     !usersQuery.isLoading && !usersQuery.isError && users.length > 0;
+  const userTableHasWideRows = usersQuery.isLoading || userResultsAvailable;
 
   useEffect(() => {
     if (
@@ -452,8 +453,8 @@ export function AdminUsersTab({
     <>
         <TabsContent value="users" className="space-y-3">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-1 flex-col gap-2 sm:flex-row">
-              <div className="relative w-full sm:max-w-sm">
+            <div className="flex flex-1 flex-col gap-2 md:flex-row md:flex-wrap">
+              <div className="relative w-full md:max-w-sm">
                 <Search
                   className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
                   aria-hidden="true"
@@ -468,7 +469,7 @@ export function AdminUsersTab({
               </div>
               <Select value={userRoleFilter} onValueChange={selectUserRole}>
                 <SelectTrigger
-                  className="h-9 w-full bg-white sm:w-[190px]"
+                  className="h-9 w-full bg-white md:w-[190px]"
                   aria-label="Filtrar usuarios por rol"
                 >
                   <SelectValue placeholder="Todos los roles" />
@@ -490,7 +491,7 @@ export function AdminUsersTab({
               </Select>
               <Select value={userStatusFilter} onValueChange={selectUserStatus}>
                 <SelectTrigger
-                  className="h-9 w-full bg-white sm:w-[160px]"
+                  className="h-9 w-full bg-white md:w-[160px]"
                   aria-label="Filtrar usuarios por estado"
                 >
                   <SelectValue placeholder="Todos los estados" />
@@ -502,7 +503,11 @@ export function AdminUsersTab({
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={openCreateUser} disabled={!roles.some((role) => role.activo)}>
+            <Button
+              onClick={openCreateUser}
+              disabled={!roles.some((role) => role.activo)}
+              className="w-full sm:w-auto sm:self-start xl:self-auto"
+            >
               <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> Nuevo usuario
             </Button>
           </div>
@@ -529,12 +534,18 @@ export function AdminUsersTab({
             </LoadingStatus>
           ) : null}
 
+          {userTableHasWideRows ? (
+            <p className="text-xs text-muted-foreground 2xl:hidden">
+              Deslizá la tabla horizontalmente para ver todas las columnas.
+            </p>
+          ) : null}
+
           <div
             className="overflow-hidden rounded-md border border-border bg-card shadow-sm"
             aria-busy={usersQuery.isFetching}
           >
             <div className="overflow-x-auto">
-              <Table>
+              <Table className={userTableHasWideRows ? 'min-w-[1100px]' : undefined}>
                 <TableCaption className="sr-only">Directorio de usuarios</TableCaption>
                 <TableHeader className="bg-slate-50/80">
                   <TableRow>

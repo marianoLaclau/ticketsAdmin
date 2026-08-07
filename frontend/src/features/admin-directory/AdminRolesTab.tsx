@@ -161,6 +161,7 @@ export function AdminRolesTab({
   );
   const roleResultsAvailable =
     !rolesQuery.isLoading && !rolesQuery.isError && visibleRoles.length > 0;
+  const roleTableHasWideRows = rolesQuery.isLoading || roleResultsAvailable;
 
   const createRole = useCreateAdminRole({ request });
   const updateRole = useUpdateAdminRole({ request });
@@ -285,8 +286,8 @@ export function AdminRolesTab({
   return (
     <>
       <TabsContent value="roles" className="space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-1 flex-col gap-2 sm:flex-row">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap">
             <div className="relative w-full sm:max-w-sm">
               <Search
                 className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
@@ -314,7 +315,7 @@ export function AdminRolesTab({
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={openCreateRole}>
+          <Button onClick={openCreateRole} className="w-full sm:w-auto sm:self-start lg:self-auto">
             <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> Nuevo rol
           </Button>
         </div>
@@ -335,12 +336,18 @@ export function AdminRolesTab({
           </LoadingStatus>
         ) : null}
 
+        {roleTableHasWideRows ? (
+          <p className="text-xs text-muted-foreground xl:hidden">
+            Deslizá la tabla horizontalmente para ver todas las columnas.
+          </p>
+        ) : null}
+
         <div
           className="overflow-hidden rounded-md border border-border bg-card shadow-sm"
           aria-busy={rolesQuery.isFetching}
         >
           <div className="overflow-x-auto">
-            <Table>
+            <Table className={roleTableHasWideRows ? 'min-w-[850px]' : undefined}>
               <TableCaption className="sr-only">Directorio de roles</TableCaption>
               <TableHeader className="bg-slate-50/80">
                 <TableRow>

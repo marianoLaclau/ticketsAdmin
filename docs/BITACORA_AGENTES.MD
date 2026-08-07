@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Directorio administrativo responsive
+
+**Agente:** Codex
+**Estado:** centésima cuadragésima segunda remediación de la auditoría técnica, implementada localmente.
+
+- La página de Roles y usuarios usa espaciado progresivo, pestañas de ancho completo en móviles y barras de filtros que se reacomodan sin comprimir los controles ni los botones de alta.
+- Las tablas conservan todas sus columnas mediante desplazamiento horizontal sólo cuando existen filas reales o skeletons. Los estados de error y vacío permanecen centrados dentro del viewport y una ayuda contextual avisa cuándo hay más columnas disponibles.
+- Aprobaron las 160 pruebas frontend, Prettier, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. La salida temporal fue verificada y eliminada; sólo persistieron las advertencias de sourcemaps conocidas. No se hizo push.
+
 ## 2026-08-07 — Estados accesibles de las tablas administrativas
 
 **Agente:** Codex
