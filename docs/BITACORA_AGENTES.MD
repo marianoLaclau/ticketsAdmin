@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Dashboard adaptable y navegable por teclado
+
+**Agente:** Codex
+**Estado:** nonagésima segunda remediación de la auditoría técnica, implementada localmente.
+
+- KPIs pasan de una a dos y cuatro columnas según breakpoint; rendimiento apila gauge y métricas en móvil; motivos/prioridades pasan de una columna con división horizontal a dos con división vertical desde `lg`.
+- El contenedor reduce padding en pantallas angostas. La tabla de vencidos incorpora caption y scopes, elimina la fila clickable sólo con mouse y abre cada ticket mediante un `Link` enfocable que respeta el base path.
+- Aprobaron Prettier, ESLint, las 85 pruebas frontend, typecheck, build y revisión cruzada. La navegación móvil global del sidebar permanece en un commit separado por requerir un menú accesible completo. No se hizo push.
+
 ## 2026-08-07 — Página de dashboard normalizada
 
 **Agente:** Codex

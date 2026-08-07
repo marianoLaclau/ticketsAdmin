@@ -70,7 +70,7 @@ export function DashboardMotivesPriorityPanel({
 
   return (
     <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
-      <div className="grid grid-cols-2 divide-x">
+      <div className="grid grid-cols-1 divide-y lg:grid-cols-2 lg:divide-x lg:divide-y-0">
         {/* Left — Motivos ranking */}
         <div className="p-5">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">

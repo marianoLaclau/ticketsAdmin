@@ -21,7 +21,7 @@ export function DashboardKpiGrid({
   const hasOverdue = overdueCount > 0;
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm">
         <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
           <Inbox className="h-5 w-5 text-amber-600" />

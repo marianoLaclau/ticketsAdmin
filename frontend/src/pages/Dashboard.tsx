@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "wouter";
 import {
   useGetDashboardStats,
   useGetActividadReciente,
@@ -184,7 +185,7 @@ export default function Dashboard() {
   const activos = enProceso + pendientes + nuevosSinRevisar;
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto w-full space-y-5">
+    <div className="mx-auto w-full max-w-[1400px] space-y-5 p-4 sm:p-6">
       {/* Header */}
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
@@ -321,7 +322,7 @@ export default function Dashboard() {
                 </h3>
               </div>
 
-              <div className="flex items-center gap-8">
+              <div className="flex flex-col items-center gap-6 md:flex-row md:gap-8">
                 {/* Gauge ring */}
                 <div className="relative flex-shrink-0">
                   {loadingStats ? (
@@ -347,7 +348,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Stats grid */}
-                <div className="flex-1 grid grid-cols-2 gap-x-6 gap-y-4">
+                <div className="grid w-full flex-1 grid-cols-2 gap-x-4 gap-y-4 md:gap-x-6">
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
                       Finalizados
@@ -447,12 +448,24 @@ export default function Dashboard() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
+                  <caption className="sr-only">
+                    Tickets vencidos que requieren atención inmediata
+                  </caption>
                   <thead className="text-[11px] uppercase text-muted-foreground bg-slate-50/60">
                     <tr>
-                      <th className="px-5 py-2 font-medium">Contacto</th>
-                      <th className="px-5 py-2 font-medium">Motivo</th>
-                      <th className="px-5 py-2 font-medium">Prioridad</th>
-                      <th className="px-5 py-2 font-medium text-right">
+                      <th scope="col" className="px-5 py-2 font-medium">
+                        Contacto
+                      </th>
+                      <th scope="col" className="px-5 py-2 font-medium">
+                        Motivo
+                      </th>
+                      <th scope="col" className="px-5 py-2 font-medium">
+                        Prioridad
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-5 py-2 font-medium text-right"
+                      >
                         Venció hace
                       </th>
                     </tr>
@@ -472,22 +485,21 @@ export default function Dashboard() {
                           ? `${Math.floor(diffHours / 24)}d`
                           : `${diffHours}h`;
                       return (
-                        <tr
-                          key={ticket.id}
-                          className="hover:bg-red-50/30 cursor-pointer transition-colors"
-                          onClick={() =>
-                            (window.location.href = `/tickets/${ticket.id}`)
-                          }
-                        >
+                        <tr key={ticket.id}>
                           <td className="px-5 py-2.5">
-                            <p className="font-medium text-foreground text-sm">
-                              {getContactDisplayName(ticket)}
-                            </p>
-                            {ticket.empresa && (
-                              <p className="text-[11px] text-slate-400">
-                                {ticket.empresa}
-                              </p>
-                            )}
+                            <Link
+                              href={`/tickets/${ticket.id}`}
+                              className="-m-1 block rounded-md p-1 underline-offset-4 hover:bg-red-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            >
+                              <span className="block text-sm font-medium text-foreground hover:underline">
+                                {getContactDisplayName(ticket)}
+                              </span>
+                              {ticket.empresa && (
+                                <span className="block text-[11px] text-slate-400">
+                                  {ticket.empresa}
+                                </span>
+                              )}
+                            </Link>
                           </td>
                           <td
                             className="px-5 py-2.5 text-slate-600 text-sm truncate max-w-[180px]"
