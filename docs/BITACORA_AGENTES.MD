@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Router de tickets normalizado
+
+**Agente:** Codex
+**Estado:** octogésima quinta remediación de la auditoría técnica, implementada localmente.
+
+- `backend/src/routes/tickets.ts` se ajustó a Prettier en un commit exclusivo. Los cambios son reflow de imports, parsers, `orderBy`, respuestas y la indentación de la transacción PATCH con sus opciones.
+- Se verificó equivalencia del AST TypeScript entre la versión previa y la formateada, omitiendo sólo metadatos de ubicación y formato; autorización, CAS, auditoría, cuarentena, CSV y seguimientos se conservan.
+- Por ser el mayor diff mecánico del backend, aprobaron Prettier, ESLint, typecheck y las 207 pruebas de la suite backend completa. No se hizo push.
+
 ## 2026-08-07 — Consultas de tickets normalizadas
 
 **Agente:** Codex
