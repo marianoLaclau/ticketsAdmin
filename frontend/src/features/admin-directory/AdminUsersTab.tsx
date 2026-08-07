@@ -59,6 +59,7 @@ import {
   ADMIN_DIRECTORY_USER_LIMITS,
   type AdminDirectoryUsersUrlState,
 } from '@/lib/admin-directory-url';
+import type { AdminCredentialState } from '@/lib/admin-credential-state';
 import {
   NEW_PASSWORD_HELP,
   NEW_PASSWORD_MAX_LENGTH,
@@ -70,7 +71,7 @@ import { formatDate } from '@/lib/utils-tickets';
 interface AdminUsersTabProps {
   request: RequestInit;
   queryRequest: RequestInit;
-  hasAdminAccess: boolean;
+  adminAccessState: AdminCredentialState;
   accessVersion: number;
   urlState: AdminDirectoryUsersUrlState;
   updateUrlState: (
@@ -82,13 +83,14 @@ interface AdminUsersTabProps {
 export function AdminUsersTab({
   request,
   queryRequest,
-  hasAdminAccess,
+  adminAccessState,
   accessVersion,
   urlState,
   updateUrlState,
 }: AdminUsersTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const hasAdminAccess = adminAccessState === 'ready';
 
   const showError = (title: string) => (error: unknown) => {
     toast({
@@ -415,6 +417,33 @@ export function AdminUsersTab({
     );
   };
   const userMutationPending = createUser.isPending || updateUser.isPending;
+
+  if (!hasAdminAccess) {
+    return (
+      <TabsContent value="users">
+        <Alert className="border-amber-200 bg-amber-50/50">
+          {adminAccessState === 'pending' ? (
+            <Loader2
+              className="h-4 w-4 animate-spin text-amber-600 motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+          ) : (
+            <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
+          )}
+          <AlertTitle>
+            {adminAccessState === 'pending'
+              ? 'Verificando la llave de administración'
+              : 'Ingresá la llave de administración'}
+          </AlertTitle>
+          <AlertDescription>
+            {adminAccessState === 'pending'
+              ? 'Esperá un instante antes de consultar o gestionar usuarios.'
+              : 'El directorio permanece protegido. Completá la llave en la cabecera para consultar y gestionar usuarios.'}
+          </AlertDescription>
+        </Alert>
+      </TabsContent>
+    );
+  }
 
   return (
     <>

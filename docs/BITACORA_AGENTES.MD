@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Estado protegido del directorio administrativo
+
+**Agente:** Codex
+**Estado:** centésima trigésima novena remediación de la auditoría técnica, implementada localmente.
+
+- Usuarios y Roles ya no presentan un directorio vacío cuando falta la llave administrativa. Ambos paneles muestran un estado protegido explícito y deshabilitan las consultas hasta contar con una credencial efectiva.
+- La transición de la llave se modeló como `missing | pending | ready`: mientras el valor escrito y el valor diferido no coinciden, se ocultan datos y acciones y se informa que la llave está siendo verificada. Las mutaciones no quedan operables con una credencial parcial o recién retirada.
+- Tres pruebas puras cubren ausencia, escritura, reemplazo, borrado y coincidencia exacta. Aprobaron las 160 pruebas frontend, Prettier en los archivos ya normalizados, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. La salida temporal fue verificada y eliminada; sólo persistieron las advertencias de sourcemaps conocidas. No se hizo push.
+
 ## 2026-08-07 — Cabecera administrativa accesible
 
 **Agente:** Codex

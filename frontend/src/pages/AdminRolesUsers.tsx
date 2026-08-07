@@ -7,6 +7,7 @@ import { useAdminDirectoryUrl } from "@/features/admin-directory/useAdminDirecto
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAdminAccess } from "@/hooks/use-admin-access";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { getAdminCredentialState } from "@/lib/admin-credential-state";
 
 const ADMIN_DIRECTORY_CREDENTIAL_DEBOUNCE_MS = 350;
 
@@ -37,6 +38,7 @@ export default function AdminRolesUsers() {
   const adminAccessVersion = useMemo(nextAdminDirectoryQueryVersion, [
     effectiveAdminKey,
   ]);
+  const adminAccessState = getAdminCredentialState(adminKey, effectiveAdminKey);
 
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-5 p-8">
@@ -64,7 +66,7 @@ export default function AdminRolesUsers() {
         <AdminUsersTab
           request={adminRequest}
           queryRequest={directoryQueryRequest}
-          hasAdminAccess={Boolean(effectiveAdminKey)}
+          adminAccessState={adminAccessState}
           accessVersion={adminAccessVersion}
           urlState={urlState.users}
           updateUrlState={updateUsersUrlState}
@@ -72,7 +74,7 @@ export default function AdminRolesUsers() {
         <AdminRolesTab
           request={adminRequest}
           queryRequest={directoryQueryRequest}
-          hasAdminAccess={Boolean(effectiveAdminKey)}
+          adminAccessState={adminAccessState}
           accessVersion={adminAccessVersion}
           urlState={urlState.roles}
           updateUrlState={updateRolesUrlState}
