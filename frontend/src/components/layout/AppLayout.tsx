@@ -25,6 +25,7 @@ import {
   isSessionRevokedEvent,
   parseRealtimeEvent,
 } from "@/lib/realtime-events";
+import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
 import { clearRevokedSessionState } from "@/lib/session-state";
 
 import gsbLogo from "@/assets/gsb-logo.jpg";
@@ -63,8 +64,9 @@ function useEventosEnVivo() {
         return;
       }
 
-      // Cualquier evento implica datos nuevos: refrescar listados y stats
-      void queryClient.invalidateQueries();
+      // Los eventos funcionales sólo afectan tickets y estadísticas. Sesión,
+      // llave administrativa, usuarios y roles conservan su caché vigente.
+      void invalidateTicketDomainQueries(queryClient);
       if (data.tipo === "ticket_creado") {
         const contacto = getContactDisplayName(data);
         showToast({

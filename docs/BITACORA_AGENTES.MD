@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Invalidación SSE acotada por dominio
+
+**Agente:** Codex
+**Estado:** nonagésima cuarta remediación de la auditoría técnica, implementada y validada localmente.
+
+- Se agregó `lib/query-invalidation.ts`: reconoce por frontera de path todas las variantes de tickets y dashboard y las invalida mediante predicado, sin aceptar prefijos parecidos.
+- `AppLayout` dejó de invalidar toda React Query ante cada evento SSE. Sesión, `admin-key-probe`, usuarios y roles conservan su caché; revocación y logout mantienen la limpieza total deliberada.
+- Dos pruebas nuevas verifican clasificación e invalidación real sobre `QueryClient`. Aprobaron 87 pruebas frontend, Prettier, ESLint, typecheck y build; las mutaciones administrativas se migrarán en commits separados. No se hizo push.
+
 ## 2026-08-07 — Layout principal normalizado
 
 **Agente:** Codex
