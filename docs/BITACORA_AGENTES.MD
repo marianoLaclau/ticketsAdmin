@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Consulta administrativa sin duplicación
+
+**Agente:** Codex
+**Estado:** centésima vigésima segunda remediación de la auditoría técnica, implementada localmente.
+
+- La tabla administrativa construye búsqueda, orden simple/compuesto, página y límite mediante el mismo helper que Tickets; `incluir_vacios=true` continúa siendo una decisión explícita de Administración.
+- Paginación consume la lista y los tipos compartidos de límites, y descarta valores inesperados del selector en lugar de convertir cualquier texto a número. Los defaults de página y tamaño tienen ahora una única fuente.
+- La única diferencia observable es que una búsqueda se normaliza antes de consultar, igual que ya hace el backend, evitando claves de caché redundantes. Aprobaron las 129 pruebas frontend, Prettier, ESLint, typecheck, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Formato de helpers de dominio frontend
 
 **Agente:** Codex

@@ -37,12 +37,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Search, RotateCcw } from "lucide-react";
 import { getContactDisplayName } from "@/lib/contacto";
 import {
+  buildTicketListParams,
   createDefaultTicketSort,
   isDefaultTicketSort,
   nextTicketSort,
-  serializeTicketSort,
   type TicketSortRule,
 } from "@/lib/ticket-list-controls";
+import {
+  DEFAULT_TICKET_LIST_LIMIT,
+  DEFAULT_TICKET_LIST_PAGE,
+  type TicketListLimit,
+} from "@/lib/ticket-list-url";
 import {
   buildAdminTicketInput,
   buildAdminTicketUpdate,
@@ -83,19 +88,15 @@ export function AdminTicketsTab({
   };
 
   // ---------- Registros (CRUD) ----------
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(DEFAULT_TICKET_LIST_PAGE);
+  const [pageSize, setPageSize] = useState<TicketListLimit>(
+    DEFAULT_TICKET_LIST_LIMIT,
+  );
   const [search, setSearch] = useState("");
   const [sorts, setSorts] = useState<TicketSortRule[]>(createDefaultTicketSort);
   const listParams = {
-    page,
-    limit: pageSize,
+    ...buildTicketListParams({ search }, sorts, page, pageSize),
     incluir_vacios: true,
-    sort: serializeTicketSort(sorts),
-    // Compatibilidad con el contrato anterior mientras conviven clientes.
-    sort_by: sorts[0]?.sortBy ?? TicketSortBy.fecha_creacion,
-    order: sorts[0]?.order ?? "desc",
-    ...(search ? { search } : {}),
   };
   const listQueryKey = [
     ...getListTicketsQueryKey(listParams),
@@ -116,7 +117,7 @@ export function AdminTicketsTab({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   useEffect(() => {
-    setPage(1);
+    setPage(DEFAULT_TICKET_LIST_PAGE);
   }, [pageSize]);
 
   useEffect(() => {
@@ -125,12 +126,12 @@ export function AdminTicketsTab({
 
   const ordenarRegistros = (column: TicketSortBy, additive: boolean) => {
     setSorts((current) => nextTicketSort(current, column, additive));
-    setPage(1);
+    setPage(DEFAULT_TICKET_LIST_PAGE);
   };
 
   const restablecerOrdenRegistros = () => {
     setSorts(createDefaultTicketSort());
-    setPage(1);
+    setPage(DEFAULT_TICKET_LIST_PAGE);
   };
 
   const createTicket = useCreateAdminTicket({ request });
@@ -322,7 +323,7 @@ export function AdminTicketsTab({
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
-                setPage(1);
+                setPage(DEFAULT_TICKET_LIST_PAGE);
               }}
             />
           </div>

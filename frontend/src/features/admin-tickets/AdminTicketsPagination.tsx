@@ -7,13 +7,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  TICKET_LIST_LIMITS,
+  type TicketListLimit,
+} from "@/lib/ticket-list-url";
 
 interface AdminTicketsPaginationProps {
   page: number;
-  pageSize: number;
+  pageSize: TicketListLimit;
   total: number;
   totalPages: number;
-  onPageSizeChange: (pageSize: number) => void;
+  onPageSizeChange: (pageSize: TicketListLimit) => void;
   onPreviousPage: () => void;
   onNextPage: () => void;
 }
@@ -33,13 +37,18 @@ export function AdminTicketsPagination({
         <span>Mostrar</span>
         <Select
           value={String(pageSize)}
-          onValueChange={(value) => onPageSizeChange(Number(value))}
+          onValueChange={(value) => {
+            const nextPageSize = TICKET_LIST_LIMITS.find(
+              (size) => String(size) === value,
+            );
+            if (nextPageSize) onPageSizeChange(nextPageSize);
+          }}
         >
           <SelectTrigger className="h-7 w-[70px] text-xs bg-white">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {[10, 25, 50, 100].map((size) => (
+            {TICKET_LIST_LIMITS.map((size) => (
               <SelectItem key={size} value={String(size)}>
                 {size}
               </SelectItem>
