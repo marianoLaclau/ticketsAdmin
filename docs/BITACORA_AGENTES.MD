@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Formato backend cerrado
+
+**Agente:** Codex
+**Estado:** octogésima sexta verificación de la auditoría técnica, cerrada localmente.
+
+- Los 44 archivos bajo `backend/src` ya pasan `prettier --check`. Los siete desvíos reales se repartieron en microcommits; `rfc3339.ts` sólo requirió normalizar el checkout al mismo blob LF.
+- El quality gate integral posterior aprobó lint, codegen/OpenAPI, esquema Drizzle, todas las suites, typecheck y builds. Permanecen únicamente las advertencias conocidas de sourcemaps y del bundle inicial de 952,53 kB.
+- La deuda de formato queda ahora concentrada en frontend y se seguirá por feature; el corte del bundle por rutas será la primera mejora profesional medida. No se hizo push.
+
 ## 2026-08-07 — Router de tickets normalizado
 
 **Agente:** Codex
