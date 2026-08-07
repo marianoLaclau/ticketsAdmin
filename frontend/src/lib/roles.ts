@@ -4,16 +4,22 @@
 // - SysAdmin: usuario Dios — todo, incluido el panel de administración.
 // - Administrador: todo sobre tickets (incluye cerrarlos), sin panel admin.
 // - Operador: gestión básica — no puede cerrar tickets.
-export const ROL_SYSADMIN = 'SysAdmin';
-export const ROL_ADMINISTRADOR = 'Administrador';
-export const ROL_OPERADOR = 'Operador';
+export const ROL_SYSADMIN = "SysAdmin";
+export const ROL_ADMINISTRADOR = "Administrador";
+export const ROL_OPERADOR = "Operador";
 
-export const ROLES_SISTEMA = [ROL_SYSADMIN, ROL_ADMINISTRADOR, ROL_OPERADOR] as const;
+export const ROLES_SISTEMA = [
+  ROL_SYSADMIN,
+  ROL_ADMINISTRADOR,
+  ROL_OPERADOR,
+] as const;
 
-const NOMBRES_RESERVADOS = new Set(ROLES_SISTEMA.map((rol) => rol.toLocaleLowerCase('es')));
+const NOMBRES_RESERVADOS = new Set(
+  ROLES_SISTEMA.map((rol) => rol.toLocaleLowerCase("es")),
+);
 
 export function esNombreRolReservado(rol: string): boolean {
-  return NOMBRES_RESERVADOS.has(rol.trim().toLocaleLowerCase('es'));
+  return NOMBRES_RESERVADOS.has(rol.trim().toLocaleLowerCase("es"));
 }
 
 export function esRolSistema(rol: string): boolean {

@@ -2,6 +2,14 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Formato de helpers de dominio frontend
+
+**Agente:** Codex
+**Estado:** centésima vigésima primera remediación de la auditoría técnica, implementada localmente.
+
+- Se normalizaron con Prettier seis helpers puros de dominio —asignación, contacto, estado laboral, estados, motivos y roles— y sus cinco archivos de pruebas, sin cambiar contratos ni comportamiento.
+- `prettier --debug-check` confirmó estabilidad del AST. Aprobaron las 17 pruebas dirigidas, ESLint, typecheck y `git diff --check`. Los archivos generados quedan fuera de esta limpieza y se corregirán desde codegen para no producir cambios que una regeneración revierta. No se hizo push.
+
 ## 2026-08-07 — Filtro accesible del Dashboard
 
 **Agente:** Codex

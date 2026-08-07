@@ -1,4 +1,4 @@
-export const SIN_ASIGNAR = 'Sin asignar';
+export const SIN_ASIGNAR = "Sin asignar";
 
 export function hasAssignedDisplayName(asignadoA?: string | null): boolean {
   return Boolean(asignadoA?.trim());
