@@ -52,8 +52,7 @@ export interface TicketSortCriterion {
 }
 
 export type TicketSortParseResult =
-  | { ok: true; criteria: TicketSortCriterion[] }
-  | { ok: false; reason: string };
+  { ok: true; criteria: TicketSortCriterion[] } | { ok: false; reason: string };
 
 /**
  * Subconjunto compartido por el listado operativo, Administracion y la
@@ -353,9 +352,7 @@ function buildTicketOrderExpressions(
  * agrega una sola vez, después de todos los criterios seleccionados.
  */
 export function buildTicketOrderBy(
-  sort:
-    | TicketSortBy
-    | readonly TicketSortCriterion[] = DEFAULT_TICKET_SORT_BY,
+  sort: TicketSortBy | readonly TicketSortCriterion[] = DEFAULT_TICKET_SORT_BY,
   order: TicketSortOrder = DEFAULT_TICKET_SORT_ORDER,
 ): SQL[] {
   const criteria: readonly TicketSortCriterion[] =

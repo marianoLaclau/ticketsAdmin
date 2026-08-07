@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Consultas de tickets normalizadas
+
+**Agente:** Codex
+**Estado:** octogésima cuarta remediación de la auditoría técnica, implementada localmente.
+
+- `backend/src/lib/ticket-query.ts` se ajustó a Prettier mediante la compactación de dos uniones de tipos. Parsers, condiciones SQL, orden compuesto y defaults permanecen idénticos.
+- El cambio se mantiene aislado del router y se valida tanto en la suite pura de consultas como en las rutas que consumen listado y exportación.
+- Se validarán Prettier, ESLint, ambas suites dirigidas y el typecheck backend antes de commitear. No se hizo push.
+
 ## 2026-08-07 — Ruta de autenticación normalizada
 
 **Agente:** Codex
