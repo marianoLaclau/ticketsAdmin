@@ -5,6 +5,7 @@ import {
   parseAdminDirectoryUrlState,
   serializeAdminDirectoryUrlState,
   type AdminDirectoryTabValue,
+  type AdminDirectoryUsersUrlState,
   type AdminDirectoryUrlState,
 } from "@/lib/admin-directory-url";
 
@@ -12,6 +13,10 @@ interface AdminDirectoryUrlController {
   urlState: AdminDirectoryUrlState;
   updateUrlState: (
     update: AdminDirectoryUrlUpdate,
+    navigation?: AdminDirectoryUrlNavigation,
+  ) => void;
+  updateUsersUrlState: (
+    update: AdminDirectoryUsersUrlUpdate,
     navigation?: AdminDirectoryUrlNavigation,
   ) => void;
   selectTab: (value: string) => void;
@@ -22,6 +27,10 @@ export type AdminDirectoryUrlUpdate = (
 ) => AdminDirectoryUrlState;
 
 export type AdminDirectoryUrlNavigation = "replace" | "push";
+
+export type AdminDirectoryUsersUrlUpdate = (
+  current: AdminDirectoryUsersUrlState,
+) => AdminDirectoryUsersUrlState;
 
 function parseAdminDirectoryTab(
   value: string,
@@ -72,5 +81,21 @@ export function useAdminDirectoryUrl(): AdminDirectoryUrlController {
     [updateUrlState],
   );
 
-  return { urlState, updateUrlState, selectTab };
+  const updateUsersUrlState = useCallback(
+    (
+      update: AdminDirectoryUsersUrlUpdate,
+      navigation: AdminDirectoryUrlNavigation = "replace",
+    ) => {
+      updateUrlState(
+        (current) => ({
+          ...current,
+          users: update(current.users),
+        }),
+        navigation,
+      );
+    },
+    [updateUrlState],
+  );
+
+  return { urlState, updateUrlState, updateUsersUrlState, selectTab };
 }

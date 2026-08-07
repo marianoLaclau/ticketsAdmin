@@ -8,7 +8,7 @@ import { useAdminAccess } from "@/hooks/use-admin-access";
 
 export default function AdminRolesUsers() {
   const { adminKey, saveAdminKey, adminRequest } = useAdminAccess();
-  const { urlState, selectTab } = useAdminDirectoryUrl();
+  const { urlState, updateUsersUrlState, selectTab } = useAdminDirectoryUrl();
 
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-5 p-8">
@@ -33,7 +33,11 @@ export default function AdminRolesUsers() {
           </TabsTrigger>
         </TabsList>
 
-        <AdminUsersTab request={adminRequest} />
+        <AdminUsersTab
+          request={adminRequest}
+          urlState={urlState.users}
+          updateUrlState={updateUsersUrlState}
+        />
         <AdminRolesTab request={adminRequest} />
       </Tabs>
     </div>

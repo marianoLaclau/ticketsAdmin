@@ -29,6 +29,10 @@ import {
   createRoleNameMap,
   type AdminUserFormState,
 } from '@/features/admin-directory/model';
+import type {
+  AdminDirectoryUrlNavigation,
+  AdminDirectoryUsersUrlUpdate,
+} from '@/features/admin-directory/useAdminDirectoryUrl';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -51,6 +55,10 @@ import { TabsContent } from '@/components/ui/tabs';
 import { adminErrorMessage } from '@/hooks/use-admin-access';
 import { useToast } from '@/hooks/use-toast';
 import {
+  ADMIN_DIRECTORY_USER_LIMITS,
+  type AdminDirectoryUsersUrlState,
+} from '@/lib/admin-directory-url';
+import {
   NEW_PASSWORD_HELP,
   NEW_PASSWORD_MAX_LENGTH,
   NEW_PASSWORD_MIN_LENGTH,
@@ -60,9 +68,18 @@ import { formatDate } from '@/lib/utils-tickets';
 
 interface AdminUsersTabProps {
   request: RequestInit;
+  urlState: AdminDirectoryUsersUrlState;
+  updateUrlState: (
+    update: AdminDirectoryUsersUrlUpdate,
+    navigation?: AdminDirectoryUrlNavigation,
+  ) => void;
 }
 
-export function AdminUsersTab({ request }: AdminUsersTabProps) {
+export function AdminUsersTab({
+  request,
+  urlState,
+  updateUrlState,
+}: AdminUsersTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -86,27 +103,33 @@ export function AdminUsersTab({ request }: AdminUsersTabProps) {
   const roleById = useMemo(() => createRoleNameMap(roles), [roles]);
 
   // ---------- Usuarios ----------
-  const [userPage, setUserPage] = useState(1);
-  const [userPageSize, setUserPageSize] = useState(10);
-  const [userSearch, setUserSearch] = useState('');
-  const [userRoleFilter, setUserRoleFilter] = useState('_all');
-  const [userStatusFilter, setUserStatusFilter] = useState('_all');
+  const userSearch = urlState.search ?? '';
+  const userRoleFilter = urlState.roleId ? String(urlState.roleId) : '_all';
+  const userStatusFilter = urlState.status ?? '_all';
+  const userPage = urlState.page;
+  const userPageSize = urlState.limit;
+  const selectedRoleUnavailable = Boolean(
+    urlState.roleId && !roles.some((role) => role.id === urlState.roleId),
+  );
 
-  useEffect(() => {
-    setUserPage(1);
-  }, [userSearch, userRoleFilter, userStatusFilter, userPageSize]);
-
-  const usersQuery = useListAdminUsers(
-    {
+  const userListParams = useMemo(
+    () => ({
       page: userPage,
       limit: userPageSize,
       ...(userSearch.trim() ? { search: userSearch.trim() } : {}),
-      ...(userRoleFilter !== '_all' ? { role_id: Number(userRoleFilter) } : {}),
+      ...(urlState.roleId ? { role_id: urlState.roleId } : {}),
       ...(userStatusFilter === 'active' ? { activo: true } : {}),
       ...(userStatusFilter === 'inactive' ? { activo: false } : {}),
-    },
-    { request },
+    }),
+    [
+      userPage,
+      userPageSize,
+      userSearch,
+      userStatusFilter,
+      urlState.roleId,
+    ],
   );
+  const usersQuery = useListAdminUsers(userListParams, { request });
 
   const users = usersQuery.data?.users ?? [];
   const userTotal = usersQuery.data?.total ?? 0;
@@ -115,8 +138,24 @@ export function AdminUsersTab({ request }: AdminUsersTabProps) {
   const refetchUsers = usersQuery.refetch;
 
   useEffect(() => {
-    if (usersQuery.data && userPage > userTotalPages) setUserPage(userTotalPages);
-  }, [userPage, userTotalPages, usersQuery.data]);
+    if (
+      usersQuery.data &&
+      usersQuery.data.page === userPage &&
+      usersQuery.data.limit === userPageSize &&
+      userPage > userTotalPages
+    ) {
+      updateUrlState((current) => ({
+        ...current,
+        page: userTotalPages,
+      }));
+    }
+  }, [
+    updateUrlState,
+    userPage,
+    userPageSize,
+    userTotalPages,
+    usersQuery.data,
+  ]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -125,6 +164,59 @@ export function AdminUsersTab({ request }: AdminUsersTabProps) {
     }, 350);
     return () => window.clearTimeout(timeout);
   }, [request, refetchRoleCatalog, refetchUsers]);
+
+  const updateUserSearch = (value: string) => {
+    updateUrlState((current) => {
+      const next = { ...current, page: 1 };
+      if (value.trim()) next.search = value;
+      else delete next.search;
+      return next;
+    });
+  };
+
+  const selectUserRole = (value: string) => {
+    if (value === '_all') {
+      updateUrlState((current) => {
+        const next = { ...current, page: 1 };
+        delete next.roleId;
+        return next;
+      });
+      return;
+    }
+
+    const roleId = Number(value);
+    if (
+      !Number.isSafeInteger(roleId) ||
+      roleId < 1 ||
+      !roles.some((role) => role.id === roleId)
+    ) {
+      return;
+    }
+    updateUrlState((current) => ({ ...current, roleId, page: 1 }));
+  };
+
+  const selectUserStatus = (value: string) => {
+    if (value !== '_all' && value !== 'active' && value !== 'inactive') return;
+    updateUrlState((current) => {
+      const next = { ...current, page: 1 };
+      if (value === '_all') delete next.status;
+      else next.status = value;
+      return next;
+    });
+  };
+
+  const selectUserPageSize = (value: string) => {
+    const limit = ADMIN_DIRECTORY_USER_LIMITS.find(
+      (candidate) => String(candidate) === value,
+    );
+    if (!limit) return;
+    updateUrlState((current) => ({ ...current, limit, page: 1 }));
+  };
+
+  const goToUserPage = (page: number) => {
+    if (!Number.isSafeInteger(page) || page < 1) return;
+    updateUrlState((current) => ({ ...current, page }), 'push');
+  };
 
   const createUser = useCreateAdminUser({ request });
   const updateUser = useUpdateAdminUser({ request });
@@ -311,17 +403,22 @@ export function AdminUsersTab({ request }: AdminUsersTabProps) {
                 <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={userSearch}
-                  onChange={(event) => setUserSearch(event.target.value)}
+                  onChange={(event) => updateUserSearch(event.target.value)}
                   placeholder="Buscar por nombre o email..."
                   className="h-9 pl-8"
                 />
               </div>
-              <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
+              <Select value={userRoleFilter} onValueChange={selectUserRole}>
                 <SelectTrigger className="h-9 w-full bg-white sm:w-[190px]">
                   <SelectValue placeholder="Todos los roles" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="_all">Todos los roles</SelectItem>
+                  {selectedRoleUnavailable && urlState.roleId && (
+                    <SelectItem value={String(urlState.roleId)}>
+                      Rol #{urlState.roleId} (no disponible)
+                    </SelectItem>
+                  )}
                   {roles.map((role) => (
                     <SelectItem key={role.id} value={String(role.id)}>
                       {role.nombre}
@@ -330,7 +427,7 @@ export function AdminUsersTab({ request }: AdminUsersTabProps) {
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={userStatusFilter} onValueChange={setUserStatusFilter}>
+              <Select value={userStatusFilter} onValueChange={selectUserStatus}>
                 <SelectTrigger className="h-9 w-full bg-white sm:w-[160px]">
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
@@ -461,7 +558,7 @@ export function AdminUsersTab({ request }: AdminUsersTabProps) {
             <div className="flex flex-col items-center justify-between gap-2 border-t border-border bg-slate-50/60 px-4 py-2.5 sm:flex-row">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span>Mostrar</span>
-                <Select value={String(userPageSize)} onValueChange={(value) => setUserPageSize(Number(value))}>
+                <Select value={String(userPageSize)} onValueChange={selectUserPageSize}>
                   <SelectTrigger className="h-7 w-[70px] bg-white text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -484,7 +581,7 @@ export function AdminUsersTab({ request }: AdminUsersTabProps) {
                   size="sm"
                   className="h-7 bg-white px-2 text-xs"
                   disabled={userPage <= 1}
-                  onClick={() => setUserPage((page) => page - 1)}
+                  onClick={() => goToUserPage(userPage - 1)}
                 >
                   <ChevronLeft className="mr-0.5 h-3.5 w-3.5" /> Anterior
                 </Button>
@@ -493,7 +590,7 @@ export function AdminUsersTab({ request }: AdminUsersTabProps) {
                   size="sm"
                   className="h-7 bg-white px-2 text-xs"
                   disabled={userPage >= userTotalPages}
-                  onClick={() => setUserPage((page) => page + 1)}
+                  onClick={() => goToUserPage(userPage + 1)}
                 >
                   Siguiente <ChevronRight className="ml-0.5 h-3.5 w-3.5" />
                 </Button>

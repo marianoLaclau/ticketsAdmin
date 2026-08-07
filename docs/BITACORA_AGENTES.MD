@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Listado de usuarios sincronizado con la URL
+
+**Agente:** Codex
+**Estado:** centésima trigésima tercera remediación de la auditoría técnica, implementada localmente.
+
+- Búsqueda, rol, estado, página y límite del directorio de Usuarios derivan ahora de la URL; recargar o navegar con Atrás/Adelante reconstruye tanto los controles como la query de React Query.
+- Los filtros y el límite restablecen página en la misma actualización funcional con `replace`, mientras Anterior/Siguiente usan `push`. El clamp sólo acepta una respuesta correspondiente a la misma página y límite antes de corregir una URL fuera de rango.
+- Un rol válido que ya no aparece en el catálogo se conserva y se presenta como no disponible, evitando borrar silenciosamente el filtro y disparar dos consultas. Aprobaron las 157 pruebas frontend, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. La duplicación preexistente del refetch diferido al montar se dejó aislada para una remediación posterior. No se hizo push.
+
 ## 2026-08-07 — Contrato URL del listado de usuarios
 
 **Agente:** Codex
