@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Actividad reciente del dashboard separada
+
+**Agente:** Codex
+**Estado:** sexagésima quinta remediación de la auditoría técnica, implementada y validada localmente.
+
+- La columna de actividad reciente salió de `Dashboard.tsx` a `features/dashboard/DashboardRecentActivityPanel.tsx` como vista pura de datos, carga y título.
+- La query, errores y filtros temporales permanecen en la página. Se preservaron el root directo del grid, alto completo, cinco skeletons, estado vacío, orden del timeline, conectores, colores, enlaces, fallback de contacto y fecha.
+- La revisión cruzada no encontró hallazgos P0/P1/P2. Aprobaron 85 pruebas, typecheck, ESLint dirigido, Prettier acotado, build aislado y `diff --check`; sólo aparecieron advertencias ya conocidas. No se hizo push.
+
 ## 2026-08-07 — Ayuda de ordenamiento del listado aislada
 
 **Agente:** Codex
