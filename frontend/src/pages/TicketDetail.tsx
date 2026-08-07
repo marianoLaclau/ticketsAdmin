@@ -55,7 +55,10 @@ import {
   shouldApplyTicketRevision,
   type TicketEditBaseline,
 } from "@/lib/ticket-version";
-import { getTicketListReturnTo } from "@/lib/ticket-navigation";
+import {
+  getAdminTicketListReturnTo,
+  getTicketListReturnTo,
+} from "@/lib/ticket-navigation";
 
 const EMPTY_MANAGEMENT_FORM: TicketManagementForm = {
   estado: TicketEstado.nuevo,
@@ -75,6 +78,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
   const [, setLocation] = useLocation();
   const historyState = useHistoryState<unknown>();
   const ticketListReturnTo = getTicketListReturnTo(historyState);
+  const adminTicketListReturnTo = getAdminTicketListReturnTo(historyState);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { adminKey, adminRequest } = useAdminAccess();
@@ -375,7 +379,12 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
 
   const handleBack = () => {
     if (adminMode) {
-      setLocation("/admin", { replace: true });
+      if (adminTicketListReturnTo && window.history.length > 1) {
+        window.history.back();
+        return;
+      }
+
+      setLocation(adminTicketListReturnTo ?? "/admin", { replace: true });
       return;
     }
 
@@ -397,7 +406,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
         status={401}
         title="Falta la llave de administración"
         message="Volvé a Administración e ingresá la llave para abrir este registro."
-        homeHref={getAppHref("admin")}
+        homeHref={getAppHref(adminTicketListReturnTo ?? "admin")}
       />
     );
   }
@@ -418,7 +427,9 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
               ? adminErrorMessage(detailError)
               : "No fue posible obtener el ticket o su historial. Reintentá o volvé al inicio."
         }
-        homeHref={getAppHref(adminMode ? "admin" : "dashboard")}
+        homeHref={getAppHref(
+          adminMode ? (adminTicketListReturnTo ?? "admin") : "dashboard",
+        )}
         {...(notFound
           ? {}
           : {

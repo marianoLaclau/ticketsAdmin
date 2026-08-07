@@ -7,6 +7,7 @@ import { AdminDangerZoneTab } from "@/features/admin-tickets/AdminDangerZoneTab"
 import { AdminTicketsTab } from "@/features/admin-tickets/AdminTicketsTab";
 import { useAdminTicketsUrl } from "@/features/admin-tickets/useAdminTicketsUrl";
 import { useAdminAccess } from "@/hooks/use-admin-access";
+import { createAdminTicketDetailNavigationState } from "@/lib/ticket-navigation";
 
 let adminTicketsQueryVersion = 0;
 
@@ -18,7 +19,12 @@ function nextAdminTicketsQueryVersion(): number {
 export default function Admin() {
   // Segunda credencial obligatoria para las operaciones del panel SysAdmin.
   const { adminKey, saveAdminKey, adminRequest } = useAdminAccess();
-  const { urlState, updateUrlState, selectTab } = useAdminTicketsUrl();
+  const { urlState, canonicalSearch, updateUrlState, selectTab } =
+    useAdminTicketsUrl();
+  const detailNavigationState = useMemo(
+    () => createAdminTicketDetailNavigationState(canonicalSearch),
+    [canonicalSearch],
+  );
   // La versión fuerza una consulta nueva cuando cambia la llave, sin incluir
   // el secreto en el query key ni dejarlo expuesto en la caché del navegador.
   const adminAccessVersion = useMemo(nextAdminTicketsQueryVersion, [adminKey]);
@@ -54,6 +60,7 @@ export default function Admin() {
           accessVersion={adminAccessVersion}
           urlState={urlState}
           updateUrlState={updateUrlState}
+          detailNavigationState={detailNavigationState}
         />
         <AdminCsvImportTab request={adminRequest} />
         <AdminDangerZoneTab

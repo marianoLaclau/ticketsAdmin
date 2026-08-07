@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Retorno contextual desde el detalle administrativo
+
+**Agente:** Codex
+**Estado:** centésima vigésima séptima remediación de la auditoría técnica, implementada localmente.
+
+- Abrir un registro desde Administración transporta el retorno canónico en `history.state`; el botón Volver restaura la misma búsqueda, orden compuesto, página y límite mediante el historial del navegador.
+- Una apertura directa, un estado ausente o manipulado y una sesión sin entrada previa usan `/admin` como salida segura con `replace`. Los estados operativo y administrativo permanecen discriminados y los enlaces de error conservan el retorno validado respetando el base path.
+- La API key no se incorpora a la URL, al estado de navegación ni a la caché. Aprobaron las 147 pruebas frontend, Prettier, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. El build sólo emitió las advertencias de sourcemaps ya conocidas y eliminó su salida temporal. No se hizo push.
+
 ## 2026-08-07 — Contrato de retorno administrativo
 
 **Agente:** Codex

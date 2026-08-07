@@ -16,6 +16,7 @@ export type AdminTicketsUrlNavigation = "replace" | "push";
 
 interface AdminTicketsUrlController {
   urlState: AdminTicketsUrlState;
+  canonicalSearch: string;
   updateUrlState: (
     update: AdminTicketsUrlUpdate,
     navigation?: AdminTicketsUrlNavigation,
@@ -70,5 +71,5 @@ export function useAdminTicketsUrl(): AdminTicketsUrlController {
     [updateUrlState],
   );
 
-  return { urlState, updateUrlState, selectTab };
+  return { urlState, canonicalSearch, updateUrlState, selectTab };
 }

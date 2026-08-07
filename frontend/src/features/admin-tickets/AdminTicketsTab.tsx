@@ -48,6 +48,7 @@ import {
 } from "@/lib/ticket-list-controls";
 import { DEFAULT_TICKET_LIST_PAGE } from "@/lib/ticket-list-url";
 import type { AdminTicketsUrlState } from "@/lib/admin-tickets-url";
+import type { AdminTicketDetailNavigationState } from "@/lib/ticket-navigation";
 import {
   buildAdminTicketInput,
   buildAdminTicketUpdate,
@@ -71,6 +72,7 @@ interface AdminTicketsTabProps {
     update: AdminTicketsUrlUpdate,
     navigation?: AdminTicketsUrlNavigation,
   ) => void;
+  detailNavigationState: AdminTicketDetailNavigationState;
 }
 
 export function AdminTicketsTab({
@@ -79,6 +81,7 @@ export function AdminTicketsTab({
   accessVersion,
   urlState,
   updateUrlState,
+  detailNavigationState,
 }: AdminTicketsTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -498,7 +501,11 @@ export function AdminTicketsTab({
                       key={ticket.id}
                       ticket={ticket}
                       isEditDisabled={isReloadingTicket}
-                      onOpen={(id) => setLocation(`/admin/tickets/${id}`)}
+                      onOpen={(id) =>
+                        setLocation(`/admin/tickets/${id}`, {
+                          state: detailNavigationState,
+                        })
+                      }
                       onEdit={abrirEditar}
                       onDelete={setAEliminar}
                     />
