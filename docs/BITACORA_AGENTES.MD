@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Formato del límite de errores
+
+**Agente:** Codex
+**Estado:** centésima segunda remediación de la auditoría técnica, implementada localmente.
+
+- Se normalizó `components/ErrorPage.tsx` con la configuración raíz de Prettier antes de corregir sus landmarks, manteniendo separado el cambio mecánico del semántico.
+- El fingerprint AST permaneció idéntico en sus 671 nodos.
+- Aprobaron las 87 pruebas frontend, Prettier, ESLint, typecheck y `git diff --check`. No se hizo push.
+
 ## 2026-08-07 — Caché coherente desde el detalle de ticket
 
 **Agente:** Codex
