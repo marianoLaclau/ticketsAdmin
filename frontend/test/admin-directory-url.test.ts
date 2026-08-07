@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   ADMIN_DIRECTORY_TABS,
+  ADMIN_DIRECTORY_ROLE_STATUSES,
   ADMIN_DIRECTORY_USER_LIMITS,
   ADMIN_DIRECTORY_USER_STATUSES,
   createDefaultAdminDirectoryUrlState,
@@ -17,6 +18,7 @@ describe("codec URL del directorio administrativo", () => {
     assert.deepEqual(state, {
       tab: "users",
       users: { page: 1, limit: 10 },
+      roles: {},
     });
     assert.deepEqual(parseAdminDirectoryUrlState(""), state);
     assert.deepEqual(
@@ -26,12 +28,15 @@ describe("codec URL del directorio administrativo", () => {
     assert.equal(serializeAdminDirectoryUrlState(state).toString(), "");
   });
 
-  it("declara y congela pestañas, estados y límites", () => {
+  it("declara y congela pestañas, estados compartidos y límites", () => {
     assert.deepEqual(ADMIN_DIRECTORY_TABS, ["users", "roles"]);
     assert.deepEqual(ADMIN_DIRECTORY_USER_STATUSES, ["active", "inactive"]);
+    assert.deepEqual(ADMIN_DIRECTORY_ROLE_STATUSES, ["active", "inactive"]);
     assert.deepEqual(ADMIN_DIRECTORY_USER_LIMITS, [10, 25, 50, 100]);
     assert.equal(Object.isFrozen(ADMIN_DIRECTORY_TABS), true);
     assert.equal(Object.isFrozen(ADMIN_DIRECTORY_USER_STATUSES), true);
+    assert.equal(Object.isFrozen(ADMIN_DIRECTORY_ROLE_STATUSES), true);
+    assert.equal(ADMIN_DIRECTORY_ROLE_STATUSES, ADMIN_DIRECTORY_USER_STATUSES);
     assert.equal(Object.isFrozen(ADMIN_DIRECTORY_USER_LIMITS), true);
 
     for (const tab of ADMIN_DIRECTORY_TABS) {
@@ -43,7 +48,7 @@ describe("codec URL del directorio administrativo", () => {
     }
   });
 
-  it("conserva todos los campos de Usuarios en orden determinista", () => {
+  it("conserva todos los campos en orden determinista", () => {
     const state: AdminDirectoryUrlState = {
       tab: "roles",
       users: {
@@ -53,13 +58,17 @@ describe("codec URL del directorio administrativo", () => {
         page: 3,
         limit: 25,
       },
+      roles: {
+        search: "  Finanzas  ",
+        status: "active",
+      },
     };
 
     const serialized = serializeAdminDirectoryUrlState(state);
 
     assert.equal(
       serialized.toString(),
-      "tab=roles&user_search=++Ana+P%C3%A9rez++&user_role=42&user_status=inactive&user_page=3&user_limit=25",
+      "tab=roles&user_search=++Ana+P%C3%A9rez++&user_role=42&user_status=inactive&user_page=3&user_limit=25&role_search=++Finanzas++&role_status=active",
     );
     assert.deepEqual(parseAdminDirectoryUrlState(serialized), state);
   });
@@ -68,7 +77,9 @@ describe("codec URL del directorio administrativo", () => {
     const parsed = parseAdminDirectoryUrlState(
       "tab=roles&tab=users&user_search=primera&user_search=segunda" +
         "&user_role=2&user_role=3&user_status=active&user_status=inactive" +
-        "&user_page=4&user_page=7&user_limit=50&user_limit=100",
+        "&user_page=4&user_page=7&user_limit=50&user_limit=100" +
+        "&role_search=Legal&role_search=Finanzas" +
+        "&role_status=inactive&role_status=active",
     );
 
     assert.deepEqual(parsed, {
@@ -80,17 +91,22 @@ describe("codec URL del directorio administrativo", () => {
         page: 4,
         limit: 50,
       },
+      roles: {
+        search: "Legal",
+        status: "inactive",
+      },
     });
     assert.equal(
       serializeAdminDirectoryUrlState(parsed).toString(),
-      "tab=roles&user_search=primera&user_role=2&user_status=active&user_page=4&user_limit=50",
+      "tab=roles&user_search=primera&user_role=2&user_status=active&user_page=4&user_limit=50&role_search=Legal&role_status=inactive",
     );
   });
 
   it("descarta valores inválidos, texto vacío y parámetros ajenos", () => {
     const parsed = parseAdminDirectoryUrlState(
       "tab=permisos&user_search=+++&user_role=0&user_status=disabled" +
-        "&user_page=-2&user_limit=20&role_search=Gerencia" +
+        "&user_page=-2&user_limit=20&role_search=+++&role_status=disabled" +
+        "&roles_search=Gerencia" +
         "&admin_api_key=no-debe-sobrevivir",
     );
 
@@ -166,6 +182,10 @@ describe("codec URL del directorio administrativo", () => {
           page: Number.POSITIVE_INFINITY,
           limit: 20,
         },
+        roles: {
+          search: "   ",
+          status: "disabled",
+        },
       },
     ]) {
       assert.equal(
@@ -180,10 +200,15 @@ describe("codec URL del directorio administrativo", () => {
       serializeAdminDirectoryUrlState({
         tab: "roles",
         users: { page: 2, limit: 25 },
-        role_search: "Gerencia",
+        roles: {
+          search: "  Legal  ",
+          status: "active",
+          page: 9,
+        },
+        roles_search: "Gerencia",
         admin_api_key: "no-debe-sobrevivir",
       } as unknown as AdminDirectoryUrlState).toString(),
-      "tab=roles&user_page=2&user_limit=25",
+      "tab=roles&user_page=2&user_limit=25&role_search=++Legal++&role_status=active",
     );
   });
 
@@ -191,6 +216,7 @@ describe("codec URL del directorio administrativo", () => {
     const inheritedState = Object.create({
       tab: "roles",
       users: { page: 3, limit: 25 },
+      roles: { search: "Legal", status: "active" },
     }) as unknown;
     const hostileState = Object.defineProperty({}, "tab", {
       get(): never {
@@ -206,6 +232,10 @@ describe("codec URL del directorio administrativo", () => {
       page: 3,
       limit: 25,
     });
+    const inheritedRoles = Object.create({
+      search: "Legal",
+      status: "active",
+    });
     const hostileUsers = Object.defineProperty({}, "search", {
       get(): never {
         throw new Error("getter hostil");
@@ -213,6 +243,13 @@ describe("codec URL del directorio administrativo", () => {
     });
     const revokedUsers = Proxy.revocable({}, {});
     revokedUsers.revoke();
+    const hostileRoles = Object.defineProperty({}, "status", {
+      get(): never {
+        throw new Error("getter hostil");
+      },
+    });
+    const revokedRoles = Proxy.revocable({}, {});
+    revokedRoles.revoke();
 
     for (const state of [inheritedState, hostileState, revokedState.proxy]) {
       assert.equal(
@@ -226,6 +263,15 @@ describe("codec URL del directorio administrativo", () => {
       serializeAdminDirectoryUrlState({
         tab: "roles",
         users: inheritedUsers,
+        roles: { search: "Legal", status: "active" },
+      } as AdminDirectoryUrlState).toString(),
+      "tab=roles&role_search=Legal&role_status=active",
+    );
+    assert.equal(
+      serializeAdminDirectoryUrlState({
+        tab: "roles",
+        users: { page: 1, limit: 10 },
+        roles: inheritedRoles,
       } as AdminDirectoryUrlState).toString(),
       "tab=roles",
     );
@@ -235,34 +281,49 @@ describe("codec URL del directorio administrativo", () => {
         serializeAdminDirectoryUrlState({
           tab: "roles",
           users,
+          roles: { search: "Legal" },
+        } as unknown as AdminDirectoryUrlState).toString(),
+        "",
+      );
+    }
+
+    for (const roles of [hostileRoles, revokedRoles.proxy]) {
+      assert.equal(
+        serializeAdminDirectoryUrlState({
+          tab: "roles",
+          users: { page: 2, limit: 25 },
+          roles,
         } as unknown as AdminDirectoryUrlState).toString(),
         "",
       );
     }
   });
 
-  it("lee una sola vez cada propiedad validada, incluido users", () => {
+  it("lee una sola vez cada propiedad validada, incluidos users y roles", () => {
     const reads = {
       tab: 0,
       users: 0,
-      search: 0,
+      roles: 0,
+      userSearch: 0,
       roleId: 0,
-      status: 0,
+      userStatus: 0,
       page: 0,
       limit: 0,
+      roleSearch: 0,
+      roleStatus: 0,
     };
     const changingUsers = {
       get search(): string {
-        reads.search += 1;
-        return reads.search === 1 ? "Ana" : "otra";
+        reads.userSearch += 1;
+        return reads.userSearch === 1 ? "Ana" : "otra";
       },
       get roleId(): number {
         reads.roleId += 1;
         return reads.roleId === 1 ? 2 : 9;
       },
       get status(): string {
-        reads.status += 1;
-        return reads.status === 1 ? "active" : "inactive";
+        reads.userStatus += 1;
+        return reads.userStatus === 1 ? "active" : "inactive";
       },
       get page(): number {
         reads.page += 1;
@@ -271,6 +332,16 @@ describe("codec URL del directorio administrativo", () => {
       get limit(): number {
         reads.limit += 1;
         return reads.limit === 1 ? 25 : 100;
+      },
+    };
+    const changingRoles = {
+      get search(): string {
+        reads.roleSearch += 1;
+        return reads.roleSearch === 1 ? "Legal" : "otra";
+      },
+      get status(): string {
+        reads.roleStatus += 1;
+        return reads.roleStatus === 1 ? "inactive" : "active";
       },
     };
     const changingState = {
@@ -282,22 +353,29 @@ describe("codec URL del directorio administrativo", () => {
         reads.users += 1;
         return reads.users === 1 ? changingUsers : {};
       },
+      get roles(): unknown {
+        reads.roles += 1;
+        return reads.roles === 1 ? changingRoles : {};
+      },
     };
 
     assert.equal(
       serializeAdminDirectoryUrlState(
         changingState as unknown as AdminDirectoryUrlState,
       ).toString(),
-      "tab=roles&user_search=Ana&user_role=2&user_status=active&user_page=3&user_limit=25",
+      "tab=roles&user_search=Ana&user_role=2&user_status=active&user_page=3&user_limit=25&role_search=Legal&role_status=inactive",
     );
     assert.deepEqual(reads, {
       tab: 1,
       users: 1,
-      search: 1,
+      roles: 1,
+      userSearch: 1,
       roleId: 1,
-      status: 1,
+      userStatus: 1,
       page: 1,
       limit: 1,
+      roleSearch: 1,
+      roleStatus: 1,
     });
   });
 });

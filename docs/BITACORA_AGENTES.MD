@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Contrato URL del listado de roles
+
+**Agente:** Codex
+**Estado:** centésima trigésima cuarta remediación de la auditoría técnica, implementada localmente.
+
+- El estado del directorio incorpora un bloque `roles` independiente para búsqueda y estado mediante `role_search` y `role_status`, serializado después de los parámetros de Usuarios y omitido cuando conserva sus defaults.
+- Usuarios y Roles comparten una única allowlist congelada para `active|inactive`, pero mantienen tipos y objetos de estado explícitos. La normalización anidada conserva lectura única y falla cerrado ante propiedades heredadas, getters hostiles y proxies revocados.
+- Aprobaron las 10 pruebas dirigidas y las 157 pruebas frontend completas, Prettier, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. La tabla de Roles aún mantiene sus controles locales; su conexión queda para el siguiente commit. No se hizo push.
+
 ## 2026-08-07 — Listado de usuarios sincronizado con la URL
 
 **Agente:** Codex

@@ -14,12 +14,15 @@ export const ADMIN_DIRECTORY_USER_STATUSES = Object.freeze([
   "active",
   "inactive",
 ] as const);
+export const ADMIN_DIRECTORY_ROLE_STATUSES = ADMIN_DIRECTORY_USER_STATUSES;
 export const ADMIN_DIRECTORY_USER_LIMITS = Object.freeze([
   10, 25, 50, 100,
 ] as const);
 
-export type AdminDirectoryUserStatus =
+export type AdminDirectoryStatus =
   (typeof ADMIN_DIRECTORY_USER_STATUSES)[number];
+export type AdminDirectoryUserStatus = AdminDirectoryStatus;
+export type AdminDirectoryRoleStatus = AdminDirectoryStatus;
 export type AdminDirectoryUserLimit =
   (typeof ADMIN_DIRECTORY_USER_LIMITS)[number];
 
@@ -34,13 +37,19 @@ export interface AdminDirectoryUsersUrlState {
   limit: AdminDirectoryUserLimit;
 }
 
+export interface AdminDirectoryRolesUrlState {
+  search?: string;
+  status?: AdminDirectoryRoleStatus;
+}
+
 export interface AdminDirectoryUrlState {
   tab: AdminDirectoryTabValue;
   users: AdminDirectoryUsersUrlState;
+  roles: AdminDirectoryRolesUrlState;
 }
 
 const ADMIN_DIRECTORY_TAB_SET = new Set<string>(ADMIN_DIRECTORY_TABS);
-const ADMIN_DIRECTORY_USER_STATUS_SET = new Set<string>(
+const ADMIN_DIRECTORY_STATUS_SET = new Set<string>(
   ADMIN_DIRECTORY_USER_STATUSES,
 );
 const ADMIN_DIRECTORY_USER_LIMIT_SET = new Set<number>(
@@ -56,10 +65,15 @@ function createDefaultAdminDirectoryUsersUrlState(): AdminDirectoryUsersUrlState
   };
 }
 
+function createDefaultAdminDirectoryRolesUrlState(): AdminDirectoryRolesUrlState {
+  return {};
+}
+
 export function createDefaultAdminDirectoryUrlState(): AdminDirectoryUrlState {
   return {
     tab: DEFAULT_ADMIN_DIRECTORY_TAB,
     users: createDefaultAdminDirectoryUsersUrlState(),
+    roles: createDefaultAdminDirectoryRolesUrlState(),
   };
 }
 
@@ -73,11 +87,11 @@ function readAdminDirectoryTab(value: unknown): AdminDirectoryTabValue {
     : DEFAULT_ADMIN_DIRECTORY_TAB;
 }
 
-function readAdminDirectoryUserStatus(
+function readAdminDirectoryStatus(
   value: unknown,
-): AdminDirectoryUserStatus | undefined {
-  return typeof value === "string" && ADMIN_DIRECTORY_USER_STATUS_SET.has(value)
-    ? (value as AdminDirectoryUserStatus)
+): AdminDirectoryStatus | undefined {
+  return typeof value === "string" && ADMIN_DIRECTORY_STATUS_SET.has(value)
+    ? (value as AdminDirectoryStatus)
     : undefined;
 }
 
@@ -146,7 +160,7 @@ function normalizeAdminDirectoryUsersUrlState(
     : undefined;
 
   const roleId = readPositiveSafeInteger(roleIdValue);
-  const status = readAdminDirectoryUserStatus(statusValue);
+  const status = readAdminDirectoryStatus(statusValue);
   const limit = readAdminDirectoryUserLimit(limitValue);
 
   return {
@@ -155,6 +169,32 @@ function normalizeAdminDirectoryUsersUrlState(
     ...(status ? { status } : {}),
     page: readAdminDirectoryUserPage(pageValue, limit),
     limit,
+  };
+}
+
+function normalizeAdminDirectoryRolesUrlState(
+  rolesValue: unknown,
+): AdminDirectoryRolesUrlState {
+  if (
+    typeof rolesValue !== "object" ||
+    rolesValue === null ||
+    Array.isArray(rolesValue)
+  ) {
+    return createDefaultAdminDirectoryRolesUrlState();
+  }
+
+  const candidate = rolesValue as Record<string, unknown>;
+  const searchValue = Object.hasOwn(candidate, "search")
+    ? candidate.search
+    : undefined;
+  const statusValue = Object.hasOwn(candidate, "status")
+    ? candidate.status
+    : undefined;
+  const status = readAdminDirectoryStatus(statusValue);
+
+  return {
+    ...(hasMeaningfulText(searchValue) ? { search: searchValue } : {}),
+    ...(status ? { status } : {}),
   };
 }
 
@@ -173,10 +213,14 @@ function normalizeAdminDirectoryUrlState(
     const usersValue = Object.hasOwn(candidate, "users")
       ? candidate.users
       : undefined;
+    const rolesValue = Object.hasOwn(candidate, "roles")
+      ? candidate.roles
+      : undefined;
 
     return {
       tab: readAdminDirectoryTab(tabValue),
       users: normalizeAdminDirectoryUsersUrlState(usersValue),
+      roles: normalizeAdminDirectoryRolesUrlState(rolesValue),
     };
   } catch {
     return createDefaultAdminDirectoryUrlState();
@@ -190,7 +234,9 @@ export function parseAdminDirectoryUrlState(
   const limit = readAdminDirectoryUserLimit(params.get("user_limit"));
   const search = params.get("user_search");
   const roleId = readPositiveSafeInteger(params.get("user_role"));
-  const status = readAdminDirectoryUserStatus(params.get("user_status"));
+  const status = readAdminDirectoryStatus(params.get("user_status"));
+  const roleSearch = params.get("role_search");
+  const roleStatus = readAdminDirectoryStatus(params.get("role_status"));
 
   return {
     tab: readAdminDirectoryTab(params.get("tab")),
@@ -200,6 +246,10 @@ export function parseAdminDirectoryUrlState(
       ...(status ? { status } : {}),
       page: readAdminDirectoryUserPage(params.get("user_page"), limit),
       limit,
+    },
+    roles: {
+      ...(hasMeaningfulText(roleSearch) ? { search: roleSearch } : {}),
+      ...(roleStatus ? { status: roleStatus } : {}),
     },
   };
 }
@@ -227,6 +277,12 @@ export function serializeAdminDirectoryUrlState(
   }
   if (normalized.users.limit !== DEFAULT_ADMIN_DIRECTORY_USER_LIMIT) {
     params.set("user_limit", String(normalized.users.limit));
+  }
+  if (normalized.roles.search) {
+    params.set("role_search", normalized.roles.search);
+  }
+  if (normalized.roles.status) {
+    params.set("role_status", normalized.roles.status);
   }
 
   return params;
