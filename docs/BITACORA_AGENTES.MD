@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Normalización de consultas de tickets separada
+
+**Agente:** Codex
+**Estado:** sexagésima séptima remediación de la auditoría técnica, implementada y validada localmente.
+
+- La coerción estricta de booleanos y fechas salió de `routes/tickets.ts` a `lib/ticket-query-normalization.ts`; los middlewares, rutas, mensajes y el orden de validación permanecen intactos.
+- Se fijaron regresiones para booleanos reconocidos y rechazables, fecha bisiesta, límites locales del día, formatos imposibles, claves ajenas e inmutabilidad. `incluir_vacios` continúa ampliando alcance sólo ante `true` exacto y bajo la doble elevación administrativa existente.
+- La revisión cruzada no encontró hallazgos P0/P1/P2. Aprobaron las 4 pruebas nuevas, typecheck del backend, ESLint dirigido, Prettier y `diff --check`. No se hizo push.
+
 ## 2026-08-07 — Encabezado informativo del ticket aislado
 
 **Agente:** Codex
