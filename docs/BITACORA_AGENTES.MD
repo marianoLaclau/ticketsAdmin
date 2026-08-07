@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — TypeScript estricto en todo el workspace
+
+**Agente:** Codex
+**Estado:** centésima quincuagésima novena remediación de la auditoría técnica, implementada localmente.
+
+- `tsconfig.base.json` exige ahora `noUnusedLocals`, `noUnusedParameters`, `strictFunctionTypes` y `noImplicitOverride` para scripts y todas las librerías compartidas, además de backend y frontend. Las declaraciones duplicadas de las dos aplicaciones se retiraron para que la política tenga una única fuente.
+- `ApiError` y `ResponseParseError` declaran explícitamente que sus propiedades `name` y `cause` sobrescriben miembros de `Error`; fueron los únicos tres incumplimientos detectados al ensayar las reglas sobre cada proyecto por separado.
+- Aprobaron typecheck de todo el workspace, ESLint, la suite completa, build de producción, codegen check y `git diff --check`. No se hizo push.
+
 ## 2026-08-07 — Documentación SSE alineada con la implementación
 
 **Agente:** Codex

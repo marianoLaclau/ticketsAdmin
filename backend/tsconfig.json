@@ -2,13 +2,9 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "incremental": true,
-    "noImplicitOverride": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
     "tsBuildInfoFile": ".tsbuildinfo",
     "outDir": "dist",
     "rootDir": "src",
-    "strictFunctionTypes": true,
     "types": ["node"]
   },
   "include": ["src"],
