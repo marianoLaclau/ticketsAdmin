@@ -29,7 +29,23 @@ const ADMIN_TICKETS_TAB_MAP = {
 export const ADMIN_TICKETS_TABS: readonly AdminTicketsTabValue[] =
   Object.freeze(Object.keys(ADMIN_TICKETS_TAB_MAP) as AdminTicketsTabValue[]);
 
+export const ADMIN_TICKETS_SORT_COLUMNS = Object.freeze([
+  "id",
+  "fecha_creacion",
+  "conversation_id",
+  "contacto",
+  "empresa",
+  "motivo_categoria",
+  "estado",
+  "prioridad",
+  "asignado_a",
+  "fecha_limite",
+] as const satisfies readonly TicketSortRule["sortBy"][]);
+
 const ADMIN_TICKETS_TAB_SET = new Set<string>(ADMIN_TICKETS_TABS);
+const ADMIN_TICKETS_SORT_COLUMN_SET = new Set<string>(
+  ADMIN_TICKETS_SORT_COLUMNS,
+);
 const DEFAULT_ADMIN_TICKETS_TAB: AdminTicketsTabValue = "registros";
 
 export function createDefaultAdminTicketsUrlState(): AdminTicketsUrlState {
@@ -48,6 +64,17 @@ function readAdminTicketsTab(value: unknown): AdminTicketsTabValue {
     : DEFAULT_ADMIN_TICKETS_TAB;
 }
 
+function restrictAdminTicketsSort(
+  state: TicketListUrlState,
+): TicketListUrlState {
+  const hasOnlyVisibleColumns = state.sort.every((rule) =>
+    ADMIN_TICKETS_SORT_COLUMN_SET.has(rule.sortBy),
+  );
+  return hasOnlyVisibleColumns
+    ? state
+    : { ...state, sort: createDefaultTicketSort() };
+}
+
 function normalizeTicketListState(
   searchValue: unknown,
   sortValue: unknown,
@@ -62,7 +89,9 @@ function normalizeTicketListState(
     limit: typeof limitValue === "number" ? limitValue : defaultState.limit,
   } as TicketListUrlState;
 
-  return parseTicketListUrlState(serializeTicketListUrlState(unsafeState));
+  return restrictAdminTicketsSort(
+    parseTicketListUrlState(serializeTicketListUrlState(unsafeState)),
+  );
 }
 
 function normalizeAdminTicketsUrlState(state: unknown): AdminTicketsUrlState {
@@ -111,7 +140,9 @@ export function parseAdminTicketsUrlState(
   input: URLSearchParams | string,
 ): AdminTicketsUrlState {
   const params = typeof input === "string" ? new URLSearchParams(input) : input;
-  const ticketListState = parseTicketListUrlState(params);
+  const ticketListState = restrictAdminTicketsSort(
+    parseTicketListUrlState(params),
+  );
   const search = ticketListState.filters.search;
 
   return {

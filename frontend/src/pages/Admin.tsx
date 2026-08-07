@@ -18,7 +18,7 @@ function nextAdminTicketsQueryVersion(): number {
 export default function Admin() {
   // Segunda credencial obligatoria para las operaciones del panel SysAdmin.
   const { adminKey, saveAdminKey, adminRequest } = useAdminAccess();
-  const { urlState, selectTab } = useAdminTicketsUrl();
+  const { urlState, updateUrlState, selectTab } = useAdminTicketsUrl();
   // La versión fuerza una consulta nueva cuando cambia la llave, sin incluir
   // el secreto en el query key ni dejarlo expuesto en la caché del navegador.
   const adminAccessVersion = useMemo(nextAdminTicketsQueryVersion, [adminKey]);
@@ -52,6 +52,8 @@ export default function Admin() {
           request={adminRequest}
           hasAdminAccess={Boolean(adminKey)}
           accessVersion={adminAccessVersion}
+          urlState={urlState}
+          updateUrlState={updateUrlState}
         />
         <AdminCsvImportTab request={adminRequest} />
         <AdminDangerZoneTab

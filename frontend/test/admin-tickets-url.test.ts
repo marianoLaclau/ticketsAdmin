@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  ADMIN_TICKETS_SORT_COLUMNS,
   ADMIN_TICKETS_TABS,
   createDefaultAdminTicketsUrlState,
   parseAdminTicketsUrlState,
@@ -27,6 +28,39 @@ describe("codec URL de tickets administrativos", () => {
       assert.deepEqual(parseAdminTicketsUrlState(serialized), state);
       assert.equal(serialized.get("tab"), tab === "registros" ? null : tab);
     }
+  });
+
+  it("limita el orden a las columnas visibles de la tabla", () => {
+    assert.deepEqual(ADMIN_TICKETS_SORT_COLUMNS, [
+      "id",
+      "fecha_creacion",
+      "conversation_id",
+      "contacto",
+      "empresa",
+      "motivo_categoria",
+      "estado",
+      "prioridad",
+      "asignado_a",
+      "fecha_limite",
+    ]);
+    assert.equal(Object.isFrozen(ADMIN_TICKETS_SORT_COLUMNS), true);
+
+    for (const sort of ["progreso:asc", "id:asc,progreso:desc"] as const) {
+      const parsed = parseAdminTicketsUrlState(`sort=${sort}`);
+
+      assert.deepEqual(parsed.sort, [
+        { sortBy: "fecha_creacion", order: "desc" },
+      ]);
+      assert.equal(serializeAdminTicketsUrlState(parsed).toString(), "");
+    }
+
+    assert.equal(
+      serializeAdminTicketsUrlState({
+        ...createDefaultAdminTicketsUrlState(),
+        sort: [{ sortBy: "motivo", order: "asc" }],
+      }).toString(),
+      "",
+    );
   });
 
   it("conserva pestaña, búsqueda, orden compuesto y paginación", () => {

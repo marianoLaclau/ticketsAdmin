@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Tabla administrativa sincronizada con la URL
+
+**Agente:** Codex
+**Estado:** centésima vigésima quinta remediación de la auditoría técnica, implementada localmente.
+
+- Búsqueda, orden compuesto, página y límite de la tabla administrativa derivan ahora de la URL; recargar y navegar con Atrás/Adelante reconstruye la consulta y su query key sin almacenar la API key.
+- Búsqueda, orden, límite y corrección de páginas fuera de rango usan `replace`; Anterior/Siguiente usan `push`. Cambiar el límite restablece la página en la misma operación y elimina la consulta transitoria que provocaban dos estados locales.
+- El codec admite exactamente las diez columnas ordenables visibles. Un criterio simple o compuesto que incluya `motivo` o `progreso` vuelve íntegramente al orden predeterminado, evitando prioridades invisibles en la interfaz.
+- Aprobaron las 139 pruebas frontend —incluida la nueva restricción administrativa—, Prettier, ESLint, typecheck, build de producción, `git diff --check` y dos rondas de revisión cruzada sin hallazgos P0/P1/P2 después de corregir el orden invisible detectado. No se hizo push.
+
 ## 2026-08-07 — Pestañas de Administración en la URL
 
 **Agente:** Codex

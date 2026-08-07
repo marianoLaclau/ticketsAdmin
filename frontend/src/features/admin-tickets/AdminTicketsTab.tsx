@@ -21,6 +21,10 @@ import { AdminTicketsPagination } from "@/features/admin-tickets/AdminTicketsPag
 import { AdminTicketDeleteDialog } from "@/features/admin-tickets/AdminTicketDeleteDialog";
 import { AdminTicketFormDialog } from "@/features/admin-tickets/AdminTicketFormDialog";
 import { AdminTicketTableRow } from "@/features/admin-tickets/AdminTicketTableRow";
+import type {
+  AdminTicketsUrlNavigation,
+  AdminTicketsUrlUpdate,
+} from "@/features/admin-tickets/useAdminTicketsUrl";
 
 import { TabsContent } from "@/components/ui/tabs";
 import {
@@ -41,13 +45,9 @@ import {
   createDefaultTicketSort,
   isDefaultTicketSort,
   nextTicketSort,
-  type TicketSortRule,
 } from "@/lib/ticket-list-controls";
-import {
-  DEFAULT_TICKET_LIST_LIMIT,
-  DEFAULT_TICKET_LIST_PAGE,
-  type TicketListLimit,
-} from "@/lib/ticket-list-url";
+import { DEFAULT_TICKET_LIST_PAGE } from "@/lib/ticket-list-url";
+import type { AdminTicketsUrlState } from "@/lib/admin-tickets-url";
 import {
   buildAdminTicketInput,
   buildAdminTicketUpdate,
@@ -66,12 +66,19 @@ interface AdminTicketsTabProps {
   request: RequestInit;
   hasAdminAccess: boolean;
   accessVersion: number;
+  urlState: AdminTicketsUrlState;
+  updateUrlState: (
+    update: AdminTicketsUrlUpdate,
+    navigation?: AdminTicketsUrlNavigation,
+  ) => void;
 }
 
 export function AdminTicketsTab({
   request,
   hasAdminAccess,
   accessVersion,
+  urlState,
+  updateUrlState,
 }: AdminTicketsTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -88,12 +95,8 @@ export function AdminTicketsTab({
   };
 
   // ---------- Registros (CRUD) ----------
-  const [page, setPage] = useState(DEFAULT_TICKET_LIST_PAGE);
-  const [pageSize, setPageSize] = useState<TicketListLimit>(
-    DEFAULT_TICKET_LIST_LIMIT,
-  );
-  const [search, setSearch] = useState("");
-  const [sorts, setSorts] = useState<TicketSortRule[]>(createDefaultTicketSort);
+  const { page, limit: pageSize, sort: sorts } = urlState;
+  const search = urlState.search ?? "";
   const listParams = {
     ...buildTicketListParams({ search }, sorts, page, pageSize),
     incluir_vacios: true,
@@ -117,21 +120,34 @@ export function AdminTicketsTab({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   useEffect(() => {
-    setPage(DEFAULT_TICKET_LIST_PAGE);
-  }, [pageSize]);
-
-  useEffect(() => {
-    if (listResponse && page > totalPages) setPage(totalPages);
-  }, [listResponse, page, totalPages]);
+    if (listResponse && page > totalPages) {
+      updateUrlState((current) => ({ ...current, page: totalPages }));
+    }
+  }, [listResponse, page, totalPages, updateUrlState]);
 
   const ordenarRegistros = (column: TicketSortBy, additive: boolean) => {
-    setSorts((current) => nextTicketSort(current, column, additive));
-    setPage(DEFAULT_TICKET_LIST_PAGE);
+    updateUrlState((current) => ({
+      ...current,
+      sort: nextTicketSort(current.sort, column, additive),
+      page: DEFAULT_TICKET_LIST_PAGE,
+    }));
   };
 
   const restablecerOrdenRegistros = () => {
-    setSorts(createDefaultTicketSort());
-    setPage(DEFAULT_TICKET_LIST_PAGE);
+    updateUrlState((current) => ({
+      ...current,
+      sort: createDefaultTicketSort(),
+      page: DEFAULT_TICKET_LIST_PAGE,
+    }));
+  };
+
+  const actualizarBusqueda = (value: string) => {
+    updateUrlState((current) => {
+      const next = { ...current, page: DEFAULT_TICKET_LIST_PAGE };
+      if (value.trim()) next.search = value;
+      else delete next.search;
+      return next;
+    });
   };
 
   const createTicket = useCreateAdminTicket({ request });
@@ -321,10 +337,7 @@ export function AdminTicketsTab({
               placeholder="Buscar en todos los campos..."
               className="pl-8 h-9"
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(DEFAULT_TICKET_LIST_PAGE);
-              }}
+              onChange={(event) => actualizarBusqueda(event.target.value)}
             />
           </div>
           <Button onClick={abrirCrear} className="h-9 w-full sm:w-auto">
@@ -499,9 +512,25 @@ export function AdminTicketsTab({
             pageSize={pageSize}
             total={total}
             totalPages={totalPages}
-            onPageSizeChange={setPageSize}
-            onPreviousPage={() => setPage((current) => current - 1)}
-            onNextPage={() => setPage((current) => current + 1)}
+            onPageSizeChange={(limit) =>
+              updateUrlState((current) => ({
+                ...current,
+                limit,
+                page: DEFAULT_TICKET_LIST_PAGE,
+              }))
+            }
+            onPreviousPage={() =>
+              updateUrlState(
+                (current) => ({ ...current, page: current.page - 1 }),
+                "push",
+              )
+            }
+            onNextPage={() =>
+              updateUrlState(
+                (current) => ({ ...current, page: current.page + 1 }),
+                "push",
+              )
+            }
           />
         </div>
       </TabsContent>
