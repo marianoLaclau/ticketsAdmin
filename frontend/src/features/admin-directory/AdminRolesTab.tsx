@@ -43,9 +43,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { LoadingStatus } from '@/components/ui/loading-status';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TabsContent } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { AdminStatusBadge } from '@/features/admin-directory/AdminStatusBadge';
@@ -158,6 +159,8 @@ export function AdminRolesTab({
     () => filterAdminRoles(listedRoles, roleSearch, roleStatusFilter),
     [listedRoles, roleSearch, roleStatusFilter],
   );
+  const roleResultsAvailable =
+    !rolesQuery.isLoading && !rolesQuery.isError && visibleRoles.length > 0;
 
   const createRole = useCreateAdminRole({ request });
   const updateRole = useUpdateAdminRole({ request });
@@ -326,9 +329,19 @@ export function AdminRolesTab({
           </Alert>
         )}
 
-        <div className="overflow-hidden rounded-md border border-border bg-card shadow-sm">
+        {rolesQuery.isFetching ? (
+          <LoadingStatus>
+            {rolesQuery.isLoading ? 'Cargando roles' : 'Actualizando roles'}
+          </LoadingStatus>
+        ) : null}
+
+        <div
+          className="overflow-hidden rounded-md border border-border bg-card shadow-sm"
+          aria-busy={rolesQuery.isFetching}
+        >
           <div className="overflow-x-auto">
             <Table>
+              <TableCaption className="sr-only">Directorio de roles</TableCaption>
               <TableHeader className="bg-slate-50/80">
                 <TableRow>
                   <TableHead className="w-[70px] text-xs uppercase">ID</TableHead>
@@ -342,7 +355,7 @@ export function AdminRolesTab({
               <TableBody>
                 {rolesQuery.isLoading ? (
                   Array.from({ length: 5 }).map((_, row) => (
-                    <TableRow key={row}>
+                    <TableRow key={row} aria-hidden="true">
                       {Array.from({ length: 6 }).map((__, cell) => (
                         <TableCell key={cell}>
                           <Skeleton className="h-4 w-full" />
@@ -353,13 +366,13 @@ export function AdminRolesTab({
                 ) : rolesQuery.isError ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-32 text-center text-sm text-destructive">
-                      {adminErrorMessage(rolesQuery.error)}
+                      <span role="alert">{adminErrorMessage(rolesQuery.error)}</span>
                     </TableCell>
                   </TableRow>
                 ) : visibleRoles.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-32 text-center text-sm text-muted-foreground">
-                      No hay roles que coincidan con los filtros.
+                      <span role="status">No hay roles que coincidan con los filtros.</span>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -441,8 +454,17 @@ export function AdminRolesTab({
               </TableBody>
             </Table>
           </div>
-          <div className="border-t bg-slate-50/60 px-4 py-2.5 text-xs text-muted-foreground">
-            {visibleRoles.length} de {rolesQuery.data?.total ?? 0} roles visibles
+          <div
+            className="border-t bg-slate-50/60 px-4 py-2.5 text-xs text-muted-foreground"
+            role={roleResultsAvailable ? 'status' : undefined}
+            aria-live={roleResultsAvailable ? 'polite' : undefined}
+            aria-atomic={roleResultsAvailable ? 'true' : undefined}
+          >
+            {rolesQuery.isLoading
+              ? 'Cargando roles...'
+              : rolesQuery.isError
+                ? 'No se pudieron cargar los roles.'
+                : `${visibleRoles.length} de ${rolesQuery.data?.total ?? 0} roles visibles`}
           </div>
         </div>
       </TabsContent>

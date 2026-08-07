@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Estados accesibles de las tablas administrativas
+
+**Agente:** Codex
+**Estado:** centésima cuadragésima primera remediación de la auditoría técnica, implementada localmente.
+
+- Las tablas de Usuarios y Roles exponen caption semántico, región ocupada durante consultas y mensajes diferenciados para carga inicial, actualización, error, vacío y resultados disponibles. Cada estado conserva un único canal principal de anuncio para evitar repeticiones en lectores de pantalla.
+- Las filas skeleton quedaron fuera del árbol accesible sin romper la estructura de tabla; los errores se anuncian como alertas, los vacíos como estados y los conteos sólo son regiones vivas cuando hay resultados. La paginación de Usuarios usa ahora un `nav` identificado.
+- El fallo aislado del catálogo de roles se informa sin duplicarse cuando ya falló la consulta principal de Usuarios. Aprobaron las 160 pruebas frontend, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. La salida temporal fue verificada y eliminada; sólo persistieron las advertencias de sourcemaps conocidas. No se hizo push.
+
 ## 2026-08-07 — Controles accesibles del directorio administrativo
 
 **Agente:** Codex

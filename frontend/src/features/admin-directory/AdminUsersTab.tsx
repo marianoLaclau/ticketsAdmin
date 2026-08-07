@@ -49,9 +49,10 @@ import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { LoadingStatus } from '@/components/ui/loading-status';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TabsContent } from '@/components/ui/tabs';
 import { adminErrorMessage } from '@/hooks/use-admin-access';
 import { useToast } from '@/hooks/use-toast';
@@ -168,6 +169,8 @@ export function AdminUsersTab({
   const users = usersQuery.data?.users ?? [];
   const userTotal = usersQuery.data?.total ?? 0;
   const userTotalPages = Math.max(1, Math.ceil(userTotal / userPageSize));
+  const userResultsAvailable =
+    !usersQuery.isLoading && !usersQuery.isError && users.length > 0;
 
   useEffect(() => {
     if (
@@ -512,9 +515,27 @@ export function AdminUsersTab({
             </Alert>
           )}
 
-          <div className="overflow-hidden rounded-md border border-border bg-card shadow-sm">
+          {roleCatalogQuery.isError && !usersQuery.isError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+              <AlertTitle>No se pudo cargar el catálogo de roles</AlertTitle>
+              <AlertDescription>{adminErrorMessage(roleCatalogQuery.error)}</AlertDescription>
+            </Alert>
+          )}
+
+          {usersQuery.isFetching ? (
+            <LoadingStatus>
+              {usersQuery.isLoading ? 'Cargando usuarios' : 'Actualizando usuarios'}
+            </LoadingStatus>
+          ) : null}
+
+          <div
+            className="overflow-hidden rounded-md border border-border bg-card shadow-sm"
+            aria-busy={usersQuery.isFetching}
+          >
             <div className="overflow-x-auto">
               <Table>
+                <TableCaption className="sr-only">Directorio de usuarios</TableCaption>
                 <TableHeader className="bg-slate-50/80">
                   <TableRow>
                     <TableHead className="w-[70px] text-xs uppercase">ID</TableHead>
@@ -530,7 +551,7 @@ export function AdminUsersTab({
                 <TableBody>
                   {usersQuery.isLoading ? (
                     Array.from({ length: 6 }).map((_, row) => (
-                      <TableRow key={row}>
+                      <TableRow key={row} aria-hidden="true">
                         {Array.from({ length: 8 }).map((__, cell) => (
                           <TableCell key={cell}>
                             <Skeleton className="h-4 w-full" />
@@ -541,13 +562,13 @@ export function AdminUsersTab({
                   ) : usersQuery.isError ? (
                     <TableRow>
                       <TableCell colSpan={8} className="h-32 text-center text-sm text-destructive">
-                        {adminErrorMessage(usersQuery.error)}
+                        <span role="alert">{adminErrorMessage(usersQuery.error)}</span>
                       </TableCell>
                     </TableRow>
                   ) : users.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="h-32 text-center text-sm text-muted-foreground">
-                        No hay usuarios que coincidan con los filtros.
+                        <span role="status">No hay usuarios que coincidan con los filtros.</span>
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -640,10 +661,19 @@ export function AdminUsersTab({
                 </Select>
                 <span>por página</span>
               </div>
-              <span className="text-xs text-muted-foreground">
-                {userTotal} registros — página {userPage} de {userTotalPages}
+              <span
+                className="text-xs text-muted-foreground"
+                role={userResultsAvailable ? 'status' : undefined}
+                aria-live={userResultsAvailable ? 'polite' : undefined}
+                aria-atomic={userResultsAvailable ? 'true' : undefined}
+              >
+                {usersQuery.isLoading
+                  ? 'Cargando registros...'
+                  : usersQuery.isError
+                    ? 'No se pudieron cargar los registros.'
+                    : `${userTotal} registros — página ${userPage} de ${userTotalPages}`}
               </span>
-              <div className="flex items-center gap-1">
+              <nav className="flex items-center gap-1" aria-label="Paginación de usuarios">
                 <Button
                   variant="outline"
                   size="sm"
@@ -662,7 +692,7 @@ export function AdminUsersTab({
                 >
                   Siguiente <ChevronRight className="ml-0.5 h-3.5 w-3.5" aria-hidden="true" />
                 </Button>
-              </div>
+              </nav>
             </div>
           </div>
         </TabsContent>
