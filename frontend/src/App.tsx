@@ -1,11 +1,6 @@
 import React from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Route, Switch, Router as WouterRouter, useLocation } from "wouter";
-import Dashboard from "@/pages/Dashboard";
-import TicketList from "@/pages/TicketList";
-import TicketDetail from "@/pages/TicketDetail";
-import Admin from "@/pages/Admin";
-import AdminRolesUsers from "@/pages/AdminRolesUsers";
 import Login from "@/pages/Login";
 import ChangePassword from "@/pages/ChangePassword";
 import NotFound from "@/pages/not-found";
@@ -34,6 +29,12 @@ import {
   clearAuthenticatedQueries,
   hasConfirmedPublicSession,
 } from "@/lib/session-state";
+
+const Dashboard = React.lazy(() => import("@/pages/Dashboard"));
+const TicketList = React.lazy(() => import("@/pages/TicketList"));
+const TicketDetail = React.lazy(() => import("@/pages/TicketDetail"));
+const Admin = React.lazy(() => import("@/pages/Admin"));
+const AdminRolesUsers = React.lazy(() => import("@/pages/AdminRolesUsers"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -102,6 +103,22 @@ function LoadingSession() {
   return (
     <div className="min-h-screen bg-sidebar flex items-center justify-center">
       <Loader2 className="h-8 w-8 text-white/60 animate-spin" />
+    </div>
+  );
+}
+
+function LoadingProtectedRoute() {
+  return (
+    <div
+      className="flex min-h-[50vh] w-full items-center justify-center"
+      role="status"
+      aria-live="polite"
+    >
+      <Loader2
+        className="h-7 w-7 animate-spin text-muted-foreground"
+        aria-hidden="true"
+      />
+      <span className="sr-only">Cargando pantalla</span>
     </div>
   );
 }
@@ -242,29 +259,31 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 function ProtectedRouter() {
   return (
     <AppLayout>
-      <Switch>
-        <Route path="/dashboard" component={Dashboard} />
-        <Route path="/admin/roles-usuarios">
-          <SoloSysAdmin>
-            <AdminRolesUsers />
-          </SoloSysAdmin>
-        </Route>
-        <Route path="/admin/tickets/:id">
-          <SoloSysAdmin>
-            <TicketDetail adminMode />
-          </SoloSysAdmin>
-        </Route>
-        <Route path="/admin">
-          <SoloSysAdmin>
-            <Admin />
-          </SoloSysAdmin>
-        </Route>
-        <Route path="/tickets/:id">
-          <TicketDetail />
-        </Route>
-        <Route path="/tickets" component={TicketList} />
-        <Route component={NotFound} />
-      </Switch>
+      <React.Suspense fallback={<LoadingProtectedRoute />}>
+        <Switch>
+          <Route path="/dashboard" component={Dashboard} />
+          <Route path="/admin/roles-usuarios">
+            <SoloSysAdmin>
+              <AdminRolesUsers />
+            </SoloSysAdmin>
+          </Route>
+          <Route path="/admin/tickets/:id">
+            <SoloSysAdmin>
+              <TicketDetail adminMode />
+            </SoloSysAdmin>
+          </Route>
+          <Route path="/admin">
+            <SoloSysAdmin>
+              <Admin />
+            </SoloSysAdmin>
+          </Route>
+          <Route path="/tickets/:id">
+            <TicketDetail />
+          </Route>
+          <Route path="/tickets" component={TicketList} />
+          <Route component={NotFound} />
+        </Switch>
+      </React.Suspense>
     </AppLayout>
   );
 }

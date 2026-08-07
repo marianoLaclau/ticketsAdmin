@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Rutas protegidas divididas en chunks
+
+**Agente:** Codex
+**Estado:** octogésima octava remediación de la auditoría técnica, implementada y validada localmente.
+
+- Dashboard, listado, detalle y las dos pantallas administrativas ahora cargan con `React.lazy`; login, cambio de contraseña, errores y `AppLayout` permanecen eager para evitar waterfalls en la entrada y conservar el shell.
+- `Suspense` vive dentro del layout con un estado accesible. `SoloSysAdmin` decide antes de reconciliar el hijo lazy, por lo que un acceso administrativo prohibido muestra 403 sin descargar ese módulo; el RBAC backend sigue siendo la autoridad.
+- El chunk inicial bajó de 952,53 a 378,46 kB (-60,3 %) y de 279,74 a 120,56 kB gzip (-56,9 %). Ningún chunk supera 500 kB y desapareció esa advertencia; aprobaron 85 pruebas, typecheck, ESLint, Prettier, build y revisión cruzada. El smoke manual de rutas queda para la validación del usuario. No se hizo push.
+
 ## 2026-08-07 — Shell frontend normalizado
 
 **Agente:** Codex
