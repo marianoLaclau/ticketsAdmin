@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Formato de la página de detalle
+
+**Agente:** Codex
+**Estado:** centésima remediación de la auditoría técnica, implementada localmente.
+
+- Se normalizó `pages/TicketDetail.tsx` con la configuración raíz de Prettier antes de modificar su política de caché, manteniendo separado el cambio mecánico del funcional.
+- El fingerprint AST resultó idéntico en sus 2.150 nodos al ignorar el paréntesis transparente que Prettier agrega al JSX multilínea.
+- Aprobaron las 87 pruebas frontend, Prettier, ESLint, typecheck y `git diff --check`. No se hizo push.
+
 ## 2026-08-07 — Eliminaciones sincronizadas por SSE
 
 **Agente:** Codex

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useLocation, useParams } from 'wouter';
+import React, { useState } from "react";
+import { useLocation, useParams } from "wouter";
 import {
   useGetTicket,
   useUpdateTicket,
@@ -12,49 +12,52 @@ import {
   type Ticket,
   type TicketDetail as TicketDetailResponse,
   type TicketUpdate,
-} from '@workspace/api-client-react';
-import { useToast } from '@/hooks/use-toast';
-import { useQueryClient } from '@tanstack/react-query';
+} from "@workspace/api-client-react";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from "@/components/ui/skeleton";
 
-import { isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
-import { getEstadoLabel } from '@/lib/estados';
-import { dateTimeLocalValueToIso, toDateTimeLocalValue } from '@/lib/datetime-local';
-import { puedeCerrarTickets } from '@/lib/roles';
-import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
+import { isVencido, EstadoBadge, PrioridadBadge } from "@/lib/utils-tickets";
+import { getEstadoLabel } from "@/lib/estados";
+import {
+  dateTimeLocalValueToIso,
+  toDateTimeLocalValue,
+} from "@/lib/datetime-local";
+import { puedeCerrarTickets } from "@/lib/roles";
+import { ErrorPage, getErrorStatus } from "@/components/ErrorPage";
 import {
   getUserErrorMessage,
   isTicketVersionConflict,
-} from '@/lib/error-messages';
-import { useAdminAccess, adminErrorMessage } from '@/hooks/use-admin-access';
-import { TicketDataEditDialog } from '@/components/tickets/TicketDataEditDialog';
-import { TicketCallSummaryCard } from '@/features/ticket-detail/TicketCallSummaryCard';
-import { TicketContactCard } from '@/features/ticket-detail/TicketContactCard';
-import { TicketHeaderSummary } from '@/features/ticket-detail/TicketHeaderSummary';
-import { TicketHistoryCard } from '@/features/ticket-detail/TicketHistoryCard';
-import { TicketManagementDialog } from '@/features/ticket-detail/TicketManagementDialog';
-import { TicketProgressCard } from '@/features/ticket-detail/TicketProgressCard';
-import { TicketTimingCard } from '@/features/ticket-detail/TicketTimingCard';
+} from "@/lib/error-messages";
+import { useAdminAccess, adminErrorMessage } from "@/hooks/use-admin-access";
+import { TicketDataEditDialog } from "@/components/tickets/TicketDataEditDialog";
+import { TicketCallSummaryCard } from "@/features/ticket-detail/TicketCallSummaryCard";
+import { TicketContactCard } from "@/features/ticket-detail/TicketContactCard";
+import { TicketHeaderSummary } from "@/features/ticket-detail/TicketHeaderSummary";
+import { TicketHistoryCard } from "@/features/ticket-detail/TicketHistoryCard";
+import { TicketManagementDialog } from "@/features/ticket-detail/TicketManagementDialog";
+import { TicketProgressCard } from "@/features/ticket-detail/TicketProgressCard";
+import { TicketTimingCard } from "@/features/ticket-detail/TicketTimingCard";
 import {
   applyTicketManagementState,
   buildTicketManagementUpdate,
   ticketToManagementForm,
   type TicketManagementForm,
-} from '@/lib/ticket-edit';
+} from "@/lib/ticket-edit";
 import {
   buildVersionedTicketUpdate,
   createTicketEditBaseline,
   shouldApplyTicketRevision,
   type TicketEditBaseline,
-} from '@/lib/ticket-version';
+} from "@/lib/ticket-version";
 
 const EMPTY_MANAGEMENT_FORM: TicketManagementForm = {
   estado: TicketEstado.nuevo,
   prioridad: TicketPrioridad.media,
   progreso: 0,
-  notas: '',
-  fecha_limite: '',
+  notas: "",
+  fecha_limite: "",
 };
 
 interface TicketDetailProps {
@@ -63,15 +66,15 @@ interface TicketDetailProps {
 
 export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
   const { id } = useParams<{ id: string }>();
-  const ticketId = parseInt(id || '0', 10);
+  const ticketId = parseInt(id || "0", 10);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { adminKey, adminRequest } = useAdminAccess();
   const includeEmptyParams = adminMode ? { incluir_vacios: true } : undefined;
   const requestOptions = adminMode ? adminRequest : undefined;
-  const queryScope = adminMode ? 'admin' : 'operativo';
-  const ticketQueryKey = ['/api/tickets', ticketId, queryScope] as const;
+  const queryScope = adminMode ? "admin" : "operativo";
+  const ticketQueryKey = ["/api/tickets", ticketId, queryScope] as const;
 
   const ticketQuery = useGetTicket(ticketId, includeEmptyParams, {
     query: {
@@ -85,14 +88,19 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
   const seguimientosQuery = useListSeguimientos(ticketId, includeEmptyParams, {
     query: {
       enabled: !!ticketId && (!adminMode || Boolean(adminKey)),
-      queryKey: ['/api/tickets', ticketId, queryScope, 'seguimientos'],
+      queryKey: ["/api/tickets", ticketId, queryScope, "seguimientos"],
     },
     request: requestOptions,
   });
-  const { data: seguimientos, isLoading: loadingSeguimientos } = seguimientosQuery;
+  const { data: seguimientos, isLoading: loadingSeguimientos } =
+    seguimientosQuery;
 
-  const updateTicket = useUpdateTicket(adminMode ? { request: adminRequest } : undefined);
-  const createSeguimiento = useCreateSeguimiento(adminMode ? { request: adminRequest } : undefined);
+  const updateTicket = useUpdateTicket(
+    adminMode ? { request: adminRequest } : undefined,
+  );
+  const createSeguimiento = useCreateSeguimiento(
+    adminMode ? { request: adminRequest } : undefined,
+  );
 
   // Cerrar tickets es exclusivo de Administrador/SysAdmin (el backend lo
   // valida igual; acá se grisa la opción para el resto de los roles)
@@ -104,22 +112,22 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
   const [isEditingData, setIsEditingData] = useState(false);
   const [isReloadingConflict, setIsReloadingConflict] = useState(false);
   const [versionConflict, setVersionConflict] = useState<
-    'management' | 'data' | null
+    "management" | "data" | null
   >(null);
   const [editData, setEditData] = useState<TicketManagementForm>(
     EMPTY_MANAGEMENT_FORM,
   );
   const [editBaseline, setEditBaseline] =
     useState<TicketEditBaseline<TicketManagementForm> | null>(null);
-  
+
   // New seguimiento state
-  const [newSeguimiento, setNewSeguimiento] = useState('');
+  const [newSeguimiento, setNewSeguimiento] = useState("");
 
   const handleEditDialogOpenChange = (open: boolean) => {
     if (open && ticket) {
       const form = ticketToManagementForm(
         ticket,
-        adminMode ? toDateTimeLocalValue(ticket.fecha_limite) : '',
+        adminMode ? toDateTimeLocalValue(ticket.fecha_limite) : "",
       );
       setEditData(form);
       setEditBaseline(createTicketEditBaseline(ticket, form));
@@ -127,7 +135,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
     } else if (!open) {
       setEditBaseline(null);
       setVersionConflict((current) =>
-        current === 'management' ? null : current,
+        current === "management" ? null : current,
       );
     }
     setIsEditing(open);
@@ -137,7 +145,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
     setIsEditingData(open);
     setVersionConflict((current) => {
       if (open) return null;
-      return current === 'data' ? null : current;
+      return current === "data" ? null : current;
     });
   };
 
@@ -155,12 +163,12 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
 
   const markVersionConflict = (
     error: unknown,
-    editor: 'management' | 'data',
+    editor: "management" | "data",
   ) => {
     setVersionConflict(editor);
     toast({
-      variant: 'warning',
-      title: 'El ticket cambió en otra sesión',
+      variant: "warning",
+      title: "El ticket cambió en otra sesión",
       description: `${getUserErrorMessage(error)} Conservamos lo que escribiste.`,
     });
   };
@@ -173,13 +181,13 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
         seguimientosQuery.refetch({ throwOnError: true }),
       ]);
       if (ticketResult.isError || !ticketResult.data) {
-        throw ticketResult.error ?? new Error('No se pudo recargar el ticket');
+        throw ticketResult.error ?? new Error("No se pudo recargar el ticket");
       }
       return ticketResult.data;
     } catch (error) {
       toast({
-        variant: 'destructive',
-        title: 'No se pudo cargar la versión actual',
+        variant: "destructive",
+        title: "No se pudo cargar la versión actual",
         description: getUserErrorMessage(error),
       });
       throw error;
@@ -193,7 +201,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
       const latestTicket = await loadLatestTicket();
       const latestForm = ticketToManagementForm(
         latestTicket,
-        adminMode ? toDateTimeLocalValue(latestTicket.fecha_limite) : '',
+        adminMode ? toDateTimeLocalValue(latestTicket.fecha_limite) : "",
       );
       setEditData(latestForm);
       setEditBaseline(createTicketEditBaseline(latestTicket, latestForm));
@@ -209,9 +217,9 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
 
     if (adminMode && originalFechaLimite && !editData.fecha_limite) {
       toast({
-        variant: 'warning',
-        title: 'Fecha límite requerida',
-        description: 'La API actual no permite eliminar la fecha límite.',
+        variant: "warning",
+        title: "Fecha límite requerida",
+        description: "La API actual no permite eliminar la fecha límite.",
       });
       return;
     }
@@ -219,13 +227,17 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
     const changes = buildTicketManagementUpdate(editBaseline.values, editData);
     // Si el usuario no modificó el control, se omite el campo para conservar
     // también los segundos y milisegundos que datetime-local no muestra.
-    if (adminMode && editData.fecha_limite && editData.fecha_limite !== originalFechaLimite) {
+    if (
+      adminMode &&
+      editData.fecha_limite &&
+      editData.fecha_limite !== originalFechaLimite
+    ) {
       const fechaLimiteIso = dateTimeLocalValueToIso(editData.fecha_limite);
       if (!fechaLimiteIso) {
         toast({
-          variant: 'warning',
-          title: 'Fecha límite inválida',
-          description: 'Revisa la fecha y hora antes de guardar.',
+          variant: "warning",
+          title: "Fecha límite inválida",
+          description: "Revisa la fecha y hora antes de guardar.",
         });
         return;
       }
@@ -239,8 +251,8 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
     if (!updatedData) {
       handleEditDialogOpenChange(false);
       toast({
-        variant: 'info',
-        title: 'Sin cambios para guardar',
+        variant: "info",
+        title: "Sin cambios para guardar",
         description: `El ticket #${ticketId} conserva sus datos actuales.`,
       });
       return;
@@ -255,31 +267,31 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
       {
         onSuccess: (savedTicket) => {
           cacheSavedTicket(savedTicket);
-          void queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
+          void queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
           handleEditDialogOpenChange(false);
           const estadoLabel = changes.estado
             ? getEstadoLabel(changes.estado)
             : undefined;
           toast({
-            variant: 'success',
-            title: 'Ticket actualizado',
-            description: `Ticket #${ticketId}${estadoLabel ? ` · Estado: ${estadoLabel}` : ''}`,
+            variant: "success",
+            title: "Ticket actualizado",
+            description: `Ticket #${ticketId}${estadoLabel ? ` · Estado: ${estadoLabel}` : ""}`,
           });
         },
         onError: (error) => {
           if (isTicketVersionConflict(error)) {
-            markVersionConflict(error, 'management');
+            markVersionConflict(error, "management");
             return;
           }
           toast({
-            variant: 'destructive',
+            variant: "destructive",
             title: `No se pudo actualizar el ticket #${ticketId}`,
             description: adminMode
               ? adminErrorMessage(error)
-              : getUserErrorMessage(error, 'Reintentá la operación.'),
+              : getUserErrorMessage(error, "Reintentá la operación."),
           });
-        }
-      }
+        },
+      },
     );
   };
 
@@ -294,24 +306,24 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
         onSuccess: (savedTicket) => {
           cacheSavedTicket(savedTicket);
           setIsEditingData(false);
-          void queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
+          void queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
           toast({
-            variant: 'success',
-            title: 'Datos actualizados',
+            variant: "success",
+            title: "Datos actualizados",
             description: `Los cambios del ticket #${ticketId} quedaron registrados en el historial.`,
           });
         },
         onError: (error) => {
           if (isTicketVersionConflict(error)) {
-            markVersionConflict(error, 'data');
+            markVersionConflict(error, "data");
             return;
           }
           toast({
-            variant: 'destructive',
-            title: 'No se pudieron guardar los datos',
+            variant: "destructive",
+            title: "No se pudieron guardar los datos",
             description: adminMode
               ? adminErrorMessage(error)
-              : getUserErrorMessage(error, 'Reintentá la operación.'),
+              : getUserErrorMessage(error, "Reintentá la operación."),
           });
         },
       },
@@ -321,7 +333,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
   const handleAddSeguimiento = () => {
     const seguimiento = newSeguimiento.trim();
     if (!seguimiento) return;
-    
+
     createSeguimiento.mutate(
       {
         id: ticketId,
@@ -330,24 +342,27 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
       },
       {
         onSuccess: () => {
-          void queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
-          setNewSeguimiento('');
+          void queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+          setNewSeguimiento("");
           toast({
-            variant: 'success',
-            title: 'Seguimiento agregado',
-            description: seguimiento.length > 90 ? `${seguimiento.slice(0, 90)}…` : seguimiento,
+            variant: "success",
+            title: "Seguimiento agregado",
+            description:
+              seguimiento.length > 90
+                ? `${seguimiento.slice(0, 90)}…`
+                : seguimiento,
           });
         },
         onError: (error) => {
           toast({
-            variant: 'destructive',
-            title: 'No se pudo agregar el seguimiento',
+            variant: "destructive",
+            title: "No se pudo agregar el seguimiento",
             description: adminMode
               ? adminErrorMessage(error)
-              : getUserErrorMessage(error, 'Reintentá la operación.'),
+              : getUserErrorMessage(error, "Reintentá la operación."),
           });
-        }
-      }
+        },
+      },
     );
   };
 
@@ -370,13 +385,17 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
     return (
       <ErrorPage
         status={detailStatus ?? 503}
-        title={notFound ? 'Ticket no encontrado' : 'No pudimos cargar el ticket'}
-        message={notFound
-          ? 'El ticket solicitado no existe o ya fue eliminado.'
-          : adminMode
-            ? adminErrorMessage(detailError)
-            : 'No fue posible obtener el ticket o su historial. Reintentá o volvé al inicio.'}
-        homeHref={adminMode ? '/admin' : '/dashboard'}
+        title={
+          notFound ? "Ticket no encontrado" : "No pudimos cargar el ticket"
+        }
+        message={
+          notFound
+            ? "El ticket solicitado no existe o ya fue eliminado."
+            : adminMode
+              ? adminErrorMessage(detailError)
+              : "No fue posible obtener el ticket o su historial. Reintentá o volvé al inicio."
+        }
+        homeHref={adminMode ? "/admin" : "/dashboard"}
         {...(notFound
           ? {}
           : {
@@ -409,7 +428,13 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
   }
 
   if (!ticket) {
-    return <ErrorPage status={404} title="Ticket no encontrado" message="El ticket solicitado no existe o ya fue eliminado." />;
+    return (
+      <ErrorPage
+        status={404}
+        title="Ticket no encontrado"
+        message="El ticket solicitado no existe o ya fue eliminado."
+      />
+    );
   }
 
   const vencido = isVencido(ticket.fecha_limite, ticket.estado);
@@ -423,23 +448,24 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
           createdAt={ticket.fecha_creacion}
           assignedTo={ticket.asignado_a}
           overdue={vencido}
-          backLabel={
-            adminMode ? 'Volver a Administración' : 'Volver a Tickets'
-          }
-          onBack={() => setLocation(adminMode ? '/admin' : '/tickets')}
+          backLabel={adminMode ? "Volver a Administración" : "Volver a Tickets"}
+          onBack={() => setLocation(adminMode ? "/admin" : "/tickets")}
         />
 
         <div className="flex items-center gap-3 shrink-0">
           <EstadoBadge estado={ticket.estado} className="text-sm px-3 py-1" />
-          <PrioridadBadge prioridad={ticket.prioridad} className="text-sm px-3 py-1" />
-          
+          <PrioridadBadge
+            prioridad={ticket.prioridad}
+            className="text-sm px-3 py-1"
+          />
+
           <TicketManagementDialog
             open={isEditing}
             form={editData}
             canCloseTickets={puedeCerrar}
             showTechnicalDeadline={adminMode}
             isReloadingConflict={isReloadingConflict}
-            hasVersionConflict={versionConflict === 'management'}
+            hasVersionConflict={versionConflict === "management"}
             isSaving={updateTicket.isPending}
             onOpenChange={handleEditDialogOpenChange}
             onReloadLatest={() => void resolveManagementConflict()}
@@ -477,7 +503,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
         open={isEditingData}
         onOpenChange={handleDataEditOpenChange}
         isSaving={updateTicket.isPending}
-        hasVersionConflict={versionConflict === 'data'}
+        hasVersionConflict={versionConflict === "data"}
         isReloadingConflict={isReloadingConflict}
         onReloadLatest={loadLatestTicket}
         onVersionConflictResolved={() => setVersionConflict(null)}
@@ -487,10 +513,8 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
       <TicketProgressCard estado={ticket.estado} progreso={ticket.progreso} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
         {/* Left Column */}
         <div className="lg:col-span-2 space-y-6">
-          
           <TicketCallSummaryCard
             summary={ticket.resumen}
             audioUrl={ticket.audio_url}
