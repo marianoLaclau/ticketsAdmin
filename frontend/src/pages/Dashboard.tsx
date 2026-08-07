@@ -7,6 +7,7 @@ import {
   useGetMotivoStats,
 } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -136,6 +137,8 @@ export default function Dashboard() {
     actividadQuery.isFetching ||
     vencidosQuery.isFetching ||
     motivosQuery.isFetching;
+  const dashboardIsLoading =
+    loadingStats || loadingActividad || loadingVencidos || loadingMotivos;
 
   if (dashboardIsError) {
     return (
@@ -187,6 +190,9 @@ export default function Dashboard() {
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-5 p-4 sm:p-6">
+      {dashboardIsLoading ? (
+        <LoadingStatus>Cargando dashboard</LoadingStatus>
+      ) : null}
       {/* Header */}
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>

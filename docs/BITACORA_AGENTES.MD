@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Carga accesible en Dashboard
+
+**Agente:** Codex
+**Estado:** centésima octava remediación de la auditoría técnica, implementada localmente.
+
+- Dashboard anuncia un único estado de carga mientras alguna de sus cuatro consultas iniciales muestra placeholders; la región desaparece al completar todas.
+- Los refetches e invalidaciones SSE con datos existentes permanecen silenciosos, y las ramas de error sustituyen la carga sin locuciones simultáneas.
+- Aprobaron las 90 pruebas frontend, Prettier, ESLint, typecheck, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Carga accesible en el detalle
 
 **Agente:** Codex
