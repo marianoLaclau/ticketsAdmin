@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Exportación CSV desacoplada del router de tickets
+
+**Agente:** Codex
+**Estado:** centésima sexagésima primera remediación de la auditoría técnica, implementada localmente.
+
+- El handler completo de `GET /tickets/export.csv` se trasladó a `routes/ticket-csv-route.ts` como una capacidad cohesionada: validación de filtros y orden, consulta, cursor incremental, headers, deadline, streaming, backpressure y limpieza. `routes/tickets.ts` conserva únicamente el registro del handler y bajó de 580 a 502 líneas.
+- La ruta sigue declarada antes de `/tickets/:id`, el timeout continúa inicializándose al cargar el módulo y no se creó un router adicional; paths, guards, SQL, códigos, headers y tratamiento de desconexiones permanecen iguales.
+- Aprobaron las 35 pruebas dirigidas de rutas y CSV, las 209 pruebas completas del backend, typecheck, ESLint dirigido, build del servicio, `git diff --check` y una revisión independiente de equivalencia. No se hizo push.
+
 ## 2026-08-07 — Cliente API alineado con autenticación web same-origin
 
 **Agente:** Codex
