@@ -1,29 +1,29 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { 
-  useGetDashboardStats, 
-  useGetActividadReciente, 
-  useGetTicketsVencidos, 
-  useGetMotivoStats 
-} from '@workspace/api-client-react';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  useGetDashboardStats,
+  useGetActividadReciente,
+  useGetTicketsVencidos,
+  useGetMotivoStats,
+} from "@workspace/api-client-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Clock, CheckCircle2, TrendingUp, CalendarRange } from 'lucide-react';
-import { DashboardKpiGrid } from '@/features/dashboard/DashboardKpiGrid';
-import { DashboardMotivesPriorityPanel } from '@/features/dashboard/DashboardMotivesPriorityPanel';
-import { DashboardRecentActivityPanel } from '@/features/dashboard/DashboardRecentActivityPanel';
-import { DashboardStatusDistribution } from '@/features/dashboard/DashboardStatusDistribution';
-import { PrioridadBadge } from '@/lib/utils-tickets';
-import { getContactDisplayName } from '@/lib/contacto';
-import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
+} from "@/components/ui/select";
+import { Clock, CheckCircle2, TrendingUp, CalendarRange } from "lucide-react";
+import { DashboardKpiGrid } from "@/features/dashboard/DashboardKpiGrid";
+import { DashboardMotivesPriorityPanel } from "@/features/dashboard/DashboardMotivesPriorityPanel";
+import { DashboardRecentActivityPanel } from "@/features/dashboard/DashboardRecentActivityPanel";
+import { DashboardStatusDistribution } from "@/features/dashboard/DashboardStatusDistribution";
+import { PrioridadBadge } from "@/lib/utils-tickets";
+import { getContactDisplayName } from "@/lib/contacto";
+import { ErrorPage, getErrorStatus } from "@/components/ErrorPage";
 import {
   currentMonthToToday,
   getDashboardPeriodLabel,
@@ -31,34 +31,57 @@ import {
   getDashboardRangeLabel,
   validateDashboardDateRange,
   type DashboardPeriod,
-} from '@/lib/dashboard-period';
+} from "@/lib/dashboard-period";
 
 // Circular progress SVG component
-function GaugeRing({ pct, size = 120, stroke = 10, color = '#3d7532' }: {
-  pct: number; size?: number; stroke?: number; color?: string;
+function GaugeRing({
+  pct,
+  size = 120,
+  stroke = 10,
+  color = "#3d7532",
+}: {
+  pct: number;
+  size?: number;
+  stroke?: number;
+  color?: string;
 }) {
   const r = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
   const filled = circ * Math.min(pct / 100, 1);
   return (
-    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={stroke} />
+    <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
       <circle
-        cx={size / 2} cy={size / 2} r={r} fill="none"
-        stroke={color} strokeWidth={stroke}
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke="#e2e8f0"
+        strokeWidth={stroke}
+      />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth={stroke}
         strokeDasharray={`${filled} ${circ}`}
         strokeLinecap="round"
-        style={{ transition: 'stroke-dasharray 0.6s ease' }}
+        style={{ transition: "stroke-dasharray 0.6s ease" }}
       />
     </svg>
   );
 }
 
 export default function Dashboard() {
-  const [periodo, setPeriodo] = useState<DashboardPeriod>('todo');
+  const [periodo, setPeriodo] = useState<DashboardPeriod>("todo");
   const [fechaReferencia, setFechaReferencia] = useState(() => new Date());
-  const [periodoPersonalizado, setPeriodoPersonalizado] = useState(() => currentMonthToToday());
-  const [periodoAplicado, setPeriodoAplicado] = useState(() => currentMonthToToday());
+  const [periodoPersonalizado, setPeriodoPersonalizado] = useState(() =>
+    currentMonthToToday(),
+  );
+  const [periodoAplicado, setPeriodoAplicado] = useState(() =>
+    currentMonthToToday(),
+  );
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       const now = new Date();
@@ -78,14 +101,17 @@ export default function Dashboard() {
   );
   const dashboardParams = useMemo(
     () =>
-      periodo === 'personalizado'
+      periodo === "personalizado"
         ? periodoAplicado
         : getDashboardPeriodParams(periodo, fechaReferencia),
     [periodo, periodoAplicado, fechaReferencia],
   );
 
   const statsQuery = useGetDashboardStats(dashboardParams);
-  const actividadQuery = useGetActividadReciente({ limit: 12, ...dashboardParams });
+  const actividadQuery = useGetActividadReciente({
+    limit: 12,
+    ...dashboardParams,
+  });
   const vencidosQuery = useGetTicketsVencidos(dashboardParams);
   const motivosQuery = useGetMotivoStats(dashboardParams);
 
@@ -95,11 +121,20 @@ export default function Dashboard() {
   const { data: motivos, isLoading: loadingMotivos } = motivosQuery;
 
   const dashboardError =
-    statsQuery.error ?? actividadQuery.error ?? vencidosQuery.error ?? motivosQuery.error;
+    statsQuery.error ??
+    actividadQuery.error ??
+    vencidosQuery.error ??
+    motivosQuery.error;
   const dashboardIsError =
-    statsQuery.isError || actividadQuery.isError || vencidosQuery.isError || motivosQuery.isError;
+    statsQuery.isError ||
+    actividadQuery.isError ||
+    vencidosQuery.isError ||
+    motivosQuery.isError;
   const dashboardIsFetching =
-    statsQuery.isFetching || actividadQuery.isFetching || vencidosQuery.isFetching || motivosQuery.isFetching;
+    statsQuery.isFetching ||
+    actividadQuery.isFetching ||
+    vencidosQuery.isFetching ||
+    motivosQuery.isFetching;
 
   if (dashboardIsError) {
     return (
@@ -119,37 +154,55 @@ export default function Dashboard() {
   }
 
   const today = new Date();
-  const dateString = today.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const dateString = today.toLocaleDateString("es-AR", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
   const periodoLabel = getDashboardPeriodLabel(periodo);
   const resueltosDelPeriodo =
-    periodo === 'todo' ? stats?.resueltos_hoy : stats?.resueltos_periodo;
+    periodo === "todo" ? stats?.resueltos_hoy : stats?.resueltos_periodo;
 
   // Estado derived values
-  const nuevosSinRevisar = stats?.por_estado?.find((e) => e.estado === 'nuevo')?.cantidad || 0;
-  const enProceso       = stats?.por_estado?.find((e) => e.estado === 'en_proceso')?.cantidad || 0;
-  const resueltos       = stats?.por_estado?.find((e) => e.estado === 'resuelto')?.cantidad || 0;
-  const cerrados        = stats?.por_estado?.find((e) => e.estado === 'cerrado')?.cantidad || 0;
-  const pendientes      = stats?.por_estado?.find((e) => e.estado === 'pendiente')?.cantidad || 0;
-  const total           = stats?.total || 0;
+  const nuevosSinRevisar =
+    stats?.por_estado?.find((e) => e.estado === "nuevo")?.cantidad || 0;
+  const enProceso =
+    stats?.por_estado?.find((e) => e.estado === "en_proceso")?.cantidad || 0;
+  const resueltos =
+    stats?.por_estado?.find((e) => e.estado === "resuelto")?.cantidad || 0;
+  const cerrados =
+    stats?.por_estado?.find((e) => e.estado === "cerrado")?.cantidad || 0;
+  const pendientes =
+    stats?.por_estado?.find((e) => e.estado === "pendiente")?.cantidad || 0;
+  const total = stats?.total || 0;
 
   // Rendimiento metrics
-  const finalizados   = resueltos + cerrados;
-  const tasaResolucion = total > 0 ? Math.round((finalizados / total) * 100) : 0;
-  const activos        = enProceso + pendientes + nuevosSinRevisar;
+  const finalizados = resueltos + cerrados;
+  const tasaResolucion =
+    total > 0 ? Math.round((finalizados / total) * 100) : 0;
+  const activos = enProceso + pendientes + nuevosSinRevisar;
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto w-full space-y-5">
       {/* Header */}
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">Sistema de Tickets</h1>
-          <p className="text-sm text-muted-foreground capitalize">{dateString}</p>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
+            Sistema de Tickets
+          </h1>
+          <p className="text-sm text-muted-foreground capitalize">
+            {dateString}
+          </p>
         </div>
 
         <div className="w-full rounded-xl border bg-card p-3 shadow-sm xl:w-auto">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
             <div className="min-w-[220px] space-y-1.5">
-              <Label htmlFor="dashboard-periodo" className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Label
+                htmlFor="dashboard-periodo"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground"
+              >
                 <CalendarRange className="h-3.5 w-3.5" />
                 Datos a visualizar
               </Label>
@@ -164,15 +217,22 @@ export default function Dashboard() {
                   <SelectItem value="todo">Todo</SelectItem>
                   <SelectItem value="semana">Semana actual</SelectItem>
                   <SelectItem value="mes">Mes actual</SelectItem>
-                  <SelectItem value="personalizado">Período personalizado</SelectItem>
+                  <SelectItem value="personalizado">
+                    Período personalizado
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {periodo === 'personalizado' && (
+            {periodo === "personalizado" && (
               <>
                 <div className="space-y-1.5">
-                  <Label htmlFor="dashboard-desde" className="text-xs text-muted-foreground">Desde</Label>
+                  <Label
+                    htmlFor="dashboard-desde"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Desde
+                  </Label>
                   <Input
                     id="dashboard-desde"
                     type="date"
@@ -187,7 +247,12 @@ export default function Dashboard() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="dashboard-hasta" className="text-xs text-muted-foreground">Hasta</Label>
+                  <Label
+                    htmlFor="dashboard-hasta"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Hasta
+                  </Label>
                   <Input
                     id="dashboard-hasta"
                     type="date"
@@ -205,15 +270,19 @@ export default function Dashboard() {
                   type="button"
                   size="sm"
                   disabled={Boolean(errorPeriodo)}
-                  onClick={() => setPeriodoAplicado({ ...periodoPersonalizado })}
+                  onClick={() =>
+                    setPeriodoAplicado({ ...periodoPersonalizado })
+                  }
                 >
                   Aplicar
                 </Button>
               </>
             )}
           </div>
-          {periodo === 'personalizado' && errorPeriodo && (
-            <p className="mt-2 text-xs text-red-600" role="alert">{errorPeriodo}</p>
+          {periodo === "personalizado" && errorPeriodo && (
+            <p className="mt-2 text-xs text-red-600" role="alert">
+              {errorPeriodo}
+            </p>
           )}
           {dashboardParams && (
             <p className="mt-2 text-[11px] text-muted-foreground">
@@ -236,10 +305,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left 2/3 */}
         <div className="lg:col-span-2 space-y-5">
-
           {/* Distribución + Rendimiento */}
           <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
-
             <DashboardStatusDistribution
               statuses={stats?.por_estado}
               isLoading={loadingStats}
@@ -249,7 +316,9 @@ export default function Dashboard() {
             <div className="p-5">
               <div className="flex items-center gap-2 mb-4">
                 <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Rendimiento</h3>
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Rendimiento
+                </h3>
               </div>
 
               <div className="flex items-center gap-8">
@@ -259,10 +328,19 @@ export default function Dashboard() {
                     <Skeleton className="h-[120px] w-[120px] rounded-full" />
                   ) : (
                     <>
-                      <GaugeRing pct={tasaResolucion} size={120} stroke={11} color="#3d7532" />
+                      <GaugeRing
+                        pct={tasaResolucion}
+                        size={120}
+                        stroke={11}
+                        color="#3d7532"
+                      />
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-2xl font-bold text-foreground">{tasaResolucion}%</span>
-                        <span className="text-[10px] text-muted-foreground uppercase tracking-wide">resueltos</span>
+                        <span className="text-2xl font-bold text-foreground">
+                          {tasaResolucion}%
+                        </span>
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                          resueltos
+                        </span>
                       </div>
                     </>
                   )}
@@ -271,30 +349,60 @@ export default function Dashboard() {
                 {/* Stats grid */}
                 <div className="flex-1 grid grid-cols-2 gap-x-6 gap-y-4">
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Finalizados</p>
-                    {loadingStats ? <Skeleton className="h-6 w-12 mt-1" /> : (
-                      <p className="text-xl font-bold text-foreground mt-0.5">{finalizados}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                      Finalizados
+                    </p>
+                    {loadingStats ? (
+                      <Skeleton className="h-6 w-12 mt-1" />
+                    ) : (
+                      <p className="text-xl font-bold text-foreground mt-0.5">
+                        {finalizados}
+                      </p>
                     )}
-                    <p className="text-[11px] text-muted-foreground">resueltos + cerrados</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      resueltos + cerrados
+                    </p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Activos</p>
-                    {loadingStats ? <Skeleton className="h-6 w-12 mt-1" /> : (
-                      <p className="text-xl font-bold text-blue-600 mt-0.5">{activos}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                      Activos
+                    </p>
+                    {loadingStats ? (
+                      <Skeleton className="h-6 w-12 mt-1" />
+                    ) : (
+                      <p className="text-xl font-bold text-blue-600 mt-0.5">
+                        {activos}
+                      </p>
                     )}
-                    <p className="text-[11px] text-muted-foreground">en curso</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      en curso
+                    </p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Solo resueltos</p>
-                    {loadingStats ? <Skeleton className="h-6 w-12 mt-1" /> : (
-                      <p className="text-xl font-bold text-green-700 mt-0.5">{resueltos}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                      Solo resueltos
+                    </p>
+                    {loadingStats ? (
+                      <Skeleton className="h-6 w-12 mt-1" />
+                    ) : (
+                      <p className="text-xl font-bold text-green-700 mt-0.5">
+                        {resueltos}
+                      </p>
                     )}
-                    <p className="text-[11px] text-muted-foreground">listos p/ cerrar</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      listos p/ cerrar
+                    </p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Total general</p>
-                    {loadingStats ? <Skeleton className="h-6 w-12 mt-1" /> : (
-                      <p className="text-xl font-bold text-foreground mt-0.5">{total}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                      Total general
+                    </p>
+                    {loadingStats ? (
+                      <Skeleton className="h-6 w-12 mt-1" />
+                    ) : (
+                      <p className="text-xl font-bold text-foreground mt-0.5">
+                        {total}
+                      </p>
                     )}
                     <p className="text-[11px] text-muted-foreground">tickets</p>
                   </div>
@@ -324,11 +432,17 @@ export default function Dashboard() {
               ) : null}
             </div>
             {loadingVencidos ? (
-              <div className="p-4 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-9 w-full" />)}</div>
-            ) : (!vencidos || vencidos.length === 0) ? (
+              <div className="p-4 space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-9 w-full" />
+                ))}
+              </div>
+            ) : !vencidos || vencidos.length === 0 ? (
               <div className="p-8 text-center flex flex-col items-center gap-2">
                 <CheckCircle2 className="h-7 w-7 text-emerald-300" />
-                <p className="text-sm text-slate-400">Todos los tickets están al día</p>
+                <p className="text-sm text-slate-400">
+                  Todos los tickets están al día
+                </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -338,7 +452,9 @@ export default function Dashboard() {
                       <th className="px-5 py-2 font-medium">Contacto</th>
                       <th className="px-5 py-2 font-medium">Motivo</th>
                       <th className="px-5 py-2 font-medium">Prioridad</th>
-                      <th className="px-5 py-2 font-medium text-right">Venció hace</th>
+                      <th className="px-5 py-2 font-medium text-right">
+                        Venció hace
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -347,17 +463,44 @@ export default function Dashboard() {
                       if (!fechaLimite) return null;
 
                       const limitDate = new Date(fechaLimite);
-                      const diffHours = Math.floor((today.getTime() - limitDate.getTime()) / (1000 * 60 * 60));
-                      const vencioStr = diffHours > 24 ? `${Math.floor(diffHours / 24)}d` : `${diffHours}h`;
+                      const diffHours = Math.floor(
+                        (today.getTime() - limitDate.getTime()) /
+                          (1000 * 60 * 60),
+                      );
+                      const vencioStr =
+                        diffHours > 24
+                          ? `${Math.floor(diffHours / 24)}d`
+                          : `${diffHours}h`;
                       return (
-                        <tr key={ticket.id} className="hover:bg-red-50/30 cursor-pointer transition-colors" onClick={() => window.location.href = `/tickets/${ticket.id}`}>
+                        <tr
+                          key={ticket.id}
+                          className="hover:bg-red-50/30 cursor-pointer transition-colors"
+                          onClick={() =>
+                            (window.location.href = `/tickets/${ticket.id}`)
+                          }
+                        >
                           <td className="px-5 py-2.5">
-                            <p className="font-medium text-foreground text-sm">{getContactDisplayName(ticket)}</p>
-                            {ticket.empresa && <p className="text-[11px] text-slate-400">{ticket.empresa}</p>}
+                            <p className="font-medium text-foreground text-sm">
+                              {getContactDisplayName(ticket)}
+                            </p>
+                            {ticket.empresa && (
+                              <p className="text-[11px] text-slate-400">
+                                {ticket.empresa}
+                              </p>
+                            )}
                           </td>
-                          <td className="px-5 py-2.5 text-slate-600 text-sm truncate max-w-[180px]" title={ticket.motivo}>{ticket.motivo}</td>
-                          <td className="px-5 py-2.5"><PrioridadBadge prioridad={ticket.prioridad} /></td>
-                          <td className="px-5 py-2.5 text-right font-bold text-red-600 text-xs">{vencioStr}</td>
+                          <td
+                            className="px-5 py-2.5 text-slate-600 text-sm truncate max-w-[180px]"
+                            title={ticket.motivo}
+                          >
+                            {ticket.motivo}
+                          </td>
+                          <td className="px-5 py-2.5">
+                            <PrioridadBadge prioridad={ticket.prioridad} />
+                          </td>
+                          <td className="px-5 py-2.5 text-right font-bold text-red-600 text-xs">
+                            {vencioStr}
+                          </td>
                         </tr>
                       );
                     })}
@@ -372,8 +515,8 @@ export default function Dashboard() {
           activities={actividades}
           isLoading={loadingActividad}
           title={
-            periodo === 'todo'
-              ? 'Actividad Reciente'
+            periodo === "todo"
+              ? "Actividad Reciente"
               : `Actividad ${periodoLabel}`
           }
         />

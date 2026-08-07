@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Página de dashboard normalizada
+
+**Agente:** Codex
+**Estado:** nonagésima primera remediación de la auditoría técnica, implementada localmente.
+
+- `frontend/src/pages/Dashboard.tsx` se normalizó con Prettier en un commit previo e independiente a las correcciones responsive y de teclado.
+- La comparación del código TSX transpilado confirmó un AST runtime equivalente; los cambios se limitan a comillas, reflow e indentación sin alterar consultas, períodos, navegación ni datos.
+- Se validarán Prettier, ESLint, las 85 pruebas frontend, typecheck y build antes de commitear. No se hizo push.
+
 ## 2026-08-07 — Componentes del dashboard normalizados
 
 **Agente:** Codex
