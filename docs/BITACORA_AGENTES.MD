@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Dependencias directas re-auditadas
+
+**Agente:** Codex
+**Estado:** septuagésima séptima verificación de la auditoría técnica, cerrada localmente sin remociones adicionales.
+
+- Se revisaron los diez `package.json` contra imports, scripts, configuración, CSS y build; no queda una dependencia directa segura de remover.
+- Los aparentes huérfanos son falsos positivos de tooling y tipos: `tsx`, `@types/*`, `thread-stream`, `pino-pretty` y `prettier` tienen consumidores verificados en runners, TypeScript, esbuild/Pino u Orval.
+- No se modificaron manifests ni lockfile. El quality gate integral se ejecutará al cerrar el lote. No se hizo push.
+
 ## 2026-08-07 — Motivos y prioridades del dashboard separados
 
 **Agente:** Codex
