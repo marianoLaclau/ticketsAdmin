@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Cliente API alineado con autenticación web same-origin
+
+**Agente:** Codex
+**Estado:** centésima sexagésima remediación de la auditoría técnica, implementada localmente.
+
+- `@workspace/api-client-react` dejó de exponer `setBaseUrl`, `setAuthTokenGetter` y `AuthTokenGetter`, junto con su estado global y ramas internas. Eran extensiones Expo/React Native heredadas del scaffold inicial sin consumidores en el monorepo ni paquete mobile existente.
+- La arquitectura vigente usa exclusivamente rutas `/api` same-origin mediante Vite/Nginx y sesión en cookie `httpOnly`; el backend no habilita CORS ni interpreta `Authorization: Bearer`. Mantener esos setters sugería dos capacidades que el sistema real no soportaba. El transporte generado, el parseo de respuestas y la compatibilidad de lectura de `Response` permanecen intactos.
+- Una revisión independiente confirmó que el paquete es privado, solo lo consume el frontend y no existen imports profundos. Aprobaron quality gate completo, codegen idempotente, búsqueda de referencias y `git diff --check`. No se hizo push.
+
 ## 2026-08-07 — TypeScript estricto en todo el workspace
 
 **Agente:** Codex
