@@ -19,9 +19,20 @@ import { useToast } from "@/hooks/use-toast";
 import { ROL_SYSADMIN } from "@/lib/roles";
 import { getEstadoLabel } from "@/lib/estados";
 import { getUserErrorMessage } from "@/lib/error-messages";
+import { cn } from "@/lib/utils";
 import gsbLogo from "@/assets/gsb-logo.jpg";
 
-export function Sidebar() {
+interface SidebarProps {
+  className?: string;
+  onNavigate?: () => void;
+  testIdPrefix?: string;
+}
+
+export function Sidebar({
+  className,
+  onNavigate,
+  testIdPrefix = "",
+}: SidebarProps) {
   const [location] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -46,6 +57,7 @@ export function Sidebar() {
         // persiste en el navegador, separada por usuario, para no pedirla en
         // cada ingreso al panel.
         queryClient.clear();
+        onNavigate?.();
         // La recarga completa descarta cualquier árbol autenticado todavía
         // montado y obliga a verificar la cookie ya eliminada por el backend.
         window.location.replace(import.meta.env.BASE_URL);
@@ -78,7 +90,12 @@ export function Sidebar() {
   ];
 
   return (
-    <div className="w-[240px] bg-sidebar text-sidebar-foreground flex flex-col h-screen flex-shrink-0 border-r border-sidebar-border">
+    <aside
+      className={cn(
+        "flex h-full w-[240px] flex-shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground",
+        className,
+      )}
+    >
       <div className="flex h-36 flex-shrink-0 flex-col items-center justify-center border-b border-sidebar-border/50 px-4 py-3">
         <div className="rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-black/5">
           <img
@@ -93,7 +110,7 @@ export function Sidebar() {
       </div>
 
       <div className="flex-1 overflow-y-auto py-6">
-        <nav className="space-y-1.5 px-3">
+        <nav aria-label="Navegación principal" className="space-y-1.5 px-3">
           {links.map((link) => {
             const Icon = link.icon;
             const isActive =
@@ -103,12 +120,14 @@ export function Sidebar() {
               <Link
                 key={link.href}
                 href={link.href}
+                onClick={onNavigate}
+                aria-current={isActive ? "page" : undefined}
                 className={`group flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md transition-all ${
                   isActive
                     ? "bg-sidebar-accent text-sidebar-primary border-l-2 border-sidebar-primary -ml-[2px] pl-[14px]"
                     : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                 }`}
-                data-testid={`nav-link-${link.label.toLowerCase().replace(" ", "-")}`}
+                data-testid={`${testIdPrefix}nav-link-${link.label.toLowerCase().replace(" ", "-")}`}
               >
                 <div className="flex items-center">
                   <Icon
@@ -199,11 +218,13 @@ export function Sidebar() {
             </p>
           </div>
           <button
+            type="button"
             onClick={handleLogout}
             disabled={logout.isPending}
             title="Cerrar sesión"
+            aria-label="Cerrar sesión"
             className="h-8 w-8 rounded-md flex items-center justify-center text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-colors shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
-            data-testid="logout-button"
+            data-testid={`${testIdPrefix}logout-button`}
           >
             <LogOut className="h-4 w-4" />
           </button>
@@ -214,6 +235,6 @@ export function Sidebar() {
           </p>
         </div>
       </div>
-    </div>
+    </aside>
   );
 }

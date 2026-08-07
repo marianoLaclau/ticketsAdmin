@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Navegación autenticada responsive
+
+**Agente:** Codex
+**Estado:** nonagésima octava remediación de la auditoría técnica, implementada localmente.
+
+- El sidebar permanece fijo desde `lg`; en pantallas menores se reemplaza por un encabezado compacto y un panel lateral Radix con overlay, bloqueo de fondo, foco atrapado, Escape y retorno del foco.
+- El panel se cierra al navegar, tras un logout exitoso y al cruzar a escritorio. Se agregaron `aria-current`, nombres accesibles y test IDs diferenciados para evitar colisiones entre ambas instancias.
+- `DialogContent` incorpora una variante lateral explícita, separada de la geometría y animación centradas, y amplía su cierre a 36 × 36 px con etiqueta en español sin modificar los consumidores existentes.
+- Aprobaron las 87 pruebas frontend, Prettier, ESLint, typecheck, build y revisión cruzada sin hallazgos P0/P1/P2. El build se ejecutó en una salida temporal porque el servidor local mantiene bloqueado `frontend/dist`. No se hizo push.
+
 ## 2026-08-07 — Sidebar separado del layout
 
 **Agente:** Codex
