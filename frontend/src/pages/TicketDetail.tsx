@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useLocation, useParams } from "wouter";
+import { useHistoryState } from "wouter/use-browser-location";
 import {
   useGetTicket,
   useUpdateTicket,
@@ -54,6 +55,7 @@ import {
   shouldApplyTicketRevision,
   type TicketEditBaseline,
 } from "@/lib/ticket-version";
+import { getTicketListReturnTo } from "@/lib/ticket-navigation";
 
 const EMPTY_MANAGEMENT_FORM: TicketManagementForm = {
   estado: TicketEstado.nuevo,
@@ -71,6 +73,8 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
   const { id } = useParams<{ id: string }>();
   const ticketId = parseInt(id || "0", 10);
   const [, setLocation] = useLocation();
+  const historyState = useHistoryState<unknown>();
+  const ticketListReturnTo = getTicketListReturnTo(historyState);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { adminKey, adminRequest } = useAdminAccess();
@@ -369,6 +373,20 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
     );
   };
 
+  const handleBack = () => {
+    if (adminMode) {
+      setLocation("/admin", { replace: true });
+      return;
+    }
+
+    if (ticketListReturnTo && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+
+    setLocation(ticketListReturnTo ?? "/tickets", { replace: true });
+  };
+
   const detailError = ticketQuery.error ?? seguimientosQuery.error;
   const detailStatus = getErrorStatus(detailError);
 
@@ -456,7 +474,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
           assignedTo={ticket.asignado_a}
           overdue={vencido}
           backLabel={adminMode ? "Volver a Administración" : "Volver a Tickets"}
-          onBack={() => setLocation(adminMode ? "/admin" : "/tickets")}
+          onBack={handleBack}
         />
 
         <div className="flex items-center gap-3 shrink-0">

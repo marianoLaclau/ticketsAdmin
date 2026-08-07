@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Retorno contextual desde el detalle de ticket
+
+**Agente:** Codex
+**Estado:** centésima décima tercera remediación de la auditoría técnica, implementada localmente.
+
+- Al abrir un ticket desde el listado se guarda en `history.state` un retorno canónico y local; “Volver a Tickets” usa el historial real y restaura filtros, orden, página y posición sin duplicar rutas.
+- El estado se valida desde `unknown`: rechaza esquemas externos, hashes, subrutas, queries no canónicas, propiedades heredadas y objetos hostiles. Un acceso directo vuelve a Tickets mediante reemplazo seguro; Administración conserva su retorno independiente sin dejar el detalle atrapado en el historial.
+- Aprobaron las 109 pruebas frontend —incluidas 10 nuevas del contrato de navegación—, Prettier, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1. No se hizo push.
+
 ## 2026-08-07 — Filtros de Tickets sincronizados con la URL
 
 **Agente:** Codex

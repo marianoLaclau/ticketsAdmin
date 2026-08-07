@@ -46,6 +46,7 @@ import {
   TICKET_LIST_LIMITS,
   type TicketListUrlState,
 } from "@/lib/ticket-list-url";
+import { createTicketDetailNavigationState } from "@/lib/ticket-navigation";
 
 export default function TicketList() {
   const [, setLocation] = useLocation();
@@ -388,7 +389,12 @@ export default function TicketList() {
                   <TicketListTableRow
                     key={ticket.id}
                     ticket={ticket}
-                    onOpen={(id) => setLocation(`/tickets/${id}`)}
+                    onOpen={(id) =>
+                      setLocation(`/tickets/${id}`, {
+                        state:
+                          createTicketDetailNavigationState(canonicalSearch),
+                      })
+                    }
                   />
                 ))
               )}
