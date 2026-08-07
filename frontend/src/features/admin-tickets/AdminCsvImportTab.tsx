@@ -1,10 +1,17 @@
-import { useState, type ChangeEvent } from "react";
+import { useLayoutEffect, useRef, useState, type ChangeEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useImportCsv,
   type AdminImportResult,
 } from "@workspace/api-client-react";
-import { CheckCircle2, FileText, Upload } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  FileText,
+  Loader2,
+  Upload,
+} from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,58 +21,158 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TabsContent } from "@/components/ui/tabs";
 import { adminErrorMessage } from "@/hooks/use-admin-access";
+import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { useToast } from "@/hooks/use-toast";
+import type { AdminCredentialState } from "@/lib/admin-credential-state";
 import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
 
 interface AdminCsvImportTabProps {
   request: RequestInit;
+  adminAccessState: AdminCredentialState;
+  accessVersion: number;
+  accessGeneration: number;
 }
 
-export function AdminCsvImportTab({ request }: AdminCsvImportTabProps) {
+export function AdminCsvImportTab({
+  request,
+  adminAccessState,
+  accessVersion,
+  accessGeneration,
+}: AdminCsvImportTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const importCsv = useImportCsv({ request });
+  const { reset: resetImportCsv } = importCsv;
+  const hasAdminAccess = adminAccessState === "ready";
+  const accessBoundary = `${adminAccessState}:${accessVersion}:${accessGeneration}`;
+  const { isCurrentOperation, operationGeneration } = useAdminOperationGuard(
+    adminAccessState,
+    accessGeneration,
+  );
+  const fileReadAttemptRef = useRef(0);
+  const [isReadingFile, setIsReadingFile] = useState(false);
   const [csvNombre, setCsvNombre] = useState("");
   const [csvTexto, setCsvTexto] = useState("");
   const [resultadoImport, setResultadoImport] =
     useState<AdminImportResult | null>(null);
+  const resetAccessBoundaryRef = useRef(accessBoundary);
+
+  useLayoutEffect(() => {
+    if (resetAccessBoundaryRef.current === accessBoundary) return;
+    resetAccessBoundaryRef.current = accessBoundary;
+    fileReadAttemptRef.current += 1;
+    setIsReadingFile(false);
+    setCsvNombre("");
+    setCsvTexto("");
+    setResultadoImport(null);
+    resetImportCsv();
+  }, [accessBoundary, resetImportCsv]);
 
   const refrescarTickets = () => invalidateTicketDomainQueries(queryClient);
 
-  const errorToast = (title: string) => (err: unknown) => {
-    toast({
-      variant: "destructive",
-      title,
-      description: adminErrorMessage(err),
-    });
-  };
+  const errorToast =
+    (title: string, operationAccessGeneration: number) => (err: unknown) => {
+      if (!isCurrentOperation(operationAccessGeneration)) return;
+      toast({
+        variant: "destructive",
+        title,
+        description: adminErrorMessage(err),
+      });
+    };
 
   const onArchivoSeleccionado = async (e: ChangeEvent<HTMLInputElement>) => {
+    if (
+      !isCurrentOperation(operationGeneration) ||
+      isReadingFile ||
+      importCsv.isPending
+    ) {
+      e.target.value = "";
+      return;
+    }
     const file = e.target.files?.[0];
     if (!file) return;
-    const texto = await file.text();
+    e.target.value = "";
+    const operationAccessGeneration = operationGeneration;
+    const fileReadAttempt = fileReadAttemptRef.current + 1;
+    fileReadAttemptRef.current = fileReadAttempt;
+    setIsReadingFile(true);
     setCsvNombre(file.name);
-    setCsvTexto(texto);
+    setCsvTexto("");
     setResultadoImport(null);
+    resetImportCsv();
+
+    let texto: string;
+    try {
+      texto = await file.text();
+    } catch {
+      if (
+        fileReadAttemptRef.current !== fileReadAttempt ||
+        !isCurrentOperation(operationAccessGeneration)
+      )
+        return;
+      setIsReadingFile(false);
+      setCsvNombre("");
+      toast({
+        variant: "destructive",
+        title: "No se pudo leer el archivo",
+        description:
+          "Verificá que el CSV siga disponible y volvé a seleccionarlo.",
+      });
+      return;
+    }
+    if (
+      fileReadAttemptRef.current !== fileReadAttempt ||
+      !isCurrentOperation(operationAccessGeneration)
+    )
+      return;
+    setCsvTexto(texto);
+    setIsReadingFile(false);
     // Simulación automática al elegir el archivo
     importCsv.mutate(
       { data: { csv: texto, dry_run: true } },
       {
-        onSuccess: setResultadoImport,
-        onError: errorToast("No se pudo analizar el archivo"),
+        onSuccess: (result) => {
+          if (
+            fileReadAttemptRef.current !== fileReadAttempt ||
+            !isCurrentOperation(operationAccessGeneration)
+          )
+            return;
+          setResultadoImport(result);
+        },
+        onError: (error) => {
+          if (
+            fileReadAttemptRef.current !== fileReadAttempt ||
+            !isCurrentOperation(operationAccessGeneration)
+          )
+            return;
+          errorToast(
+            "No se pudo analizar el archivo",
+            operationAccessGeneration,
+          )(error);
+        },
       },
     );
-    e.target.value = "";
   };
 
   const importarDefinitivo = () => {
+    if (
+      !isCurrentOperation(operationGeneration) ||
+      isReadingFile ||
+      importCsv.isPending ||
+      !resultadoImport?.dry_run ||
+      !csvTexto
+    )
+      return;
+    const operationAccessGeneration = operationGeneration;
     importCsv.mutate(
       { data: { csv: csvTexto, dry_run: false } },
       {
         onSuccess: (r) => {
+          if (!isCurrentOperation(operationAccessGeneration)) return;
           setResultadoImport(r);
           void refrescarTickets();
           toast({
@@ -75,10 +182,43 @@ export function AdminCsvImportTab({ request }: AdminCsvImportTabProps) {
             description: `${r.insertados} nuevos · ${r.ya_existentes} ya existentes · ${r.invalidos} inválidos`,
           });
         },
-        onError: errorToast("No se pudo importar el archivo"),
+        onError: errorToast(
+          "No se pudo importar el archivo",
+          operationAccessGeneration,
+        ),
       },
     );
   };
+
+  if (!hasAdminAccess) {
+    return (
+      <TabsContent value="importar" className="mt-4 max-w-3xl">
+        <Alert className="border-amber-200 bg-amber-50/50">
+          {adminAccessState === "pending" ? (
+            <Loader2
+              className="h-4 w-4 animate-spin text-amber-600 motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+          ) : (
+            <AlertTriangle
+              className="h-4 w-4 text-amber-600"
+              aria-hidden="true"
+            />
+          )}
+          <AlertTitle>
+            {adminAccessState === "pending"
+              ? "Verificando la llave de administración"
+              : "Ingresá la llave de administración"}
+          </AlertTitle>
+          <AlertDescription>
+            {adminAccessState === "pending"
+              ? "Esperá un instante antes de analizar o importar archivos."
+              : "La importación permanece protegida. Completá la llave en la cabecera para continuar."}
+          </AlertDescription>
+        </Alert>
+      </TabsContent>
+    );
+  }
 
   return (
     <TabsContent value="importar" className="mt-4 space-y-4 max-w-3xl">
@@ -97,20 +237,36 @@ export function AdminCsvImportTab({ request }: AdminCsvImportTabProps) {
             <strong> simulación</strong>; nada se escribe hasta confirmar.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent
+          className="space-y-4"
+          aria-busy={isReadingFile || importCsv.isPending}
+        >
           <div className="flex items-center gap-3">
             <Input
               type="file"
               accept=".csv,text/csv"
               onChange={(event) => void onArchivoSeleccionado(event)}
+              disabled={isReadingFile || importCsv.isPending}
               className="max-w-sm cursor-pointer"
+              aria-label="Seleccionar archivo CSV para importar"
             />
             {csvNombre && (
               <span className="text-sm text-muted-foreground">{csvNombre}</span>
             )}
           </div>
 
-          {importCsv.isPending && <Skeleton className="h-24 w-full" />}
+          {(isReadingFile || importCsv.isPending) && (
+            <>
+              <LoadingStatus>
+                {isReadingFile
+                  ? "Leyendo archivo CSV"
+                  : resultadoImport?.dry_run
+                    ? "Importando archivo CSV"
+                    : "Analizando archivo CSV"}
+              </LoadingStatus>
+              <Skeleton className="h-24 w-full" />
+            </>
+          )}
 
           {resultadoImport && (
             <div
@@ -192,7 +348,9 @@ export function AdminCsvImportTab({ request }: AdminCsvImportTabProps) {
                 <Button
                   onClick={importarDefinitivo}
                   disabled={
-                    resultadoImport.insertados === 0 || importCsv.isPending
+                    resultadoImport.insertados === 0 ||
+                    isReadingFile ||
+                    importCsv.isPending
                   }
                   className="w-full"
                 >

@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getListTicketsQueryKey,
   useListTickets,
   useTruncateTickets,
 } from "@workspace/api-client-react";
-import { AlertTriangle, Trash2 } from "lucide-react";
+import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,22 +19,34 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TabsContent } from "@/components/ui/tabs";
 import { adminErrorMessage } from "@/hooks/use-admin-access";
+import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { useToast } from "@/hooks/use-toast";
+import type { AdminCredentialState } from "@/lib/admin-credential-state";
 import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
 
 interface AdminDangerZoneTabProps {
   request: RequestInit;
-  hasAdminAccess: boolean;
+  queryRequest: RequestInit;
+  adminAccessState: AdminCredentialState;
   accessVersion: number;
+  accessGeneration: number;
 }
 
 export function AdminDangerZoneTab({
   request,
-  hasAdminAccess,
+  queryRequest,
+  adminAccessState,
   accessVersion,
+  accessGeneration,
 }: AdminDangerZoneTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const hasAdminAccess = adminAccessState === "ready";
+  const accessBoundary = `${adminAccessState}:${accessVersion}:${accessGeneration}`;
+  const { isCurrentOperation, operationGeneration } = useAdminOperationGuard(
+    adminAccessState,
+    accessGeneration,
+  );
   const totalBaseParams = { page: 1, limit: 1, incluir_vacios: true };
   const totalBaseQuery = useListTickets(totalBaseParams, {
     query: {
@@ -45,26 +58,45 @@ export function AdminDangerZoneTab({
       ],
       retry: false,
     },
-    request,
+    request: queryRequest,
   });
   const truncate = useTruncateTickets({ request });
+  const { reset: resetTruncate } = truncate;
   const [confirmTexto, setConfirmTexto] = useState("");
+  const resetAccessBoundaryRef = useRef(accessBoundary);
+
+  useLayoutEffect(() => {
+    if (resetAccessBoundaryRef.current === accessBoundary) return;
+    resetAccessBoundaryRef.current = accessBoundary;
+    setConfirmTexto("");
+    resetTruncate();
+  }, [accessBoundary, resetTruncate]);
 
   const refrescarTickets = () => invalidateTicketDomainQueries(queryClient);
 
-  const errorToast = (title: string) => (err: unknown) => {
-    toast({
-      variant: "destructive",
-      title,
-      description: adminErrorMessage(err),
-    });
-  };
+  const errorToast =
+    (title: string, operationAccessGeneration: number) => (err: unknown) => {
+      if (!isCurrentOperation(operationAccessGeneration)) return;
+      toast({
+        variant: "destructive",
+        title,
+        description: adminErrorMessage(err),
+      });
+    };
 
   const ejecutarTruncate = () => {
+    if (
+      !isCurrentOperation(operationGeneration) ||
+      confirmTexto !== "BORRAR" ||
+      truncate.isPending
+    )
+      return;
+    const operationAccessGeneration = operationGeneration;
     truncate.mutate(
       { data: { confirmar: true } },
       {
         onSuccess: (r) => {
+          if (!isCurrentOperation(operationAccessGeneration)) return;
           setConfirmTexto("");
           void refrescarTickets();
           toast({
@@ -73,10 +105,43 @@ export function AdminDangerZoneTab({
             description: `${r.tickets_eliminados} tickets y ${r.seguimientos_eliminados} seguimientos eliminados.`,
           });
         },
-        onError: errorToast("No se pudo vaciar la base"),
+        onError: errorToast(
+          "No se pudo vaciar la base",
+          operationAccessGeneration,
+        ),
       },
     );
   };
+
+  if (!hasAdminAccess) {
+    return (
+      <TabsContent value="peligro" className="mt-4 max-w-3xl">
+        <Alert className="border-amber-200 bg-amber-50/50">
+          {adminAccessState === "pending" ? (
+            <Loader2
+              className="h-4 w-4 animate-spin text-amber-600 motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+          ) : (
+            <AlertTriangle
+              className="h-4 w-4 text-amber-600"
+              aria-hidden="true"
+            />
+          )}
+          <AlertTitle>
+            {adminAccessState === "pending"
+              ? "Verificando la llave de administración"
+              : "Ingresá la llave de administración"}
+          </AlertTitle>
+          <AlertDescription>
+            {adminAccessState === "pending"
+              ? "Esperá un instante antes de usar las acciones de mantenimiento."
+              : "La zona peligrosa permanece protegida. Completá la llave en la cabecera para continuar."}
+          </AlertDescription>
+        </Alert>
+      </TabsContent>
+    );
+  }
 
   return (
     <TabsContent value="peligro" className="mt-4 max-w-3xl">

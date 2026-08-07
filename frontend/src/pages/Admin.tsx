@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Database, Upload } from "lucide-react";
 import { AdminHeader } from "@/components/admin/AdminHeader";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,13 +7,30 @@ import { AdminDangerZoneTab } from "@/features/admin-tickets/AdminDangerZoneTab"
 import { AdminTicketsTab } from "@/features/admin-tickets/AdminTicketsTab";
 import { useAdminTicketsUrl } from "@/features/admin-tickets/useAdminTicketsUrl";
 import { useAdminAccess } from "@/hooks/use-admin-access";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { getAdminCredentialState } from "@/lib/admin-credential-state";
 import { createAdminTicketDetailNavigationState } from "@/lib/ticket-navigation";
+
+const ADMIN_TICKETS_CREDENTIAL_DEBOUNCE_MS = 350;
 
 let adminTicketsQueryVersion = 0;
 
 function nextAdminTicketsQueryVersion(): number {
   adminTicketsQueryVersion += 1;
   return adminTicketsQueryVersion;
+}
+
+function useAdminAccessGeneration(adminKey: string): number {
+  const previousAdminKeyRef = useRef(adminKey);
+  const [generation, setGeneration] = useState(0);
+
+  useLayoutEffect(() => {
+    if (previousAdminKeyRef.current === adminKey) return;
+    previousAdminKeyRef.current = adminKey;
+    setGeneration((current) => current + 1);
+  }, [adminKey]);
+
+  return generation;
 }
 
 export default function Admin() {
@@ -25,9 +42,24 @@ export default function Admin() {
     () => createAdminTicketDetailNavigationState(canonicalSearch),
     [canonicalSearch],
   );
+  const effectiveAdminKey = useDebouncedValue(
+    adminKey,
+    ADMIN_TICKETS_CREDENTIAL_DEBOUNCE_MS,
+  );
+  const queryRequest = useMemo<RequestInit>(
+    () =>
+      effectiveAdminKey
+        ? { headers: { "x-admin-key": effectiveAdminKey } }
+        : {},
+    [effectiveAdminKey],
+  );
   // La versión fuerza una consulta nueva cuando cambia la llave, sin incluir
   // el secreto en el query key ni dejarlo expuesto en la caché del navegador.
-  const adminAccessVersion = useMemo(nextAdminTicketsQueryVersion, [adminKey]);
+  const adminAccessVersion = useMemo(nextAdminTicketsQueryVersion, [
+    effectiveAdminKey,
+  ]);
+  const adminAccessState = getAdminCredentialState(adminKey, effectiveAdminKey);
+  const adminAccessGeneration = useAdminAccessGeneration(adminKey);
 
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-4 p-4 md:p-8">
@@ -56,17 +88,26 @@ export default function Admin() {
 
         <AdminTicketsTab
           request={adminRequest}
-          hasAdminAccess={Boolean(adminKey)}
+          queryRequest={queryRequest}
+          adminAccessState={adminAccessState}
           accessVersion={adminAccessVersion}
+          accessGeneration={adminAccessGeneration}
           urlState={urlState}
           updateUrlState={updateUrlState}
           detailNavigationState={detailNavigationState}
         />
-        <AdminCsvImportTab request={adminRequest} />
+        <AdminCsvImportTab
+          request={adminRequest}
+          adminAccessState={adminAccessState}
+          accessVersion={adminAccessVersion}
+          accessGeneration={adminAccessGeneration}
+        />
         <AdminDangerZoneTab
           request={adminRequest}
-          hasAdminAccess={Boolean(adminKey)}
+          queryRequest={queryRequest}
+          adminAccessState={adminAccessState}
           accessVersion={adminAccessVersion}
+          accessGeneration={adminAccessGeneration}
         />
       </Tabs>
     </div>

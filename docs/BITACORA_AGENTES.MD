@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Transiciones seguras en tickets administrativos
+
+**Agente:** Codex
+**Estado:** centésima cuadragésima quinta remediación de la auditoría técnica, implementada localmente.
+
+- Registros, Importar CSV y Zona peligrosa dejaron de consultar la API en cada pulsación de la llave: las lecturas esperan 350 ms y usan sólo la credencial efectiva, mientras los estados `missing` y `pending` ocultan datos y acciones anteriores.
+- Cada cambio de credencial genera una identidad opaca que reinicia formularios, confirmaciones y mutaciones locales. Los handlers y callbacks asíncronos verifican esa generación y descartan respuestas anteriores incluso si el usuario restaura la misma llave antes del debounce; ningún secreto forma parte de la identidad ni de las claves de caché.
+- La importación limpia el preview antes de leer un archivo nuevo, trata errores locales, impide importar el CSV anterior y cerca los resultados por intento. Lectura, análisis e importación exponen estados accesibles diferenciados, además del skeleton visual.
+- Se agregaron cuatro pruebas para la vigencia de operaciones administrativas. Aprobaron las 164 pruebas frontend, Prettier, ESLint, typecheck, build de producción, `git diff --check` y tres rondas de revisión cruzada; la última quedó sin hallazgos P0/P1/P2. La salida temporal fue verificada y eliminada y sólo persistieron las advertencias de sourcemaps conocidas. No se hizo push.
+
 ## 2026-08-07 — Formato del estado de autenticación y sesión
 
 **Agente:** Codex

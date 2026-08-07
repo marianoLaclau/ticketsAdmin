@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   getTicket,
   getListTicketsQueryKey,
@@ -12,6 +12,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { adminErrorMessage } from "@/hooks/use-admin-access";
 import { isTicketVersionConflict } from "@/lib/error-messages";
 import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
@@ -37,8 +38,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Search, RotateCcw } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertTriangle, Loader2, Plus, Search, RotateCcw } from "lucide-react";
 import { getContactDisplayName } from "@/lib/contacto";
+import type { AdminCredentialState } from "@/lib/admin-credential-state";
 import {
   buildTicketListParams,
   createDefaultTicketSort,
@@ -64,8 +67,10 @@ import {
 
 interface AdminTicketsTabProps {
   request: RequestInit;
-  hasAdminAccess: boolean;
+  queryRequest: RequestInit;
+  adminAccessState: AdminCredentialState;
   accessVersion: number;
+  accessGeneration: number;
   urlState: AdminTicketsUrlState;
   updateUrlState: (
     update: AdminTicketsUrlUpdate,
@@ -76,24 +81,34 @@ interface AdminTicketsTabProps {
 
 export function AdminTicketsTab({
   request,
-  hasAdminAccess,
+  queryRequest,
+  adminAccessState,
   accessVersion,
+  accessGeneration,
   urlState,
   updateUrlState,
   detailNavigationState,
 }: AdminTicketsTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const hasAdminAccess = adminAccessState === "ready";
+  const accessBoundary = `${adminAccessState}:${accessVersion}:${accessGeneration}`;
+  const { isCurrentOperation, operationGeneration } = useAdminOperationGuard(
+    adminAccessState,
+    accessGeneration,
+  );
 
   const refrescarTickets = () => invalidateTicketDomainQueries(queryClient);
 
-  const errorToast = (title: string) => (err: unknown) => {
-    toast({
-      variant: "destructive",
-      title,
-      description: adminErrorMessage(err),
-    });
-  };
+  const errorToast =
+    (title: string, operationAccessGeneration: number) => (err: unknown) => {
+      if (!isCurrentOperation(operationAccessGeneration)) return;
+      toast({
+        variant: "destructive",
+        title,
+        description: adminErrorMessage(err),
+      });
+    };
 
   // ---------- Registros (CRUD) ----------
   const { page, limit: pageSize, sort: sorts } = urlState;
@@ -113,7 +128,7 @@ export function AdminTicketsTab({
       queryKey: listQueryKey,
       retry: false,
     },
-    request,
+    request: queryRequest,
   });
   const { data: listResponse, isLoading } = listQuery;
   const tickets = listResponse?.tickets ?? [];
@@ -121,10 +136,10 @@ export function AdminTicketsTab({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   useEffect(() => {
-    if (listResponse && page > totalPages) {
+    if (hasAdminAccess && listResponse && page > totalPages) {
       updateUrlState((current) => ({ ...current, page: totalPages }));
     }
-  }, [listResponse, page, totalPages, updateUrlState]);
+  }, [hasAdminAccess, listResponse, page, totalPages, updateUrlState]);
 
   const ordenarRegistros = (column: TicketSortBy, additive: boolean) => {
     updateUrlState((current) => ({
@@ -154,6 +169,9 @@ export function AdminTicketsTab({
   const createTicket = useCreateAdminTicket({ request });
   const updateTicket = useUpdateTicket({ request });
   const deleteTicket = useDeleteTicket({ request });
+  const { reset: resetCreateTicket } = createTicket;
+  const { reset: resetUpdateTicket } = updateTicket;
+  const { reset: resetDeleteTicket } = deleteTicket;
 
   const [dialogAbierto, setDialogAbierto] = useState(false);
   const [isReloadingTicket, setIsReloadingTicket] = useState(false);
@@ -164,6 +182,23 @@ export function AdminTicketsTab({
   const [editBaseline, setEditBaseline] =
     useState<TicketEditBaseline<AdminTicketForm> | null>(null);
   const [aEliminar, setAEliminar] = useState<Ticket | null>(null);
+  const resetAccessBoundaryRef = useRef(accessBoundary);
+
+  useLayoutEffect(() => {
+    if (resetAccessBoundaryRef.current === accessBoundary) return;
+    resetAccessBoundaryRef.current = accessBoundary;
+    reloadAttemptRef.current += 1;
+    setDialogAbierto(false);
+    setIsReloadingTicket(false);
+    setHasVersionConflict(false);
+    setEditandoId(null);
+    setForm(createEmptyAdminTicketForm());
+    setEditBaseline(null);
+    setAEliminar(null);
+    resetCreateTicket();
+    resetUpdateTicket();
+    resetDeleteTicket();
+  }, [accessBoundary, resetCreateTicket, resetDeleteTicket, resetUpdateTicket]);
 
   const cambiarEstadoDialogo = (open: boolean) => {
     setDialogAbierto(open);
@@ -176,6 +211,7 @@ export function AdminTicketsTab({
   };
 
   const abrirCrear = () => {
+    if (!isCurrentOperation(operationGeneration)) return;
     reloadAttemptRef.current += 1;
     setIsReloadingTicket(false);
     setEditandoId(null);
@@ -186,7 +222,7 @@ export function AdminTicketsTab({
   };
 
   const abrirEditar = (t: Ticket) => {
-    if (isReloadingTicket) return;
+    if (!isCurrentOperation(operationGeneration) || isReloadingTicket) return;
     reloadAttemptRef.current += 1;
     const snapshot = ticketToAdminTicketForm(t);
     setEditandoId(t.id);
@@ -213,10 +249,18 @@ export function AdminTicketsTab({
   };
 
   const guardarRegistro = () => {
+    if (
+      !isCurrentOperation(operationGeneration) ||
+      createTicket.isPending ||
+      updateTicket.isPending
+    )
+      return;
+    const operationAccessGeneration = operationGeneration;
     const contacto = getContactDisplayName(form);
     const onOk =
       (titulo: string, dedupeCreated = false) =>
       (savedTicket: Ticket) => {
+        if (!isCurrentOperation(operationAccessGeneration)) return;
         cacheTicketInCurrentList(savedTicket);
         cambiarEstadoDialogo(false);
         void refrescarTickets();
@@ -234,7 +278,10 @@ export function AdminTicketsTab({
         { data: buildAdminTicketInput(form) },
         {
           onSuccess: onOk("Ticket creado", true),
-          onError: errorToast("No se pudo crear el ticket"),
+          onError: errorToast(
+            "No se pudo crear el ticket",
+            operationAccessGeneration,
+          ),
         },
       );
     } else {
@@ -261,8 +308,12 @@ export function AdminTicketsTab({
         {
           onSuccess: onOk("Ticket actualizado"),
           onError: (error) => {
+            if (!isCurrentOperation(operationAccessGeneration)) return;
             if (!isTicketVersionConflict(error)) {
-              errorToast("No se pudo actualizar el ticket")(error);
+              errorToast(
+                "No se pudo actualizar el ticket",
+                operationAccessGeneration,
+              )(error);
               return;
             }
 
@@ -280,41 +331,65 @@ export function AdminTicketsTab({
   };
 
   const resolverConflictoDeVersion = async () => {
-    if (editandoId === null) return;
+    if (
+      !isCurrentOperation(operationGeneration) ||
+      editandoId === null ||
+      isReloadingTicket
+    )
+      return;
+    const operationAccessGeneration = operationGeneration;
     const reloadAttempt = reloadAttemptRef.current + 1;
     reloadAttemptRef.current = reloadAttempt;
     setIsReloadingTicket(true);
     try {
       const [latestTicket] = await Promise.all([
-        getTicket(editandoId, { incluir_vacios: true }, request),
+        getTicket(editandoId, { incluir_vacios: true }, queryRequest),
         listQuery.refetch(),
       ]);
-      if (reloadAttemptRef.current !== reloadAttempt) return;
+      if (
+        reloadAttemptRef.current !== reloadAttempt ||
+        !isCurrentOperation(operationAccessGeneration)
+      )
+        return;
       const snapshot = ticketToAdminTicketForm(latestTicket);
       cacheTicketInCurrentList(latestTicket);
       setEditBaseline(createTicketEditBaseline(latestTicket, snapshot));
       setForm({ ...snapshot });
       setHasVersionConflict(false);
     } catch (error) {
-      if (reloadAttemptRef.current !== reloadAttempt) return;
+      if (
+        reloadAttemptRef.current !== reloadAttempt ||
+        !isCurrentOperation(operationAccessGeneration)
+      )
+        return;
       toast({
         variant: "destructive",
         title: "No se pudo cargar la versión actual",
         description: adminErrorMessage(error),
       });
     } finally {
-      if (reloadAttemptRef.current === reloadAttempt) {
+      if (
+        reloadAttemptRef.current === reloadAttempt &&
+        isCurrentOperation(operationAccessGeneration)
+      ) {
         setIsReloadingTicket(false);
       }
     }
   };
 
   const confirmarEliminar = () => {
-    if (!aEliminar) return;
+    if (
+      !isCurrentOperation(operationGeneration) ||
+      !aEliminar ||
+      deleteTicket.isPending
+    )
+      return;
+    const operationAccessGeneration = operationGeneration;
     deleteTicket.mutate(
       { id: aEliminar.id },
       {
         onSuccess: () => {
+          if (!isCurrentOperation(operationAccessGeneration)) return;
           setAEliminar(null);
           void refrescarTickets();
           toast({
@@ -323,10 +398,43 @@ export function AdminTicketsTab({
             description: getContactDisplayName(aEliminar),
           });
         },
-        onError: errorToast("No se pudo eliminar el ticket"),
+        onError: errorToast(
+          "No se pudo eliminar el ticket",
+          operationAccessGeneration,
+        ),
       },
     );
   };
+
+  if (!hasAdminAccess) {
+    return (
+      <TabsContent value="registros" className="mt-4">
+        <Alert className="border-amber-200 bg-amber-50/50">
+          {adminAccessState === "pending" ? (
+            <Loader2
+              className="h-4 w-4 animate-spin text-amber-600 motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+          ) : (
+            <AlertTriangle
+              className="h-4 w-4 text-amber-600"
+              aria-hidden="true"
+            />
+          )}
+          <AlertTitle>
+            {adminAccessState === "pending"
+              ? "Verificando la llave de administración"
+              : "Ingresá la llave de administración"}
+          </AlertTitle>
+          <AlertDescription>
+            {adminAccessState === "pending"
+              ? "Esperá un instante antes de consultar o gestionar registros."
+              : "Los registros administrativos permanecen protegidos. Completá la llave en la cabecera para consultarlos y gestionarlos."}
+          </AlertDescription>
+        </Alert>
+      </TabsContent>
+    );
+  }
 
   return (
     <>
@@ -454,17 +562,7 @@ export function AdminTicketsTab({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {!hasAdminAccess ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={11}
-                      className="h-40 text-center text-sm text-muted-foreground"
-                    >
-                      Ingresá la llave de administración para ver todos los
-                      registros.
-                    </TableCell>
-                  </TableRow>
-                ) : isLoading ? (
+                {isLoading ? (
                   Array.from({ length: 8 }).map((_, i) => (
                     <TableRow key={i}>
                       {Array.from({ length: 11 }).map((_, j) => (
@@ -501,7 +599,11 @@ export function AdminTicketsTab({
                       isEditDisabled={isReloadingTicket}
                       navigationState={detailNavigationState}
                       onEdit={abrirEditar}
-                      onDelete={setAEliminar}
+                      onDelete={(ticket) => {
+                        if (isCurrentOperation(operationGeneration)) {
+                          setAEliminar(ticket);
+                        }
+                      }}
                     />
                   ))
                 )}
