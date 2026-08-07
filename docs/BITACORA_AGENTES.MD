@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Ruta de ingesta normalizada
+
+**Agente:** Codex
+**Estado:** octogésima primera remediación de la auditoría técnica, implementada localmente.
+
+- `backend/src/routes/webhooks.ts` se normalizó con Prettier. El diff sólo redistribuye una llamada, una respuesta HTTP y uniones literales; validación, transacción, idempotencia, cuarentena y eventos no cambian.
+- La suite dirigida de creación por webhook cubre rechazo y aceptación de fechas RFC3339, preservación del instante, estado laboral, seguimiento Serin e idempotencia; también recorre el alta administrativa equivalente.
+- Se validarán Prettier, ESLint, esa suite dirigida y el typecheck backend antes de commitear. No se hizo push.
+
 ## 2026-08-07 — Reconciliador de categorías normalizado
 
 **Agente:** Codex

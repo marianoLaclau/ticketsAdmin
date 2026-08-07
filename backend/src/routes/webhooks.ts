@@ -22,10 +22,9 @@ const router = Router();
 // Idempotente por conversation_id — un reintento de n8n devuelve el ticket existente.
 router.post("/webhooks/ticket", requireWebhookKey, async (req, res) => {
   if (req.body && typeof req.body === "object" && !Array.isArray(req.body)) {
-    const invalidDateField = findInvalidRfc3339DateTimeField(
-      req.body,
-      ["fecha_limite"] as const,
-    );
+    const invalidDateField = findInvalidRfc3339DateTimeField(req.body, [
+      "fecha_limite",
+    ] as const);
     if (invalidDateField) {
       res.status(400).json({
         error: `${invalidDateField} debe ser una fecha RFC3339 válida con zona horaria`,
@@ -36,7 +35,9 @@ router.post("/webhooks/ticket", requireWebhookKey, async (req, res) => {
 
   const parsed = IngestTicketBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid body", details: parsed.error.issues });
+    res
+      .status(400)
+      .json({ error: "Invalid body", details: parsed.error.issues });
     return;
   }
   const data = parsed.data;
@@ -61,14 +62,10 @@ router.post("/webhooks/ticket", requireWebhookKey, async (req, res) => {
         notificado: data.notificado ?? false,
         estado:
           (data.estado as
-            | "nuevo"
-            | "en_proceso"
-            | "pendiente"
-            | "resuelto"
-            | "cerrado") ?? "nuevo",
+            "nuevo" | "en_proceso" | "pendiente" | "resuelto" | "cerrado") ??
+          "nuevo",
         prioridad:
-          (data.prioridad as "baja" | "media" | "alta" | "urgente") ??
-          "media",
+          (data.prioridad as "baja" | "media" | "alta" | "urgente") ?? "media",
         asignado_a: data.asignado_a ?? null,
         audio_url: data.audio_url ?? null,
         notas: data.notas ?? null,
