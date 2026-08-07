@@ -69,6 +69,10 @@ export default function TicketList() {
     () => serializeTicketListUrlState(urlState).toString(),
     [urlState],
   );
+  const detailNavigationState = useMemo(
+    () => createTicketDetailNavigationState(canonicalSearch),
+    [canonicalSearch],
+  );
 
   useEffect(() => {
     if (currentSearch !== canonicalSearch) {
@@ -389,10 +393,10 @@ export default function TicketList() {
                   <TicketListTableRow
                     key={ticket.id}
                     ticket={ticket}
+                    navigationState={detailNavigationState}
                     onOpen={(id) =>
                       setLocation(`/tickets/${id}`, {
-                        state:
-                          createTicketDetailNavigationState(canonicalSearch),
+                        state: detailNavigationState,
                       })
                     }
                   />

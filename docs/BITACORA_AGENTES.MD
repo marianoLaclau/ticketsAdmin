@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Apertura accesible de tickets
+
+**Agente:** Codex
+**Estado:** centésima décima cuarta remediación de la auditoría técnica, implementada localmente.
+
+- El nombre del contacto es ahora un enlace real al detalle: se anuncia con ticket y contacto, recibe foco visible, funciona con teclado y conserva el estado contextual en la navegación normal.
+- El clic general sobre la fila sigue disponible para mouse, pero ignora modificadores y botones no primarios; así Ctrl/Cmd/Shift y la apertura nativa en otra pestaña no disparan una segunda navegación en la pestaña actual.
+- Se mantuvo HTML de tabla válido y se evitó convertir el `<tr>` en un falso enlace ARIA. Aprobaron las 109 pruebas frontend, Prettier, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1. No se hizo push.
+
 ## 2026-08-07 — Retorno contextual desde el detalle de ticket
 
 **Agente:** Codex

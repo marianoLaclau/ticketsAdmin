@@ -1,5 +1,7 @@
 import type { Ticket } from "@workspace/api-client-react";
 import { AlertCircle, Building } from "lucide-react";
+import type { MouseEvent } from "react";
+import { Link } from "wouter";
 import { Progress } from "@/components/ui/progress";
 import { TableCell, TableRow } from "@/components/ui/table";
 import {
@@ -15,14 +17,17 @@ import {
   isVencido,
   PrioridadBadge,
 } from "@/lib/utils-tickets";
+import type { TicketDetailNavigationState } from "@/lib/ticket-navigation";
 
 interface TicketListTableRowProps {
   ticket: Ticket;
+  navigationState: TicketDetailNavigationState;
   onOpen: (ticketId: number) => void;
 }
 
 export function TicketListTableRow({
   ticket,
+  navigationState,
   onOpen,
 }: TicketListTableRowProps) {
   const vencido = isVencido(ticket.fecha_limite, ticket.estado);
@@ -37,15 +42,29 @@ export function TicketListTableRow({
   const asignadoLabel = getAssignedDisplayName(ticket.asignado_a);
   const tieneAsignado = hasAssignedDisplayName(ticket.asignado_a);
 
+  const handleRowClick = (event: MouseEvent<HTMLTableRowElement>) => {
+    if (
+      event.button !== 0 ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.altKey ||
+      event.shiftKey
+    ) {
+      return;
+    }
+
+    onOpen(ticket.id);
+  };
+
   return (
     <TableRow
-      onClick={() => onOpen(ticket.id)}
-      className="cursor-pointer transition-all hover:bg-slate-50/80 group border-b border-slate-100 last:border-0 relative"
+      onClick={handleRowClick}
+      className="group relative cursor-pointer border-b border-slate-100 transition-all last:border-0 hover:bg-slate-50/80 focus-within:bg-slate-50/80"
       data-testid={`row-ticket-${ticket.id}`}
     >
       <TableCell className="py-2.5">
         {/* Hover Left Border Accent */}
-        <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+        <div className="absolute bottom-0 left-0 top-0 w-0.5 bg-primary opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100" />
         <div className="flex flex-col">
           <span className="text-sm text-foreground font-medium">
             {new Date(ticket.fecha_creacion).toLocaleDateString("es-AR")}
@@ -57,12 +76,16 @@ export function TicketListTableRow({
       </TableCell>
       <TableCell className="py-2.5">
         <div className="min-w-0">
-          <span
-            className="block truncate text-sm font-semibold text-foreground"
+          <Link
+            href={`/tickets/${ticket.id}`}
+            state={navigationState}
+            onClick={(event) => event.stopPropagation()}
+            aria-label={`Abrir ticket #${ticket.id} de ${contactoLabel}`}
+            className="block truncate rounded-sm text-sm font-semibold text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             title={contactoLabel}
           >
             {contactoLabel}
-          </span>
+          </Link>
           <span
             className="mt-0.5 flex min-w-0 items-center text-[11px] text-slate-500"
             title={empresaLabel}
