@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Motivos y prioridades del dashboard separados
+
+**Agente:** Codex
+**Estado:** septuagésima sexta remediación de la auditoría técnica, implementada y validada localmente.
+
+- La tarjeta de motivos y prioridades salió de `Dashboard.tsx` a `features/dashboard/DashboardMotivesPriorityPanel.tsx`, que recibe datos API crudos y encapsula ranking, compatibilidad legacy y preparación de Recharts.
+- Se preservaron orden, fallbacks, colores, loaders independientes, estados vacíos, gráfico y leyenda. La página eliminó transformaciones e imports de visualización y bajó de 506 a 383 líneas.
+- La revisión cruzada no encontró hallazgos P0/P1/P2 introducidos. Typecheck y ESLint dirigidos aprobaron; el responsive fijo en dos columnas queda identificado como deuda visual heredada para la etapa profesional. No se hizo push.
+
 ## 2026-08-07 — Construcción de cambios de ticket aislada
 
 **Agente:** Codex

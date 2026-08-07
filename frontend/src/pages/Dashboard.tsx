@@ -18,12 +18,11 @@ import {
 } from '@/components/ui/select';
 import { Clock, CheckCircle2, TrendingUp, CalendarRange } from 'lucide-react';
 import { DashboardKpiGrid } from '@/features/dashboard/DashboardKpiGrid';
+import { DashboardMotivesPriorityPanel } from '@/features/dashboard/DashboardMotivesPriorityPanel';
 import { DashboardRecentActivityPanel } from '@/features/dashboard/DashboardRecentActivityPanel';
 import { DashboardStatusDistribution } from '@/features/dashboard/DashboardStatusDistribution';
 import { PrioridadBadge } from '@/lib/utils-tickets';
 import { getContactDisplayName } from '@/lib/contacto';
-import { getMotivoCategoriaConfig } from '@/lib/motivos';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
 import {
   currentMonthToToday,
@@ -33,20 +32,6 @@ import {
   validateDashboardDateRange,
   type DashboardPeriod,
 } from '@/lib/dashboard-period';
-
-// Prioridad bar colors
-const PRIORIDAD_COLOR: Record<string, string> = {
-  urgente: '#ef4444',
-  alta:    '#f97316',
-  media:   '#3b82f6',
-  baja:    '#22c55e',
-};
-const PRIORIDAD_LABEL: Record<string, string> = {
-  urgente: 'Urgente',
-  alta:    'Alta',
-  media:   'Media',
-  baja:    'Baja',
-};
 
 // Circular progress SVG component
 function GaugeRing({ pct, size = 120, stroke = 10, color = '#3d7532' }: {
@@ -151,33 +136,6 @@ export default function Dashboard() {
   const finalizados   = resueltos + cerrados;
   const tasaResolucion = total > 0 ? Math.round((finalizados / total) * 100) : 0;
   const activos        = enProceso + pendientes + nuevosSinRevisar;
-
-  // Motivos
-  const motivosSorted = (motivos ?? [])
-    .map((item) => {
-      // Compatibilidad temporal con respuestas anteriores que agrupaban por
-      // `motivo`. El contrato nuevo expone el código estable en `categoria`.
-      const stat = item as typeof item & {
-        categoria?: string;
-        motivo_categoria?: string;
-        motivo?: string;
-      };
-      const categoria = stat.categoria ?? stat.motivo_categoria ?? stat.motivo ?? 'sin_clasificar';
-      return {
-        categoria,
-        cantidad: stat.cantidad,
-        config: getMotivoCategoriaConfig(categoria),
-      };
-    })
-    .sort((a, b) => b.cantidad - a.cantidad);
-  const maxMotivo = motivosSorted[0]?.cantidad || 1;
-
-  // Prioridad — reshape for recharts
-  const prioridadData = (stats?.por_prioridad ?? []).map((p) => ({
-    name: PRIORIDAD_LABEL[p.prioridad] ?? p.prioridad,
-    cantidad: p.cantidad,
-    color: PRIORIDAD_COLOR[p.prioridad] ?? '#94a3b8',
-  }));
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto w-full space-y-5">
@@ -345,93 +303,12 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Motivos + Prioridad — split 50/50 */}
-          <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
-            <div className="grid grid-cols-2 divide-x">
-
-              {/* Left — Motivos ranking */}
-              <div className="p-5">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Motivos de Contacto</h3>
-                {loadingMotivos ? (
-                  <div className="space-y-3">{[1,2,3,4].map(i => <Skeleton key={i} className="h-7 w-full" />)}</div>
-                ) : motivosSorted.length === 0 ? (
-                  <p className="text-sm text-slate-400">Sin datos</p>
-                ) : (
-                  <div className="space-y-3">
-                    {motivosSorted.map((m, idx) => {
-                      const pct = (m.cantidad / maxMotivo) * 100;
-                      const color = m.config.color;
-                      return (
-                        <div key={m.categoria} className="flex items-center gap-3">
-                          <span className="text-[11px] font-bold text-muted-foreground w-4 text-right flex-shrink-0 tabular-nums">{idx + 1}</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs text-foreground font-medium truncate pr-2" title={m.config.label}>{m.config.label}</span>
-                              <span className="text-xs font-bold tabular-nums" style={{ color }}>{m.cantidad}</span>
-                            </div>
-                            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Right — Prioridad bar chart */}
-              <div className="p-5">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Tickets por Prioridad</h3>
-                {loadingStats ? (
-                  <Skeleton className="h-[180px] w-full" />
-                ) : prioridadData.length === 0 ? (
-                  <p className="text-sm text-slate-400">Sin datos</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={prioridadData} margin={{ top: 4, right: 8, left: -24, bottom: 0 }} barSize={32}>
-                      <XAxis
-                        dataKey="name"
-                        tick={{ fontSize: 11, fill: '#64748b' }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <YAxis
-                        allowDecimals={false}
-                        tick={{ fontSize: 11, fill: '#94a3b8' }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip
-                        cursor={{ fill: '#f1f5f9' }}
-                        contentStyle={{ borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
-                        formatter={(v) => [v, 'tickets']}
-                      />
-                      <Bar dataKey="cantidad" radius={[4, 4, 0, 0]}>
-                        {prioridadData.map((entry, i) => (
-                          <Cell key={i} fill={entry.color} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-
-                {/* Mini legend */}
-                {!loadingStats && prioridadData.length > 0 && (
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
-                    {prioridadData.map((p) => (
-                      <div key={p.name} className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: p.color }} />
-                        <span className="text-[11px] text-muted-foreground">{p.name}</span>
-                        <span className="text-[11px] font-bold text-foreground">{p.cantidad}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-            </div>
-          </div>
+          <DashboardMotivesPriorityPanel
+            motives={motivos}
+            priorities={stats?.por_prioridad}
+            isMotivesLoading={loadingMotivos}
+            isPrioritiesLoading={loadingStats}
+          />
 
           {/* Tickets vencidos */}
           <div className="bg-card border border-red-100 rounded-xl shadow-sm overflow-hidden">
