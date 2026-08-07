@@ -1,20 +1,20 @@
-import type { Ticket } from '@workspace/api-client-react';
-import { AlertCircle, Building } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
-import { TableCell, TableRow } from '@/components/ui/table';
+import type { Ticket } from "@workspace/api-client-react";
+import { AlertCircle, Building } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { TableCell, TableRow } from "@/components/ui/table";
 import {
   getAssignedDisplayName,
   hasAssignedDisplayName,
-} from '@/lib/asignacion';
-import { getContactDisplayName } from '@/lib/contacto';
-import { getEstadoEmpleadoConfig } from '@/lib/estado-empleado';
-import { getMotivoCategoriaConfig } from '@/lib/motivos';
+} from "@/lib/asignacion";
+import { getContactDisplayName } from "@/lib/contacto";
+import { getEstadoEmpleadoConfig } from "@/lib/estado-empleado";
+import { getMotivoCategoriaConfig } from "@/lib/motivos";
 import {
   EstadoBadge,
   formatDate,
   isVencido,
   PrioridadBadge,
-} from '@/lib/utils-tickets';
+} from "@/lib/utils-tickets";
 
 interface TicketListTableRowProps {
   ticket: Ticket;
@@ -29,7 +29,7 @@ export function TicketListTableRow({
   const motivoCategoria = getMotivoCategoriaConfig(ticket.motivo_categoria);
   const contactoLabel = getContactDisplayName(ticket);
   const empresa = ticket.empresa?.trim();
-  const empresaLabel = empresa || 'Sin empresa asociada';
+  const empresaLabel = empresa || "Sin empresa asociada";
   const estadoEmpleado = getEstadoEmpleadoConfig(
     empresa,
     ticket.estado_empleado,
@@ -48,7 +48,7 @@ export function TicketListTableRow({
         <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
         <div className="flex flex-col">
           <span className="text-sm text-foreground font-medium">
-            {new Date(ticket.fecha_creacion).toLocaleDateString('es-AR')}
+            {new Date(ticket.fecha_creacion).toLocaleDateString("es-AR")}
           </span>
           <span className="text-[11px] text-muted-foreground tabular-nums">
             {ticket.hora} hs
@@ -106,7 +106,7 @@ export function TicketListTableRow({
       </TableCell>
       <TableCell className="py-2.5">
         <span
-          className={`block truncate text-sm ${tieneAsignado ? 'font-medium text-slate-700' : 'text-slate-400'}`}
+          className={`block truncate text-sm ${tieneAsignado ? "font-medium text-slate-700" : "text-slate-400"}`}
           title={asignadoLabel}
         >
           {asignadoLabel}
@@ -126,10 +126,10 @@ export function TicketListTableRow({
       <TableCell className="py-2.5 text-right">
         {ticket.fecha_limite ? (
           <div
-            className={`flex items-center justify-end gap-1 text-[13px] ${vencido ? 'text-red-600 font-bold' : 'text-slate-600 font-medium'}`}
+            className={`flex items-center justify-end gap-1 text-[13px] ${vencido ? "text-red-600 font-bold" : "text-slate-600 font-medium"}`}
           >
             {vencido && <AlertCircle className="h-3.5 w-3.5" />}
-            {formatDate(ticket.fecha_limite).split(' ')[0]}
+            {formatDate(ticket.fecha_limite).split(" ")[0]}
           </div>
         ) : (
           <span className="text-slate-300 text-sm">-</span>

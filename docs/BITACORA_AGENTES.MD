@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Componentes de listado normalizados
+
+**Agente:** Codex
+**Estado:** octogésima novena remediación de la auditoría técnica, implementada localmente.
+
+- Los tres componentes de `features/ticket-list` se normalizaron juntos por ser la feature completa con menor diff pendiente. Sólo cambian comillas y espacios JSX; props, callbacks, ARIA, orden y render permanecen iguales.
+- La auditoría en memoria confirmó fingerprints TypeScript y AST runtime equivalentes antes y después en los tres archivos.
+- Se validarán Prettier, ESLint, las 9 pruebas de controles de listado, typecheck y build frontend antes de commitear. No se hizo push.
+
 ## 2026-08-07 — Rutas protegidas divididas en chunks
 
 **Agente:** Codex

@@ -1,18 +1,18 @@
-import { TicketEstado, TicketPrioridad } from '@workspace/api-client-react';
-import { Download, Loader2, Search } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { TicketEstado, TicketPrioridad } from "@workspace/api-client-react";
+import { Download, Loader2, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { getEstadoLabel } from '@/lib/estados';
-import { MOTIVO_CATEGORIA_OPTIONS } from '@/lib/motivos';
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { getEstadoLabel } from "@/lib/estados";
+import { MOTIVO_CATEGORIA_OPTIONS } from "@/lib/motivos";
 
 interface TicketListFilterValues {
   search: string;
@@ -57,9 +57,9 @@ export function TicketListFiltersPanel({
 }: TicketListFiltersPanelProps) {
   const hasFilters =
     values.search ||
-    values.estado !== '_all' ||
-    values.prioridad !== '_all' ||
-    values.motivoCategoria !== '_all' ||
+    values.estado !== "_all" ||
+    values.prioridad !== "_all" ||
+    values.motivoCategoria !== "_all" ||
     values.vencidos ||
     values.fechaDesde ||
     values.fechaHasta ||
@@ -258,7 +258,7 @@ export function TicketListFiltersPanel({
             ) : (
               <Download className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
             )}
-            {isExporting ? 'Exportando…' : 'Exportar CSV'}
+            {isExporting ? "Exportando…" : "Exportar CSV"}
           </Button>
 
           {hasFilters && (
