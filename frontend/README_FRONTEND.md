@@ -162,14 +162,30 @@ Dos tabs, cada uno con su propia paginación/búsqueda/filtros:
 ```ts
 const es = new EventSource('/api/events');
 es.onmessage = (e) => {
-  const data = JSON.parse(e.data);
-  queryClient.invalidateQueries();      // refresca TODO: listado, dashboard, detalle, sidebar
-  if (data.tipo === 'ticket_creado') toast({ variant: 'info', title: 'Nuevo llamado recibido', ... });
-  if (data.tipo === 'tickets_importados') toast({ variant: 'info', title: 'Importación disponible', ... });
+  const data = parseRealtimeEvent(e.data);
+  if (!data) return;
+
+  if (isSessionRevokedEvent(data)) {
+    es.close();
+    clearRevokedSessionState(queryClient);
+    publishSessionTransition(import.meta.env.BASE_URL);
+    navigate('/', { replace: true });
+    return;
+  }
+
+  void invalidateTicketDomainQueries(queryClient); // solo tickets y dashboard
+  if (data.tipo === 'ticket_creado') {
+    showToast({ variant: 'info', title: 'Nuevo llamado recibido', ... });
+  }
+  if (data.tipo === 'tickets_importados') {
+    showToast({ variant: 'info', title: 'Importación disponible', ... });
+  }
 };
 ```
 
-No hay reconexión manual — `EventSource` la maneja sola usando el `retry: 5000` que manda el servidor. La conexión se abre solo dentro del `AuthGate` (o sea, solo con sesión activa), y se cierra en el cleanup del `useEffect`.
+El payload se trata como entrada no confiable: JSON inválido, eventos sin tipo y campos con tipos inesperados se descartan sin romper el listener. Los eventos funcionales invalidan únicamente `/api/tickets` y `/api/dashboard`; la caché de sesión, llave administrativa, usuarios y roles permanece vigente.
+
+`sesion_revocada` es terminal: cierra el stream para impedir reconexiones con una cookie revocada, purga el estado cliente, sincroniza las demás pestañas y vuelve a `/` para revalidar la sesión. Para el resto no hay reconexión manual — `EventSource` la maneja sola usando el `retry: 5000` que manda el servidor. La conexión se abre solo dentro del `AuthGate` (o sea, solo con sesión activa), y se cierra en el cleanup del `useEffect`.
 
 ## Cliente de la API
 

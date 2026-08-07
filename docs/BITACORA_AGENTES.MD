@@ -2,6 +2,14 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Documentación SSE alineada con la implementación
+
+**Agente:** Codex
+**Estado:** centésima quincuagésima octava remediación de la auditoría técnica, implementada localmente.
+
+- `README_FRONTEND.md` ya no afirma que cada evento invalida toda la caché. Documenta el parseo defensivo y la invalidación limitada a tickets y dashboard, que preserva sesión, llave administrativa, usuarios y roles.
+- Se incorporó el flujo terminal `sesion_revocada`: cierre del `EventSource`, purga del estado cliente, sincronización entre pestañas y regreso a la entrada pública para revalidar la cookie. El ejemplo y la explicación se contrastaron con `AppLayout`, `realtime-events` y `query-invalidation`; `git diff --check` quedó limpio. No se hizo push.
+
 ## 2026-08-07 — Generación OpenAPI sin modelos Zod huérfanos
 
 **Agente:** Codex
