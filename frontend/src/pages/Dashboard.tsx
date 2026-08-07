@@ -19,8 +19,8 @@ import {
 import { Clock, CheckCircle2, TrendingUp, CalendarRange } from 'lucide-react';
 import { DashboardKpiGrid } from '@/features/dashboard/DashboardKpiGrid';
 import { DashboardRecentActivityPanel } from '@/features/dashboard/DashboardRecentActivityPanel';
+import { DashboardStatusDistribution } from '@/features/dashboard/DashboardStatusDistribution';
 import { PrioridadBadge } from '@/lib/utils-tickets';
-import { getEstadoLabel } from '@/lib/estados';
 import { getContactDisplayName } from '@/lib/contacto';
 import { getMotivoCategoriaConfig } from '@/lib/motivos';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -33,15 +33,6 @@ import {
   validateDashboardDateRange,
   type DashboardPeriod,
 } from '@/lib/dashboard-period';
-
-// Estado colors — coherent with badge system
-const ESTADO_COLOR: Record<string, { bar: string; label: string; text: string }> = {
-  nuevo:      { bar: '#64748b', label: 'Nuevo',      text: 'text-slate-600' },
-  en_proceso: { bar: '#3b82f6', label: 'En proceso', text: 'text-blue-600' },
-  pendiente:  { bar: '#f59e0b', label: getEstadoLabel('pendiente'), text: 'text-amber-600' },
-  resuelto:   { bar: '#3d7532', label: 'Resuelto',   text: 'text-green-700' },
-  cerrado:    { bar: '#1e293b', label: 'Cerrado',    text: 'text-slate-800' },
-};
 
 // Prioridad bar colors
 const PRIORIDAD_COLOR: Record<string, string> = {
@@ -149,7 +140,6 @@ export default function Dashboard() {
     periodo === 'todo' ? stats?.resueltos_hoy : stats?.resueltos_periodo;
 
   // Estado derived values
-  const totalEstados = stats?.por_estado?.reduce((acc, curr) => acc + curr.cantidad, 0) || 0;
   const nuevosSinRevisar = stats?.por_estado?.find((e) => e.estado === 'nuevo')?.cantidad || 0;
   const enProceso       = stats?.por_estado?.find((e) => e.estado === 'en_proceso')?.cantidad || 0;
   const resueltos       = stats?.por_estado?.find((e) => e.estado === 'resuelto')?.cantidad || 0;
@@ -292,46 +282,10 @@ export default function Dashboard() {
           {/* Distribución + Rendimiento */}
           <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
 
-            {/* Distribución por estado */}
-            <div className="p-5 border-b">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Distribución por Estado</h3>
-              {loadingStats ? (
-                <Skeleton className="h-5 w-full rounded-full" />
-              ) : totalEstados > 0 ? (
-                <>
-                  {/* Segmented bar */}
-                  <div className="h-5 w-full bg-slate-100 rounded-full overflow-hidden flex">
-                    {stats?.por_estado?.map((e, i) => {
-                      const pct = (e.cantidad / totalEstados) * 100;
-                      const color = ESTADO_COLOR[e.estado]?.bar ?? '#94a3b8';
-                      return (
-                        <div
-                          key={e.estado}
-                          style={{ width: `${pct}%`, backgroundColor: color }}
-                          className={`h-full transition-all ${i === 0 ? '' : 'ml-[2px]'}`}
-                          title={`${ESTADO_COLOR[e.estado]?.label ?? e.estado}: ${e.cantidad}`}
-                        />
-                      );
-                    })}
-                  </div>
-                  {/* Legend */}
-                  <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3">
-                    {stats?.por_estado?.map((e) => {
-                      const cfg = ESTADO_COLOR[e.estado];
-                      return (
-                        <div key={e.estado} className="flex items-center gap-1.5">
-                          <span className="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: cfg?.bar ?? '#94a3b8' }} />
-                          <span className="text-xs text-muted-foreground">{cfg?.label ?? e.estado}</span>
-                          <span className="text-xs font-bold text-foreground">{e.cantidad}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm text-slate-400">Sin datos</p>
-              )}
-            </div>
+            <DashboardStatusDistribution
+              statuses={stats?.por_estado}
+              isLoading={loadingStats}
+            />
 
             {/* Rendimiento */}
             <div className="p-5">

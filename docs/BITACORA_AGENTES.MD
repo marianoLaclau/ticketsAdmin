@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Distribución de estados del dashboard aislada
+
+**Agente:** Codex
+**Estado:** septuagésima segunda remediación de la auditoría técnica, implementada y validada localmente.
+
+- Barra segmentada y leyenda salieron de `Dashboard.tsx` a `features/dashboard/DashboardStatusDistribution.tsx`, que recibe sólo estados y carga y calcula internamente el total con el mismo fallback defensivo.
+- Se conservaron root, precedencia carga/datos/vacío, porcentajes, separadores, títulos, orden, colores y etiqueta canónica de Pendiente. También se eliminó la propiedad interna `text`, que no tenía ningún consumidor.
+- Dos revisiones no encontraron hallazgos P0/P1/P2 tras ajustar los puntos de paridad. Aprobaron ESLint dirigido, Prettier y `diff --check`; el quality gate conjunto se ejecutará al cerrar el lote. No se hizo push.
+
 ## 2026-08-07 — Diálogo de gestión del ticket separado
 
 **Agente:** Codex
