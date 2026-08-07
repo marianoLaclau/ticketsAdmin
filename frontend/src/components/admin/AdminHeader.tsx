@@ -1,9 +1,19 @@
-import { useMemo, useState } from 'react';
-import { Link, useLocation } from 'wouter';
-import { CheckCircle2, Database, Eye, EyeOff, KeyRound, Loader2, Ticket, UsersRound, XCircle } from 'lucide-react';
-import { useListAdminRoles } from '@workspace/api-client-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { useMemo, useState } from "react";
+import { Link, useLocation } from "wouter";
+import {
+  CheckCircle2,
+  Database,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Loader2,
+  Ticket,
+  UsersRound,
+  XCircle,
+} from "lucide-react";
+import { useListAdminRoles } from "@workspace/api-client-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface AdminHeaderProps {
   title: string;
@@ -13,10 +23,10 @@ interface AdminHeaderProps {
 }
 
 const adminLinks = [
-  { href: '/admin', label: 'Tickets', icon: Ticket },
+  { href: "/admin", label: "Tickets", icon: Ticket },
   {
-    href: '/admin/roles-usuarios',
-    label: 'Roles y usuarios',
+    href: "/admin/roles-usuarios",
+    label: "Roles y usuarios",
     icon: UsersRound,
   },
 ];
@@ -40,11 +50,11 @@ function EstadoLlave({ adminKey }: { adminKey: string }) {
     { page: 1, limit: 1 },
     {
       query: {
-        queryKey: ['admin-key-probe', probeVersion],
+        queryKey: ["admin-key-probe", probeVersion],
         retry: false,
         refetchOnWindowFocus: false,
       },
-      request: adminKey ? { headers: { 'x-admin-key': adminKey } } : {},
+      request: adminKey ? { headers: { "x-admin-key": adminKey } } : {},
     },
   );
 
@@ -68,16 +78,21 @@ function EstadoLlave({ adminKey }: { adminKey: string }) {
       <XCircle className="h-3 w-3" />
       {status === 401
         ? adminKey
-          ? 'Llave inválida — verificala'
-          : 'Falta la llave de administración'
+          ? "Llave inválida — verificala"
+          : "Falta la llave de administración"
         : status === 503
-          ? 'ADMIN_API_KEY no está configurada en el servidor'
-        : 'Sin acceso — verificá la conexión'}
+          ? "ADMIN_API_KEY no está configurada en el servidor"
+          : "Sin acceso — verificá la conexión"}
     </span>
   );
 }
 
-export function AdminHeader({ title, description, adminKey, onAdminKeyChange }: AdminHeaderProps) {
+export function AdminHeader({
+  title,
+  description,
+  adminKey,
+  onAdminKeyChange,
+}: AdminHeaderProps) {
   const [location] = useLocation();
   const [showAdminKey, setShowAdminKey] = useState(false);
 
@@ -95,7 +110,7 @@ export function AdminHeader({ title, description, adminKey, onAdminKeyChange }: 
           <div className="relative">
             <KeyRound className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
-              type={showAdminKey ? 'text' : 'password'}
+              type={showAdminKey ? "text" : "password"}
               placeholder="Llave de administración"
               className="h-9 pl-8 pr-10 text-sm"
               value={adminKey}
@@ -107,26 +122,43 @@ export function AdminHeader({ title, description, adminKey, onAdminKeyChange }: 
               type="button"
               onClick={() => setShowAdminKey((visible) => !visible)}
               className="absolute right-1 top-1/2 flex h-7 w-8 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={showAdminKey ? 'Ocultar llave de administración' : 'Mostrar llave de administración'}
+              aria-label={
+                showAdminKey
+                  ? "Ocultar llave de administración"
+                  : "Mostrar llave de administración"
+              }
               aria-pressed={showAdminKey}
-              title={showAdminKey ? 'Ocultar llave' : 'Mostrar llave'}
+              title={showAdminKey ? "Ocultar llave" : "Mostrar llave"}
             >
-              {showAdminKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showAdminKey ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
             </button>
           </div>
           <EstadoLlave adminKey={adminKey} />
           <p className="text-[11px] leading-snug text-muted-foreground">
-            Segunda verificación para operar el panel. Se recuerda para tu usuario en este navegador.
+            Segunda verificación para operar el panel. Se recuerda para tu
+            usuario en este navegador.
           </p>
         </div>
       </div>
 
-      <nav className="flex flex-wrap gap-2" aria-label="Secciones de administración">
+      <nav
+        className="flex flex-wrap gap-2"
+        aria-label="Secciones de administración"
+      >
         {adminLinks.map((link) => {
           const Icon = link.icon;
           const active = location === link.href;
           return (
-            <Button key={link.href} asChild variant={active ? 'default' : 'outline'} size="sm">
+            <Button
+              key={link.href}
+              asChild
+              variant={active ? "default" : "outline"}
+              size="sm"
+            >
               <Link href={link.href}>
                 <Icon className="mr-1.5 h-4 w-4" />
                 {link.label}

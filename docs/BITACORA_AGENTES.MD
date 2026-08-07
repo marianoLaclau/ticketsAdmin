@@ -2,6 +2,14 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Formato de la cabecera administrativa
+
+**Agente:** Codex
+**Estado:** centésima trigésima séptima remediación de la auditoría técnica, implementada localmente.
+
+- `AdminHeader.tsx` quedó normalizado con la configuración Prettier del workspace antes de intervenir su accesibilidad. El cambio es exclusivamente mecánico: comillas, comas, reflow de imports, props y expresiones JSX.
+- No cambiaron hooks, consultas, credenciales, textos, atributos, clases ni estructura del DOM. Aprobaron Prettier, ESLint, typecheck, las 157 pruebas frontend, build de producción y `git diff --check`; la salida temporal se eliminó y sólo persistieron las advertencias de sourcemaps ya conocidas. No se hizo push.
+
 ## 2026-08-07 — Consultas administrativas versionadas por credencial
 
 **Agente:** Codex
