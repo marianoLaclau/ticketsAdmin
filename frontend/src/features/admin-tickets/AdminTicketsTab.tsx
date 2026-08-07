@@ -15,6 +15,7 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { adminErrorMessage } from "@/hooks/use-admin-access";
 import { isTicketVersionConflict } from "@/lib/error-messages";
+import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { AdminTicketsPagination } from "@/features/admin-tickets/AdminTicketsPagination";
 import { AdminTicketDeleteDialog } from "@/features/admin-tickets/AdminTicketDeleteDialog";
@@ -71,7 +72,7 @@ export function AdminTicketsTab({
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
 
-  const refrescarTodo = () => queryClient.invalidateQueries();
+  const refrescarTickets = () => invalidateTicketDomainQueries(queryClient);
 
   const errorToast = (title: string) => (err: unknown) => {
     toast({
@@ -200,7 +201,7 @@ export function AdminTicketsTab({
       (savedTicket: Ticket) => {
         cacheTicketInCurrentList(savedTicket);
         cambiarEstadoDialogo(false);
-        void refrescarTodo();
+        void refrescarTickets();
         toast({
           ...(dedupeCreated
             ? { dedupeKey: `ticket-created:${savedTicket.id}` }
@@ -297,7 +298,7 @@ export function AdminTicketsTab({
       {
         onSuccess: () => {
           setAEliminar(null);
-          void refrescarTodo();
+          void refrescarTickets();
           toast({
             variant: "success",
             title: "Ticket eliminado",

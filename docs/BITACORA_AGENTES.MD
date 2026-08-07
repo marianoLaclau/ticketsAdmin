@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Invalidaciones administrativas acotadas
+
+**Agente:** Codex
+**Estado:** nonagésima sexta remediación de la auditoría técnica, implementada localmente.
+
+- Crear, editar, eliminar, importar y truncar tickets dejaron de invalidar toda React Query; las tres pestañas administrativas usan ahora el helper común del dominio tickets/dashboard.
+- Se conservan todas las variantes de filtros, paginación, detalles e historial afectadas, mientras sesión, llave administrativa, roles y usuarios permanecen vigentes.
+- Aprobaron las pruebas del helper y las 87 pruebas frontend, Prettier, ESLint, typecheck, build y revisión cruzada sin hallazgos introducidos P0/P1/P2. El build se verificó en una salida temporal porque el servidor local mantiene bloqueado `frontend/dist`. No se hizo push.
+
 ## 2026-08-07 — Mutaciones administrativas normalizadas
 
 **Agente:** Codex

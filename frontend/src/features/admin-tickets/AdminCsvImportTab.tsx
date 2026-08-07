@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TabsContent } from "@/components/ui/tabs";
 import { adminErrorMessage } from "@/hooks/use-admin-access";
 import { useToast } from "@/hooks/use-toast";
+import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
 
 interface AdminCsvImportTabProps {
   request: RequestInit;
@@ -32,7 +33,7 @@ export function AdminCsvImportTab({ request }: AdminCsvImportTabProps) {
   const [resultadoImport, setResultadoImport] =
     useState<AdminImportResult | null>(null);
 
-  const refrescarTodo = () => queryClient.invalidateQueries();
+  const refrescarTickets = () => invalidateTicketDomainQueries(queryClient);
 
   const errorToast = (title: string) => (err: unknown) => {
     toast({
@@ -66,7 +67,7 @@ export function AdminCsvImportTab({ request }: AdminCsvImportTabProps) {
       {
         onSuccess: (r) => {
           setResultadoImport(r);
-          void refrescarTodo();
+          void refrescarTickets();
           toast({
             dedupeKey: `tickets-imported:${r.insertados}`,
             variant: "success",

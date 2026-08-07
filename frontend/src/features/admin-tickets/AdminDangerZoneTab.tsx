@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { TabsContent } from "@/components/ui/tabs";
 import { adminErrorMessage } from "@/hooks/use-admin-access";
 import { useToast } from "@/hooks/use-toast";
+import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
 
 interface AdminDangerZoneTabProps {
   request: RequestInit;
@@ -49,7 +50,7 @@ export function AdminDangerZoneTab({
   const truncate = useTruncateTickets({ request });
   const [confirmTexto, setConfirmTexto] = useState("");
 
-  const refrescarTodo = () => queryClient.invalidateQueries();
+  const refrescarTickets = () => invalidateTicketDomainQueries(queryClient);
 
   const errorToast = (title: string) => (err: unknown) => {
     toast({
@@ -65,7 +66,7 @@ export function AdminDangerZoneTab({
       {
         onSuccess: (r) => {
           setConfirmTexto("");
-          void refrescarTodo();
+          void refrescarTickets();
           toast({
             variant: "warning",
             title: "Base de tickets vaciada",
