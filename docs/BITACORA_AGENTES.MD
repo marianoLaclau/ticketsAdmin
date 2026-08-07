@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Codec URL de tickets administrativos
+
+**Agente:** Codex
+**Estado:** centésima vigésima tercera remediación de la auditoría técnica, implementada localmente.
+
+- Se definió un contrato puro para representar pestaña, búsqueda, orden compuesto, página y límite de `/admin`; sus defaults se omiten para conservar esa ruta como URL canónica.
+- El codec reutiliza las reglas estrictas del listado de Tickets, proyecta únicamente el filtro administrativo permitido y elimina parámetros ajenos —incluidos secretos accidentales—, duplicados y valores manipulados. La lista exhaustiva de pestañas queda tipada, inmutable y congelada en runtime.
+- El serializer tolera estados desconocidos, propiedades heredadas, getters hostiles y proxies revocados sin filtrar valores no validados. Aprobaron las 138 pruebas frontend —9 nuevas—, Prettier, ESLint, typecheck, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. La UI todavía no consume el codec; esa integración queda aislada para los siguientes commits. No se hizo push.
+
 ## 2026-08-07 — Consulta administrativa sin duplicación
 
 **Agente:** Codex
