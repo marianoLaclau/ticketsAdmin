@@ -1,11 +1,11 @@
-import type { Ticket } from '@workspace/api-client-react';
-import { Clock } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatDate } from '@/lib/utils-tickets';
+import type { Ticket } from "@workspace/api-client-react";
+import { Clock } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatDate } from "@/lib/utils-tickets";
 
 interface TicketTimingCardProps {
-  deadline: Ticket['fecha_limite'];
-  resolvedAt: Ticket['fecha_resolucion'];
+  deadline: Ticket["fecha_limite"];
+  resolvedAt: Ticket["fecha_resolucion"];
   overdue: boolean;
 }
 
@@ -15,12 +15,12 @@ export function TicketTimingCard({
   overdue,
 }: TicketTimingCardProps) {
   return (
-    <Card className={`shadow-sm ${overdue ? 'border-red-200' : ''}`}>
+    <Card className={`shadow-sm ${overdue ? "border-red-200" : ""}`}>
       <CardHeader
-        className={`pb-3 border-b ${overdue ? 'bg-red-50/50 border-red-100' : 'border-slate-100'}`}
+        className={`pb-3 border-b ${overdue ? "bg-red-50/50 border-red-100" : "border-slate-100"}`}
       >
         <CardTitle
-          className={`text-lg flex items-center gap-2 ${overdue ? 'text-red-700' : ''}`}
+          className={`text-lg flex items-center gap-2 ${overdue ? "text-red-700" : ""}`}
         >
           <Clock className="h-5 w-5" />
           Tiempos
@@ -32,9 +32,9 @@ export function TicketTimingCard({
             Fecha Límite
           </h4>
           <p
-            className={`font-medium ${overdue ? 'text-red-600' : 'text-slate-900'}`}
+            className={`font-medium ${overdue ? "text-red-600" : "text-slate-900"}`}
           >
-            {deadline ? formatDate(deadline) : 'No definida'}
+            {deadline ? formatDate(deadline) : "No definida"}
           </p>
         </div>
 

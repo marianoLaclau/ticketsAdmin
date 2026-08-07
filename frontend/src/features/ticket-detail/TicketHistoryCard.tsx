@@ -1,12 +1,12 @@
-import type { Seguimiento } from '@workspace/api-client-react';
-import { History, MessageSquare } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Textarea } from '@/components/ui/textarea';
-import { getAssignedDisplayName } from '@/lib/asignacion';
-import { getFunctionalFieldLabel } from '@/lib/ticket-edit';
-import { EstadoBadge, formatDate, PrioridadBadge } from '@/lib/utils-tickets';
+import type { Seguimiento } from "@workspace/api-client-react";
+import { History, MessageSquare } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { getAssignedDisplayName } from "@/lib/asignacion";
+import { getFunctionalFieldLabel } from "@/lib/ticket-edit";
+import { EstadoBadge, formatDate, PrioridadBadge } from "@/lib/utils-tickets";
 
 interface TicketHistoryCardProps {
   seguimientos: readonly Seguimiento[] | undefined;
@@ -50,7 +50,7 @@ export function TicketHistoryCard({
               onClick={onSubmit}
               disabled={!draft.trim() || isSubmitting}
             >
-              {isSubmitting ? 'Guardando...' : 'Agregar Nota'}
+              {isSubmitting ? "Guardando..." : "Agregar Nota"}
             </Button>
           </div>
         </div>
@@ -80,7 +80,7 @@ export function TicketHistoryCard({
                   <div className="bg-white border border-slate-100 rounded-lg p-4 shadow-sm">
                     <div className="flex justify-between items-start mb-2">
                       <span className="font-medium text-sm text-slate-900">
-                        {seg.autor || 'Sistema'}
+                        {seg.autor || "Sistema"}
                       </span>
                       <span className="text-xs text-slate-500">
                         {formatDate(seg.fecha_creacion)}
@@ -145,7 +145,7 @@ export function TicketHistoryCard({
                         <div className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-600">
                           <span className="font-medium">
                             Cambio de asignación:
-                          </span>{' '}
+                          </span>{" "}
                           {getAssignedDisplayName(seg.asignado_anterior)}
                           <span className="px-1.5 text-slate-400">→</span>
                           {getAssignedDisplayName(seg.asignado_nuevo)}
@@ -154,10 +154,10 @@ export function TicketHistoryCard({
 
                     {seg.campos_editados && seg.campos_editados.length > 0 && (
                       <div className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-600">
-                        <span className="font-medium">Datos editados:</span>{' '}
+                        <span className="font-medium">Datos editados:</span>{" "}
                         {seg.campos_editados
                           .map(getFunctionalFieldLabel)
-                          .join(', ')}
+                          .join(", ")}
                       </div>
                     )}
                   </div>

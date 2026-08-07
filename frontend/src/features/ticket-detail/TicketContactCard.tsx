@@ -1,23 +1,23 @@
-import type { Ticket } from '@workspace/api-client-react';
-import { Building, Mail, Pencil, Phone, User } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { Ticket } from "@workspace/api-client-react";
+import { Building, Mail, Pencil, Phone, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   getContactDisplayEmail,
   getContactDisplayName,
   getContactDisplayPhone,
-} from '@/lib/contacto';
-import { getEstadoEmpleadoConfig } from '@/lib/estado-empleado';
+} from "@/lib/contacto";
+import { getEstadoEmpleadoConfig } from "@/lib/estado-empleado";
 
 type TicketContact = Pick<
   Ticket,
-  | 'nombre'
-  | 'apellido'
-  | 'empresa'
-  | 'estado_empleado'
-  | 'dni'
-  | 'telefono'
-  | 'email'
+  | "nombre"
+  | "apellido"
+  | "empresa"
+  | "estado_empleado"
+  | "dni"
+  | "telefono"
+  | "email"
 >;
 
 interface TicketContactCardProps {

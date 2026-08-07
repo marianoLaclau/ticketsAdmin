@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Formato completo del detalle de ticket
+
+**Agente:** Codex
+**Estado:** centésima décima remediación de la auditoría técnica, implementada localmente.
+
+- Se normalizaron los siete componentes de `features/ticket-detail`; la página y toda su feature comparten ahora la configuración raíz de Prettier.
+- Los fingerprints AST de los siete archivos permanecieron idénticos.
+- Aprobaron las pruebas dirigidas 15/15, Prettier, ESLint, typecheck y `git diff --check`. No se hizo push.
+
 ## 2026-08-07 — Formato completo de tickets administrativos
 
 **Agente:** Codex

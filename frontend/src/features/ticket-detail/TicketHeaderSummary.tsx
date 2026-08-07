@@ -1,13 +1,13 @@
-import type { Ticket } from '@workspace/api-client-react';
-import { ArrowLeft, Clock, User } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { getAssignedDisplayName } from '@/lib/asignacion';
-import { formatDate } from '@/lib/utils-tickets';
+import type { Ticket } from "@workspace/api-client-react";
+import { ArrowLeft, Clock, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { getAssignedDisplayName } from "@/lib/asignacion";
+import { formatDate } from "@/lib/utils-tickets";
 
 interface TicketHeaderSummaryProps {
-  reason: Ticket['motivo'];
-  createdAt: Ticket['fecha_creacion'];
-  assignedTo: Ticket['asignado_a'];
+  reason: Ticket["motivo"];
+  createdAt: Ticket["fecha_creacion"];
+  assignedTo: Ticket["asignado_a"];
   overdue: boolean;
   backLabel: string;
   onBack: () => void;
@@ -35,7 +35,7 @@ export function TicketHeaderSummary({
       <div>
         <div className="flex items-center gap-2 mb-1">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-            {reason?.trim() || 'Sin motivo proporcionado'}
+            {reason?.trim() || "Sin motivo proporcionado"}
           </h1>
           {overdue && (
             <span className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full font-medium flex items-center gap-1 border border-red-200">

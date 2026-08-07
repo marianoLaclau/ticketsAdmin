@@ -1,11 +1,11 @@
-import type { Ticket } from '@workspace/api-client-react';
-import { FileText, Headphones, PlayCircle } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { Ticket } from "@workspace/api-client-react";
+import { FileText, Headphones, PlayCircle } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface TicketCallSummaryCardProps {
-  summary: Ticket['resumen'];
-  audioUrl: Ticket['audio_url'];
-  notes: Ticket['notas'];
+  summary: Ticket["resumen"];
+  audioUrl: Ticket["audio_url"];
+  notes: Ticket["notas"];
 }
 
 export function TicketCallSummaryCard({
@@ -27,7 +27,7 @@ export function TicketCallSummaryCard({
             Descripción
           </h4>
           <p className="text-slate-900 whitespace-pre-wrap leading-relaxed">
-            {summary || 'Sin descripción detallada.'}
+            {summary || "Sin descripción detallada."}
           </p>
         </div>
 

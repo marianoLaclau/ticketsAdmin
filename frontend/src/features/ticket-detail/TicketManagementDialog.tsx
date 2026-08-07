@@ -1,5 +1,5 @@
-import { TicketEstado, TicketPrioridad } from '@workspace/api-client-react';
-import { Button } from '@/components/ui/button';
+import { TicketEstado, TicketPrioridad } from "@workspace/api-client-react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,20 +8,20 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Slider } from '@/components/ui/slider';
-import { Textarea } from '@/components/ui/textarea';
-import { TicketVersionConflictAlert } from '@/components/tickets/TicketVersionConflictAlert';
-import { getEstadoLabel } from '@/lib/estados';
-import type { TicketManagementForm } from '@/lib/ticket-edit';
+} from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Textarea } from "@/components/ui/textarea";
+import { TicketVersionConflictAlert } from "@/components/tickets/TicketVersionConflictAlert";
+import { getEstadoLabel } from "@/lib/estados";
+import type { TicketManagementForm } from "@/lib/ticket-edit";
 
 interface TicketManagementDialogProps {
   open: boolean;
@@ -33,8 +33,8 @@ interface TicketManagementDialogProps {
   isSaving: boolean;
   onOpenChange: (open: boolean) => void;
   onReloadLatest: () => void;
-  onStateChange: (estado: TicketManagementForm['estado']) => void;
-  onPriorityChange: (prioridad: TicketManagementForm['prioridad']) => void;
+  onStateChange: (estado: TicketManagementForm["estado"]) => void;
+  onPriorityChange: (prioridad: TicketManagementForm["prioridad"]) => void;
   onProgressChange: (progreso: number | undefined) => void;
   onDeadlineChange: (fechaLimite: string) => void;
   onNotesChange: (notas: string) => void;
@@ -89,7 +89,7 @@ export function TicketManagementDialog({
               <Select
                 value={form.estado}
                 onValueChange={(estado) =>
-                  onStateChange(estado as TicketManagementForm['estado'])
+                  onStateChange(estado as TicketManagementForm["estado"])
                 }
               >
                 <SelectTrigger>
@@ -121,7 +121,7 @@ export function TicketManagementDialog({
                 value={form.prioridad}
                 onValueChange={(prioridad) =>
                   onPriorityChange(
-                    prioridad as TicketManagementForm['prioridad'],
+                    prioridad as TicketManagementForm["prioridad"],
                   )
                 }
               >
@@ -181,7 +181,7 @@ export function TicketManagementDialog({
             Cancelar
           </Button>
           <Button onClick={onSave} disabled={isSaving || hasVersionConflict}>
-            {isSaving ? 'Guardando...' : 'Guardar Cambios'}
+            {isSaving ? "Guardando..." : "Guardar Cambios"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,8 +1,8 @@
-import { TicketEstado, type Ticket } from '@workspace/api-client-react';
-import { CheckCircle2 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { getEstadoLabel } from '@/lib/estados';
-import { TICKET_STATE_PROGRESS } from '@/lib/ticket-edit';
+import { TicketEstado, type Ticket } from "@workspace/api-client-react";
+import { CheckCircle2 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { getEstadoLabel } from "@/lib/estados";
+import { TICKET_STATE_PROGRESS } from "@/lib/ticket-edit";
 
 const PROGRESS_STATES = [
   TicketEstado.nuevo,
@@ -13,8 +13,8 @@ const PROGRESS_STATES = [
 ] as const;
 
 interface TicketProgressCardProps {
-  estado: Ticket['estado'];
-  progreso: Ticket['progreso'];
+  estado: Ticket["estado"];
+  progreso: Ticket["progreso"];
 }
 
 export function TicketProgressCard({
@@ -54,8 +54,8 @@ export function TicketProgressCard({
                 >
                   <div
                     className={`h-6 w-6 rounded-full flex items-center justify-center border-2 transition-colors z-10 bg-white
-                        ${isCompleted ? 'border-primary text-primary' : 'border-slate-200 text-slate-300'}
-                        ${isCurrent ? 'ring-4 ring-primary/20' : ''}
+                        ${isCompleted ? "border-primary text-primary" : "border-slate-200 text-slate-300"}
+                        ${isCurrent ? "ring-4 ring-primary/20" : ""}
                       `}
                   >
                     {isCompleted ? (
@@ -65,7 +65,7 @@ export function TicketProgressCard({
                     )}
                   </div>
                   <span
-                    className={`max-w-full px-1 text-center text-xs font-medium leading-tight ${isCurrent ? 'text-primary' : isCompleted ? 'text-slate-700' : 'text-slate-400'}`}
+                    className={`max-w-full px-1 text-center text-xs font-medium leading-tight ${isCurrent ? "text-primary" : isCompleted ? "text-slate-700" : "text-slate-400"}`}
                   >
                     {label}
                   </span>
