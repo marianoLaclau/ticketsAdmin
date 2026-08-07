@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Mutaciones administrativas normalizadas
+
+**Agente:** Codex
+**Estado:** nonagésima quinta remediación de la auditoría técnica, implementada localmente.
+
+- `AdminTicketsTab`, `AdminCsvImportTab` y `AdminDangerZoneTab` se ajustaron a Prettier antes de acotar sus invalidaciones. El diff es exclusivamente mecánico.
+- Los tres archivos generan un AST runtime equivalente antes y después; formularios, requests, confirmaciones, toasts y caché permanecen sin cambios.
+- Se validarán Prettier, ESLint, pruebas frontend, typecheck y build antes de commitear. No se hizo push.
+
 ## 2026-08-07 — Invalidación SSE acotada por dominio
 
 **Agente:** Codex

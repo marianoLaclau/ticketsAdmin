@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import {
   getTicket,
   getListTicketsQueryKey,
@@ -9,19 +9,19 @@ import {
   TicketSortBy,
   type Ticket,
   type TicketListResponse,
-} from '@workspace/api-client-react';
-import { useQueryClient } from '@tanstack/react-query';
-import { useLocation } from 'wouter';
-import { useToast } from '@/hooks/use-toast';
-import { adminErrorMessage } from '@/hooks/use-admin-access';
-import { isTicketVersionConflict } from '@/lib/error-messages';
-import { SortableTableHead } from '@/components/SortableTableHead';
-import { AdminTicketsPagination } from '@/features/admin-tickets/AdminTicketsPagination';
-import { AdminTicketDeleteDialog } from '@/features/admin-tickets/AdminTicketDeleteDialog';
-import { AdminTicketFormDialog } from '@/features/admin-tickets/AdminTicketFormDialog';
-import { AdminTicketTableRow } from '@/features/admin-tickets/AdminTicketTableRow';
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
+import { adminErrorMessage } from "@/hooks/use-admin-access";
+import { isTicketVersionConflict } from "@/lib/error-messages";
+import { SortableTableHead } from "@/components/SortableTableHead";
+import { AdminTicketsPagination } from "@/features/admin-tickets/AdminTicketsPagination";
+import { AdminTicketDeleteDialog } from "@/features/admin-tickets/AdminTicketDeleteDialog";
+import { AdminTicketFormDialog } from "@/features/admin-tickets/AdminTicketFormDialog";
+import { AdminTicketTableRow } from "@/features/admin-tickets/AdminTicketTableRow";
 
-import { TabsContent } from '@/components/ui/tabs';
+import { TabsContent } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -29,36 +29,32 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Plus,
-  Search,
-  RotateCcw,
-} from 'lucide-react';
-import { getContactDisplayName } from '@/lib/contacto';
+} from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Plus, Search, RotateCcw } from "lucide-react";
+import { getContactDisplayName } from "@/lib/contacto";
 import {
   createDefaultTicketSort,
   isDefaultTicketSort,
   nextTicketSort,
   serializeTicketSort,
   type TicketSortRule,
-} from '@/lib/ticket-list-controls';
+} from "@/lib/ticket-list-controls";
 import {
   buildAdminTicketInput,
   buildAdminTicketUpdate,
   createEmptyAdminTicketForm,
   ticketToAdminTicketForm,
   type AdminTicketForm,
-} from '@/lib/admin-ticket-form';
+} from "@/lib/admin-ticket-form";
 import {
   buildVersionedTicketUpdate,
   createTicketEditBaseline,
   shouldApplyTicketRevision,
   type TicketEditBaseline,
-} from '@/lib/ticket-version';
+} from "@/lib/ticket-version";
 
 interface AdminTicketsTabProps {
   request: RequestInit;
@@ -79,7 +75,7 @@ export function AdminTicketsTab({
 
   const errorToast = (title: string) => (err: unknown) => {
     toast({
-      variant: 'destructive',
+      variant: "destructive",
       title,
       description: adminErrorMessage(err),
     });
@@ -88,7 +84,7 @@ export function AdminTicketsTab({
   // ---------- Registros (CRUD) ----------
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [sorts, setSorts] = useState<TicketSortRule[]>(createDefaultTicketSort);
   const listParams = {
     page,
@@ -97,12 +93,12 @@ export function AdminTicketsTab({
     sort: serializeTicketSort(sorts),
     // Compatibilidad con el contrato anterior mientras conviven clientes.
     sort_by: sorts[0]?.sortBy ?? TicketSortBy.fecha_creacion,
-    order: sorts[0]?.order ?? 'desc',
+    order: sorts[0]?.order ?? "desc",
     ...(search ? { search } : {}),
   };
   const listQueryKey = [
     ...getListTicketsQueryKey(listParams),
-    'admin-access',
+    "admin-access",
     accessVersion,
   ] as const;
   const listQuery = useListTickets(listParams, {
@@ -209,7 +205,7 @@ export function AdminTicketsTab({
           ...(dedupeCreated
             ? { dedupeKey: `ticket-created:${savedTicket.id}` }
             : {}),
-          variant: 'success',
+          variant: "success",
           title: titulo,
           description: contacto,
         });
@@ -218,8 +214,8 @@ export function AdminTicketsTab({
       createTicket.mutate(
         { data: buildAdminTicketInput(form) },
         {
-          onSuccess: onOk('Ticket creado', true),
-          onError: errorToast('No se pudo crear el ticket'),
+          onSuccess: onOk("Ticket creado", true),
+          onError: errorToast("No se pudo crear el ticket"),
         },
       );
     } else {
@@ -231,8 +227,8 @@ export function AdminTicketsTab({
       if (!update) {
         cambiarEstadoDialogo(false);
         toast({
-          variant: 'info',
-          title: 'Sin cambios para guardar',
+          variant: "info",
+          title: "Sin cambios para guardar",
           description: `El registro #${editandoId} conserva sus datos actuales.`,
         });
         return;
@@ -244,19 +240,19 @@ export function AdminTicketsTab({
           params: { incluir_vacios: true },
         },
         {
-          onSuccess: onOk('Ticket actualizado'),
+          onSuccess: onOk("Ticket actualizado"),
           onError: (error) => {
             if (!isTicketVersionConflict(error)) {
-              errorToast('No se pudo actualizar el ticket')(error);
+              errorToast("No se pudo actualizar el ticket")(error);
               return;
             }
 
             setHasVersionConflict(true);
             toast({
-              variant: 'warning',
-              title: 'El ticket cambió en otra sesión',
+              variant: "warning",
+              title: "El ticket cambió en otra sesión",
               description:
-                'Conservamos lo que escribiste. Cargá la versión actual antes de volver a guardar.',
+                "Conservamos lo que escribiste. Cargá la versión actual antes de volver a guardar.",
             });
           },
         },
@@ -283,8 +279,8 @@ export function AdminTicketsTab({
     } catch (error) {
       if (reloadAttemptRef.current !== reloadAttempt) return;
       toast({
-        variant: 'destructive',
-        title: 'No se pudo cargar la versión actual',
+        variant: "destructive",
+        title: "No se pudo cargar la versión actual",
         description: adminErrorMessage(error),
       });
     } finally {
@@ -303,12 +299,12 @@ export function AdminTicketsTab({
           setAEliminar(null);
           void refrescarTodo();
           toast({
-            variant: 'success',
-            title: 'Ticket eliminado',
+            variant: "success",
+            title: "Ticket eliminado",
             description: getContactDisplayName(aEliminar),
           });
         },
-        onError: errorToast('No se pudo eliminar el ticket'),
+        onError: errorToast("No se pudo eliminar el ticket"),
       },
     );
   };
@@ -342,10 +338,10 @@ export function AdminTicketsTab({
         <div className="bg-card border border-border rounded-md shadow-sm overflow-hidden">
           <div className="flex flex-col items-start justify-between gap-1.5 border-b border-slate-200 bg-slate-50/60 px-3 py-1.5 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:gap-3">
             <span>
-              Ordená con un clic. Usá{' '}
+              Ordená con un clic. Usá{" "}
               <kbd className="rounded border bg-white px-1 font-sans">
                 Shift
-              </kbd>{' '}
+              </kbd>{" "}
               + clic para combinar varias columnas; los números indican su
               prioridad.
             </span>
@@ -478,7 +474,7 @@ export function AdminTicketsTab({
                       className="h-40 text-center text-sm text-muted-foreground"
                     >
                       No hay registros
-                      {search ? ' que coincidan con la búsqueda' : ''}.
+                      {search ? " que coincidan con la búsqueda" : ""}.
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -487,9 +483,7 @@ export function AdminTicketsTab({
                       key={ticket.id}
                       ticket={ticket}
                       isEditDisabled={isReloadingTicket}
-                      onOpen={(id) =>
-                        setLocation(`/admin/tickets/${id}`)
-                      }
+                      onOpen={(id) => setLocation(`/admin/tickets/${id}`)}
                       onEdit={abrirEditar}
                       onDelete={setAEliminar}
                     />

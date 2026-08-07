@@ -1,23 +1,23 @@
-import { useState, type ChangeEvent } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useState, type ChangeEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useImportCsv,
   type AdminImportResult,
-} from '@workspace/api-client-react';
-import { CheckCircle2, FileText, Upload } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+} from "@workspace/api-client-react";
+import { CheckCircle2, FileText, Upload } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
-import { TabsContent } from '@/components/ui/tabs';
-import { adminErrorMessage } from '@/hooks/use-admin-access';
-import { useToast } from '@/hooks/use-toast';
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { TabsContent } from "@/components/ui/tabs";
+import { adminErrorMessage } from "@/hooks/use-admin-access";
+import { useToast } from "@/hooks/use-toast";
 
 interface AdminCsvImportTabProps {
   request: RequestInit;
@@ -27,8 +27,8 @@ export function AdminCsvImportTab({ request }: AdminCsvImportTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const importCsv = useImportCsv({ request });
-  const [csvNombre, setCsvNombre] = useState('');
-  const [csvTexto, setCsvTexto] = useState('');
+  const [csvNombre, setCsvNombre] = useState("");
+  const [csvTexto, setCsvTexto] = useState("");
   const [resultadoImport, setResultadoImport] =
     useState<AdminImportResult | null>(null);
 
@@ -36,7 +36,7 @@ export function AdminCsvImportTab({ request }: AdminCsvImportTabProps) {
 
   const errorToast = (title: string) => (err: unknown) => {
     toast({
-      variant: 'destructive',
+      variant: "destructive",
       title,
       description: adminErrorMessage(err),
     });
@@ -54,10 +54,10 @@ export function AdminCsvImportTab({ request }: AdminCsvImportTabProps) {
       { data: { csv: texto, dry_run: true } },
       {
         onSuccess: setResultadoImport,
-        onError: errorToast('No se pudo analizar el archivo'),
+        onError: errorToast("No se pudo analizar el archivo"),
       },
     );
-    e.target.value = '';
+    e.target.value = "";
   };
 
   const importarDefinitivo = () => {
@@ -69,12 +69,12 @@ export function AdminCsvImportTab({ request }: AdminCsvImportTabProps) {
           void refrescarTodo();
           toast({
             dedupeKey: `tickets-imported:${r.insertados}`,
-            variant: 'success',
-            title: 'Importación completada',
+            variant: "success",
+            title: "Importación completada",
             description: `${r.insertados} nuevos · ${r.ya_existentes} ya existentes · ${r.invalidos} inválidos`,
           });
         },
-        onError: errorToast('No se pudo importar el archivo'),
+        onError: errorToast("No se pudo importar el archivo"),
       },
     );
   };
@@ -113,7 +113,7 @@ export function AdminCsvImportTab({ request }: AdminCsvImportTabProps) {
 
           {resultadoImport && (
             <div
-              className={`rounded-lg border p-4 space-y-3 ${resultadoImport.dry_run ? 'bg-blue-50/50 border-blue-200' : 'bg-emerald-50/50 border-emerald-200'}`}
+              className={`rounded-lg border p-4 space-y-3 ${resultadoImport.dry_run ? "bg-blue-50/50 border-blue-200" : "bg-emerald-50/50 border-emerald-200"}`}
             >
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-semibold flex items-center gap-2">
@@ -121,7 +121,7 @@ export function AdminCsvImportTab({ request }: AdminCsvImportTabProps) {
                     <>Simulación — así quedaría la importación</>
                   ) : (
                     <>
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />{' '}
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />{" "}
                       Importación aplicada
                     </>
                   )}
@@ -137,7 +137,7 @@ export function AdminCsvImportTab({ request }: AdminCsvImportTabProps) {
                     {resultadoImport.insertados}
                   </p>
                   <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                    {resultadoImport.dry_run ? 'a insertar' : 'insertados'}
+                    {resultadoImport.dry_run ? "a insertar" : "insertados"}
                   </p>
                 </div>
                 <div className="bg-white rounded-md border p-2">
@@ -168,7 +168,7 @@ export function AdminCsvImportTab({ request }: AdminCsvImportTabProps) {
                       key={c.campo}
                       className="bg-white border rounded px-1.5 py-0.5 font-mono text-[11px]"
                     >
-                      {c.columna} →{' '}
+                      {c.columna} →{" "}
                       <span className="text-primary font-semibold">
                         {c.campo}
                       </span>
@@ -177,7 +177,7 @@ export function AdminCsvImportTab({ request }: AdminCsvImportTabProps) {
                 </div>
                 {resultadoImport.sin_mapear.length > 0 && (
                   <p className="text-amber-700 mt-1">
-                    Ignoradas: {resultadoImport.sin_mapear.join(', ')}
+                    Ignoradas: {resultadoImport.sin_mapear.join(", ")}
                   </p>
                 )}
                 {resultadoImport.advertencias.map((a, i) => (
@@ -197,7 +197,7 @@ export function AdminCsvImportTab({ request }: AdminCsvImportTabProps) {
                 >
                   <Upload className="mr-2 h-4 w-4" />
                   {resultadoImport.insertados === 0
-                    ? 'Nada nuevo para importar'
+                    ? "Nada nuevo para importar"
                     : `Importar ${resultadoImport.insertados} registros`}
                 </Button>
               )}
