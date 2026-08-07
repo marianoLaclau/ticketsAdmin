@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Codec URL del directorio administrativo
+
+**Agente:** Codex
+**Estado:** centésima trigésima remediación de la auditoría técnica, implementada localmente.
+
+- Se definió un contrato puro para las pestañas `users` y `roles` de “Roles y usuarios”; Usuarios es el estado predeterminado y mantiene limpia la URL, mientras Roles se representa como `?tab=roles`.
+- El parser conserva sólo el primer duplicado y el serializer reconstruye la query desde una allowlist, por lo que parámetros ajenos —incluidas credenciales accidentales— no sobreviven. La normalización falla cerrado ante estados inválidos, propiedades heredadas, getters hostiles y proxies revocados.
+- Aprobaron las 7 pruebas dirigidas y las 154 pruebas frontend completas, Prettier, ESLint, typecheck, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. La UI todavía no consume este codec; esa integración queda aislada para el siguiente commit. No se hizo push.
+
 ## 2026-08-07 — Contrato HTTP del stream de eventos
 
 **Agente:** Codex
