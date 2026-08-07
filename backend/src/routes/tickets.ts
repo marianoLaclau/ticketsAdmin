@@ -456,7 +456,13 @@ router.delete(
       return;
     }
 
-    await db.delete(ticketsTable).where(eq(ticketsTable.id, parsed.data.id));
+    const result = db
+      .delete(ticketsTable)
+      .where(eq(ticketsTable.id, parsed.data.id))
+      .run();
+    if (result.changes > 0) {
+      broadcastEvent("ticket_eliminado", { ticket_id: parsed.data.id });
+    }
     res.status(204).end();
   },
 );

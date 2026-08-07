@@ -3,6 +3,7 @@ import { after, beforeEach, describe, it } from "node:test";
 import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { AddressInfo } from "node:net";
+import type { Response } from "express";
 import Database from "better-sqlite3";
 import express from "express";
 import {
@@ -105,10 +106,12 @@ bootstrap.exec(indexMigrationSql);
 bootstrap.exec(quarantineMigrationSql);
 bootstrap.close();
 
-const [{ default: ticketsRouter }, { sqlite }] = await Promise.all([
-  import("../src/routes/tickets.ts"),
-  import("@workspace/db"),
-]);
+const [{ default: ticketsRouter }, { sqlite }, { addEventClient }] =
+  await Promise.all([
+    import("../src/routes/tickets.ts"),
+    import("@workspace/db"),
+    import("../src/lib/events.ts"),
+  ]);
 
 const app = express();
 app.use(express.json());
@@ -200,6 +203,28 @@ function assertOwnProperties(
       `la respuesta debe incluir ${property}`,
     );
   }
+}
+
+function fakeEventResponse(received: string[]): Response {
+  let closeListener: (() => void) | undefined;
+  const response = {
+    destroyed: false,
+    writableEnded: false,
+    on(event: string, listener: () => void) {
+      if (event === "close") closeListener = listener;
+      return this;
+    },
+    write(payload: string) {
+      received.push(payload);
+      return true;
+    },
+    end() {
+      this.writableEnded = true;
+      closeListener?.();
+      return this;
+    },
+  };
+  return response as unknown as Response;
 }
 
 beforeEach(() => {
@@ -385,6 +410,59 @@ describe("acceso a registros en cuarentena", () => {
       { role: "SysAdmin", userId: 2 },
     );
     assert.equal(followUpWithoutKey.status, 401);
+  });
+});
+
+describe("eliminación administrativa", () => {
+  it("avisa por SSE únicamente cuando elimina un ticket existente", async () => {
+    sqlite
+      .prepare(
+        "INSERT INTO seguimientos (ticket_id, nota, fecha_creacion) VALUES (?, ?, ?)",
+      )
+      .run(1, "Seguimiento a eliminar", Date.now());
+    const received: string[] = [];
+    const eventClient = fakeEventResponse(received);
+    assert.equal(addEventClient(eventClient), true);
+
+    try {
+      const deleted = await request("/tickets/1", {
+        method: "DELETE",
+        role: "SysAdmin",
+        userId: 2,
+        adminKey: "admin-test-key",
+      });
+      assert.equal(deleted.status, 204);
+      assert.equal(
+        sqlite.prepare("SELECT id FROM tickets WHERE id = 1").get(),
+        undefined,
+      );
+      assert.equal(
+        (
+          sqlite
+            .prepare(
+              "SELECT count(*) AS total FROM seguimientos WHERE ticket_id = 1",
+            )
+            .get() as { total: number }
+        ).total,
+        0,
+      );
+      assert.equal(received.length, 1);
+      assert.deepEqual(
+        JSON.parse((received[0] ?? "").replace(/^data: /, "").trim()),
+        { ticket_id: 1, tipo: "ticket_eliminado" },
+      );
+
+      const alreadyMissing = await request("/tickets/1", {
+        method: "DELETE",
+        role: "SysAdmin",
+        userId: 2,
+        adminKey: "admin-test-key",
+      });
+      assert.equal(alreadyMissing.status, 204);
+      assert.equal(received.length, 1);
+    } finally {
+      eventClient.end();
+    }
   });
 });
 

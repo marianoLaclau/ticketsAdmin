@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Eliminaciones sincronizadas por SSE
+
+**Agente:** Codex
+**Estado:** nonagésima novena remediación de la auditoría técnica, implementada localmente.
+
+- El DELETE administrativo de un ticket emite `ticket_eliminado` con su ID una vez confirmada la eliminación y su cascada; las demás sesiones pueden refrescar lista, dashboard y detalles sin esperar otra acción.
+- Se conserva el 204 idempotente: eliminar un ID inexistente no genera eventos fantasma. La prueba de ruta cubre ticket, seguimiento en cascada, payload único y limpieza del cliente SSE falso.
+- Aprobaron las 208 pruebas backend, la prueba dirigida 23/23 tras el ajuste final, Prettier, ESLint, typecheck, build y revisión cruzada sin hallazgos P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Navegación autenticada responsive
 
 **Agente:** Codex
