@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Caché coherente desde el detalle de ticket
+
+**Agente:** Codex
+**Estado:** centésima primera remediación de la auditoría técnica, implementada localmente.
+
+- Las mutaciones de gestión, datos funcionales y seguimiento del ticket invalidan ahora el dominio completo tickets/dashboard mediante el helper común, sin depender de que el SSE llegue a tiempo.
+- Se conservan la actualización optimista segura del detalle, el control de versión, los diálogos, borradores, errores y toasts; sesión, llave administrativa, usuarios y roles no se invalidan.
+- Aprobaron las 87 pruebas frontend, la prueba dirigida del helper 2/2, Prettier, ESLint, typecheck, build y revisión cruzada sin hallazgos P0/P1/P2. El build se ejecutó en una salida temporal porque el servidor local mantiene bloqueado `frontend/dist`. No se hizo push.
+
 ## 2026-08-07 — Formato de la página de detalle
 
 **Agente:** Codex

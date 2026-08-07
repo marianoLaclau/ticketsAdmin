@@ -30,6 +30,7 @@ import {
   getUserErrorMessage,
   isTicketVersionConflict,
 } from "@/lib/error-messages";
+import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
 import { useAdminAccess, adminErrorMessage } from "@/hooks/use-admin-access";
 import { TicketDataEditDialog } from "@/components/tickets/TicketDataEditDialog";
 import { TicketCallSummaryCard } from "@/features/ticket-detail/TicketCallSummaryCard";
@@ -267,7 +268,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
       {
         onSuccess: (savedTicket) => {
           cacheSavedTicket(savedTicket);
-          void queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+          void invalidateTicketDomainQueries(queryClient);
           handleEditDialogOpenChange(false);
           const estadoLabel = changes.estado
             ? getEstadoLabel(changes.estado)
@@ -306,7 +307,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
         onSuccess: (savedTicket) => {
           cacheSavedTicket(savedTicket);
           setIsEditingData(false);
-          void queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+          void invalidateTicketDomainQueries(queryClient);
           toast({
             variant: "success",
             title: "Datos actualizados",
@@ -342,7 +343,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
       },
       {
         onSuccess: () => {
-          void queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+          void invalidateTicketDomainQueries(queryClient);
           setNewSeguimiento("");
           toast({
             variant: "success",
