@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import { AlertTriangle, Database, Upload } from "lucide-react";
 import { AdminHeader } from "@/components/admin/AdminHeader";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,6 +7,7 @@ import { AdminDangerZoneTab } from "@/features/admin-tickets/AdminDangerZoneTab"
 import { AdminTicketsTab } from "@/features/admin-tickets/AdminTicketsTab";
 import { useAdminTicketsUrl } from "@/features/admin-tickets/useAdminTicketsUrl";
 import { useAdminAccess } from "@/hooks/use-admin-access";
+import { useAdminAccessGeneration } from "@/hooks/use-admin-access-generation";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { getAdminCredentialState } from "@/lib/admin-credential-state";
 import { createAdminTicketDetailNavigationState } from "@/lib/ticket-navigation";
@@ -18,19 +19,6 @@ let adminTicketsQueryVersion = 0;
 function nextAdminTicketsQueryVersion(): number {
   adminTicketsQueryVersion += 1;
   return adminTicketsQueryVersion;
-}
-
-function useAdminAccessGeneration(adminKey: string): number {
-  const previousAdminKeyRef = useRef(adminKey);
-  const [generation, setGeneration] = useState(0);
-
-  useLayoutEffect(() => {
-    if (previousAdminKeyRef.current === adminKey) return;
-    previousAdminKeyRef.current = adminKey;
-    setGeneration((current) => current + 1);
-  }, [adminKey]);
-
-  return generation;
 }
 
 export default function Admin() {

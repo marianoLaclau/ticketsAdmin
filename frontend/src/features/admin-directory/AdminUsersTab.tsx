@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   getListAdminRolesQueryKey,
@@ -46,6 +46,7 @@ import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TabsContent } from '@/components/ui/tabs';
 import { adminErrorMessage } from '@/hooks/use-admin-access';
+import { useAdminOperationGuard } from '@/hooks/use-admin-operation-guard';
 import { useToast } from '@/hooks/use-toast';
 import { AdminCredentialNotice } from '@/components/admin/AdminCredentialNotice';
 import {
@@ -61,6 +62,7 @@ interface AdminUsersTabProps {
   queryRequest: RequestInit;
   adminAccessState: AdminCredentialState;
   accessVersion: number;
+  accessGeneration: number;
   urlState: AdminDirectoryUsersUrlState;
   updateUrlState: (
     update: AdminDirectoryUsersUrlUpdate,
@@ -73,14 +75,21 @@ export function AdminUsersTab({
   queryRequest,
   adminAccessState,
   accessVersion,
+  accessGeneration,
   urlState,
   updateUrlState,
 }: AdminUsersTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const hasAdminAccess = adminAccessState === 'ready';
+  const accessBoundary = `${adminAccessState}:${accessVersion}:${accessGeneration}`;
+  const { isCurrentOperation, operationGeneration } = useAdminOperationGuard(
+    adminAccessState,
+    accessGeneration,
+  );
 
-  const showError = (title: string) => (error: unknown) => {
+  const showError = (title: string, expectedGeneration: number) => (error: unknown) => {
+    if (!isCurrentOperation(expectedGeneration)) return;
     toast({
       variant: 'destructive',
       title,
@@ -236,6 +245,9 @@ export function AdminUsersTab({
   const createUser = useCreateAdminUser({ request });
   const updateUser = useUpdateAdminUser({ request });
   const resetPassword = useResetAdminUserPassword({ request });
+  const { reset: resetCreateUser } = createUser;
+  const { reset: resetUpdateUser } = updateUser;
+  const { reset: resetUserPassword } = resetPassword;
   const [userDialogOpen, setUserDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [userForm, setUserForm] = useState<AdminUserFormState>(createEmptyAdminUserForm);
@@ -244,6 +256,26 @@ export function AdminUsersTab({
   const [passwordUser, setPasswordUser] = useState<AdminUser | null>(null);
   const [passwordNueva, setPasswordNueva] = useState('');
   const [passwordRepetida, setPasswordRepetida] = useState('');
+  const resetAccessBoundaryRef = useRef(accessBoundary);
+
+  useLayoutEffect(() => {
+    if (resetAccessBoundaryRef.current === accessBoundary) return;
+    resetAccessBoundaryRef.current = accessBoundary;
+    setUserDialogOpen(false);
+    setEditingUser(null);
+    setUserForm(createEmptyAdminUserForm());
+    setPasswordUser(null);
+    setPasswordNueva('');
+    setPasswordRepetida('');
+    resetCreateUser();
+    resetUpdateUser();
+    resetUserPassword();
+  }, [
+    accessBoundary,
+    resetCreateUser,
+    resetUpdateUser,
+    resetUserPassword,
+  ]);
 
   const closeResetPassword = () => {
     setPasswordUser(null);
@@ -252,13 +284,22 @@ export function AdminUsersTab({
   };
 
   const openResetPassword = (user: AdminUser) => {
+    if (
+      !isCurrentOperation(operationGeneration) ||
+      resetPassword.isPending
+    ) return;
     setPasswordNueva('');
     setPasswordRepetida('');
     setPasswordUser(user);
   };
 
   const savePassword = () => {
-    if (!passwordUser) return;
+    if (
+      !isCurrentOperation(operationGeneration) ||
+      !passwordUser ||
+      resetPassword.isPending
+    ) return;
+    const operationAccessGeneration = operationGeneration;
     const passwordError = getNewPasswordError(passwordNueva);
     if (passwordError) {
       toast({
@@ -280,6 +321,7 @@ export function AdminUsersTab({
       { id: passwordUser.id, data: { password: passwordNueva } },
       {
         onSuccess: () => {
+          if (!isCurrentOperation(operationAccessGeneration)) return;
           closeResetPassword();
           void refreshUsers();
           toast({
@@ -288,18 +330,31 @@ export function AdminUsersTab({
             description: `${passwordUser.nombre} deberá reemplazarla al ingresar. Sus sesiones anteriores fueron cerradas.`,
           });
         },
-        onError: showError('No se pudo actualizar la contraseña'),
+        onError: showError(
+          'No se pudo actualizar la contraseña',
+          operationAccessGeneration,
+        ),
       },
     );
   };
 
   const openCreateUser = () => {
+    if (
+      !isCurrentOperation(operationGeneration) ||
+      createUser.isPending ||
+      updateUser.isPending
+    ) return;
     setEditingUser(null);
     setUserForm(createNewAdminUserForm(roles));
     setUserDialogOpen(true);
   };
 
   const openEditUser = (user: AdminUser) => {
+    if (
+      !isCurrentOperation(operationGeneration) ||
+      createUser.isPending ||
+      updateUser.isPending
+    ) return;
     setEditingUser(user);
     setUserForm(createAdminUserForm(user));
     setUserDialogOpen(true);
@@ -315,6 +370,12 @@ export function AdminUsersTab({
   };
 
   const saveUser = () => {
+    if (
+      !isCurrentOperation(operationGeneration) ||
+      createUser.isPending ||
+      updateUser.isPending
+    ) return;
+    const operationAccessGeneration = operationGeneration;
     const nombre = userForm.nombre.trim();
     const email = userForm.email.trim().toLowerCase();
     const username = userForm.username.trim().toLowerCase();
@@ -353,6 +414,7 @@ export function AdminUsersTab({
     const userName = `${nombre} ${userForm.apellido.trim()}`.trim();
     const roleName = roleById.get(roleId) ?? `Rol #${roleId}`;
     const onSuccess = () => {
+      if (!isCurrentOperation(operationAccessGeneration)) return;
       closeUserDialog();
       void refreshUsers();
       toast({
@@ -375,7 +437,13 @@ export function AdminUsersTab({
       };
       updateUser.mutate(
         { id: editingUser.id, data },
-        { onSuccess, onError: showError('No se pudo actualizar el usuario') },
+        {
+          onSuccess,
+          onError: showError(
+            'No se pudo actualizar el usuario',
+            operationAccessGeneration,
+          ),
+        },
       );
     } else {
       const data: AdminUserInput = {
@@ -387,15 +455,30 @@ export function AdminUsersTab({
         role_id: roleId,
         activo: userForm.activo,
       };
-      createUser.mutate({ data }, { onSuccess, onError: showError('No se pudo crear el usuario') });
+      createUser.mutate(
+        { data },
+        {
+          onSuccess,
+          onError: showError(
+            'No se pudo crear el usuario',
+            operationAccessGeneration,
+          ),
+        },
+      );
     }
   };
 
   const toggleUser = (user: AdminUser) => {
+    if (
+      !isCurrentOperation(operationGeneration) ||
+      updateUser.isPending
+    ) return;
+    const operationAccessGeneration = operationGeneration;
     updateUser.mutate(
       { id: user.id, data: { activo: !user.activo } },
       {
         onSuccess: () => {
+          if (!isCurrentOperation(operationAccessGeneration)) return;
           void refreshUsers();
           toast({
             variant: user.activo ? 'warning' : 'success',
@@ -403,7 +486,12 @@ export function AdminUsersTab({
             description: `${user.nombre} ${user.apellido ?? ''}`.trim() + ` · ${user.email}`,
           });
         },
-        onError: showError(user.activo ? 'No se pudo desactivar el usuario' : 'No se pudo activar el usuario'),
+        onError: showError(
+          user.activo
+            ? 'No se pudo desactivar el usuario'
+            : 'No se pudo activar el usuario',
+          operationAccessGeneration,
+        ),
       },
     );
   };
@@ -477,7 +565,9 @@ export function AdminUsersTab({
             </div>
             <Button
               onClick={openCreateUser}
-              disabled={!roles.some((role) => role.activo)}
+              disabled={
+                userMutationPending || !roles.some((role) => role.activo)
+              }
               className="w-full sm:w-auto sm:self-start xl:self-auto"
             >
               <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> Nuevo usuario
@@ -600,6 +690,7 @@ export function AdminUsersTab({
                               size="icon"
                               className="h-8 w-8"
                               onClick={() => openEditUser(user)}
+                              disabled={userMutationPending}
                               title="Editar usuario"
                               aria-label={`Editar usuario ${user.username ?? user.email}`}
                             >
@@ -610,6 +701,7 @@ export function AdminUsersTab({
                               size="icon"
                               className="h-8 w-8 text-amber-600 hover:text-amber-700"
                               onClick={() => openResetPassword(user)}
+                              disabled={resetPassword.isPending}
                               title="Asignar contraseña temporal"
                               aria-label={`Asignar contraseña temporal a ${user.username ?? user.email}`}
                             >

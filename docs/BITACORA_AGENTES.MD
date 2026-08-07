@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Frontera segura del directorio administrativo
+
+**Agente:** Codex
+**Estado:** centésima quincuagésima tercera remediación de la auditoría técnica, implementada localmente.
+
+- `AdminRolesUsers.tsx` comparte ahora `useAdminAccessGeneration` con el panel de tickets. Cada cambio de llave, estado o versión constituye una nueva frontera: `AdminUsersTab.tsx` y `AdminRolesTab.tsx` cierran en un `useLayoutEffect` sus diálogos, eliminan usuarios/roles objetivo, borradores y contraseñas, y reinician el estado de sus mutaciones antes de volver a mostrar datos protegidos.
+- Altas, ediciones, activaciones, resets y eliminaciones capturan la generación que las inició. Sus respuestas tardías se descartan cuando la llave ya cambió, por lo que no pueden mostrar toasts, invalidar datos ni cerrar un formulario de otra frontera. Las aperturas que comparten una familia de mutación quedan además serializadas mientras existe una escritura pendiente, evitando que una respuesta anterior cierre un borrador reabierto.
+- Se incorporaron pruebas React que rotan la frontera y reabren formularios para verificar campos vacíos, descartan confirmaciones destructivas y usan respuestas HTTP diferidas para reproducir `Cancelar → intento de reapertura → resolución tardía` en alta de usuario, reset de contraseña y alta de rol. Aprobaron 180 pruebas unitarias y 13 de componentes, ESLint global, typecheck del workspace, build de producción, Prettier en los archivos normalizados y `git diff --check`; las revisiones cruzadas finales quedaron sin P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Diálogos de usuarios administrativos desacoplados
 
 **Agente:** Codex

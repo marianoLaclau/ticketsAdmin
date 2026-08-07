@@ -6,6 +6,7 @@ import { AdminUsersTab } from "@/features/admin-directory/AdminUsersTab";
 import { useAdminDirectoryUrl } from "@/features/admin-directory/useAdminDirectoryUrl";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAdminAccess } from "@/hooks/use-admin-access";
+import { useAdminAccessGeneration } from "@/hooks/use-admin-access-generation";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { getAdminCredentialState } from "@/lib/admin-credential-state";
 
@@ -39,6 +40,7 @@ export default function AdminRolesUsers() {
     effectiveAdminKey,
   ]);
   const adminAccessState = getAdminCredentialState(adminKey, effectiveAdminKey);
+  const adminAccessGeneration = useAdminAccessGeneration(adminKey);
 
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-5 p-4 sm:p-6 lg:p-8">
@@ -74,6 +76,7 @@ export default function AdminRolesUsers() {
           queryRequest={directoryQueryRequest}
           adminAccessState={adminAccessState}
           accessVersion={adminAccessVersion}
+          accessGeneration={adminAccessGeneration}
           urlState={urlState.users}
           updateUrlState={updateUsersUrlState}
         />
@@ -82,6 +85,7 @@ export default function AdminRolesUsers() {
           queryRequest={directoryQueryRequest}
           adminAccessState={adminAccessState}
           accessVersion={adminAccessVersion}
+          accessGeneration={adminAccessGeneration}
           urlState={urlState.roles}
           updateUrlState={updateRolesUrlState}
         />

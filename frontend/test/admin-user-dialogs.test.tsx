@@ -10,19 +10,11 @@ import {
   createAdminUserForm,
   createNewAdminUserForm,
 } from "../src/features/admin-directory/model.ts";
+import { installDomEventRealm } from "./dom-event-realm.ts";
 
 // Node expone su propia implementación de Event. Radix debe despachar eventos
 // creados por el mismo realm de JSDOM que recibe el portal del diálogo.
-Object.defineProperty(globalThis, "Event", {
-  configurable: true,
-  value: window.Event,
-  writable: true,
-});
-Object.defineProperty(globalThis, "CustomEvent", {
-  configurable: true,
-  value: window.CustomEvent,
-  writable: true,
-});
+installDomEventRealm();
 
 const roles: AdminRole[] = [
   {
