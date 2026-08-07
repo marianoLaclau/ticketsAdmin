@@ -95,7 +95,7 @@ const queryClient = new QueryClient({
  */
 function SoloSysAdmin({ children }: { children: React.ReactNode }) {
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
-  if (me?.rol !== ROL_SYSADMIN) return <ErrorPage status={403} />;
+  if (me?.rol !== ROL_SYSADMIN) return <ErrorPage status={403} embedded />;
   return <>{children}</>;
 }
 

@@ -140,6 +140,7 @@ export default function Dashboard() {
   if (dashboardIsError) {
     return (
       <ErrorPage
+        embedded
         status={getErrorStatus(dashboardError) ?? 503}
         title="No pudimos cargar el dashboard"
         message="Una o más secciones no pudieron obtener sus datos. Reintentá para volver a cargar el panel."

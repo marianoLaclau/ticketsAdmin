@@ -170,6 +170,7 @@ export default function TicketList() {
   if (listIsError) {
     return (
       <ErrorPage
+        embedded
         status={getErrorStatus(listError) ?? 503}
         title="No pudimos cargar los llamados"
         message="No fue posible obtener el listado de tickets. Reintentá o volvé al inicio."

@@ -1,5 +1,5 @@
-import { ErrorPage } from '@/components/ErrorPage';
+import { ErrorPage } from "@/components/ErrorPage";
 
 export default function NotFound() {
-  return <ErrorPage status={404} />;
+  return <ErrorPage status={404} embedded />;
 }

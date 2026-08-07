@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { getAppHref } from "@/lib/base-path";
+import { cn } from "@/lib/utils";
 
 type ErrorCopy = {
   title: string;
@@ -60,10 +62,6 @@ const DEFAULT_ERROR: ErrorCopy = {
   icon: AlertTriangle,
 };
 
-const APP_BASE_URL = import.meta.env.BASE_URL.endsWith("/")
-  ? import.meta.env.BASE_URL
-  : `${import.meta.env.BASE_URL}/`;
-
 export type ErrorPageProps = {
   status?: number;
   title?: string;
@@ -71,6 +69,7 @@ export type ErrorPageProps = {
   homeHref?: string;
   onRetry?: () => void;
   isRetrying?: boolean;
+  embedded?: boolean;
 };
 
 /** Obtiene un status HTTP sin acoplar la UI a una implementación de cliente. */
@@ -100,18 +99,29 @@ export function ErrorPage({
   status,
   title,
   message,
-  homeHref = `${APP_BASE_URL}dashboard`,
+  homeHref = getAppHref("dashboard"),
   onRetry,
   isRetrying = false,
+  embedded = false,
 }: ErrorPageProps) {
   const normalizedStatus =
     status && status >= 500 && status !== 503 ? 500 : status;
   const copy =
     (normalizedStatus && ERROR_COPY[normalizedStatus]) || DEFAULT_ERROR;
   const Icon = copy.icon;
+  const titleId = React.useId();
+  const messageId = React.useId();
+  const Container = embedded ? "section" : "main";
 
   return (
-    <main className="min-h-screen w-full bg-background px-4 py-10 flex items-center justify-center">
+    <Container
+      aria-labelledby={titleId}
+      aria-describedby={messageId}
+      className={cn(
+        "flex w-full items-center justify-center bg-background px-4 py-10",
+        embedded ? "min-h-full flex-1" : "min-h-screen",
+      )}
+    >
       <Card className="w-full max-w-lg border-border/80 shadow-lg">
         <CardContent className="px-6 py-10 text-center sm:px-10">
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
@@ -124,10 +134,16 @@ export function ErrorPage({
             </p>
           ) : null}
 
-          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
+          <h1
+            id={titleId}
+            className="text-2xl font-bold text-foreground sm:text-3xl"
+          >
             {title || copy.title}
           </h1>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted-foreground sm:text-base">
+          <p
+            id={messageId}
+            className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted-foreground sm:text-base"
+          >
             {message || copy.message}
           </p>
 
@@ -139,7 +155,12 @@ export function ErrorPage({
               </a>
             </Button>
             {onRetry ? (
-              <Button type="button" onClick={onRetry} disabled={isRetrying}>
+              <Button
+                type="button"
+                onClick={onRetry}
+                disabled={isRetrying}
+                aria-busy={isRetrying}
+              >
                 <RefreshCw
                   className={isRetrying ? "animate-spin" : undefined}
                 />
@@ -149,7 +170,7 @@ export function ErrorPage({
           </div>
         </CardContent>
       </Card>
-    </main>
+    </Container>
   );
 }
 

@@ -31,6 +31,7 @@ import {
   isTicketVersionConflict,
 } from "@/lib/error-messages";
 import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
+import { getAppHref } from "@/lib/base-path";
 import { useAdminAccess, adminErrorMessage } from "@/hooks/use-admin-access";
 import { TicketDataEditDialog } from "@/components/tickets/TicketDataEditDialog";
 import { TicketCallSummaryCard } from "@/features/ticket-detail/TicketCallSummaryCard";
@@ -373,10 +374,11 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
   if (adminMode && !adminKey) {
     return (
       <ErrorPage
+        embedded
         status={401}
         title="Falta la llave de administración"
         message="Volvé a Administración e ingresá la llave para abrir este registro."
-        homeHref="/admin"
+        homeHref={getAppHref("admin")}
       />
     );
   }
@@ -385,6 +387,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
     const notFound = detailStatus === 404;
     return (
       <ErrorPage
+        embedded
         status={detailStatus ?? 503}
         title={
           notFound ? "Ticket no encontrado" : "No pudimos cargar el ticket"
@@ -396,7 +399,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
               ? adminErrorMessage(detailError)
               : "No fue posible obtener el ticket o su historial. Reintentá o volvé al inicio."
         }
-        homeHref={adminMode ? "/admin" : "/dashboard"}
+        homeHref={getAppHref(adminMode ? "admin" : "dashboard")}
         {...(notFound
           ? {}
           : {
@@ -431,6 +434,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
   if (!ticket) {
     return (
       <ErrorPage
+        embedded
         status={404}
         title="Ticket no encontrado"
         message="El ticket solicitado no existe o ya fue eliminado."

@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Landmarks de error y rutas bajo subdirectorio
+
+**Agente:** Codex
+**Estado:** centésima cuarta remediación de la auditoría técnica, implementada localmente.
+
+- `ErrorPage` conserva `<main>` cuando reemplaza toda la aplicación y usa una `<section>` nombrada cuando vive dentro de `AppLayout`, evitando landmarks anidados y el exceso de altura móvil.
+- Los siete consumidores protegidos declaran explícitamente `embedded`; los errores de entrada pública, autenticación y boundary permanecen como página completa. El botón de reintento expone además `aria-busy`.
+- Se centralizó la unión con `BASE_URL` y se corrigieron los retornos del detalle a Administración/Dashboard para despliegues bajo subruta; tres pruebas cubren raíz, barra final y path vacío.
+- Aprobaron las 90 pruebas frontend, Prettier, ESLint, typecheck, build y revisión cruzada sin hallazgos P0/P1/P2. El build se ejecutó en una salida temporal porque el servidor local mantiene bloqueado `frontend/dist`. No se hizo push.
+
 ## 2026-08-07 — Formato de la página de tickets
 
 **Agente:** Codex
