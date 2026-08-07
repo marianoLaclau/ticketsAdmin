@@ -1,12 +1,14 @@
-import { ShieldCheck, UsersRound } from 'lucide-react';
-import { AdminHeader } from '@/components/admin/AdminHeader';
-import { AdminRolesTab } from '@/features/admin-directory/AdminRolesTab';
-import { AdminUsersTab } from '@/features/admin-directory/AdminUsersTab';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAdminAccess } from '@/hooks/use-admin-access';
+import { ShieldCheck, UsersRound } from "lucide-react";
+import { AdminHeader } from "@/components/admin/AdminHeader";
+import { AdminRolesTab } from "@/features/admin-directory/AdminRolesTab";
+import { AdminUsersTab } from "@/features/admin-directory/AdminUsersTab";
+import { useAdminDirectoryUrl } from "@/features/admin-directory/useAdminDirectoryUrl";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAdminAccess } from "@/hooks/use-admin-access";
 
 export default function AdminRolesUsers() {
   const { adminKey, saveAdminKey, adminRequest } = useAdminAccess();
+  const { urlState, selectTab } = useAdminDirectoryUrl();
 
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-5 p-8">
@@ -17,7 +19,11 @@ export default function AdminRolesUsers() {
         onAdminKeyChange={saveAdminKey}
       />
 
-      <Tabs defaultValue="users" className="space-y-4">
+      <Tabs
+        value={urlState.tab}
+        onValueChange={selectTab}
+        className="space-y-4"
+      >
         <TabsList>
           <TabsTrigger value="users" className="gap-1.5">
             <UsersRound className="h-3.5 w-3.5" /> Usuarios

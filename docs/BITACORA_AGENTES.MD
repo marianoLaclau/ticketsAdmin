@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Pestañas del directorio sincronizadas con la URL
+
+**Agente:** Codex
+**Estado:** centésima trigésima primera remediación de la auditoría técnica, implementada localmente.
+
+- “Roles y usuarios” consume ahora su codec mediante un hook dedicado y Radix Tabs quedó controlado: `/admin/roles-usuarios?tab=roles` abre Roles directamente, mientras Usuarios conserva la ruta limpia.
+- La canonicalización usa `replace` y los cambios explícitos de pestaña usan `push`; recarga y Atrás/Adelante reconstruyen el panel sin loops ni cierres obsoletos. La API key no participa de la query ni del historial.
+- La página intervenida quedó normalizada con Prettier. Aprobaron las 154 pruebas frontend, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. El build sólo emitió las advertencias de sourcemaps ya conocidas y eliminó su salida temporal. No se hizo push.
+
 ## 2026-08-07 — Codec URL del directorio administrativo
 
 **Agente:** Codex
