@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Pestañas de Administración en la URL
+
+**Agente:** Codex
+**Estado:** centésima vigésima cuarta remediación de la auditoría técnica, implementada localmente.
+
+- `/admin` controla su pestaña desde la URL: la vista predeterminada mantiene la ruta limpia y `?tab=importar|peligro` puede recargarse, compartirse y restaurarse con Atrás/Adelante.
+- Un hook único parsea y canonicaliza la query con `replace`; los cambios explícitos de pestaña usan `push` y un updater funcional conserva búsqueda, orden y paginación sin cierres obsoletos.
+- Radix Tabs quedó controlado y los parámetros ajenos, incluidos valores con apariencia de credencial, se eliminan sin incorporar una entrada inválida al historial. Aprobaron las 138 pruebas frontend, Prettier, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. La tabla todavía conserva su estado local hasta el siguiente commit. No se hizo push.
+
 ## 2026-08-07 — Codec URL de tickets administrativos
 
 **Agente:** Codex

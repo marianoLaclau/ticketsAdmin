@@ -1,11 +1,12 @@
-import { useMemo } from 'react';
-import { AlertTriangle, Database, Upload } from 'lucide-react';
-import { AdminHeader } from '@/components/admin/AdminHeader';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AdminCsvImportTab } from '@/features/admin-tickets/AdminCsvImportTab';
-import { AdminDangerZoneTab } from '@/features/admin-tickets/AdminDangerZoneTab';
-import { AdminTicketsTab } from '@/features/admin-tickets/AdminTicketsTab';
-import { useAdminAccess } from '@/hooks/use-admin-access';
+import { useMemo } from "react";
+import { AlertTriangle, Database, Upload } from "lucide-react";
+import { AdminHeader } from "@/components/admin/AdminHeader";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AdminCsvImportTab } from "@/features/admin-tickets/AdminCsvImportTab";
+import { AdminDangerZoneTab } from "@/features/admin-tickets/AdminDangerZoneTab";
+import { AdminTicketsTab } from "@/features/admin-tickets/AdminTicketsTab";
+import { useAdminTicketsUrl } from "@/features/admin-tickets/useAdminTicketsUrl";
+import { useAdminAccess } from "@/hooks/use-admin-access";
 
 let adminTicketsQueryVersion = 0;
 
@@ -17,6 +18,7 @@ function nextAdminTicketsQueryVersion(): number {
 export default function Admin() {
   // Segunda credencial obligatoria para las operaciones del panel SysAdmin.
   const { adminKey, saveAdminKey, adminRequest } = useAdminAccess();
+  const { urlState, selectTab } = useAdminTicketsUrl();
   // La versión fuerza una consulta nueva cuando cambia la llave, sin incluir
   // el secreto en el query key ni dejarlo expuesto en la caché del navegador.
   const adminAccessVersion = useMemo(nextAdminTicketsQueryVersion, [adminKey]);
@@ -30,7 +32,7 @@ export default function Admin() {
         onAdminKeyChange={saveAdminKey}
       />
 
-      <Tabs defaultValue="registros">
+      <Tabs value={urlState.tab} onValueChange={selectTab}>
         <TabsList>
           <TabsTrigger value="registros" className="gap-1.5">
             <Database className="h-3.5 w-3.5" /> Registros
@@ -38,7 +40,10 @@ export default function Admin() {
           <TabsTrigger value="importar" className="gap-1.5">
             <Upload className="h-3.5 w-3.5" /> Importar CSV
           </TabsTrigger>
-          <TabsTrigger value="peligro" className="gap-1.5 data-[state=active]:text-red-600">
+          <TabsTrigger
+            value="peligro"
+            className="gap-1.5 data-[state=active]:text-red-600"
+          >
             <AlertTriangle className="h-3.5 w-3.5" /> Zona peligrosa
           </TabsTrigger>
         </TabsList>
