@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Fila operativa de tickets aislada
+
+**Agente:** Codex
+**Estado:** sexagésima primera remediación de la auditoría técnica, implementada y validada localmente.
+
+- La fila del listado operativo salió de `TicketList.tsx` a `features/ticket-list/TicketListTableRow.tsx` como componente presentacional, tipado y sin hooks.
+- El padre conserva consultas, filtros, exportación, orden múltiple, paginación y navegación. Se mantuvieron los ocho derivados y las nueve celdas en su orden exacto, incluidos datos laborales, asignación, progreso y vencimiento.
+- La revisión cruzada no encontró hallazgos P0/P1/P2. Aprobaron 85 pruebas del frontend, typecheck, ESLint, Prettier acotado, build aislado y `diff --check`; el temporal fue eliminado. No se hizo push.
+
 ## 2026-08-07 — Formulario administrativo de tickets aislado
 
 **Agente:** Codex
