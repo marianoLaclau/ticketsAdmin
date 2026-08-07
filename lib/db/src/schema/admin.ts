@@ -75,9 +75,3 @@ export const sesionesTable = sqliteTable("sesiones", {
     .notNull()
     .$defaultFn(() => new Date()),
 });
-
-export type Role = typeof rolesTable.$inferSelect;
-export type InsertRole = typeof rolesTable.$inferInsert;
-export type Usuario = typeof usuariosTable.$inferSelect;
-export type InsertUsuario = typeof usuariosTable.$inferInsert;
-export type Sesion = typeof sesionesTable.$inferSelect;

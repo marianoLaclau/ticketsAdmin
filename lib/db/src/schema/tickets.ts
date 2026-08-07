@@ -6,8 +6,6 @@ import {
   sqliteTable,
   text,
 } from "drizzle-orm/sqlite-core";
-import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
 import { usuariosTable } from "./admin";
 
 export const ESTADOS = [
@@ -34,7 +32,6 @@ export const MOTIVO_CATEGORIAS = [
 
 export type Estado = (typeof ESTADOS)[number];
 export type Prioridad = (typeof PRIORIDADES)[number];
-export type EstadoEmpleado = (typeof ESTADOS_EMPLEADO)[number];
 export type MotivoCategoria = (typeof MOTIVO_CATEGORIAS)[number];
 
 export const ticketsTable = sqliteTable(
@@ -92,11 +89,6 @@ export const ticketsTable = sqliteTable(
   ],
 );
 
-export const insertTicketSchema = createInsertSchema(ticketsTable).omit({
-  id: true,
-  fecha_creacion: true,
-});
-export type InsertTicket = z.infer<typeof insertTicketSchema>;
 export type Ticket = typeof ticketsTable.$inferSelect;
 
 /**
@@ -151,9 +143,3 @@ export const seguimientosTable = sqliteTable(
     ),
   ],
 );
-
-export const insertSeguimientoSchema = createInsertSchema(
-  seguimientosTable,
-).omit({ id: true, fecha_creacion: true });
-export type InsertSeguimiento = z.infer<typeof insertSeguimientoSchema>;
-export type Seguimiento = typeof seguimientosTable.$inferSelect;

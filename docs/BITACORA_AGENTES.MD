@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Poda de contratos muertos en la capa de datos
+
+**Agente:** Codex
+**Estado:** centésima quincuagésima cuarta remediación de la auditoría técnica, implementada localmente.
+
+- `@workspace/db` dejó de publicar once schemas y aliases sin consumidores: los validadores de inserción de tickets y seguimientos, sus tipos inferidos, y los aliases redundantes de estado de empleado, seguimiento, roles, usuarios y sesiones. Las tablas Drizzle, sus tipos realmente usados y las constantes de dominio permanecen sin cambios.
+- Al desaparecer esos validadores, `drizzle-zod` y la dependencia directa de `zod` dejaron de ser necesarias en el paquete DB. Se retiraron del manifiesto y del lockfile; `zod` continúa disponible donde sí se consume, dentro del paquete de contratos API.
+- Una búsqueda estática independiente confirmó que no existían imports directos, reexports, accesos dinámicos ni consumidores en backend, frontend, scripts, pruebas o generadores. Aprobaron las 68 pruebas dirigidas de DB (67 ejecutadas y una omitida por permisos de symlink de Windows), schema check, ESLint, typecheck, la suite completa del monorepo, build de producción y `git diff --check`. No se hizo push.
+
 ## 2026-08-07 — Frontera segura del directorio administrativo
 
 **Agente:** Codex
