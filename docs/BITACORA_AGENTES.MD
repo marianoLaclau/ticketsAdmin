@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Política de formato explicitada
+
+**Agente:** Codex
+**Estado:** septuagésima octava remediación de la auditoría técnica, implementada localmente.
+
+- Se agregó `.prettierrc.json` con los defaults que ya aplicaba Prettier 3.9.5: LF, 80 columnas, punto y coma, comillas dobles, indentación de dos espacios y trailing commas.
+- La política queda reproducible para IDE, CLI y Orval sin reformatear el repositorio de una sola vez. El `format:check` global se incorporará cuando la migración gradual no produzca falsos fallos por archivos históricos.
+- El lote validará que la regeneración OpenAPI permanezca estable antes de commitear. No se hizo push.
+
 ## 2026-08-07 — Dependencias directas re-auditadas
 
 **Agente:** Codex
