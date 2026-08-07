@@ -68,4 +68,51 @@ export default defineConfig(
       'react-hooks/rules-of-hooks': 'error',
     },
   },
+  {
+    files: [
+      'backend/src/**/*.ts',
+      'scripts/src/**/*.ts',
+      'lib/*/src/**/*.{ts,tsx}',
+    ],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'error',
+      'no-restricted-globals': [
+        'error',
+        {
+          name: 'require',
+          message:
+            'El código bundleable debe usar imports ESM analizables por el build.',
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ImportExpression:not([source.type="Literal"])',
+          message:
+            'Los import() del código bundleable deben usar un módulo literal para que el build pueda auditarlo.',
+        },
+        {
+          selector: 'Identifier[name="createRequire"]',
+          message:
+            'createRequire evita el inventario estático de dependencias del build.',
+        },
+        {
+          selector: 'MemberExpression[computed=false][property.name="require"]',
+          message:
+            'Las cargas require mediante propiedades evitan el inventario estático del build.',
+        },
+        {
+          selector: 'MemberExpression[computed=true][property.value="require"]',
+          message:
+            'Las cargas require mediante propiedades evitan el inventario estático del build.',
+        },
+        {
+          selector:
+            'MemberExpression[computed=true][property.value="createRequire"]',
+          message:
+            'createRequire evita el inventario estático de dependencias del build.',
+        },
+      ],
+    },
+  },
 );

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { createRequire } from "node:module";
+import { createRequire, isBuiltin } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
@@ -10,12 +10,84 @@ import { rm } from "node:fs/promises";
 globalThis.require = createRequire(import.meta.url);
 
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
+const allowedRuntimeExternals = new Set(["better-sqlite3"]);
+const allowedOptionalExternalRequires = new Map([
+  ["supports-color", "/node_modules/debug/src/node.js"],
+]);
+
+function isAllowedOptionalExternal(imported, importerPath) {
+  if (imported.kind !== "require-call") return false;
+
+  const normalizedImporter = importerPath.replaceAll("\\", "/");
+  for (const [packageName, importerSuffix] of allowedOptionalExternalRequires) {
+    if (
+      imported.path === packageName &&
+      normalizedImporter.endsWith(importerSuffix)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function assertRuntimeExternals(metafile) {
+  const unexpected = new Set();
+  const validatedOptionalPaths = new Set();
+  const invalidOptionalUsages = new Map();
+
+  for (const [inputPath, input] of Object.entries(metafile.inputs)) {
+    for (const imported of input.imports) {
+      if (
+        !imported.external ||
+        !allowedOptionalExternalRequires.has(imported.path)
+      ) {
+        continue;
+      }
+      // debug@4 declara este peer como opcional y lo carga bajo try/catch.
+      // Se valida también el importer para no autorizar usos ajenos por nombre.
+      if (isAllowedOptionalExternal(imported, inputPath)) {
+        validatedOptionalPaths.add(imported.path);
+        continue;
+      }
+      const usages = invalidOptionalUsages.get(imported.path) ?? new Set();
+      usages.add(`${imported.path} (${imported.kind}) <- ${inputPath}`);
+      invalidOptionalUsages.set(imported.path, usages);
+    }
+  }
+
+  for (const [outputPath, output] of Object.entries(metafile.outputs)) {
+    for (const imported of output.imports) {
+      if (!imported.external) continue;
+      if (isBuiltin(imported.path)) continue;
+      if (allowedRuntimeExternals.has(imported.path)) {
+        continue;
+      }
+      if (
+        imported.kind === "require-call" &&
+        validatedOptionalPaths.has(imported.path) &&
+        !invalidOptionalUsages.has(imported.path)
+      ) {
+        continue;
+      }
+      for (const usage of invalidOptionalUsages.get(imported.path) ?? []) {
+        unexpected.add(usage);
+      }
+      unexpected.add(`${imported.path} (${imported.kind}) <- ${outputPath}`);
+    }
+  }
+
+  if (unexpected.size > 0) {
+    throw new Error(
+      `El bundle dejó dependencias runtime no autorizadas: ${[...unexpected].sort().join(", ")}`,
+    );
+  }
+}
 
 async function buildAll() {
   const distDir = path.resolve(artifactDir, "dist");
   await rm(distDir, { recursive: true, force: true });
 
-  await esbuild({
+  const buildResult = await esbuild({
     entryPoints: {
       index: path.resolve(artifactDir, "src/index.ts"),
       migrate: path.resolve(artifactDir, "src/migrate.ts"),
@@ -29,85 +101,10 @@ async function buildAll() {
     outdir: distDir,
     outExtension: { ".js": ".mjs" },
     logLevel: "info",
-    // Some packages may not be bundleable, so we externalize them, we can add more here as needed.
-    // Some of the packages below may not be imported or installed, but we're adding them in case they are in the future.
-    // Examples of unbundleable packages:
-    // - uses native modules and loads them dynamically (e.g. sharp)
-    // - use path traversal to read files (e.g. @google-cloud/secret-manager loads sibling .proto files)
-    external: [
-      "*.node",
-      "sharp",
-      "better-sqlite3",
-      "sqlite3",
-      "canvas",
-      "bcrypt",
-      "argon2",
-      "fsevents",
-      "re2",
-      "farmhash",
-      "xxhash-addon",
-      "bufferutil",
-      "utf-8-validate",
-      "ssh2",
-      "cpu-features",
-      "dtrace-provider",
-      "isolated-vm",
-      "lightningcss",
-      "pg-native",
-      "oracledb",
-      "mongodb-client-encryption",
-      "nodemailer",
-      "handlebars",
-      "knex",
-      "typeorm",
-      "protobufjs",
-      "onnxruntime-node",
-      "@tensorflow/*",
-      "@prisma/client",
-      "@mikro-orm/*",
-      "@grpc/*",
-      "@swc/*",
-      "@aws-sdk/*",
-      "@azure/*",
-      "@opentelemetry/*",
-      "@google-cloud/*",
-      "@google/*",
-      "googleapis",
-      "firebase-admin",
-      "@parcel/watcher",
-      "@sentry/profiling-node",
-      "@tree-sitter/*",
-      "aws-sdk",
-      "classic-level",
-      "dd-trace",
-      "ffi-napi",
-      "grpc",
-      "hiredis",
-      "kerberos",
-      "leveldown",
-      "miniflare",
-      "mysql2",
-      "newrelic",
-      "odbc",
-      "piscina",
-      "realm",
-      "ref-napi",
-      "rocksdb",
-      "sass-embedded",
-      "sequelize",
-      "serialport",
-      "snappy",
-      "tinypool",
-      "usb",
-      "workerd",
-      "wrangler",
-      "zeromq",
-      "zeromq-prebuilt",
-      "playwright",
-      "puppeteer",
-      "puppeteer-core",
-      "electron",
-    ],
+    // El addon nativo debe existir como dependencia productiva del runtime.
+    // Todo otro paquete se bundlea y cualquier external inesperado falla abajo.
+    external: [...allowedRuntimeExternals],
+    metafile: true,
     sourcemap: "linked",
     plugins: [
       // pino relies on workers to handle logging, instead of externalizing it we use a plugin to handle it
@@ -125,6 +122,8 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     `,
     },
   });
+
+  assertRuntimeExternals(buildResult.metafile);
 
   const cliSmokeContracts = [
     ["backup-db", "--json"],

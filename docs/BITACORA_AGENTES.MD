@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Bundle backend fail-fast y sin externals especulativos
+
+**Agente:** Codex
+**Estado:** centésima sexagésima segunda remediación de la auditoría técnica, implementada localmente.
+
+- `build.mjs` redujo su allowlist de 72 entradas preventivas a la única dependencia obligatoria realmente no bundleable y presente en producción: `better-sqlite3`. Pino continúa empaquetado mediante sus workers y el plugin existente; los builtins de Node permanecen externos por la plataforma.
+- El build activa el metafile de esbuild y rechaza cualquier external no builtin que no pertenezca a la allowlist exacta. La única excepción opcional es el `require` de `supports-color` que `debug@4` protege con `try/catch`, validado además por tipo de carga e importer; un uso desde otro módulo también falla. ESLint impide aliasar o llamar `require`, obtener `createRequire` por imports directos, namespace o dinámicos, e imports calculados en las fuentes bundleables de backend, scripts y librerías, cerrando los bypasses accidentales que esbuild no puede inventariar.
+- La documentación de despliegue quedó alineada con el runtime real. Aprobaron build y 209 pruebas del backend, inspección del bundle, build de la imagen Docker, smoke nativo de SQLite, ESLint, typecheck y `git diff --check`. Probes negativos en backend y librerías confirmaron el rechazo de alias de `require`, variantes de `createRequire`, imports calculados y un subpath nativo inexistente; una revisión independiente final no encontró P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Exportación CSV desacoplada del router de tickets
 
 **Agente:** Codex
