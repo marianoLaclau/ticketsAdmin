@@ -451,16 +451,23 @@ export function AdminUsersTab({
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-1 flex-col gap-2 sm:flex-row">
               <div className="relative w-full sm:max-w-sm">
-                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Search
+                  className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
                 <Input
                   value={userSearch}
                   onChange={(event) => updateUserSearch(event.target.value)}
-                  placeholder="Buscar por nombre o email..."
+                  placeholder="Buscar por nombre, apellido o email..."
                   className="h-9 pl-8"
+                  aria-label="Buscar usuarios por nombre, apellido o email"
                 />
               </div>
               <Select value={userRoleFilter} onValueChange={selectUserRole}>
-                <SelectTrigger className="h-9 w-full bg-white sm:w-[190px]">
+                <SelectTrigger
+                  className="h-9 w-full bg-white sm:w-[190px]"
+                  aria-label="Filtrar usuarios por rol"
+                >
                   <SelectValue placeholder="Todos los roles" />
                 </SelectTrigger>
                 <SelectContent>
@@ -479,24 +486,27 @@ export function AdminUsersTab({
                 </SelectContent>
               </Select>
               <Select value={userStatusFilter} onValueChange={selectUserStatus}>
-                <SelectTrigger className="h-9 w-full bg-white sm:w-[160px]">
-                  <SelectValue placeholder="Todos" />
+                <SelectTrigger
+                  className="h-9 w-full bg-white sm:w-[160px]"
+                  aria-label="Filtrar usuarios por estado"
+                >
+                  <SelectValue placeholder="Todos los estados" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="_all">Todos</SelectItem>
+                  <SelectItem value="_all">Todos los estados</SelectItem>
                   <SelectItem value="active">Activos</SelectItem>
                   <SelectItem value="inactive">Inactivos</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <Button onClick={openCreateUser} disabled={!roles.some((role) => role.activo)}>
-              <Plus className="mr-1.5 h-4 w-4" /> Nuevo usuario
+              <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> Nuevo usuario
             </Button>
           </div>
 
           {!roleCatalogQuery.isLoading && !roleCatalogQuery.isError && !roles.some((role) => role.activo) && (
             <Alert>
-              <AlertTriangle className="h-4 w-4" />
+              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
               <AlertTitle>Necesitás un rol activo</AlertTitle>
               <AlertDescription>Creá o activá un rol para habilitar la creación de usuarios.</AlertDescription>
             </Alert>
@@ -574,7 +584,11 @@ export function AdminUsersTab({
                               checked={user.activo}
                               onCheckedChange={() => toggleUser(user)}
                               disabled={updateUser.isPending}
-                              aria-label={user.activo ? 'Desactivar usuario' : 'Activar usuario'}
+                              aria-label={
+                                user.activo
+                                  ? `Desactivar usuario ${user.username ?? user.email}`
+                                  : `Activar usuario ${user.username ?? user.email}`
+                              }
                               title={user.activo ? 'Desactivar usuario' : 'Activar usuario'}
                             />
                             <Button
@@ -610,7 +624,10 @@ export function AdminUsersTab({
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span>Mostrar</span>
                 <Select value={String(userPageSize)} onValueChange={selectUserPageSize}>
-                  <SelectTrigger className="h-7 w-[70px] bg-white text-xs">
+                  <SelectTrigger
+                    className="h-7 w-[70px] bg-white text-xs"
+                    aria-label="Cantidad de usuarios por página"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -634,7 +651,7 @@ export function AdminUsersTab({
                   disabled={userPage <= 1}
                   onClick={() => goToUserPage(userPage - 1)}
                 >
-                  <ChevronLeft className="mr-0.5 h-3.5 w-3.5" /> Anterior
+                  <ChevronLeft className="mr-0.5 h-3.5 w-3.5" aria-hidden="true" /> Anterior
                 </Button>
                 <Button
                   variant="outline"
@@ -643,7 +660,7 @@ export function AdminUsersTab({
                   disabled={userPage >= userTotalPages}
                   onClick={() => goToUserPage(userPage + 1)}
                 >
-                  Siguiente <ChevronRight className="ml-0.5 h-3.5 w-3.5" />
+                  Siguiente <ChevronRight className="ml-0.5 h-3.5 w-3.5" aria-hidden="true" />
                 </Button>
               </div>
             </div>
@@ -795,9 +812,9 @@ export function AdminUsersTab({
               </div>
             )}
             <div className="space-y-1.5">
-              <Label>Rol *</Label>
+              <Label htmlFor="user-role">Rol *</Label>
               <Select value={userForm.roleId} onValueChange={(roleId) => setUserForm((form) => ({ ...form, roleId }))}>
-                <SelectTrigger>
+                <SelectTrigger id="user-role">
                   <SelectValue placeholder="Seleccionar rol" />
                 </SelectTrigger>
                 <SelectContent>

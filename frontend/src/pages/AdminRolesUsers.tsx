@@ -56,10 +56,10 @@ export default function AdminRolesUsers() {
       >
         <TabsList>
           <TabsTrigger value="users" className="gap-1.5">
-            <UsersRound className="h-3.5 w-3.5" /> Usuarios
+            <UsersRound className="h-3.5 w-3.5" aria-hidden="true" /> Usuarios
           </TabsTrigger>
           <TabsTrigger value="roles" className="gap-1.5">
-            <ShieldCheck className="h-3.5 w-3.5" /> Roles
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" /> Roles
           </TabsTrigger>
         </TabsList>
 

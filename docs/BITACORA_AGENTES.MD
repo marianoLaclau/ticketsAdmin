@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Controles accesibles del directorio administrativo
+
+**Agente:** Codex
+**Estado:** centésima cuadragésima remediación de la auditoría técnica, implementada localmente.
+
+- Los buscadores y filtros de Usuarios y Roles tienen nombres accesibles que describen su propósito; el estado general se presenta como “Todos los estados” y la búsqueda de usuarios refleja exactamente los campos del backend: nombre, apellido o email.
+- El selector de rol del formulario quedó asociado a su etiqueta. Switches y botones de acción repetidos incluyen ahora el usuario o rol afectado, mientras los iconos puramente decorativos quedaron fuera del árbol accesible.
+- Aprobaron las 160 pruebas frontend, Prettier de la página coordinadora, ESLint, typecheck, build de producción, `git diff --check` y dos rondas de revisión cruzada; la última quedó sin hallazgos P0/P1/P2. La salida temporal fue verificada y eliminada, con sólo las advertencias de sourcemaps conocidas. No se hizo push.
+
 ## 2026-08-07 — Estado protegido del directorio administrativo
 
 **Agente:** Codex

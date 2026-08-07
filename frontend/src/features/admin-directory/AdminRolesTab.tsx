@@ -285,33 +285,40 @@ export function AdminRolesTab({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-1 flex-col gap-2 sm:flex-row">
             <div className="relative w-full sm:max-w-sm">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Search
+                className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
               <Input
                 value={roleSearch}
                 onChange={(event) => updateRoleSearch(event.target.value)}
                 placeholder="Buscar rol..."
                 className="h-9 pl-8"
+                aria-label="Buscar roles por nombre o descripción"
               />
             </div>
             <Select value={roleStatusFilter} onValueChange={selectRoleStatus}>
-              <SelectTrigger className="h-9 w-full bg-white sm:w-[160px]">
-                <SelectValue placeholder="Todos" />
+              <SelectTrigger
+                className="h-9 w-full bg-white sm:w-[160px]"
+                aria-label="Filtrar roles por estado"
+              >
+                <SelectValue placeholder="Todos los estados" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="_all">Todos</SelectItem>
+                <SelectItem value="_all">Todos los estados</SelectItem>
                 <SelectItem value="active">Activos</SelectItem>
                 <SelectItem value="inactive">Inactivos</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <Button onClick={openCreateRole}>
-            <Plus className="mr-1.5 h-4 w-4" /> Nuevo rol
+            <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> Nuevo rol
           </Button>
         </div>
 
         {rolesQuery.data && rolesQuery.data.total > 100 && (
           <Alert>
-            <AlertTriangle className="h-4 w-4" />
+            <AlertTriangle className="h-4 w-4" aria-hidden="true" />
             <AlertTitle>Se muestran los primeros 100 roles</AlertTitle>
             <AlertDescription>
               Refiná la búsqueda cuando necesites localizar un rol fuera de este directorio.
@@ -386,8 +393,8 @@ export function AdminRolesTab({
                               esRolSistema(role.nombre)
                                 ? `${role.nombre}: rol del sistema protegido, permanece activo`
                                 : role.activo
-                                  ? 'Desactivar rol'
-                                  : 'Activar rol'
+                                  ? `Desactivar rol ${role.nombre}`
+                                  : `Activar rol ${role.nombre}`
                             }
                             title={
                               esRolSistema(role.nombre)
@@ -403,8 +410,9 @@ export function AdminRolesTab({
                             className="h-8 w-8"
                             onClick={() => openEditRole(role)}
                             title="Editar rol"
+                            aria-label={`Editar rol ${role.nombre}`}
                           >
-                            <Pencil className="h-3.5 w-3.5" />
+                            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -423,7 +431,7 @@ export function AdminRolesTab({
                                 : 'Eliminar rol'
                             }
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                           </Button>
                         </div>
                       </TableCell>
