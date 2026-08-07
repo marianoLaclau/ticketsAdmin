@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import {
   useGetDashboardStats,
@@ -23,19 +23,17 @@ import { DashboardKpiGrid } from "@/features/dashboard/DashboardKpiGrid";
 import { DashboardMotivesPriorityPanel } from "@/features/dashboard/DashboardMotivesPriorityPanel";
 import { DashboardRecentActivityPanel } from "@/features/dashboard/DashboardRecentActivityPanel";
 import { DashboardStatusDistribution } from "@/features/dashboard/DashboardStatusDistribution";
+import { useDashboardPeriodUrl } from "@/features/dashboard/useDashboardPeriodUrl";
 import { PrioridadBadge } from "@/lib/utils-tickets";
 import { getContactDisplayName } from "@/lib/contacto";
 import { ErrorPage, getErrorStatus } from "@/components/ErrorPage";
 import {
-  currentMonthToToday,
   DASHBOARD_TIME_ZONE,
   getDashboardBusinessDateKey,
   getDashboardPeriodLabel,
-  getDashboardPeriodParams,
   getDashboardRangeKey,
   getDashboardRangeLabel,
   shouldRefreshDashboardAtBusinessDateChange,
-  validateDashboardDateRange,
   type DashboardPeriod,
 } from "@/lib/dashboard-period";
 
@@ -80,14 +78,16 @@ function GaugeRing({
 }
 
 export default function Dashboard() {
-  const [periodo, setPeriodo] = useState<DashboardPeriod>("todo");
   const [fechaReferencia, setFechaReferencia] = useState(() => new Date());
-  const [periodoPersonalizado, setPeriodoPersonalizado] = useState(() =>
-    currentMonthToToday(),
-  );
-  const [periodoAplicado, setPeriodoAplicado] = useState(() =>
-    currentMonthToToday(),
-  );
+  const {
+    periodo,
+    periodoPersonalizado,
+    setPeriodoPersonalizado,
+    errorPeriodo,
+    dashboardParams,
+    selectPeriodo,
+    applyPeriodoPersonalizado,
+  } = useDashboardPeriodUrl(fechaReferencia);
   useEffect(() => {
     const intervalId = window.setInterval(() => {
       const now = new Date();
@@ -99,17 +99,6 @@ export default function Dashboard() {
     }, 60_000);
     return () => window.clearInterval(intervalId);
   }, []);
-  const errorPeriodo = validateDashboardDateRange(
-    periodoPersonalizado.fecha_desde,
-    periodoPersonalizado.fecha_hasta,
-  );
-  const dashboardParams = useMemo(
-    () =>
-      periodo === "personalizado"
-        ? periodoAplicado
-        : getDashboardPeriodParams(periodo, fechaReferencia),
-    [periodo, periodoAplicado, fechaReferencia],
-  );
   const businessDateKey = getDashboardBusinessDateKey(fechaReferencia);
   const dashboardRangeKey = getDashboardRangeKey(dashboardParams);
 
@@ -257,7 +246,9 @@ export default function Dashboard() {
               </Label>
               <Select
                 value={periodo}
-                onValueChange={(value) => setPeriodo(value as DashboardPeriod)}
+                onValueChange={(value) =>
+                  selectPeriodo(value as DashboardPeriod)
+                }
               >
                 <SelectTrigger id="dashboard-periodo">
                   <SelectValue />
@@ -319,9 +310,7 @@ export default function Dashboard() {
                   type="button"
                   size="sm"
                   disabled={Boolean(errorPeriodo)}
-                  onClick={() =>
-                    setPeriodoAplicado({ ...periodoPersonalizado })
-                  }
+                  onClick={applyPeriodoPersonalizado}
                 >
                   Aplicar
                 </Button>

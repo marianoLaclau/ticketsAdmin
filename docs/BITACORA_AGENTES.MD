@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Período del Dashboard sincronizado con la URL
+
+**Agente:** Codex
+**Estado:** centésima décima octava remediación de la auditoría técnica, implementada localmente.
+
+- Un hook dedicado convierte la URL en la única fuente del período aplicado; `todo` se conserva como `undefined`, mientras semana, mes y personalizados generan las mismas query keys estructurales de siempre.
+- Las fechas que todavía se editan permanecen como borrador local y no consultan la API hasta “Aplicar”; navegación externa y URLs personalizadas válidas vuelven a hidratar el borrador sin que SSE, refetch o medianoche lo pisen.
+- La URL se canonicaliza con reemplazo, los valores inválidos vuelven de forma segura a `todo` y no existe sincronización bidireccional entre `useState` y query string.
+- Aprobaron las 129 pruebas frontend, Prettier, ESLint, typecheck, build de producción y `git diff --check`. La revisión cruzada no encontró P0/P1 y separó la política de frescura temporal para el siguiente commit. No se hizo push.
+
 ## 2026-08-07 — Calendario del Dashboard en zona de negocio
 
 **Agente:** Codex
