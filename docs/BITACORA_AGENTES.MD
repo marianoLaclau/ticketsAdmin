@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Construcción de cambios de ticket aislada
+
+**Agente:** Codex
+**Estado:** septuagésima quinta remediación de la auditoría técnica, implementada y validada localmente.
+
+- Normalización, reglas de Serin/categoría/asignación/resolución y diff salieron de `routes/tickets.ts` a `lib/ticket-update-changes.ts` como función pura con reloj e identidad confiable inyectados.
+- Permiso de cierre y versión se validan antes de invocarla. SQL con CAS, no-op, auditoría transaccional y SSE posterior al commit permanecen en la ruta; el orden de campos que alimenta el historial se preservó.
+- La revisión cruzada no encontró hallazgos P0/P1/P2. Aprobaron 6 pruebas puras nuevas, 22 pruebas de rutas, typecheck del backend, ESLint, Prettier y `diff --check`. No se hizo push.
+
 ## 2026-08-07 — Paginación administrativa de tickets aislada
 
 **Agente:** Codex
