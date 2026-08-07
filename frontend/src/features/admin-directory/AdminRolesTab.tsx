@@ -62,6 +62,7 @@ import type {
 } from '@/features/admin-directory/useAdminDirectoryUrl';
 import { adminErrorMessage } from '@/hooks/use-admin-access';
 import { useToast } from '@/hooks/use-toast';
+import { AdminCredentialNotice } from '@/components/admin/AdminCredentialNotice';
 import type { AdminCredentialState } from '@/lib/admin-credential-state';
 import type { AdminDirectoryRolesUrlState } from '@/lib/admin-directory-url';
 import { esRolSistema } from '@/lib/roles';
@@ -256,29 +257,14 @@ export function AdminRolesTab({
 
   const roleMutationPending = createRole.isPending || updateRole.isPending || deleteRole.isPending;
 
-  if (!hasAdminAccess) {
+  if (adminAccessState !== 'ready') {
     return (
       <TabsContent value="roles">
-        <Alert className="border-amber-200 bg-amber-50/50">
-          {adminAccessState === 'pending' ? (
-            <Loader2
-              className="h-4 w-4 animate-spin text-amber-600 motion-reduce:animate-none"
-              aria-hidden="true"
-            />
-          ) : (
-            <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
-          )}
-          <AlertTitle>
-            {adminAccessState === 'pending'
-              ? 'Verificando la llave de administración'
-              : 'Ingresá la llave de administración'}
-          </AlertTitle>
-          <AlertDescription>
-            {adminAccessState === 'pending'
-              ? 'Esperá un instante antes de consultar o gestionar roles.'
-              : 'El directorio permanece protegido. Completá la llave en la cabecera para consultar y gestionar roles.'}
-          </AlertDescription>
-        </Alert>
+        <AdminCredentialNotice
+          state={adminAccessState}
+          pendingDescription="Esperá un instante antes de consultar o gestionar roles."
+          missingDescription="El directorio permanece protegido. Completá la llave en la cabecera para consultar y gestionar roles."
+        />
       </TabsContent>
     );
   }

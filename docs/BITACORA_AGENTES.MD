@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Aviso administrativo reutilizable y accesible
+
+**Agente:** Codex
+**Estado:** centésima cuadragésima octava remediación de la auditoría técnica, implementada localmente.
+
+- Los cinco avisos duplicados de Registros, Importar CSV, Zona peligrosa, Usuarios y Roles se extrajeron a `AdminCredentialNotice`. El componente acepta únicamente estados `missing | pending`; cada consumidor conserva fuera del componente su barrera `adminAccessState !== "ready"`, su `TabsContent`, clases y textos específicos, por lo que no se trasladó ni ocultó lógica de seguridad.
+- La extracción retiró estructura e imports repetidos y mantiene iconos decorativos, reducción de movimiento y estilo visual. La revisión detectó que “verificando” heredaba un anuncio urgente duplicado: ahora `missing` continúa como alerta assertiva y `pending` se expone como estado cortés; ambos mensajes son atómicos.
+- Se agregó una prueba de componente para el contrato visual y accesible de ambos estados, incluido el reemplazo del mensaje y el spinner. Aprobaron las 170 pruebas unitarias más las dos pruebas de componentes, ESLint, Prettier en los archivos normalizados, ambos typechecks, build de producción, `git diff --check` y dos revisiones cruzadas; el hallazgo P2 fue corregido y la revisión final quedó sin P0/P1/P2. La salida temporal fue eliminada y sólo persistieron las advertencias de sourcemaps conocidas. No se hizo push.
+
 ## 2026-08-07 — Primer arnés de pruebas de componentes React
 
 **Agente:** Codex

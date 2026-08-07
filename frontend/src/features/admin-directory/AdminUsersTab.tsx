@@ -56,6 +56,7 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { TabsContent } from '@/components/ui/tabs';
 import { adminErrorMessage } from '@/hooks/use-admin-access';
 import { useToast } from '@/hooks/use-toast';
+import { AdminCredentialNotice } from '@/components/admin/AdminCredentialNotice';
 import {
   ADMIN_DIRECTORY_USER_LIMITS,
   type AdminDirectoryUsersUrlState,
@@ -422,29 +423,14 @@ export function AdminUsersTab({
   };
   const userMutationPending = createUser.isPending || updateUser.isPending;
 
-  if (!hasAdminAccess) {
+  if (adminAccessState !== 'ready') {
     return (
       <TabsContent value="users">
-        <Alert className="border-amber-200 bg-amber-50/50">
-          {adminAccessState === 'pending' ? (
-            <Loader2
-              className="h-4 w-4 animate-spin text-amber-600 motion-reduce:animate-none"
-              aria-hidden="true"
-            />
-          ) : (
-            <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
-          )}
-          <AlertTitle>
-            {adminAccessState === 'pending'
-              ? 'Verificando la llave de administración'
-              : 'Ingresá la llave de administración'}
-          </AlertTitle>
-          <AlertDescription>
-            {adminAccessState === 'pending'
-              ? 'Esperá un instante antes de consultar o gestionar usuarios.'
-              : 'El directorio permanece protegido. Completá la llave en la cabecera para consultar y gestionar usuarios.'}
-          </AlertDescription>
-        </Alert>
+        <AdminCredentialNotice
+          state={adminAccessState}
+          pendingDescription="Esperá un instante antes de consultar o gestionar usuarios."
+          missingDescription="El directorio permanece protegido. Completá la llave en la cabecera para consultar y gestionar usuarios."
+        />
       </TabsContent>
     );
   }

@@ -4,14 +4,8 @@ import {
   useImportCsv,
   type AdminImportResult,
 } from "@workspace/api-client-react";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  FileText,
-  Loader2,
-  Upload,
-} from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { CheckCircle2, FileText, Upload } from "lucide-react";
+import { AdminCredentialNotice } from "@/components/admin/AdminCredentialNotice";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -47,7 +41,6 @@ export function AdminCsvImportTab({
   const queryClient = useQueryClient();
   const importCsv = useImportCsv({ request });
   const { reset: resetImportCsv } = importCsv;
-  const hasAdminAccess = adminAccessState === "ready";
   const accessBoundary = `${adminAccessState}:${accessVersion}:${accessGeneration}`;
   const { isCurrentOperation, operationGeneration } = useAdminOperationGuard(
     adminAccessState,
@@ -190,32 +183,14 @@ export function AdminCsvImportTab({
     );
   };
 
-  if (!hasAdminAccess) {
+  if (adminAccessState !== "ready") {
     return (
       <TabsContent value="importar" className="mt-4 max-w-3xl">
-        <Alert className="border-amber-200 bg-amber-50/50">
-          {adminAccessState === "pending" ? (
-            <Loader2
-              className="h-4 w-4 animate-spin text-amber-600 motion-reduce:animate-none"
-              aria-hidden="true"
-            />
-          ) : (
-            <AlertTriangle
-              className="h-4 w-4 text-amber-600"
-              aria-hidden="true"
-            />
-          )}
-          <AlertTitle>
-            {adminAccessState === "pending"
-              ? "Verificando la llave de administración"
-              : "Ingresá la llave de administración"}
-          </AlertTitle>
-          <AlertDescription>
-            {adminAccessState === "pending"
-              ? "Esperá un instante antes de analizar o importar archivos."
-              : "La importación permanece protegida. Completá la llave en la cabecera para continuar."}
-          </AlertDescription>
-        </Alert>
+        <AdminCredentialNotice
+          state={adminAccessState}
+          pendingDescription="Esperá un instante antes de analizar o importar archivos."
+          missingDescription="La importación permanece protegida. Completá la llave en la cabecera para continuar."
+        />
       </TabsContent>
     );
   }

@@ -21,6 +21,7 @@ import { AdminTicketsPagination } from "@/features/admin-tickets/AdminTicketsPag
 import { AdminTicketDeleteDialog } from "@/features/admin-tickets/AdminTicketDeleteDialog";
 import { AdminTicketFormDialog } from "@/features/admin-tickets/AdminTicketFormDialog";
 import { AdminTicketTableRow } from "@/features/admin-tickets/AdminTicketTableRow";
+import { AdminCredentialNotice } from "@/components/admin/AdminCredentialNotice";
 import type {
   AdminTicketsUrlNavigation,
   AdminTicketsUrlUpdate,
@@ -38,8 +39,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, Loader2, Plus, Search, RotateCcw } from "lucide-react";
+import { Plus, Search, RotateCcw } from "lucide-react";
 import { getContactDisplayName } from "@/lib/contacto";
 import type { AdminCredentialState } from "@/lib/admin-credential-state";
 import {
@@ -406,32 +406,14 @@ export function AdminTicketsTab({
     );
   };
 
-  if (!hasAdminAccess) {
+  if (adminAccessState !== "ready") {
     return (
       <TabsContent value="registros" className="mt-4">
-        <Alert className="border-amber-200 bg-amber-50/50">
-          {adminAccessState === "pending" ? (
-            <Loader2
-              className="h-4 w-4 animate-spin text-amber-600 motion-reduce:animate-none"
-              aria-hidden="true"
-            />
-          ) : (
-            <AlertTriangle
-              className="h-4 w-4 text-amber-600"
-              aria-hidden="true"
-            />
-          )}
-          <AlertTitle>
-            {adminAccessState === "pending"
-              ? "Verificando la llave de administración"
-              : "Ingresá la llave de administración"}
-          </AlertTitle>
-          <AlertDescription>
-            {adminAccessState === "pending"
-              ? "Esperá un instante antes de consultar o gestionar registros."
-              : "Los registros administrativos permanecen protegidos. Completá la llave en la cabecera para consultarlos y gestionarlos."}
-          </AlertDescription>
-        </Alert>
+        <AdminCredentialNotice
+          state={adminAccessState}
+          pendingDescription="Esperá un instante antes de consultar o gestionar registros."
+          missingDescription="Los registros administrativos permanecen protegidos. Completá la llave en la cabecera para consultarlos y gestionarlos."
+        />
       </TabsContent>
     );
   }
