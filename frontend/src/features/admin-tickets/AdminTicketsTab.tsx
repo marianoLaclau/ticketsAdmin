@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { adminErrorMessage } from '@/hooks/use-admin-access';
 import { isTicketVersionConflict } from '@/lib/error-messages';
 import { SortableTableHead } from '@/components/SortableTableHead';
+import { AdminTicketDeleteDialog } from '@/features/admin-tickets/AdminTicketDeleteDialog';
 import { AdminTicketFormDialog } from '@/features/admin-tickets/AdminTicketFormDialog';
 import { AdminTicketTableRow } from '@/features/admin-tickets/AdminTicketTableRow';
 
@@ -28,16 +29,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import {
   Select,
   SelectContent,
@@ -577,31 +568,12 @@ export function AdminTicketsTab({
       />
 
       {/* ------------------- CONFIRMAR ELIMINAR ------------------- */}
-      <AlertDialog
-        open={aEliminar !== null}
-        onOpenChange={(open) => !open && setAEliminar(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar este registro?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Se va a eliminar el registro de{' '}
-              <strong>{getContactDisplayName(aEliminar)}</strong> (
-              {aEliminar?.motivo}) junto con todos sus seguimientos. No se puede
-              deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmarEliminar}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {deleteTicket.isPending ? 'Eliminando...' : 'Eliminar'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <AdminTicketDeleteDialog
+        ticket={aEliminar}
+        isDeleting={deleteTicket.isPending}
+        onDismiss={() => setAEliminar(null)}
+        onConfirm={confirmarEliminar}
+      />
     </>
   );
 }

@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Confirmación de borrado administrativo aislada
+
+**Agente:** Codex
+**Estado:** sexagésima tercera remediación de la auditoría técnica, implementada y validada localmente.
+
+- La confirmación de eliminación salió de `AdminTicketsTab.tsx` a `features/admin-tickets/AdminTicketDeleteDialog.tsx` como componente puro de cuatro props y sin hooks.
+- Estado, mutación, caché, invalidación y toasts permanecen en el padre. Se conservaron apertura, descarte, confirmación, estado pendiente, contacto, motivo, textos, clases y orden del DOM sin agregar bloqueos nuevos.
+- La revisión cruzada no encontró hallazgos P0/P1/P2. Aprobaron typecheck, ESLint dirigido, Prettier acotado y `diff --check`; el quality gate completo del corte anterior seguía verde. No se hizo push.
+
 ## 2026-08-07 — Indicadores del dashboard separados
 
 **Agente:** Codex
