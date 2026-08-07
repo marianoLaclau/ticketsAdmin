@@ -14,6 +14,7 @@ import {
 import { useListAdminRoles } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface AdminHeaderProps {
   title: string;
@@ -60,22 +61,45 @@ function EstadoLlave({ adminKey }: { adminKey: string }) {
 
   if (probe.isLoading) {
     return (
-      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-        <Loader2 className="h-3 w-3 animate-spin" /> Verificando llave...
+      <span
+        id="admin-key-status"
+        className="flex items-center gap-1 text-xs text-muted-foreground"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <Loader2
+          className="h-3 w-3 animate-spin motion-reduce:animate-none"
+          aria-hidden="true"
+        />{" "}
+        Verificando llave...
       </span>
     );
   }
   if (probe.isSuccess) {
     return (
-      <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
-        <CheckCircle2 className="h-3 w-3" /> Llave activa — acceso habilitado
+      <span
+        id="admin-key-status"
+        className="flex items-center gap-1 text-xs font-medium text-emerald-600"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> Llave activa —
+        acceso habilitado
       </span>
     );
   }
   const status = (probe.error as { status?: number } | null)?.status;
   return (
-    <span className="flex items-center gap-1 text-xs font-medium text-red-600">
-      <XCircle className="h-3 w-3" />
+    <span
+      id="admin-key-status"
+      className="flex items-center gap-1 text-xs font-medium text-red-600"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <XCircle className="h-3 w-3" aria-hidden="true" />
       {status === 401
         ? adminKey
           ? "Llave inválida — verificala"
@@ -101,15 +125,22 @@ export function AdminHeader({
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
-            <Database className="h-6 w-6 text-primary" />
+            <Database className="h-6 w-6 text-primary" aria-hidden="true" />
             {title}
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
         </div>
         <div className="w-full space-y-1 md:w-[300px]">
+          <Label htmlFor="admin-key" className="sr-only">
+            Llave de administración
+          </Label>
           <div className="relative">
-            <KeyRound className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <KeyRound
+              className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
             <Input
+              id="admin-key"
               type={showAdminKey ? "text" : "password"}
               placeholder="Llave de administración"
               className="h-9 pl-8 pr-10 text-sm"
@@ -117,6 +148,7 @@ export function AdminHeader({
               onChange={(event) => onAdminKeyChange(event.target.value)}
               autoComplete="off"
               spellCheck={false}
+              aria-describedby="admin-key-status admin-key-help"
             />
             <button
               type="button"
@@ -131,14 +163,17 @@ export function AdminHeader({
               title={showAdminKey ? "Ocultar llave" : "Mostrar llave"}
             >
               {showAdminKey ? (
-                <EyeOff className="h-4 w-4" />
+                <EyeOff className="h-4 w-4" aria-hidden="true" />
               ) : (
-                <Eye className="h-4 w-4" />
+                <Eye className="h-4 w-4" aria-hidden="true" />
               )}
             </button>
           </div>
           <EstadoLlave adminKey={adminKey} />
-          <p className="text-[11px] leading-snug text-muted-foreground">
+          <p
+            id="admin-key-help"
+            className="text-[11px] leading-snug text-muted-foreground"
+          >
             Segunda verificación para operar el panel. Se recuerda para tu
             usuario en este navegador.
           </p>
@@ -159,8 +194,8 @@ export function AdminHeader({
               variant={active ? "default" : "outline"}
               size="sm"
             >
-              <Link href={link.href}>
-                <Icon className="mr-1.5 h-4 w-4" />
+              <Link href={link.href} aria-current={active ? "page" : undefined}>
+                <Icon className="mr-1.5 h-4 w-4" aria-hidden="true" />
                 {link.label}
               </Link>
             </Button>

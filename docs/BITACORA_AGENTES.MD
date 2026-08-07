@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Cabecera administrativa accesible
+
+**Agente:** Codex
+**Estado:** centésima trigésima octava remediación de la auditoría técnica, implementada localmente.
+
+- La llave administrativa tiene ahora un `Label` asociado y describe tanto la ayuda persistente como su validación dinámica. El estado se anuncia de forma atómica y no intrusiva mediante una región `status` con `aria-live="polite"`.
+- La navegación identifica el enlace actual con `aria-current="page"`; los iconos puramente visuales quedaron fuera del árbol accesible y el spinner respeta la preferencia de movimiento reducido.
+- Aprobaron las 157 pruebas frontend, Prettier, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. La salida temporal fue verificada y eliminada; el build sólo emitió las advertencias de sourcemaps ya conocidas. No se hizo push.
+
 ## 2026-08-07 — Formato de la cabecera administrativa
 
 **Agente:** Codex
