@@ -8,10 +8,7 @@ import {
   needsPasswordRehash,
   verifyPasswordOrDummy,
 } from "../lib/passwords";
-import {
-  getSessionUser,
-  purgeExpiredSessions,
-} from "../lib/auth";
+import { getSessionUser, purgeExpiredSessions } from "../lib/auth";
 import {
   SESSION_TTL_MS,
   clearSessionCookie,

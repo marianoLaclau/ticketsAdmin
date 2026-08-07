@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Ruta de autenticación normalizada
+
+**Agente:** Codex
+**Estado:** octogésima tercera remediación de la auditoría técnica, implementada localmente.
+
+- `backend/src/routes/auth.ts` se ajustó a Prettier mediante un único cambio: dos imports del mismo módulo pasan de cuatro líneas a una. No cambian handlers, guards, sesiones, contraseñas ni respuestas.
+- Se priorizó este archivo por tener el menor diff real entre los desvíos restantes, pese a su tamaño nominal. La revisión queda así inmediata y sin ruido funcional.
+- Se validarán Prettier, ESLint, las 51 pruebas dirigidas de auth/RBAC y el typecheck backend antes de commitear. No se hizo push.
+
 ## 2026-08-07 — Servicio de prioridad automática normalizado
 
 **Agente:** Codex
