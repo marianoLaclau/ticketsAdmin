@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Contrato HTTP del stream de eventos
+
+**Agente:** Codex
+**Estado:** centésima vigésima novena remediación de la auditoría técnica, implementada localmente.
+
+- La cobertura HTTP de `/api/events` fija ahora el rechazo `401` sin sesión y los headers requeridos por SSE y Nginx: `text/event-stream`, `no-cache`, conexión persistente y buffering deshabilitado.
+- La prueba autentica también la directiva inicial `retry: 5000`, acumula cualquier fragmentación de red hasta el cierre y verifica que logout revoque el stream. Se eliminó el `Promise.race` anterior, cuyo timer podía permanecer vivo después de una lectura exitosa.
+- Aprobaron las 52 pruebas dirigidas de RBAC, las 209 pruebas backend completas, ESLint, typecheck, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. No se modificó producción, no se reinstalaron dependencias y no se hizo push.
+
 ## 2026-08-07 — Apertura accesible de registros administrativos
 
 **Agente:** Codex

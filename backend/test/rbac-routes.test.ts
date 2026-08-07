@@ -467,32 +467,38 @@ describe("ciclo de la cookie de sesión", () => {
     assert.equal(response.headers.get("cache-control"), "no-store");
   });
 
-  it("cierra por el mismo hash el stream SSE de la sesión", async () => {
+  it("protege el stream SSE detrás de la sesión", async () => {
+    const response = await fetch(`${baseUrl}/api/events`);
+
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), { error: "Sesión requerida" });
+  });
+
+  it("expone el contrato SSE y cierra el stream al revocar la sesión", async () => {
     const cookie = sessionCookie(await login("operadora"));
     const stream = await requestWithSession("/api/events", cookie);
     assert.equal(stream.status, 200);
+    assert.match(
+      stream.headers.get("content-type") ?? "",
+      /^text\/event-stream(?:;\s*charset=utf-8)?$/i,
+    );
+    assert.equal(stream.headers.get("cache-control"), "no-cache");
+    assert.equal(stream.headers.get("connection"), "keep-alive");
+    assert.equal(stream.headers.get("x-accel-buffering"), "no");
     assert.ok(stream.body);
     const reader = stream.body.getReader();
 
     try {
-      const initial = await reader.read();
-      assert.equal(initial.done, false);
-
       const logout = await requestWithSession("/auth/logout", cookie, {
         method: "POST",
       });
       assert.equal(logout.status, 204);
 
-      const closed = await Promise.race([
-        reader.read(),
-        new Promise<never>((_resolve, reject) =>
-          setTimeout(
-            () => reject(new Error("el stream SSE no se cerró al revocar")),
-            1_000,
-          ),
-        ),
-      ]);
-      assert.equal(closed.done, true);
+      const payload = await readStreamUntilClosed(
+        reader,
+        "el stream SSE no se cerró al revocar",
+      );
+      assert.equal(payload, "retry: 5000\n\n");
     } finally {
       await reader.cancel();
     }
