@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Contrato URL del listado de usuarios
+
+**Agente:** Codex
+**Estado:** centésima trigésima segunda remediación de la auditoría técnica, implementada localmente.
+
+- El estado URL del directorio incorpora un bloque `users` para búsqueda, rol, estado, página y límite mediante parámetros prefijados; sus defaults se omiten y no colisionarán con los futuros filtros de Roles.
+- IDs, límites y offsets se validan como enteros seguros, los duplicados conservan sólo el primer valor y el serializer público mantiene tipado estricto mientras normaliza internamente desde `unknown`. Objetos heredados, getters cambiantes y proxies hostiles fallan cerrado.
+- El hook usa actualizaciones funcionales y al cambiar de pestaña preserva el estado completo de Usuarios. Aprobaron las 10 pruebas dirigidas y las 157 pruebas frontend completas, Prettier, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. La tabla aún conserva sus controles locales; su conexión queda para el siguiente commit. No se hizo push.
+
 ## 2026-08-07 — Pestañas del directorio sincronizadas con la URL
 
 **Agente:** Codex

@@ -10,8 +10,18 @@ import {
 
 interface AdminDirectoryUrlController {
   urlState: AdminDirectoryUrlState;
+  updateUrlState: (
+    update: AdminDirectoryUrlUpdate,
+    navigation?: AdminDirectoryUrlNavigation,
+  ) => void;
   selectTab: (value: string) => void;
 }
+
+export type AdminDirectoryUrlUpdate = (
+  current: AdminDirectoryUrlState,
+) => AdminDirectoryUrlState;
+
+export type AdminDirectoryUrlNavigation = "replace" | "push";
 
 function parseAdminDirectoryTab(
   value: string,
@@ -37,16 +47,30 @@ export function useAdminDirectoryUrl(): AdminDirectoryUrlController {
     }
   }, [canonicalSearch, currentSearch, setSearchParams]);
 
-  const selectTab = useCallback(
-    (value: string) => {
-      const tab = parseAdminDirectoryTab(value);
-      if (!tab) return;
-      setSearchParams(serializeAdminDirectoryUrlState({ tab }), {
-        replace: false,
-      });
+  const updateUrlState = useCallback(
+    (
+      update: AdminDirectoryUrlUpdate,
+      navigation: AdminDirectoryUrlNavigation = "replace",
+    ) => {
+      setSearchParams(
+        (currentParams) =>
+          serializeAdminDirectoryUrlState(
+            update(parseAdminDirectoryUrlState(currentParams)),
+          ),
+        { replace: navigation === "replace" },
+      );
     },
     [setSearchParams],
   );
 
-  return { urlState, selectTab };
+  const selectTab = useCallback(
+    (value: string) => {
+      const tab = parseAdminDirectoryTab(value);
+      if (!tab) return;
+      updateUrlState((current) => ({ ...current, tab }), "push");
+    },
+    [updateUrlState],
+  );
+
+  return { urlState, updateUrlState, selectTab };
 }
