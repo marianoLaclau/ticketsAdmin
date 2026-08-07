@@ -6,8 +6,6 @@ import {
   useCreateAdminTicket,
   useUpdateTicket,
   useDeleteTicket,
-  TicketEstado,
-  TicketPrioridad,
   TicketSortBy,
   type Ticket,
   type TicketListResponse,
@@ -18,7 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { adminErrorMessage } from '@/hooks/use-admin-access';
 import { isTicketVersionConflict } from '@/lib/error-messages';
 import { SortableTableHead } from '@/components/SortableTableHead';
-import { TicketVersionConflictAlert } from '@/components/tickets/TicketVersionConflictAlert';
+import { AdminTicketFormDialog } from '@/features/admin-tickets/AdminTicketFormDialog';
 import { AdminTicketTableRow } from '@/features/admin-tickets/AdminTicketTableRow';
 
 import { TabsContent } from '@/components/ui/tabs';
@@ -30,14 +28,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,9 +46,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Plus,
@@ -67,7 +55,6 @@ import {
   ChevronRight,
   RotateCcw,
 } from 'lucide-react';
-import { getEstadoLabel } from '@/lib/estados';
 import { getContactDisplayName } from '@/lib/contacto';
 import {
   createDefaultTicketSort,
@@ -82,7 +69,6 @@ import {
   createEmptyAdminTicketForm,
   ticketToAdminTicketForm,
   type AdminTicketForm,
-  type AdminTicketTextField,
 } from '@/lib/admin-ticket-form';
 import {
   buildVersionedTicketUpdate,
@@ -90,22 +76,6 @@ import {
   shouldApplyTicketRevision,
   type TicketEditBaseline,
 } from '@/lib/ticket-version';
-
-const CAMPOS_TEXTO: Array<{
-  campo: AdminTicketTextField;
-  label: string;
-  requerido?: boolean;
-}> = [
-  { campo: 'conversation_id', label: 'Conversation ID', requerido: true },
-  { campo: 'hora', label: 'Hora (HH:MM)', requerido: true },
-  { campo: 'nombre', label: 'Nombre', requerido: true },
-  { campo: 'apellido', label: 'Apellido' },
-  { campo: 'telefono', label: 'Teléfono' },
-  { campo: 'dni', label: 'DNI' },
-  { campo: 'empresa', label: 'Empresa' },
-  { campo: 'email', label: 'Email' },
-  { campo: 'audio_url', label: 'URL del audio' },
-];
 
 interface AdminTicketsTabProps {
   request: RequestInit;
@@ -593,162 +563,18 @@ export function AdminTicketsTab({
         </div>
       </TabsContent>
 
-      {/* ------------------- DIALOG CREAR/EDITAR ------------------- */}
-      <Dialog open={dialogAbierto} onOpenChange={cambiarEstadoDialogo}>
-        <DialogContent className="sm:max-w-[640px] max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {editandoId === null
-                ? 'Nuevo registro'
-                : `Editar registro #${editandoId}`}
-            </DialogTitle>
-            <DialogDescription>
-              {editandoId === null
-                ? 'Alta manual directa en la base (el flujo normal es la ingesta automática por llamada).'
-                : 'Edición directa de los campos habilitados del registro.'}
-            </DialogDescription>
-          </DialogHeader>
-          {hasVersionConflict && (
-            <TicketVersionConflictAlert
-              isReloading={isReloadingTicket}
-              onReload={() => void resolverConflictoDeVersion()}
-            />
-          )}
-          <div className="grid grid-cols-2 gap-3 py-2">
-            {CAMPOS_TEXTO.map(({ campo, label, requerido }) => (
-              <div key={campo} className="space-y-1">
-                <Label className="text-xs">
-                  {label}
-                  {requerido && <span className="text-red-500"> *</span>}
-                </Label>
-                <Input
-                  value={form[campo] ?? ''}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      [campo]: event.target.value,
-                    }))
-                  }
-                  disabled={campo === 'conversation_id' && editandoId !== null}
-                  className="h-8 text-sm"
-                />
-              </div>
-            ))}
-            <div className="space-y-1">
-              <Label className="text-xs">Estado</Label>
-              <Select
-                value={form.estado}
-                onValueChange={(estado) =>
-                  setForm((current) => ({
-                    ...current,
-                    estado: estado as AdminTicketForm['estado'],
-                  }))
-                }
-              >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.values(TicketEstado).map((e) => (
-                    <SelectItem key={e} value={e}>
-                      {getEstadoLabel(e).toUpperCase()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Prioridad</Label>
-              <Select
-                value={form.prioridad}
-                onValueChange={(prioridad) =>
-                  setForm((current) => ({
-                    ...current,
-                    prioridad: prioridad as AdminTicketForm['prioridad'],
-                  }))
-                }
-              >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.values(TicketPrioridad).map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p.toUpperCase()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="col-span-2 space-y-1">
-              <Label className="text-xs">
-                Motivo<span className="text-red-500"> *</span>
-              </Label>
-              <Input
-                value={form.motivo}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    motivo: event.target.value,
-                  }))
-                }
-                className="h-8 text-sm"
-              />
-            </div>
-            <div className="col-span-2 space-y-1">
-              <Label className="text-xs">Resumen</Label>
-              <Textarea
-                value={form.resumen}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    resumen: event.target.value,
-                  }))
-                }
-                className="h-20 text-sm"
-              />
-            </div>
-            <div className="col-span-2 space-y-1">
-              <Label className="text-xs">Notas internas</Label>
-              <Textarea
-                value={form.notas}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    notas: event.target.value,
-                  }))
-                }
-                className="h-16 text-sm"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => cambiarEstadoDialogo(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={guardarRegistro}
-              disabled={
-                createTicket.isPending ||
-                updateTicket.isPending ||
-                isReloadingTicket ||
-                hasVersionConflict ||
-                !form.conversation_id.trim() ||
-                !form.hora.trim() ||
-                !form.nombre.trim() ||
-                !form.motivo.trim()
-              }
-            >
-              {createTicket.isPending || updateTicket.isPending
-                ? 'Guardando...'
-                : 'Guardar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AdminTicketFormDialog
+        open={dialogAbierto}
+        editingId={editandoId}
+        form={form}
+        isSaving={createTicket.isPending || updateTicket.isPending}
+        isReloading={isReloadingTicket}
+        hasVersionConflict={hasVersionConflict}
+        onOpenChange={cambiarEstadoDialogo}
+        onFormChange={setForm}
+        onReloadLatest={() => void resolverConflictoDeVersion()}
+        onSave={guardarRegistro}
+      />
 
       {/* ------------------- CONFIRMAR ELIMINAR ------------------- */}
       <AlertDialog

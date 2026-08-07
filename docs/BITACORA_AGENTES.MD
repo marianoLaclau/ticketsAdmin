@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Formulario administrativo de tickets aislado
+
+**Agente:** Codex
+**Estado:** sexagésima remediación de la auditoría técnica, implementada y validada localmente.
+
+- El diálogo de alta y edición salió de `AdminTicketsTab.tsx` a `features/admin-tickets/AdminTicketFormDialog.tsx` como vista controlada, sin hooks ni estado remoto propio.
+- El controlador conserva formulario, baseline, mutaciones, caché, recarga y resolución de conflictos optimistas. Se preservaron campos, obligatoriedad, bloqueo de `conversation_id` al editar, mensajes y condiciones de guardado.
+- La revisión del diff no encontró hallazgos P0/P1/P2. Aprobaron 85 pruebas del frontend, typecheck, ESLint, Prettier acotado, build aislado y `diff --check`; el temporal fue eliminado. No se hizo push.
+
 ## 2026-08-06 — Fila administrativa de ticket aislada
 
 **Agente:** Codex
