@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Apertura accesible de registros administrativos
+
+**Agente:** Codex
+**Estado:** centésima vigésima octava remediación de la auditoría técnica, implementada localmente.
+
+- La acción “Abrir” de la tabla administrativa es ahora un enlace real de Wouter estilizado mediante `Button asChild`; conserva activación por teclado, foco, menú contextual, clic central y apertura con Ctrl/Cmd sin producir HTML interactivo anidado.
+- La navegación primaria transporta el retorno administrativo validado mediante History API. Una pestaña nueva, donde `history.state` no puede trasladarse, abre el detalle normalmente y utiliza el fallback seguro a `/admin`.
+- Se eliminó la navegación imperativa paralela del contenedor. Aprobaron las 147 pruebas frontend, Prettier, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. El build sólo emitió las advertencias de sourcemaps ya conocidas y eliminó su salida temporal. No se hizo push.
+
 ## 2026-08-07 — Retorno contextual desde el detalle administrativo
 
 **Agente:** Codex

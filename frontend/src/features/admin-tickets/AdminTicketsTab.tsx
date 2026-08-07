@@ -11,7 +11,6 @@ import {
   type TicketListResponse,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { adminErrorMessage } from "@/hooks/use-admin-access";
 import { isTicketVersionConflict } from "@/lib/error-messages";
@@ -85,7 +84,6 @@ export function AdminTicketsTab({
 }: AdminTicketsTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [, setLocation] = useLocation();
 
   const refrescarTickets = () => invalidateTicketDomainQueries(queryClient);
 
@@ -501,11 +499,7 @@ export function AdminTicketsTab({
                       key={ticket.id}
                       ticket={ticket}
                       isEditDisabled={isReloadingTicket}
-                      onOpen={(id) =>
-                        setLocation(`/admin/tickets/${id}`, {
-                          state: detailNavigationState,
-                        })
-                      }
+                      navigationState={detailNavigationState}
                       onEdit={abrirEditar}
                       onDelete={setAEliminar}
                     />

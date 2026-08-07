@@ -1,5 +1,6 @@
 import type { Ticket } from "@workspace/api-client-react";
 import { AlertCircle, Eye, Mail, Pencil, Phone, Trash2 } from "lucide-react";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
 import {
@@ -18,11 +19,12 @@ import {
   isVencido,
   PrioridadBadge,
 } from "@/lib/utils-tickets";
+import type { AdminTicketDetailNavigationState } from "@/lib/ticket-navigation";
 
 interface AdminTicketTableRowProps {
   ticket: Ticket;
   isEditDisabled: boolean;
-  onOpen: (ticketId: number) => void;
+  navigationState: AdminTicketDetailNavigationState;
   onEdit: (ticket: Ticket) => void;
   onDelete: (ticket: Ticket) => void;
 }
@@ -30,7 +32,7 @@ interface AdminTicketTableRowProps {
 export function AdminTicketTableRow({
   ticket,
   isEditDisabled,
-  onOpen,
+  navigationState,
   onEdit,
   onDelete,
 }: AdminTicketTableRowProps) {
@@ -152,18 +154,21 @@ export function AdminTicketTableRow({
       <TableCell className="sticky right-0 z-[1] bg-white text-right shadow-[-4px_0_6px_-6px_rgba(15,23,42,0.45)] group-hover:bg-slate-50/80">
         <div className="flex justify-end gap-1">
           <Button
+            asChild
             variant="outline"
             size="sm"
             className="h-7 gap-1 px-2 text-xs"
-            onClick={(event) => {
-              event.stopPropagation();
-              onOpen(ticket.id);
-            }}
             title={`Abrir ticket #${ticket.id}`}
             aria-label={`Abrir ticket #${ticket.id}`}
           >
-            <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-            Abrir
+            <Link
+              href={`/admin/tickets/${ticket.id}`}
+              state={navigationState}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+              Abrir
+            </Link>
           </Button>
           <Button
             variant="ghost"
