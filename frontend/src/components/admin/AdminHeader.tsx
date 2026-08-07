@@ -15,6 +15,8 @@ import { useListAdminRoles } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { getAdminCredentialState } from "@/lib/admin-credential-state";
 
 interface AdminHeaderProps {
   title: string;
@@ -32,6 +34,8 @@ const adminLinks = [
   },
 ];
 
+const ADMIN_KEY_PROBE_DEBOUNCE_MS = 350;
+
 let adminKeyProbeVersion = 0;
 
 function nextAdminKeyProbeVersion(): number {
@@ -44,20 +48,61 @@ function nextAdminKeyProbeVersion(): number {
  * haciendo una consulta mínima a la API con la llave actual.
  */
 function EstadoLlave({ adminKey }: { adminKey: string }) {
+  const effectiveAdminKey = useDebouncedValue(
+    adminKey,
+    ADMIN_KEY_PROBE_DEBOUNCE_MS,
+  );
+  const credentialState = getAdminCredentialState(adminKey, effectiveAdminKey);
   // La clave nunca debe formar parte del query key: React Query conserva esos
   // identificadores en memoria y puede exponerlos en herramientas de desarrollo.
-  const probeVersion = useMemo(nextAdminKeyProbeVersion, [adminKey]);
+  const probeVersion = useMemo(nextAdminKeyProbeVersion, [effectiveAdminKey]);
   const probe = useListAdminRoles(
     { page: 1, limit: 1 },
     {
       query: {
         queryKey: ["admin-key-probe", probeVersion],
+        enabled: credentialState === "ready",
         retry: false,
         refetchOnWindowFocus: false,
       },
-      request: adminKey ? { headers: { "x-admin-key": adminKey } } : {},
+      request: effectiveAdminKey
+        ? { headers: { "x-admin-key": effectiveAdminKey } }
+        : {},
     },
   );
+
+  if (credentialState === "pending") {
+    return (
+      <span
+        id="admin-key-status"
+        className="flex items-center gap-1 text-xs text-muted-foreground"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <Loader2
+          className="h-3 w-3 animate-spin motion-reduce:animate-none"
+          aria-hidden="true"
+        />{" "}
+        Preparando verificación...
+      </span>
+    );
+  }
+
+  if (credentialState === "missing") {
+    return (
+      <span
+        id="admin-key-status"
+        className="flex items-center gap-1 text-xs font-medium text-red-600"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <XCircle className="h-3 w-3" aria-hidden="true" />
+        Falta la llave de administración
+      </span>
+    );
+  }
 
   if (probe.isLoading) {
     return (
@@ -101,9 +146,7 @@ function EstadoLlave({ adminKey }: { adminKey: string }) {
     >
       <XCircle className="h-3 w-3" aria-hidden="true" />
       {status === 401
-        ? adminKey
-          ? "Llave inválida — verificala"
-          : "Falta la llave de administración"
+        ? "Llave inválida — verificala"
         : status === 503
           ? "ADMIN_API_KEY no está configurada en el servidor"
           : "Sin acceso — verificá la conexión"}

@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Verificación diferida de la llave administrativa
+
+**Agente:** Codex
+**Estado:** centésima cuadragésima tercera remediación de la auditoría técnica, implementada localmente.
+
+- La cabecera administrativa dejó de consultar la API en cada pulsación: espera 350 ms de estabilidad y ejecuta una única verificación con la credencial efectiva. La llave continúa fuera de las claves de caché y nunca se usa el valor parcial escrito por el usuario.
+- Durante la escritura o el borrado se ocultan inmediatamente los resultados anteriores y se anuncia la transición; una llave vacía ya no provoca solicitudes. Los estados válido, inválido, servidor sin configurar y error de conexión conservan sus mensajes diferenciados y accesibles.
+- Aprobaron las 160 pruebas frontend, Prettier, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. La salida temporal fue verificada y eliminada; sólo persistieron las advertencias de sourcemaps conocidas. No se hizo push.
+
 ## 2026-08-07 — Directorio administrativo responsive
 
 **Agente:** Codex
