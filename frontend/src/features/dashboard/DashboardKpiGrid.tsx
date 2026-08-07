@@ -1,5 +1,5 @@
-import { AlertCircle, CheckCircle2, Inbox, PhoneIncoming } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
+import { AlertCircle, CheckCircle2, Inbox, PhoneIncoming } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface DashboardKpiGridProps {
   isLoading: boolean;
@@ -61,18 +61,18 @@ export function DashboardKpiGrid({
       </div>
 
       <div
-        className={`rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm border ${hasOverdue ? 'bg-red-50 border-red-200' : 'bg-card border-border'}`}
+        className={`rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm border ${hasOverdue ? "bg-red-50 border-red-200" : "bg-card border-border"}`}
       >
         <div
-          className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${hasOverdue ? 'bg-red-100' : 'bg-slate-100'}`}
+          className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${hasOverdue ? "bg-red-100" : "bg-slate-100"}`}
         >
           <AlertCircle
-            className={`h-5 w-5 ${hasOverdue ? 'text-red-600' : 'text-slate-400'}`}
+            className={`h-5 w-5 ${hasOverdue ? "text-red-600" : "text-slate-400"}`}
           />
         </div>
         <div>
           <p
-            className={`text-[11px] font-semibold uppercase tracking-wider ${hasOverdue ? 'text-red-700' : 'text-muted-foreground'}`}
+            className={`text-[11px] font-semibold uppercase tracking-wider ${hasOverdue ? "text-red-700" : "text-muted-foreground"}`}
           >
             Vencidos
           </p>
@@ -80,13 +80,13 @@ export function DashboardKpiGrid({
             <Skeleton className="h-8 w-10 mt-1" />
           ) : (
             <p
-              className={`text-3xl font-bold leading-none mt-1 ${hasOverdue ? 'text-red-800' : 'text-foreground'}`}
+              className={`text-3xl font-bold leading-none mt-1 ${hasOverdue ? "text-red-800" : "text-foreground"}`}
             >
               {overdueCount}
             </p>
           )}
           <p
-            className={`text-[11px] mt-0.5 ${hasOverdue ? 'text-red-600' : 'text-muted-foreground'}`}
+            className={`text-[11px] mt-0.5 ${hasOverdue ? "text-red-600" : "text-muted-foreground"}`}
           >
             fuera de plazo
           </p>

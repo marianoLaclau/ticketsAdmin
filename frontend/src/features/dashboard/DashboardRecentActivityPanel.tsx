@@ -1,8 +1,8 @@
-import type { ActividadItem } from '@workspace/api-client-react';
-import { Link } from 'wouter';
-import { Skeleton } from '@/components/ui/skeleton';
-import { SIN_NOMBRE_PROPORCIONADO } from '@/lib/contacto';
-import { formatDate } from '@/lib/utils-tickets';
+import type { ActividadItem } from "@workspace/api-client-react";
+import { Link } from "wouter";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SIN_NOMBRE_PROPORCIONADO } from "@/lib/contacto";
+import { formatDate } from "@/lib/utils-tickets";
 
 interface DashboardRecentActivityPanelProps {
   activities: readonly ActividadItem[] | undefined;
@@ -46,14 +46,14 @@ export function DashboardRecentActivityPanel({
           ) : (
             <div className="space-y-4">
               {activities.map((activity, idx) => {
-                const isNew = activity.tipo === 'ticket_creado';
+                const isNew = activity.tipo === "ticket_creado";
                 return (
                   <div key={idx} className="relative pl-5">
                     {idx !== activities.length - 1 && (
                       <div className="absolute left-[7px] top-4 bottom-[-16px] w-px bg-slate-100" />
                     )}
                     <div
-                      className={`absolute left-0.5 top-1 h-3 w-3 rounded-full border-2 border-white shadow-sm ${isNew ? 'bg-amber-400' : 'bg-blue-400'}`}
+                      className={`absolute left-0.5 top-1 h-3 w-3 rounded-full border-2 border-white shadow-sm ${isNew ? "bg-amber-400" : "bg-blue-400"}`}
                     />
                     <div>
                       <Link

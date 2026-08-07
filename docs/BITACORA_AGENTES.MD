@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Componentes del dashboard normalizados
+
+**Agente:** Codex
+**Estado:** nonagésima remediación de la auditoría técnica, implementada localmente.
+
+- Los cuatro componentes de `features/dashboard` se ajustaron a Prettier antes de cualquier mejora responsive. El diff sólo normaliza comillas y compacta un contenedor; datos, colores, fallbacks, gráficos y DOM funcional no cambian.
+- Mantener este paso separado permite que la próxima corrección visual sea revisable sin ruido mecánico.
+- Se validarán Prettier, ESLint, pruebas frontend, typecheck y build antes de commitear. No se hizo push.
+
 ## 2026-08-07 — Componentes de listado normalizados
 
 **Agente:** Codex

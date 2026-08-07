@@ -1,6 +1,6 @@
-import type { MotivoStat, PrioridadStat } from '@workspace/api-client-react';
-import { Skeleton } from '@/components/ui/skeleton';
-import { getMotivoCategoriaConfig } from '@/lib/motivos';
+import type { MotivoStat, PrioridadStat } from "@workspace/api-client-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getMotivoCategoriaConfig } from "@/lib/motivos";
 import {
   Bar,
   BarChart,
@@ -9,20 +9,20 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from 'recharts';
+} from "recharts";
 
 const PRIORIDAD_COLOR: Record<string, string> = {
-  urgente: '#ef4444',
-  alta: '#f97316',
-  media: '#3b82f6',
-  baja: '#22c55e',
+  urgente: "#ef4444",
+  alta: "#f97316",
+  media: "#3b82f6",
+  baja: "#22c55e",
 };
 
 const PRIORIDAD_LABEL: Record<string, string> = {
-  urgente: 'Urgente',
-  alta: 'Alta',
-  media: 'Media',
-  baja: 'Baja',
+  urgente: "Urgente",
+  alta: "Alta",
+  media: "Media",
+  baja: "Baja",
 };
 
 interface DashboardMotivesPriorityPanelProps {
@@ -51,7 +51,7 @@ export function DashboardMotivesPriorityPanel({
         stat.categoria ??
         stat.motivo_categoria ??
         stat.motivo ??
-        'sin_clasificar';
+        "sin_clasificar";
 
       return {
         categoria,
@@ -65,7 +65,7 @@ export function DashboardMotivesPriorityPanel({
   const priorityData = (priorities ?? []).map((priority) => ({
     name: PRIORIDAD_LABEL[priority.prioridad] ?? priority.prioridad,
     cantidad: priority.cantidad,
-    color: PRIORIDAD_COLOR[priority.prioridad] ?? '#94a3b8',
+    color: PRIORIDAD_COLOR[priority.prioridad] ?? "#94a3b8",
   }));
 
   return (
@@ -148,25 +148,25 @@ export function DashboardMotivesPriorityPanel({
               >
                 <XAxis
                   dataKey="name"
-                  tick={{ fontSize: 11, fill: '#64748b' }}
+                  tick={{ fontSize: 11, fill: "#64748b" }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
                   allowDecimals={false}
-                  tick={{ fontSize: 11, fill: '#94a3b8' }}
+                  tick={{ fontSize: 11, fill: "#94a3b8" }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <Tooltip
-                  cursor={{ fill: '#f1f5f9' }}
+                  cursor={{ fill: "#f1f5f9" }}
                   contentStyle={{
-                    borderRadius: '6px',
-                    border: '1px solid #e2e8f0',
-                    fontSize: '12px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    borderRadius: "6px",
+                    border: "1px solid #e2e8f0",
+                    fontSize: "12px",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
                   }}
-                  formatter={(value) => [value, 'tickets']}
+                  formatter={(value) => [value, "tickets"]}
                 />
                 <Bar dataKey="cantidad" radius={[4, 4, 0, 0]}>
                   {priorityData.map((entry, index) => (
@@ -181,10 +181,7 @@ export function DashboardMotivesPriorityPanel({
           {!isPrioritiesLoading && priorityData.length > 0 && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
               {priorityData.map((priority) => (
-                <div
-                  key={priority.name}
-                  className="flex items-center gap-1.5"
-                >
+                <div key={priority.name} className="flex items-center gap-1.5">
                   <span
                     className="w-2 h-2 rounded-sm flex-shrink-0"
                     style={{ backgroundColor: priority.color }}
