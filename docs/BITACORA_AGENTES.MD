@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Codec de filtros de Tickets en la URL
+
+**Agente:** Codex
+**Estado:** centésima décima primera remediación de la auditoría técnica, implementada localmente.
+
+- Se agregó un codec puro para leer, validar y serializar filtros, orden compuesto y paginación del listado de tickets, omitiendo valores predeterminados y descartando entradas manipuladas.
+- Las allowlists quedan contrastadas por pruebas contra el contrato OpenAPI generado; el orden admite el mismo espaciado que el backend y las páginas no pueden producir offsets numéricamente inseguros.
+- Aprobaron las 9 pruebas dirigidas, Prettier, ESLint, typecheck y `git diff --check`. La pantalla todavía no consume el codec; esa integración queda aislada para el siguiente commit. No se hizo push.
+
 ## 2026-08-07 — Formato completo del detalle de ticket
 
 **Agente:** Codex
