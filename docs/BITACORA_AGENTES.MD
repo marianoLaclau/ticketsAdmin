@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Diálogos de usuarios administrativos desacoplados
+
+**Agente:** Codex
+**Estado:** centésima quincuagésima segunda remediación de la auditoría técnica, implementada localmente.
+
+- `AdminUsersTab.tsx` dejó de contener los formularios visuales de alta/edición y reset de contraseña: ambos se trasladaron a `AdminUserFormDialog.tsx` y `AdminUserPasswordDialog.tsx` como componentes controlados. El tab conserva consultas, mutaciones, validación de negocio, toasts y limpieza; la extracción reduce el mayor módulo del frontend de 972 a 708 líneas sin mover responsabilidades de datos.
+- Los nuevos componentes calculan únicamente el estado de presentación de la política de contraseñas, preservan roles inactivos durante una edición y no almacenan secretos propios. Se agregaron pruebas React para alta, edición, validaciones, campos ocultos, estado pendiente, rol legado y callbacks de cierre/guardado.
+- Aprobaron 180 pruebas unitarias y 8 de componentes, ESLint global, typecheck de todo el workspace, build de producción, Prettier en los archivos nuevos y `git diff --check`. Dos revisiones cruzadas no encontraron regresiones P0/P1/P2 en la extracción; una identificó por separado que el contenedor ya conservaba borradores al cambiar la frontera administrativa, remediación que queda aislada en el siguiente commit. No se hizo push.
+
 ## 2026-08-07 — TypeScript estricto en el backend
 
 **Agente:** Codex
