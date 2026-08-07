@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Formato de la página de tickets
+
+**Agente:** Codex
+**Estado:** centésima tercera remediación de la auditoría técnica, implementada localmente.
+
+- Se normalizó `pages/TicketList.tsx` con la configuración raíz de Prettier antes de corregir sus landmarks y avanzar con filtros persistentes en URL.
+- El fingerprint AST permaneció idéntico en sus 1.757 nodos normalizando únicamente la indentación no renderizada de `JSXText`.
+- Aprobaron las 87 pruebas frontend, Prettier, ESLint, typecheck y `git diff --check`. No se hizo push.
+
 ## 2026-08-07 — Formato del límite de errores
 
 **Agente:** Codex

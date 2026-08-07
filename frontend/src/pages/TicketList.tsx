@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 import {
   exportTicketsCsv,
   useListTickets,
@@ -6,24 +6,32 @@ import {
   type ListTicketsEstado,
   type ListTicketsPrioridad,
   type MotivoCategoria,
-} from '@workspace/api-client-react';
-import { useLocation } from 'wouter';
-import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+} from "@workspace/api-client-react";
+import { useLocation } from "wouter";
 import {
-  Filter,
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
-import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
-import { SortableTableHead } from '@/components/SortableTableHead';
-import { TicketListFiltersPanel } from '@/features/ticket-list/TicketListFiltersPanel';
-import { TicketListTableRow } from '@/features/ticket-list/TicketListTableRow';
-import { TicketSortToolbar } from '@/features/ticket-list/TicketSortToolbar';
-import { useToast } from '@/hooks/use-toast';
-import { getUserErrorMessage } from '@/lib/error-messages';
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Filter, ChevronLeft, ChevronRight } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorPage, getErrorStatus } from "@/components/ErrorPage";
+import { SortableTableHead } from "@/components/SortableTableHead";
+import { TicketListFiltersPanel } from "@/features/ticket-list/TicketListFiltersPanel";
+import { TicketListTableRow } from "@/features/ticket-list/TicketListTableRow";
+import { TicketSortToolbar } from "@/features/ticket-list/TicketSortToolbar";
+import { useToast } from "@/hooks/use-toast";
+import { getUserErrorMessage } from "@/lib/error-messages";
 import {
   buildTicketExportParams,
   buildTicketListParams,
@@ -34,23 +42,24 @@ import {
   nextTicketSort,
   type TicketActiveFilters,
   type TicketSortRule,
-} from '@/lib/ticket-list-controls';
+} from "@/lib/ticket-list-controls";
 
 export default function TicketList() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [search, setSearch] = useState('');
-  const [estadoFilter, setEstadoFilter] = useState<string>('_all');
-  const [prioridadFilter, setPrioridadFilter] = useState<string>('_all');
-  const [motivoCategoriaFilter, setMotivoCategoriaFilter] = useState<string>('_all');
+  const [search, setSearch] = useState("");
+  const [estadoFilter, setEstadoFilter] = useState<string>("_all");
+  const [prioridadFilter, setPrioridadFilter] = useState<string>("_all");
+  const [motivoCategoriaFilter, setMotivoCategoriaFilter] =
+    useState<string>("_all");
   const [vencidosFilter, setVencidosFilter] = useState(false);
 
   // Date and Time filters
-  const [fechaDesde, setFechaDesde] = useState('');
-  const [fechaHasta, setFechaHasta] = useState('');
-  const [horaDesde, setHoraDesde] = useState('');
-  const [horaHasta, setHoraHasta] = useState('');
-  const [empresa, setEmpresa] = useState('');
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
+  const [horaDesde, setHoraDesde] = useState("");
+  const [horaHasta, setHoraHasta] = useState("");
+  const [empresa, setEmpresa] = useState("");
 
   // Orden server-side sobre el conjunto completo + paginación.
   const [sorts, setSorts] = useState<TicketSortRule[]>(createDefaultTicketSort);
@@ -78,9 +87,15 @@ export default function TicketList() {
 
   const activeFilters: TicketActiveFilters = {
     ...(search ? { search } : {}),
-    ...(estadoFilter !== '_all' ? { estado: estadoFilter as ListTicketsEstado } : {}),
-    ...(prioridadFilter !== '_all' ? { prioridad: prioridadFilter as ListTicketsPrioridad } : {}),
-    ...(motivoCategoriaFilter !== '_all' ? { motivo_categoria: motivoCategoriaFilter as MotivoCategoria } : {}),
+    ...(estadoFilter !== "_all"
+      ? { estado: estadoFilter as ListTicketsEstado }
+      : {}),
+    ...(prioridadFilter !== "_all"
+      ? { prioridad: prioridadFilter as ListTicketsPrioridad }
+      : {}),
+    ...(motivoCategoriaFilter !== "_all"
+      ? { motivo_categoria: motivoCategoriaFilter as MotivoCategoria }
+      : {}),
     ...(vencidosFilter ? { vencidos: true } : {}),
     ...(fechaDesde ? { fecha_desde: fechaDesde } : {}),
     ...(fechaHasta ? { fecha_hasta: fechaHasta } : {}),
@@ -104,16 +119,16 @@ export default function TicketList() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const clearFilters = () => {
-    setSearch('');
-    setEstadoFilter('_all');
-    setPrioridadFilter('_all');
-    setMotivoCategoriaFilter('_all');
+    setSearch("");
+    setEstadoFilter("_all");
+    setPrioridadFilter("_all");
+    setMotivoCategoriaFilter("_all");
     setVencidosFilter(false);
-    setFechaDesde('');
-    setFechaHasta('');
-    setHoraDesde('');
-    setHoraHasta('');
-    setEmpresa('');
+    setFechaDesde("");
+    setFechaHasta("");
+    setHoraDesde("");
+    setHoraHasta("");
+    setEmpresa("");
   };
 
   const handleSort = (column: TicketSortBy, additive: boolean) => {
@@ -133,15 +148,19 @@ export default function TicketList() {
       const csv = await exportTicketsCsv(exportParams);
       downloadTicketCsv(csv, createTicketCsvFilename());
       toast({
-        variant: 'success',
-        title: 'CSV exportado',
-        description: 'Se descargaron todos los tickets que coinciden con los filtros actuales.',
+        variant: "success",
+        title: "CSV exportado",
+        description:
+          "Se descargaron todos los tickets que coinciden con los filtros actuales.",
       });
     } catch (error) {
       toast({
-        variant: 'destructive',
-        title: 'No se pudo exportar el CSV',
-        description: getUserErrorMessage(error, 'No pudimos generar el archivo. Reintentá en unos segundos.'),
+        variant: "destructive",
+        title: "No se pudo exportar el CSV",
+        description: getUserErrorMessage(
+          error,
+          "No pudimos generar el archivo. Reintentá en unos segundos.",
+        ),
       });
     } finally {
       setIsExporting(false);
@@ -164,7 +183,9 @@ export default function TicketList() {
     <div className="p-4 md:p-8 max-w-[1600px] mx-auto w-full space-y-4 flex flex-col h-full">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Llamados</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            Llamados
+          </h1>
           {listResponse && (
             <span className="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-0.5 rounded-full">
               {listResponse.total}
@@ -315,13 +336,20 @@ export default function TicketList() {
                 ))
               ) : tickets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="h-64 text-center border-b-0">
+                  <TableCell
+                    colSpan={9}
+                    className="h-64 text-center border-b-0"
+                  >
                     <div className="flex flex-col items-center justify-center text-slate-500 space-y-3">
                       <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100">
                         <Filter className="h-5 w-5 text-slate-400" />
                       </div>
-                      <p className="text-sm font-medium text-slate-900">No se encontraron llamados</p>
-                      <p className="text-xs">Modifica los filtros o intenta con otra búsqueda.</p>
+                      <p className="text-sm font-medium text-slate-900">
+                        No se encontraron llamados
+                      </p>
+                      <p className="text-xs">
+                        Modifica los filtros o intenta con otra búsqueda.
+                      </p>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -342,7 +370,10 @@ export default function TicketList() {
         <div className="shrink-0 flex flex-col sm:flex-row items-center justify-between gap-2 px-4 py-2.5 border-t border-border bg-slate-50/60">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Mostrar</span>
-            <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => setPageSize(Number(v))}
+            >
               <SelectTrigger className="h-7 w-[70px] text-xs bg-white">
                 <SelectValue />
               </SelectTrigger>
