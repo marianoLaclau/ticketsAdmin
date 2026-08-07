@@ -1,30 +1,39 @@
-import React from 'react';
-import { AppLayout } from '@/components/layout/AppLayout';
-import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
-import Dashboard from '@/pages/Dashboard';
-import TicketList from '@/pages/TicketList';
-import TicketDetail from '@/pages/TicketDetail';
-import Admin from '@/pages/Admin';
-import AdminRolesUsers from '@/pages/AdminRolesUsers';
-import Login from '@/pages/Login';
-import ChangePassword from '@/pages/ChangePassword';
-import NotFound from '@/pages/not-found';
-import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useGetMe, getGetMeQueryKey } from '@workspace/api-client-react';
-import { Toaster } from '@/components/ui/toaster';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { Loader2 } from 'lucide-react';
-import { ROL_SYSADMIN } from '@/lib/roles';
-import { AppErrorBoundary, ErrorPage, getErrorStatus } from '@/components/ErrorPage';
-import { getServerErrorCode } from '@/lib/error-messages';
+import React from "react";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { Route, Switch, Router as WouterRouter, useLocation } from "wouter";
+import Dashboard from "@/pages/Dashboard";
+import TicketList from "@/pages/TicketList";
+import TicketDetail from "@/pages/TicketDetail";
+import Admin from "@/pages/Admin";
+import AdminRolesUsers from "@/pages/AdminRolesUsers";
+import Login from "@/pages/Login";
+import ChangePassword from "@/pages/ChangePassword";
+import NotFound from "@/pages/not-found";
+import {
+  MutationCache,
+  QueryCache,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
+import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Loader2 } from "lucide-react";
+import { ROL_SYSADMIN } from "@/lib/roles";
+import {
+  AppErrorBoundary,
+  ErrorPage,
+  getErrorStatus,
+} from "@/components/ErrorPage";
+import { getServerErrorCode } from "@/lib/error-messages";
 import {
   PASSWORD_CHANGE_PATH,
   getAuthenticatedEntryPath,
-} from '@/lib/password-change';
+} from "@/lib/password-change";
 import {
   clearAuthenticatedQueries,
   hasConfirmedPublicSession,
-} from '@/lib/session-state';
+} from "@/lib/session-state";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,10 +51,13 @@ const queryClient = new QueryClient({
       const esQueryDeSesion = query.queryKey[0] === getGetMeQueryKey()[0];
       const isUnauthorized = (error as { status?: number })?.status === 401;
       const requiresPasswordChange =
-        getServerErrorCode(error) === 'PASSWORD_CHANGE_REQUIRED';
+        getServerErrorCode(error) === "PASSWORD_CHANGE_REQUIRED";
       if (esQueryDeSesion && isUnauthorized) {
         clearAuthenticatedQueries(queryClient, getGetMeQueryKey());
-      } else if (!esQueryDeSesion && (isUnauthorized || requiresPasswordChange)) {
+      } else if (
+        !esQueryDeSesion &&
+        (isUnauthorized || requiresPasswordChange)
+      ) {
         void queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       }
     },
@@ -54,15 +66,17 @@ const queryClient = new QueryClient({
     onError: (error) => {
       const isUnauthorized = getErrorStatus(error) === 401;
       const requiresPasswordChange =
-        getServerErrorCode(error) === 'PASSWORD_CHANGE_REQUIRED';
+        getServerErrorCode(error) === "PASSWORD_CHANGE_REQUIRED";
       if (!isUnauthorized && !requiresPasswordChange) return;
 
       const apiError = error as { data?: { error?: unknown }; url?: unknown };
       const serverMessage = apiError.data?.error;
       const isAdminKeyError =
-        typeof serverMessage === 'string' && serverMessage.toLowerCase().includes('administración');
+        typeof serverMessage === "string" &&
+        serverMessage.toLowerCase().includes("administración");
       const isLoginAttempt =
-        typeof apiError.url === 'string' && apiError.url.includes('/api/auth/login');
+        typeof apiError.url === "string" &&
+        apiError.url.includes("/api/auth/login");
 
       // Una API key incorrecta no invalida la sesión del SysAdmin, y un login
       // fallido ya se informa dentro del formulario. El resto de los 401 en
@@ -98,11 +112,26 @@ function LoadingSession() {
  */
 function PublicEntry() {
   const [, navigate] = useLocation();
-  const { data: me, error, isError, isFetching, isLoading, refetch } = useGetMe({
-    query: { queryKey: getGetMeQueryKey(), retry: false, refetchOnWindowFocus: true },
+  const {
+    data: me,
+    error,
+    isError,
+    isFetching,
+    isLoading,
+    refetch,
+  } = useGetMe({
+    query: {
+      queryKey: getGetMeQueryKey(),
+      retry: false,
+      refetchOnWindowFocus: true,
+    },
   });
   const errorStatus = getErrorStatus(error);
-  const hasConfirmedSession = hasConfirmedPublicSession(me, isError, isFetching);
+  const hasConfirmedSession = hasConfirmedPublicSession(
+    me,
+    isError,
+    isFetching,
+  );
 
   React.useEffect(() => {
     if (hasConfirmedSession) {
@@ -116,13 +145,17 @@ function PublicEntry() {
   if (!isError || errorStatus === 401) return <Login />;
 
   const esErrorDeConexion = errorStatus === undefined;
-  const puedeReintentar = esErrorDeConexion || (errorStatus >= 500 && errorStatus <= 599);
+  const puedeReintentar =
+    esErrorDeConexion || (errorStatus >= 500 && errorStatus <= 599);
 
   return (
     <ErrorPage
       status={esErrorDeConexion ? 503 : errorStatus}
       {...(esErrorDeConexion
-        ? { message: 'No pudimos verificar tu sesión porque el servidor no responde.' }
+        ? {
+            message:
+              "No pudimos verificar tu sesión porque el servidor no responde.",
+          }
         : {})}
       homeHref={import.meta.env.BASE_URL}
       {...(puedeReintentar ? { onRetry: () => void refetch() } : {})}
@@ -138,16 +171,27 @@ function PublicEntry() {
  */
 function AuthGate({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
-  const { data: me, error, isError, isFetching, isLoading, refetch } = useGetMe({
-    query: { queryKey: getGetMeQueryKey(), retry: false, refetchOnWindowFocus: true },
+  const {
+    data: me,
+    error,
+    isError,
+    isFetching,
+    isLoading,
+    refetch,
+  } = useGetMe({
+    query: {
+      queryKey: getGetMeQueryKey(),
+      retry: false,
+      refetchOnWindowFocus: true,
+    },
   });
   const errorStatus = getErrorStatus(error);
 
   React.useEffect(() => {
     if (isError && errorStatus === 401) {
-      navigate('/', { replace: true });
+      navigate("/", { replace: true });
     } else if (!isLoading && !isError && !me) {
-      navigate('/', { replace: true });
+      navigate("/", { replace: true });
     } else if (me) {
       const target = getAuthenticatedEntryPath(me);
       const passwordChangeRequired = target === PASSWORD_CHANGE_PATH;
@@ -165,13 +209,17 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (errorStatus === 401) return <LoadingSession />;
 
     const esErrorDeConexion = errorStatus === undefined;
-    const puedeReintentar = esErrorDeConexion || (errorStatus >= 500 && errorStatus <= 599);
+    const puedeReintentar =
+      esErrorDeConexion || (errorStatus >= 500 && errorStatus <= 599);
 
     return (
       <ErrorPage
         status={esErrorDeConexion ? 503 : errorStatus}
         {...(esErrorDeConexion
-          ? { message: 'No pudimos verificar tu sesión porque el servidor no responde.' }
+          ? {
+              message:
+                "No pudimos verificar tu sesión porque el servidor no responde.",
+            }
           : {})}
         homeHref={import.meta.env.BASE_URL}
         {...(puedeReintentar ? { onRetry: () => void refetch() } : {})}
@@ -197,15 +245,23 @@ function ProtectedRouter() {
       <Switch>
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/admin/roles-usuarios">
-          <SoloSysAdmin><AdminRolesUsers /></SoloSysAdmin>
+          <SoloSysAdmin>
+            <AdminRolesUsers />
+          </SoloSysAdmin>
         </Route>
         <Route path="/admin/tickets/:id">
-          <SoloSysAdmin><TicketDetail adminMode /></SoloSysAdmin>
+          <SoloSysAdmin>
+            <TicketDetail adminMode />
+          </SoloSysAdmin>
         </Route>
         <Route path="/admin">
-          <SoloSysAdmin><Admin /></SoloSysAdmin>
+          <SoloSysAdmin>
+            <Admin />
+          </SoloSysAdmin>
         </Route>
-        <Route path="/tickets/:id"><TicketDetail /></Route>
+        <Route path="/tickets/:id">
+          <TicketDetail />
+        </Route>
         <Route path="/tickets" component={TicketList} />
         <Route component={NotFound} />
       </Switch>
@@ -218,7 +274,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AppErrorBoundary>
         <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <Switch>
               <Route path="/" component={PublicEntry} />
               <Route>

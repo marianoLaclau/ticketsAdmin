@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Shell frontend normalizado
+
+**Agente:** Codex
+**Estado:** octogésima séptima remediación de la auditoría técnica, implementada localmente.
+
+- `frontend/src/App.tsx` se normalizó con Prettier en un commit previo e independiente al route splitting. El diff sólo cambia comillas, reflow e indentación JSX.
+- El AST TSX previo y posterior es equivalente al excluir metadatos de formato y nodos de espacio JSX sin contenido, por lo que rutas, guards, caché y manejo de sesión no cambian.
+- Se validarán Prettier, ESLint, las 85 pruebas frontend, typecheck y build antes de commitear. No se hizo push.
+
 ## 2026-08-07 — Formato backend cerrado
 
 **Agente:** Codex
