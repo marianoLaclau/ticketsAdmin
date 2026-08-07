@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Carga accesible en el detalle
+
+**Agente:** Codex
+**Estado:** centésima séptima remediación de la auditoría técnica, implementada localmente.
+
+- La carga inicial del detalle anuncia una sola vez “Cargando detalle del ticket”; sus skeletons permanecen decorativos y no hay un ancestro `aria-busy` que difiera la locución.
+- La condición usa exclusivamente la carga inicial, por lo que los refetches con datos visibles no reemplazan ni vuelven a anunciar la pantalla.
+- Aprobaron Prettier, ESLint, typecheck, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Carga accesible en Tickets
 
 **Agente:** Codex
