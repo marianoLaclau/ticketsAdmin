@@ -2,6 +2,14 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Poda de aliases frontend sin consumidores
+
+**Agente:** Codex
+**Estado:** centésima quincuagésima quinta remediación de la auditoría técnica, implementada localmente.
+
+- Se retiraron `AdminDirectoryStatusFilter` y `FunctionalTicketField`: ambos aliases se exportaban desde módulos internos pero no tenían imports, reexports ni usos en producción, pruebas o tooling. Los modelos, catálogos de campos y formularios que sí conforman el contrato interno permanecen intactos.
+- La limpieza evita mantener API aparente y tipos sin dueño. Aprobaron las pruebas dirigidas de modelo administrativo y edición de tickets, ESLint del alcance, typecheck del frontend, build de producción y `git diff --check`. No se hizo push.
+
 ## 2026-08-07 — Poda de contratos muertos en la capa de datos
 
 **Agente:** Codex

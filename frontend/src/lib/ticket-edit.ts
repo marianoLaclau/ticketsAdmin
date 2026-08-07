@@ -12,8 +12,6 @@ export const FUNCTIONAL_TICKET_FIELD_LABELS = {
   resumen: 'Resumen del llamado',
 } as const;
 
-export type FunctionalTicketField = keyof typeof FUNCTIONAL_TICKET_FIELD_LABELS;
-
 export const TICKET_AUDIT_FIELD_LABELS: Readonly<Record<string, string>> = {
   ...FUNCTIONAL_TICKET_FIELD_LABELS,
   hora: 'Hora del llamado',

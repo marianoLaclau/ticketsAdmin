@@ -1,7 +1,5 @@
 import type { AdminRole, AdminUser } from '@workspace/api-client-react';
 
-export type AdminDirectoryStatusFilter = '_all' | 'active' | 'inactive';
-
 export interface AdminUserFormState {
   nombre: string;
   apellido: string;
