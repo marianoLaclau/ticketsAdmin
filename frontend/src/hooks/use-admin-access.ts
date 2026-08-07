@@ -10,7 +10,7 @@ import {
   planAdminCredentialSave,
   type AdminCredentialSnapshot,
 } from "@/lib/admin-access-ownership";
-import { hasConfirmedPublicSession } from "@/lib/session-state";
+import { getConfirmedSessionUser } from "@/lib/session-state";
 
 function readInitialCredential(
   userId: number | undefined,
@@ -25,14 +25,13 @@ function readInitialCredential(
 export function useAdminAccess() {
   const {
     data: me,
+    fetchStatus,
     isError,
-    isFetching,
   } = useGetMe({
     query: { queryKey: getGetMeQueryKey() },
   });
-  const userId = hasConfirmedPublicSession(me, isError, isFetching)
-    ? me.id
-    : undefined;
+  const confirmedUser = getConfirmedSessionUser(me, { isError, fetchStatus });
+  const userId = confirmedUser?.id;
   const [credential, setCredential] = useState<AdminCredentialSnapshot | null>(
     () => readInitialCredential(userId),
   );

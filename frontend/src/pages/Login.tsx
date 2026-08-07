@@ -8,16 +8,13 @@ import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { AlertCircle, KeyRound, LogIn, User } from 'lucide-react';
-import { useLocation } from 'wouter';
 import { getLoginErrorMessage } from '@/lib/error-messages';
-import { getAuthenticatedEntryPath } from '@/lib/password-change';
-import { clearAuthenticatedQueries } from '@/lib/session-state';
+import { clearIdentityScopedCache } from '@/lib/session-state';
 
 import gsbLogo from '@/assets/gsb-logo.jpg';
 
 export default function Login() {
   const queryClient = useQueryClient();
-  const [, navigate] = useLocation();
   const login = useLogin();
   const [usuario, setUsuario] = useState('');
   const [password, setPassword] = useState('');
@@ -30,12 +27,13 @@ export default function Login() {
       { data: { usuario, password } },
       {
         onSuccess: (user) => {
-          // Ninguna query funcional de una identidad anterior puede sobrevivir
-          // al login. /auth/me se preserva para reemplazarla sin recrear el
-          // observer que mantiene montada la entrada pública.
-          clearAuthenticatedQueries(queryClient, getGetMeQueryKey());
+          // Ninguna query o mutación de una sesión anterior puede sobrevivir
+          // al login, incluso si vuelve a entrar el mismo usuario. /auth/me se
+          // preserva para reemplazarla sin recrear el observer de la entrada.
+          clearIdentityScopedCache(queryClient, getGetMeQueryKey());
           queryClient.setQueryData(getGetMeQueryKey(), user);
-          navigate(getAuthenticatedEntryPath(user), { replace: true });
+          // PublicEntry acepta la nueva identidad y recién entonces navega.
+          // Así ningún árbol protegido ve datos del usuario anterior.
         },
         onError: (err) => {
           setError(getLoginErrorMessage(err));

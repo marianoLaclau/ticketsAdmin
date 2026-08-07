@@ -9,7 +9,7 @@ import {
   selectOwnedAdminKey,
   type AdminCredentialSnapshot,
 } from "../src/lib/admin-access-ownership.ts";
-import { hasConfirmedPublicSession } from "../src/lib/session-state.ts";
+import { getConfirmedSessionUser } from "../src/lib/session-state.ts";
 
 const ownerA: AdminCredentialSnapshot = {
   ownerUserId: 11,
@@ -50,12 +50,14 @@ test("un cambio de identidad bloquea primero y carga luego su propio snapshot", 
 
 test("una identidad sin confirmar no obtiene llave ni request", () => {
   const staleUser = { id: 11 };
-  const userIdWhileFetching = hasConfirmedPublicSession(staleUser, false, true)
-    ? staleUser.id
-    : undefined;
-  const userIdAfterError = hasConfirmedPublicSession(staleUser, true, false)
-    ? staleUser.id
-    : undefined;
+  const userIdWhileFetching = getConfirmedSessionUser(staleUser, {
+    isError: false,
+    fetchStatus: "fetching",
+  })?.id;
+  const userIdAfterError = getConfirmedSessionUser(staleUser, {
+    isError: true,
+    fetchStatus: "idle",
+  })?.id;
 
   assert.deepEqual(getOwnedAdminAccess(userIdWhileFetching, ownerA), {
     adminKey: "",

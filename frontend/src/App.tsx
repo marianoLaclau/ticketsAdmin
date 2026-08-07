@@ -14,21 +14,26 @@ import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Loader2 } from "lucide-react";
+import {
+  AuthGate,
+  LoadingSession,
+  PausedSession,
+  type SessionIdentityProps,
+} from "@/features/auth/AuthGate";
 import { ROL_SYSADMIN } from "@/lib/roles";
 import {
   AppErrorBoundary,
   ErrorPage,
   getErrorStatus,
 } from "@/components/ErrorPage";
-import { LoadingStatus } from "@/components/ui/loading-status";
 import { getServerErrorCode } from "@/lib/error-messages";
-import {
-  PASSWORD_CHANGE_PATH,
-  getAuthenticatedEntryPath,
-} from "@/lib/password-change";
+import { getAuthenticatedEntryPath } from "@/lib/password-change";
 import {
   clearAuthenticatedQueries,
-  hasConfirmedPublicSession,
+  clearIdentityScopedCache,
+  getConfirmedSessionUser,
+  getSessionIdentityStatus,
+  getSessionVerificationState,
 } from "@/lib/session-state";
 
 const Dashboard = React.lazy(() => import("@/pages/Dashboard"));
@@ -100,18 +105,6 @@ function SoloSysAdmin({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function LoadingSession() {
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-sidebar">
-      <Loader2
-        className="h-8 w-8 animate-spin text-white/60 motion-reduce:animate-none"
-        aria-hidden="true"
-      />
-      <LoadingStatus>Verificando sesión</LoadingStatus>
-    </main>
-  );
-}
-
 function LoadingProtectedRoute() {
   return (
     <div
@@ -132,14 +125,14 @@ function LoadingProtectedRoute() {
  * La raíz es la entrada pública. Si todavía existe una sesión válida, evita
  * mostrar nuevamente el formulario y continúa al dashboard autenticado.
  */
-function PublicEntry() {
+function PublicEntry({ acceptedUserId, onAcceptUserId }: SessionIdentityProps) {
   const [, navigate] = useLocation();
   const {
     data: me,
     error,
+    fetchStatus,
     isError,
-    isFetching,
-    isLoading,
+    isPending,
     refetch,
   } = useGetMe({
     query: {
@@ -149,19 +142,45 @@ function PublicEntry() {
     },
   });
   const errorStatus = getErrorStatus(error);
-  const hasConfirmedSession = hasConfirmedPublicSession(
-    me,
+  const confirmedUser = getConfirmedSessionUser(me, {
     isError,
-    isFetching,
+    fetchStatus,
+  });
+  const sessionVerificationState = getSessionVerificationState({
+    isPending,
+    fetchStatus,
+  });
+  const identityStatus = getSessionIdentityStatus(
+    acceptedUserId,
+    confirmedUser?.id,
   );
 
   React.useEffect(() => {
-    if (hasConfirmedSession) {
-      navigate(getAuthenticatedEntryPath(me), { replace: true });
-    }
-  }, [hasConfirmedSession, me, navigate]);
+    if (sessionVerificationState !== "settled") return;
+    if (!confirmedUser) return;
 
-  if (isLoading || isFetching || hasConfirmedSession) return <LoadingSession />;
+    if (identityStatus === "changed") {
+      onAcceptUserId(confirmedUser.id);
+      return;
+    }
+
+    if (identityStatus !== "accepted") return;
+    navigate(getAuthenticatedEntryPath(confirmedUser), { replace: true });
+  }, [
+    confirmedUser,
+    identityStatus,
+    navigate,
+    onAcceptUserId,
+    sessionVerificationState,
+  ]);
+
+  if (sessionVerificationState === "paused") {
+    return <PausedSession onRetry={() => void refetch()} />;
+  }
+
+  if (sessionVerificationState === "verifying" || confirmedUser) {
+    return <LoadingSession />;
+  }
 
   // En la entrada, un 401 significa simplemente que hay que iniciar sesión.
   if (!isError || errorStatus === 401) return <Login />;
@@ -181,84 +200,9 @@ function PublicEntry() {
         : {})}
       homeHref={import.meta.env.BASE_URL}
       {...(puedeReintentar ? { onRetry: () => void refetch() } : {})}
-      isRetrying={isFetching}
+      isRetrying={false}
     />
   );
-}
-
-/**
- * Candado de toda la aplicación: sin sesión válida no se renderiza NINGUNA
- * pantalla. Un 401 normaliza la URL a la raíz, donde vive el login; los
- * errores de red/servidor se muestran aparte y permiten reintentar.
- */
-function AuthGate({ children }: { children: React.ReactNode }) {
-  const [location, navigate] = useLocation();
-  const {
-    data: me,
-    error,
-    isError,
-    isFetching,
-    isLoading,
-    refetch,
-  } = useGetMe({
-    query: {
-      queryKey: getGetMeQueryKey(),
-      retry: false,
-      refetchOnWindowFocus: true,
-    },
-  });
-  const errorStatus = getErrorStatus(error);
-
-  React.useEffect(() => {
-    if (isError && errorStatus === 401) {
-      navigate("/", { replace: true });
-    } else if (!isLoading && !isError && !me) {
-      navigate("/", { replace: true });
-    } else if (me) {
-      const target = getAuthenticatedEntryPath(me);
-      const passwordChangeRequired = target === PASSWORD_CHANGE_PATH;
-      if (passwordChangeRequired && location !== target) {
-        navigate(target, { replace: true });
-      } else if (!passwordChangeRequired && location === PASSWORD_CHANGE_PATH) {
-        navigate(target, { replace: true });
-      }
-    }
-  }, [errorStatus, isError, isLoading, location, me, navigate]);
-
-  if (isLoading) return <LoadingSession />;
-
-  if (isError) {
-    if (errorStatus === 401) return <LoadingSession />;
-
-    const esErrorDeConexion = errorStatus === undefined;
-    const puedeReintentar =
-      esErrorDeConexion || (errorStatus >= 500 && errorStatus <= 599);
-
-    return (
-      <ErrorPage
-        status={esErrorDeConexion ? 503 : errorStatus}
-        {...(esErrorDeConexion
-          ? {
-              message:
-                "No pudimos verificar tu sesión porque el servidor no responde.",
-            }
-          : {})}
-        homeHref={import.meta.env.BASE_URL}
-        {...(puedeReintentar ? { onRetry: () => void refetch() } : {})}
-        isRetrying={isFetching}
-      />
-    );
-  }
-
-  if (!me) return <LoadingSession />;
-
-  if (getAuthenticatedEntryPath(me) === PASSWORD_CHANGE_PATH) {
-    if (location !== PASSWORD_CHANGE_PATH) return <LoadingSession />;
-    return <ChangePassword />;
-  }
-  if (location === PASSWORD_CHANGE_PATH) return <LoadingSession />;
-
-  return <>{children}</>;
 }
 
 function ProtectedRouter() {
@@ -294,15 +238,38 @@ function ProtectedRouter() {
 }
 
 function App() {
+  const [acceptedUserId, setAcceptedUserId] = React.useState<number | null>(
+    null,
+  );
+  const acceptedUserIdRef = React.useRef<number | null>(null);
+  const acceptUserId = React.useCallback((userId: number) => {
+    if (acceptedUserIdRef.current !== userId) {
+      clearIdentityScopedCache(queryClient, getGetMeQueryKey());
+      acceptedUserIdRef.current = userId;
+    }
+    setAcceptedUserId((currentUserId) =>
+      currentUserId === userId ? currentUserId : userId,
+    );
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AppErrorBoundary>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <Switch>
-              <Route path="/" component={PublicEntry} />
+              <Route path="/">
+                <PublicEntry
+                  acceptedUserId={acceptedUserId}
+                  onAcceptUserId={acceptUserId}
+                />
+              </Route>
               <Route>
-                <AuthGate>
+                <AuthGate
+                  acceptedUserId={acceptedUserId}
+                  onAcceptUserId={acceptUserId}
+                  passwordChangeContent={<ChangePassword />}
+                >
                   <ProtectedRouter />
                 </AuthGate>
               </Route>

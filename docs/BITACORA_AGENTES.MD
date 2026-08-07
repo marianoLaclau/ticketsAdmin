@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Frontera segura de identidad autenticada
+
+**Agente:** Codex
+**Estado:** centésima cuadragésima novena remediación de la auditoría técnica, implementada localmente.
+
+- La aplicación protegida dejó de confiar en el usuario conservado por React Query mientras `/auth/me` se revalida o falla. La verificación distingue estados asentado, pendiente y pausado; los errores de conexión ofrecen reintento y una identidad A→B bloquea todo el árbol antes de aceptar B.
+- `AuthGate` se extrajo como frontera testeable. Al aceptar otra identidad se conservan sólo los datos confirmados de sesión y se eliminan queries y mutaciones funcionales de la identidad anterior; un login posterior purga ese estado incluso si vuelve a ingresar el mismo usuario. La entrada pública espera la aceptación antes de navegar y el cambio obligatorio de contraseña mantiene su guardia.
+- Se agregaron pruebas React reales para la entrada directa sin caché y para la secuencia A→B, incluyendo ocultamiento inmediato, preservación temporal del dato de A mientras la identidad aún es desconocida y purga previa a renderizar B. Aprobaron 173 pruebas unitarias y 4 de componentes, ESLint, ambos typechecks, build de producción, Prettier y `git diff --check`; la salida temporal fue eliminada y sólo persistieron las advertencias de sourcemaps conocidas. La revisión cruzada dejó como siguiente bloque separado la notificación de cambios de sesión entre pestañas. No se hizo push.
+
 ## 2026-08-07 — Aviso administrativo reutilizable y accesible
 
 **Agente:** Codex
