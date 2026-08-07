@@ -8,7 +8,8 @@ import { useAdminAccess } from "@/hooks/use-admin-access";
 
 export default function AdminRolesUsers() {
   const { adminKey, saveAdminKey, adminRequest } = useAdminAccess();
-  const { urlState, updateUsersUrlState, selectTab } = useAdminDirectoryUrl();
+  const { urlState, updateUsersUrlState, updateRolesUrlState, selectTab } =
+    useAdminDirectoryUrl();
 
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-5 p-8">
@@ -38,7 +39,11 @@ export default function AdminRolesUsers() {
           urlState={urlState.users}
           updateUrlState={updateUsersUrlState}
         />
-        <AdminRolesTab request={adminRequest} />
+        <AdminRolesTab
+          request={adminRequest}
+          urlState={urlState.roles}
+          updateUrlState={updateRolesUrlState}
+        />
       </Tabs>
     </div>
   );

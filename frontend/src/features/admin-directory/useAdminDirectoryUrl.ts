@@ -4,6 +4,7 @@ import {
   ADMIN_DIRECTORY_TABS,
   parseAdminDirectoryUrlState,
   serializeAdminDirectoryUrlState,
+  type AdminDirectoryRolesUrlState,
   type AdminDirectoryTabValue,
   type AdminDirectoryUsersUrlState,
   type AdminDirectoryUrlState,
@@ -19,6 +20,10 @@ interface AdminDirectoryUrlController {
     update: AdminDirectoryUsersUrlUpdate,
     navigation?: AdminDirectoryUrlNavigation,
   ) => void;
+  updateRolesUrlState: (
+    update: AdminDirectoryRolesUrlUpdate,
+    navigation?: AdminDirectoryUrlNavigation,
+  ) => void;
   selectTab: (value: string) => void;
 }
 
@@ -31,6 +36,10 @@ export type AdminDirectoryUrlNavigation = "replace" | "push";
 export type AdminDirectoryUsersUrlUpdate = (
   current: AdminDirectoryUsersUrlState,
 ) => AdminDirectoryUsersUrlState;
+
+export type AdminDirectoryRolesUrlUpdate = (
+  current: AdminDirectoryRolesUrlState,
+) => AdminDirectoryRolesUrlState;
 
 function parseAdminDirectoryTab(
   value: string,
@@ -97,5 +106,27 @@ export function useAdminDirectoryUrl(): AdminDirectoryUrlController {
     [updateUrlState],
   );
 
-  return { urlState, updateUrlState, updateUsersUrlState, selectTab };
+  const updateRolesUrlState = useCallback(
+    (
+      update: AdminDirectoryRolesUrlUpdate,
+      navigation: AdminDirectoryUrlNavigation = "replace",
+    ) => {
+      updateUrlState(
+        (current) => ({
+          ...current,
+          roles: update(current.roles),
+        }),
+        navigation,
+      );
+    },
+    [updateUrlState],
+  );
+
+  return {
+    urlState,
+    updateUrlState,
+    updateUsersUrlState,
+    updateRolesUrlState,
+    selectTab,
+  };
 }

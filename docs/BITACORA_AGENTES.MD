@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Listado de roles sincronizado con la URL
+
+**Agente:** Codex
+**Estado:** centésima trigésima quinta remediación de la auditoría técnica, implementada localmente.
+
+- Búsqueda y estado de Roles derivan ahora de la URL y reaccionan a recarga y Atrás/Adelante. La búsqueda continúa formando parte de la query remota y el estado conserva su filtrado local sin solicitudes adicionales.
+- El hook expone una actualización funcional acotada a `roles`; cambiar estos filtros usa `replace` y preserva pestaña y estado completo de Usuarios. Valores ajenos al Select se rechazan antes de serializar.
+- Aprobaron las 157 pruebas frontend, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. El build sólo emitió las advertencias de sourcemaps ya conocidas y eliminó su salida temporal. El refetch diferido inicial preexistente continúa aislado para el próximo bloque. No se hizo push.
+
 ## 2026-08-07 — Contrato URL del listado de roles
 
 **Agente:** Codex

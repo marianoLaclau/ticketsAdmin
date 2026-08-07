@@ -55,16 +55,30 @@ import {
   filterAdminRoles,
   type AdminRoleFormState,
 } from '@/features/admin-directory/model';
+import type {
+  AdminDirectoryRolesUrlUpdate,
+  AdminDirectoryUrlNavigation,
+} from '@/features/admin-directory/useAdminDirectoryUrl';
 import { adminErrorMessage } from '@/hooks/use-admin-access';
 import { useToast } from '@/hooks/use-toast';
+import type { AdminDirectoryRolesUrlState } from '@/lib/admin-directory-url';
 import { esRolSistema } from '@/lib/roles';
 import { formatDate } from '@/lib/utils-tickets';
 
 interface AdminRolesTabProps {
   request: RequestInit;
+  urlState: AdminDirectoryRolesUrlState;
+  updateUrlState: (
+    update: AdminDirectoryRolesUrlUpdate,
+    navigation?: AdminDirectoryUrlNavigation,
+  ) => void;
 }
 
-export function AdminRolesTab({ request }: AdminRolesTabProps) {
+export function AdminRolesTab({
+  request,
+  urlState,
+  updateUrlState,
+}: AdminRolesTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -79,8 +93,8 @@ export function AdminRolesTab({ request }: AdminRolesTabProps) {
   const refreshUsers = () => queryClient.invalidateQueries({ queryKey: getListAdminUsersQueryKey() });
   const refreshRoles = () => queryClient.invalidateQueries({ queryKey: getListAdminRolesQueryKey() });
 
-  const [roleSearch, setRoleSearch] = useState('');
-  const [roleStatusFilter, setRoleStatusFilter] = useState('_all');
+  const roleSearch = urlState.search ?? '';
+  const roleStatusFilter = urlState.status ?? '_all';
 
   const rolesQuery = useListAdminRoles(
     {
@@ -102,6 +116,25 @@ export function AdminRolesTab({ request }: AdminRolesTabProps) {
     }, 350);
     return () => window.clearTimeout(timeout);
   }, [request, refetchRoles]);
+
+  const updateRoleSearch = (value: string) => {
+    updateUrlState((current) => {
+      const next = { ...current };
+      if (value.trim()) next.search = value;
+      else delete next.search;
+      return next;
+    });
+  };
+
+  const selectRoleStatus = (value: string) => {
+    if (value !== '_all' && value !== 'active' && value !== 'inactive') return;
+    updateUrlState((current) => {
+      const next = { ...current };
+      if (value === '_all') delete next.status;
+      else next.status = value;
+      return next;
+    });
+  };
 
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<AdminRole | null>(null);
@@ -216,12 +249,12 @@ export function AdminRolesTab({ request }: AdminRolesTabProps) {
               <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={roleSearch}
-                onChange={(event) => setRoleSearch(event.target.value)}
+                onChange={(event) => updateRoleSearch(event.target.value)}
                 placeholder="Buscar rol..."
                 className="h-9 pl-8"
               />
             </div>
-            <Select value={roleStatusFilter} onValueChange={setRoleStatusFilter}>
+            <Select value={roleStatusFilter} onValueChange={selectRoleStatus}>
               <SelectTrigger className="h-9 w-full bg-white sm:w-[160px]">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
