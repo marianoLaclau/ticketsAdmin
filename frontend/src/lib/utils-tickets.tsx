@@ -1,4 +1,3 @@
-import React from 'react';
 import { TicketEstado, TicketPrioridad } from '@workspace/api-client-react';
 import { getEstadoLabel } from './estados';
 

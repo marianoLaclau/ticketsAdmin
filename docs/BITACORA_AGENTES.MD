@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Primer arnés de pruebas de componentes React
+
+**Agente:** Codex
+**Estado:** centésima cuadragésima séptima remediación de la auditoría técnica, implementada localmente.
+
+- El frontend incorporó un arnés separado para pruebas de componentes con React Testing Library, `user-event`, jsdom y `tsx`. Los scripts distinguen pruebas unitarias y de componentes, el typecheck incluye ambos proyectos y el lockfile conserva versiones exactas, integridades y la política de antigüedad mínima de paquetes del workspace.
+- La primera prueba ejercita `AdminHeader` sobre React Query y Wouter reales: verifica los estados sin llave, transición y acceso activo, el control mostrar/ocultar y la navegación accesible. También prueba que exista una única consulta con `x-admin-key` y que el secreto no aparezca en la URL ni en las claves de caché; DOM, caché y mock de `fetch` se aíslan y limpian al finalizar.
+- Se retiraron tres imports default de React obsoletos que impedían validar todo el frontend con el runtime JSX automático de las pruebas, sin cambiar lógica productiva. Aprobaron las 170 pruebas unitarias más la nueva prueba de componente, ESLint, Prettier en los archivos normalizados, ambos typechecks, build de producción, `git diff --check` y dos revisiones cruzadas sin hallazgos P0/P1/P2. La salida temporal fue eliminada y sólo persistieron las advertencias de sourcemaps conocidas. No se hizo push.
+
 ## 2026-08-07 — Aislamiento de la llave administrativa por usuario
 
 **Agente:** Codex

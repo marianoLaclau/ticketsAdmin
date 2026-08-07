@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/**/*", "test/**/*.test.tsx"],
+  "exclude": ["node_modules", "build", "dist"],
+  "compilerOptions": {
+    "noEmit": true,
+    "jsx": "react-jsx"
+  },
+  "references": [
+    {
+      "path": "../lib/api-client-react"
+    },
+    {
+      "path": "../lib/password-policy"
+    }
+  ]
+}
