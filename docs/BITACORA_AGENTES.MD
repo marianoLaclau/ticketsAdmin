@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Calendario del Dashboard en zona de negocio
+
+**Agente:** Codex
+**Estado:** centésima décima séptima remediación de la auditoría técnica, implementada localmente.
+
+- Semana, mes, “hasta hoy”, fecha visible y detección de medianoche se calculan ahora en `America/Argentina/Buenos_Aires`, independientemente de la zona del navegador; la aritmética calendario usa UTC para no reintroducir desplazamientos.
+- Se cubrieron lunes/domingo, cruces de mes y año, febrero común/bisiesto y las horas donde UTC ya cambió de fecha pero Argentina todavía no.
+- Al cambiar el día de negocio se refetchean las cuatro consultas sólo si conservan su rango; cuando también cambia semana o mes, la nueva query key hace el fetch y no se duplica la solicitud. `todo` mantiene `undefined` y sigue compartiendo caché con el sidebar.
+- Aprobaron las 129 pruebas frontend, Prettier, ESLint, typecheck, build de producción, `git diff --check` y dos rondas de revisión cruzada sin hallazgos P0/P1/P2 tras corregir el refresco diario. No se hizo push.
+
 ## 2026-08-07 — Codec de período del Dashboard
 
 **Agente:** Codex

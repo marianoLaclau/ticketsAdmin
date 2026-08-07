@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import {
   useGetDashboardStats,
@@ -28,9 +28,13 @@ import { getContactDisplayName } from "@/lib/contacto";
 import { ErrorPage, getErrorStatus } from "@/components/ErrorPage";
 import {
   currentMonthToToday,
+  DASHBOARD_TIME_ZONE,
+  getDashboardBusinessDateKey,
   getDashboardPeriodLabel,
   getDashboardPeriodParams,
+  getDashboardRangeKey,
   getDashboardRangeLabel,
+  shouldRefreshDashboardAtBusinessDateChange,
   validateDashboardDateRange,
   type DashboardPeriod,
 } from "@/lib/dashboard-period";
@@ -88,9 +92,7 @@ export default function Dashboard() {
     const intervalId = window.setInterval(() => {
       const now = new Date();
       setFechaReferencia((actual) =>
-        actual.getFullYear() === now.getFullYear() &&
-        actual.getMonth() === now.getMonth() &&
-        actual.getDate() === now.getDate()
+        getDashboardBusinessDateKey(actual) === getDashboardBusinessDateKey(now)
           ? actual
           : now,
       );
@@ -108,6 +110,8 @@ export default function Dashboard() {
         : getDashboardPeriodParams(periodo, fechaReferencia),
     [periodo, periodoAplicado, fechaReferencia],
   );
+  const businessDateKey = getDashboardBusinessDateKey(fechaReferencia);
+  const dashboardRangeKey = getDashboardRangeKey(dashboardParams);
 
   const statsQuery = useGetDashboardStats(dashboardParams);
   const actividadQuery = useGetActividadReciente({
@@ -116,6 +120,42 @@ export default function Dashboard() {
   });
   const vencidosQuery = useGetTicketsVencidos(dashboardParams);
   const motivosQuery = useGetMotivoStats(dashboardParams);
+  const refetchStats = statsQuery.refetch;
+  const refetchActividad = actividadQuery.refetch;
+  const refetchVencidos = vencidosQuery.refetch;
+  const refetchMotivos = motivosQuery.refetch;
+  const refreshSnapshot = useRef({
+    businessDateKey,
+    rangeKey: dashboardRangeKey,
+  });
+
+  useEffect(() => {
+    const currentSnapshot = {
+      businessDateKey,
+      rangeKey: dashboardRangeKey,
+    };
+    const shouldRefresh = shouldRefreshDashboardAtBusinessDateChange(
+      refreshSnapshot.current,
+      currentSnapshot,
+    );
+    refreshSnapshot.current = currentSnapshot;
+
+    if (shouldRefresh) {
+      void Promise.all([
+        refetchStats(),
+        refetchActividad(),
+        refetchVencidos(),
+        refetchMotivos(),
+      ]);
+    }
+  }, [
+    businessDateKey,
+    dashboardRangeKey,
+    refetchActividad,
+    refetchMotivos,
+    refetchStats,
+    refetchVencidos,
+  ]);
 
   const { data: stats, isLoading: loadingStats } = statsQuery;
   const { data: actividades, isLoading: loadingActividad } = actividadQuery;
@@ -160,6 +200,7 @@ export default function Dashboard() {
 
   const today = new Date();
   const dateString = today.toLocaleDateString("es-AR", {
+    timeZone: DASHBOARD_TIME_ZONE,
     weekday: "long",
     year: "numeric",
     month: "long",
