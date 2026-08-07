@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Sidebar separado del layout
+
+**Agente:** Codex
+**Estado:** nonagésima séptima remediación de la auditoría técnica, implementada localmente.
+
+- Se extrajo `Sidebar` desde `AppLayout.tsx` a un módulo de layout propio, sin alterar rutas, permisos, métricas, cierre de sesión ni eventos SSE.
+- `AppLayout` vuelve a concentrarse en el ciclo de eventos en vivo y en componer el contenedor autenticado; la navegación queda preparada para incorporar su variante móvil en un cambio aislado.
+- Aprobaron Prettier, ESLint, typecheck y `git diff --check`. No se hizo push.
+
 ## 2026-08-07 — Invalidaciones administrativas acotadas
 
 **Agente:** Codex
