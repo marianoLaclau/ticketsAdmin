@@ -9,7 +9,7 @@
     "codegen:check": "pnpm run codegen && pnpm --filter @workspace/scripts run check-generated-code",
     "lint": "eslint backend frontend lib scripts --ext .ts,.tsx --max-warnings 0",
     "schema:check": "pnpm --filter @workspace/db exec drizzle-kit check --config ./drizzle.config.ts",
-    "test": "pnpm -r --if-present run test",
+    "test": "pnpm --workspace-concurrency=1 -r --if-present run test",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "quality": "pnpm run lint && pnpm run codegen:check && pnpm run schema:check && pnpm test && pnpm run build",
     "restore:db": "pnpm --filter @workspace/scripts run restore-db",

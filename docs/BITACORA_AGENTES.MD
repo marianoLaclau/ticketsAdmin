@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Quality gate de pruebas estabilizado
+
+**Agente:** Codex
+**Estado:** sexagésima octava remediación de la auditoría técnica, implementada y validada localmente.
+
+- La ejecución recursiva de pruebas ahora limita a uno los workspaces simultáneos. Se conserva la concurrencia interna de cada runner y el timeout estricto del importador, pero se evita que backend, frontend y scripts compitan por CPU hasta generar falsos negativos.
+- El diagnóstico fue reproducible: el importador agotó exactamente 30 s sólo bajo carga paralela, aprobó aislado en 6,3 s y la suite serial completa aprobó en 46,8 s. Dos revisiones descartaron subir el timeout o mantener un orden manual frágil.
+- `pnpm run quality` aprobó luego del cambio: lint, codegen sincronizado, cadena Drizzle, todas las suites, typecheck y builds. Permanecen únicamente las advertencias conocidas de sourcemaps y tamaño del bundle. No se hizo push.
+
 ## 2026-08-07 — Normalización de consultas de tickets separada
 
 **Agente:** Codex
