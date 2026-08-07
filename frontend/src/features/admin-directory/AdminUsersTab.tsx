@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  getListAdminRolesQueryKey,
   getListAdminUsersQueryKey,
   useCreateAdminUser,
   useListAdminRoles,
@@ -68,6 +69,9 @@ import { formatDate } from '@/lib/utils-tickets';
 
 interface AdminUsersTabProps {
   request: RequestInit;
+  queryRequest: RequestInit;
+  hasAdminAccess: boolean;
+  accessVersion: number;
   urlState: AdminDirectoryUsersUrlState;
   updateUrlState: (
     update: AdminDirectoryUsersUrlUpdate,
@@ -77,6 +81,9 @@ interface AdminUsersTabProps {
 
 export function AdminUsersTab({
   request,
+  queryRequest,
+  hasAdminAccess,
+  accessVersion,
   urlState,
   updateUrlState,
 }: AdminUsersTabProps) {
@@ -95,7 +102,20 @@ export function AdminUsersTab({
 
   // Se obtiene el directorio completo admitido por la API para resolver role_id
   // en la tabla de usuarios y alimentar tanto filtros como formularios.
-  const roleCatalogQuery = useListAdminRoles({ page: 1, limit: 100 }, { request });
+  const roleCatalogParams = { page: 1, limit: 100 };
+  const roleCatalogQueryKey = [
+    ...getListAdminRolesQueryKey(roleCatalogParams),
+    'admin-access',
+    accessVersion,
+  ] as const;
+  const roleCatalogQuery = useListAdminRoles(roleCatalogParams, {
+    query: {
+      enabled: hasAdminAccess,
+      queryKey: roleCatalogQueryKey,
+      retry: false,
+    },
+    request: queryRequest,
+  });
   const roles = useMemo(
     () => roleCatalogQuery.data?.roles ?? [],
     [roleCatalogQuery.data?.roles],
@@ -129,13 +149,23 @@ export function AdminUsersTab({
       urlState.roleId,
     ],
   );
-  const usersQuery = useListAdminUsers(userListParams, { request });
+  const userListQueryKey = [
+    ...getListAdminUsersQueryKey(userListParams),
+    'admin-access',
+    accessVersion,
+  ] as const;
+  const usersQuery = useListAdminUsers(userListParams, {
+    query: {
+      enabled: hasAdminAccess,
+      queryKey: userListQueryKey,
+      retry: false,
+    },
+    request: queryRequest,
+  });
 
   const users = usersQuery.data?.users ?? [];
   const userTotal = usersQuery.data?.total ?? 0;
   const userTotalPages = Math.max(1, Math.ceil(userTotal / userPageSize));
-  const refetchRoleCatalog = roleCatalogQuery.refetch;
-  const refetchUsers = usersQuery.refetch;
 
   useEffect(() => {
     if (
@@ -156,14 +186,6 @@ export function AdminUsersTab({
     userTotalPages,
     usersQuery.data,
   ]);
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      void refetchRoleCatalog();
-      void refetchUsers();
-    }, 350);
-    return () => window.clearTimeout(timeout);
-  }, [request, refetchRoleCatalog, refetchUsers]);
 
   const updateUserSearch = (value: string) => {
     updateUrlState((current) => {

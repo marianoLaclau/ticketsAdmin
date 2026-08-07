@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Consultas administrativas versionadas por credencial
+
+**Agente:** Codex
+**Estado:** centésima trigésima sexta remediación de la auditoría técnica, implementada localmente.
+
+- El directorio de Usuarios y Roles dejó de repetir sus consultas 350 ms después de cada montaje. Las lecturas ahora usan query keys versionadas al cambiar la credencial efectiva, sin incorporar el secreto a la caché, y permanecen deshabilitadas cuando falta la llave administrativa.
+- La credencial de lectura conserva un debounce de 350 ms para evitar ráfagas por cada pulsación. Las mutaciones usan por separado la credencial inmediata, de modo que borrar o reemplazar la llave revoca las escrituras sin ninguna demora.
+- Se agregó un hook reutilizable para valores diferidos y se retiraron los tres refetches manuales. Aprobaron las 157 pruebas frontend, Prettier, ESLint, typecheck, build de producción, `git diff --check` y dos rondas de revisión cruzada; la segunda quedó sin hallazgos P0/P1/P2. El build sólo emitió las advertencias de sourcemaps ya conocidas y eliminó su salida temporal. No se hizo push.
+
 ## 2026-08-07 — Listado de roles sincronizado con la URL
 
 **Agente:** Codex

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   getListAdminRolesQueryKey,
@@ -67,6 +67,9 @@ import { formatDate } from '@/lib/utils-tickets';
 
 interface AdminRolesTabProps {
   request: RequestInit;
+  queryRequest: RequestInit;
+  hasAdminAccess: boolean;
+  accessVersion: number;
   urlState: AdminDirectoryRolesUrlState;
   updateUrlState: (
     update: AdminDirectoryRolesUrlUpdate,
@@ -76,6 +79,9 @@ interface AdminRolesTabProps {
 
 export function AdminRolesTab({
   request,
+  queryRequest,
+  hasAdminAccess,
+  accessVersion,
   urlState,
   updateUrlState,
 }: AdminRolesTabProps) {
@@ -96,27 +102,31 @@ export function AdminRolesTab({
   const roleSearch = urlState.search ?? '';
   const roleStatusFilter = urlState.status ?? '_all';
 
-  const rolesQuery = useListAdminRoles(
-    {
+  const roleListParams = useMemo(
+    () => ({
       page: 1,
       limit: 100,
       ...(roleSearch.trim() ? { search: roleSearch.trim() } : {}),
-    },
-    { request },
+    }),
+    [roleSearch],
   );
+  const roleListQueryKey = [
+    ...getListAdminRolesQueryKey(roleListParams),
+    'admin-access',
+    accessVersion,
+  ] as const;
+  const rolesQuery = useListAdminRoles(roleListParams, {
+    query: {
+      enabled: hasAdminAccess,
+      queryKey: roleListQueryKey,
+      retry: false,
+    },
+    request: queryRequest,
+  });
   const listedRoles = useMemo(
     () => rolesQuery.data?.roles ?? [],
     [rolesQuery.data?.roles],
   );
-  const refetchRoles = rolesQuery.refetch;
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      void refetchRoles();
-    }, 350);
-    return () => window.clearTimeout(timeout);
-  }, [request, refetchRoles]);
-
   const updateRoleSearch = (value: string) => {
     updateUrlState((current) => {
       const next = { ...current };
