@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Servicio de prioridad automática normalizado
+
+**Agente:** Codex
+**Estado:** octogésima segunda remediación de la auditoría técnica, implementada localmente.
+
+- `backend/src/lib/prioridad-automatica.ts` se ajustó a Prettier mediante reflow de uniones, un ternario y una desestructuración; reglas SLA, compare-and-set, auditoría, lock y SSE no cambian.
+- El diff es mecánico y queda aislado del runner periódico. Se ejecutarán las suites puras, transaccionales y del runner para cubrir el módulo desde sus tres fronteras.
+- También se validarán Prettier, ESLint y el typecheck backend antes de commitear. No se hizo push.
+
 ## 2026-08-07 — Ruta de ingesta normalizada
 
 **Agente:** Codex

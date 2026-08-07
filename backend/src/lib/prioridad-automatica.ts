@@ -10,11 +10,7 @@ import { logger } from "./logger";
 export const ESTADOS_FINALIZADOS_PRIORIDAD = ["resuelto", "cerrado"] as const;
 
 export type EstadoTicketPrioridad =
-  | "nuevo"
-  | "en_proceso"
-  | "pendiente"
-  | "resuelto"
-  | "cerrado";
+  "nuevo" | "en_proceso" | "pendiente" | "resuelto" | "cerrado";
 
 export interface TicketCandidatoPrioridad {
   id: number;
@@ -66,10 +62,7 @@ export type NotificadorPromocionPrioridad = (
 
 type ModuloDbPrioridad = Pick<
   typeof import("@workspace/db"),
-  | "db"
-  | "ticketsTable"
-  | "seguimientosTable"
-  | "ticketVisibleCondition"
+  "db" | "ticketsTable" | "seguimientosTable" | "ticketVisibleCondition"
 >;
 
 export type CargarModuloDbPrioridad = () => Promise<ModuloDbPrioridad>;
@@ -90,9 +83,10 @@ export function crearNotaPromocionPrioridad(
   const anterior = cambio.prioridadEsperada.toUpperCase();
   const nueva = cambio.prioridadNueva.toUpperCase();
   const horas = formatearHorasParaNota(cambio.horasHabilesRestantes);
-  const referencia = cambio.horasHabilesRestantes < 0
-    ? `vencido hace ${horas} horas hábiles`
-    : `${horas} horas hábiles restantes`;
+  const referencia =
+    cambio.horasHabilesRestantes < 0
+      ? `vencido hace ${horas} horas hábiles`
+      : `${horas} horas hábiles restantes`;
 
   return `Prioridad actualizada automáticamente de ${anterior} a ${nueva} por proximidad al vencimiento (${referencia}).`;
 }
@@ -254,12 +248,8 @@ export function crearRepositorioPrioridadAutomaticaDb(
       return rows.map((ticket) => ({ ...ticket, visible: true }));
     },
     async promoverSiCoincide(cambio) {
-      const {
-        db,
-        ticketsTable,
-        seguimientosTable,
-        ticketVisibleCondition,
-      } = await cargarModulo();
+      const { db, ticketsTable, seguimientosTable, ticketVisibleCondition } =
+        await cargarModulo();
 
       // better-sqlite3 ejecuta las transacciones de forma sincrona. Usar
       // .all()/.run() dentro del callback garantiza que UPDATE + auditoria se
