@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Código muerto del frontend re-auditado
+
+**Agente:** Codex
+**Estado:** sexagésima novena verificación de la auditoría técnica, cerrada localmente sin eliminaciones adicionales.
+
+- Se reconstruyó el grafo de imports, reexports y cargas dinámicas de los 78 archivos TS/TSX bajo `frontend/src`, usando `main.tsx` como entrypoint confirmado por Vite.
+- Los 78 archivos son alcanzables en runtime incluso al excluir imports de tipos. Las ocho páginas y los veinte componentes `ui` tienen consumidores reales; no existen módulos sostenidos sólo por tests, tipos o ciclos huérfanos.
+- No se borró ningún archivo porque no quedó un candidato seguro. El `quality` integral posterior aprobó lint, codegen, esquema, pruebas, typecheck y builds. No se hizo push.
+
 ## 2026-08-07 — Quality gate de pruebas estabilizado
 
 **Agente:** Codex
