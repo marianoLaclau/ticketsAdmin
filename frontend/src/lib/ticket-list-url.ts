@@ -12,6 +12,7 @@ import {
   type TicketSortRule,
   type TicketSortState,
 } from "./ticket-list-controls.ts";
+import { isValidCalendarDate } from "./calendar-date.ts";
 
 export const DEFAULT_TICKET_LIST_PAGE = 1;
 export const DEFAULT_TICKET_LIST_LIMIT = 10;
@@ -26,7 +27,6 @@ export interface TicketListUrlState {
   limit: TicketListLimit;
 }
 
-const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
 const MAX_SORT_QUERY_LENGTH = 512;
@@ -78,36 +78,6 @@ const TICKET_LIST_LIMIT_SET = new Set<number>(TICKET_LIST_LIMITS);
 
 function hasMeaningfulText(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
-}
-
-function isLeapYear(year: number): boolean {
-  return year % 400 === 0 || (year % 4 === 0 && year % 100 !== 0);
-}
-
-export function isValidCalendarDate(value: string): boolean {
-  const match = DATE_PATTERN.exec(value);
-  if (!match) return false;
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  if (year < 1 || month < 1 || month > 12 || day < 1) return false;
-
-  const daysInMonth = [
-    31,
-    isLeapYear(year) ? 29 : 28,
-    31,
-    30,
-    31,
-    30,
-    31,
-    31,
-    30,
-    31,
-    30,
-    31,
-  ];
-  return day <= (daysInMonth[month - 1] ?? 0);
 }
 
 export function isValidLocalTime(value: string): boolean {

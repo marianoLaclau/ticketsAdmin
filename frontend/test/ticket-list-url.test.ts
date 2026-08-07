@@ -6,9 +6,9 @@ import {
   MotivoCategoria,
   TicketSortBy,
 } from "../../lib/api-client-react/src/generated/api.schemas.ts";
+import { isValidCalendarDate } from "../src/lib/calendar-date.ts";
 import {
   createDefaultTicketListUrlState,
-  isValidCalendarDate,
   isValidLocalTime,
   parseTicketListUrlState,
   serializeTicketListUrlState,

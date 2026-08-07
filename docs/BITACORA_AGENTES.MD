@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Validación calendario compartida
+
+**Agente:** Codex
+**Estado:** centésima décima quinta remediación de la auditoría técnica, implementada localmente.
+
+- La validación estricta de fechas `YYYY-MM-DD` salió del codec de Tickets y quedó en un módulo de dominio neutral, reutilizable por filtros y períodos sin acoplar features entre sí.
+- Conserva años bisiestos reales, rechaza año cero, formatos ambiguos y días imposibles; se añadieron pruebas unitarias específicas y el codec existente sigue cubriendo su integración.
+- Aprobaron las 11 pruebas dirigidas, Prettier, ESLint y `git diff --check`; el typecheck global se volvió a ejecutar al terminar el codec de Dashboard que se desarrollaba en paralelo. No se hizo push.
+
 ## 2026-08-07 — Apertura accesible de tickets
 
 **Agente:** Codex
