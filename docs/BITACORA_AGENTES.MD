@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Indicadores del dashboard separados
+
+**Agente:** Codex
+**Estado:** sexagésima segunda remediación de la auditoría técnica, implementada y validada localmente.
+
+- La grilla de cuatro KPI salió de `Dashboard.tsx` a `features/dashboard/DashboardKpiGrid.tsx` como vista pura con seis props escalares y sin hooks.
+- Consultas, filtros temporales y cálculos permanecen en el padre. Se conservaron orden, textos, iconos, skeletons, clases responsive, fallbacks y el resaltado condicional de tickets vencidos.
+- La revisión cruzada no encontró hallazgos P0/P1/P2. Aprobaron 85 pruebas del frontend, typecheck, ESLint dirigido, Prettier acotado, build aislado y `diff --check`; sólo aparecieron advertencias de sourcemaps y tamaño ya conocidas. No se hizo push.
+
 ## 2026-08-07 — Fila operativa de tickets aislada
 
 **Agente:** Codex

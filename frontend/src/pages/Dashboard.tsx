@@ -16,8 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Clock, PhoneIncoming, AlertCircle, CheckCircle2, Inbox, TrendingUp, CalendarRange } from 'lucide-react';
+import { Clock, CheckCircle2, TrendingUp, CalendarRange } from 'lucide-react';
 import { Link } from 'wouter';
+import { DashboardKpiGrid } from '@/features/dashboard/DashboardKpiGrid';
 import { formatDate, PrioridadBadge } from '@/lib/utils-tickets';
 import { getEstadoLabel } from '@/lib/estados';
 import { getContactDisplayName, SIN_NOMBRE_PROPORCIONADO } from '@/lib/contacto';
@@ -274,52 +275,14 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* KPI Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm">
-          <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-            <Inbox className="h-5 w-5 text-amber-600" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Sin revisar</p>
-            {loadingStats ? <Skeleton className="h-8 w-10 mt-1" /> : <p className="text-3xl font-bold text-amber-800 leading-none mt-1">{nuevosSinRevisar}</p>}
-            <p className="text-[11px] text-amber-600 mt-0.5">tickets nuevos</p>
-          </div>
-        </div>
-
-        <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm">
-          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-            <PhoneIncoming className="h-5 w-5 text-blue-600" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-700">En proceso</p>
-            {loadingStats ? <Skeleton className="h-8 w-10 mt-1" /> : <p className="text-3xl font-bold text-blue-800 leading-none mt-1">{enProceso}</p>}
-            <p className="text-[11px] text-blue-600 mt-0.5">en atención</p>
-          </div>
-        </div>
-
-        <div className={`rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm border ${stats?.vencidos && stats.vencidos > 0 ? 'bg-red-50 border-red-200' : 'bg-card border-border'}`}>
-          <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${stats?.vencidos && stats.vencidos > 0 ? 'bg-red-100' : 'bg-slate-100'}`}>
-            <AlertCircle className={`h-5 w-5 ${stats?.vencidos && stats.vencidos > 0 ? 'text-red-600' : 'text-slate-400'}`} />
-          </div>
-          <div>
-            <p className={`text-[11px] font-semibold uppercase tracking-wider ${stats?.vencidos && stats.vencidos > 0 ? 'text-red-700' : 'text-muted-foreground'}`}>Vencidos</p>
-            {loadingStats ? <Skeleton className="h-8 w-10 mt-1" /> : <p className={`text-3xl font-bold leading-none mt-1 ${stats?.vencidos && stats.vencidos > 0 ? 'text-red-800' : 'text-foreground'}`}>{stats?.vencidos || 0}</p>}
-            <p className={`text-[11px] mt-0.5 ${stats?.vencidos && stats.vencidos > 0 ? 'text-red-600' : 'text-muted-foreground'}`}>fuera de plazo</p>
-          </div>
-        </div>
-
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 flex items-center gap-4 shadow-sm">
-          <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Resueltos {periodoLabel}</p>
-            {loadingStats ? <Skeleton className="h-8 w-10 mt-1" /> : <p className="text-3xl font-bold text-emerald-800 leading-none mt-1">{resueltosDelPeriodo || 0}</p>}
-            <p className="text-[11px] text-emerald-600 mt-0.5">cerrados</p>
-          </div>
-        </div>
-      </div>
+      <DashboardKpiGrid
+        isLoading={loadingStats}
+        unreviewedCount={nuevosSinRevisar}
+        inProgressCount={enProceso}
+        overdueCount={stats?.vencidos || 0}
+        resolvedCount={resueltosDelPeriodo || 0}
+        resolvedPeriodLabel={periodoLabel}
+      />
 
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
