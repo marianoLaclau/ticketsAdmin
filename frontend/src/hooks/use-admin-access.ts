@@ -1,59 +1,71 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getGetMeQueryKey, useGetMe } from '@workspace/api-client-react';
-import { getAdminErrorMessage } from '@/lib/error-messages';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { getGetMeQueryKey, useGetMe } from "@workspace/api-client-react";
+import { getAdminErrorMessage } from "@/lib/error-messages";
+import {
+  createAdminCredentialSnapshot,
+  discardLegacyAdminKey,
+  getAdminKeyStorageKey,
+  getOwnedAdminAccess,
+  isAuthenticatedUserId,
+  planAdminCredentialSave,
+  type AdminCredentialSnapshot,
+} from "@/lib/admin-access-ownership";
+import { hasConfirmedPublicSession } from "@/lib/session-state";
 
-const LEGACY_ADMIN_KEY_STORAGE = 'admin-key';
-const ADMIN_KEY_STORAGE_PREFIX = 'admin-key:user:';
-
-function adminKeyStorage(userId: number): string {
-  return `${ADMIN_KEY_STORAGE_PREFIX}${userId}`;
-}
-
-function readAdminKey(userId: number | undefined): string {
-  if (!userId) return '';
-  return localStorage.getItem(adminKeyStorage(userId)) ?? '';
+function readInitialCredential(
+  userId: number | undefined,
+): AdminCredentialSnapshot | null {
+  if (!isAuthenticatedUserId(userId)) return null;
+  return createAdminCredentialSnapshot(
+    userId,
+    localStorage.getItem(getAdminKeyStorageKey(userId)),
+  );
 }
 
 export function useAdminAccess() {
-  const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
-  const userId = me?.id;
-  const [adminKey, setAdminKey] = useState(() => readAdminKey(userId));
+  const {
+    data: me,
+    isError,
+    isFetching,
+  } = useGetMe({
+    query: { queryKey: getGetMeQueryKey() },
+  });
+  const userId = hasConfirmedPublicSession(me, isError, isFetching)
+    ? me.id
+    : undefined;
+  const [credential, setCredential] = useState<AdminCredentialSnapshot | null>(
+    () => readInitialCredential(userId),
+  );
+  const { adminKey, adminRequest } = useMemo(
+    () => getOwnedAdminAccess(userId, credential),
+    [credential, userId],
+  );
 
   useEffect(() => {
-    if (!userId) {
-      setAdminKey('');
+    discardLegacyAdminKey(sessionStorage);
+
+    if (!isAuthenticatedUserId(userId)) {
+      setCredential(null);
       return;
     }
 
-    const persistedKey = readAdminKey(userId);
-    if (persistedKey) {
-      setAdminKey(persistedKey);
-      return;
-    }
-
-    // Migracion unica desde el almacenamiento por pestana que se usaba antes.
-    // La nueva clave queda separada por usuario para no compartirla entre
-    // distintas cuentas SysAdmin que utilicen el mismo navegador.
-    const legacyKey = sessionStorage.getItem(LEGACY_ADMIN_KEY_STORAGE) ?? '';
-    if (legacyKey) {
-      localStorage.setItem(adminKeyStorage(userId), legacyKey);
-      sessionStorage.removeItem(LEGACY_ADMIN_KEY_STORAGE);
-    }
-    setAdminKey(legacyKey);
+    const persistedKey = localStorage.getItem(getAdminKeyStorageKey(userId));
+    setCredential(createAdminCredentialSnapshot(userId, persistedKey));
   }, [userId]);
 
-  const saveAdminKey = useCallback((value: string) => {
-    setAdminKey(value);
-    if (!userId) return;
+  const saveAdminKey = useCallback(
+    (value: string) => {
+      const plan = planAdminCredentialSave(userId, value);
+      setCredential(plan.snapshot);
 
-    if (value) {
-      localStorage.setItem(adminKeyStorage(userId), value);
-    } else {
-      localStorage.removeItem(adminKeyStorage(userId));
-    }
-  }, [userId]);
-
-  const adminRequest = useMemo(() => (adminKey ? { headers: { 'x-admin-key': adminKey } } : {}), [adminKey]);
+      if (plan.persistence.kind === "set") {
+        localStorage.setItem(plan.persistence.storageKey, plan.persistence.key);
+      } else if (plan.persistence.kind === "remove") {
+        localStorage.removeItem(plan.persistence.storageKey);
+      }
+    },
+    [userId],
+  );
 
   return { adminKey, saveAdminKey, adminRequest };
 }

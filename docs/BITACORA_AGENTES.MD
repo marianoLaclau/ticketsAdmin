@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Aislamiento de la llave administrativa por usuario
+
+**Agente:** Codex
+**Estado:** centésima cuadragésima sexta remediación de la auditoría técnica, implementada localmente.
+
+- La llave administrativa se modeló como un snapshot con propietario y sólo genera el header `x-admin-key` cuando coincide exactamente con el usuario autenticado. Un logout, un cambio A→B o una identidad todavía no confirmada bloquean la credencial antes de que los efectos puedan cargar otro valor.
+- La sesión pública debe estar confirmada y estable: durante un refetch o error de `/auth/me` el acceso falla de forma cerrada. La clave histórica de `sessionStorage` se elimina sin leerla ni migrarla; la persistencia queda separada en `localStorage` por id de usuario y guardar o borrar opera exclusivamente sobre el propietario vigente.
+- Se agregaron seis pruebas de propiedad, transición, descarte del legado y persistencia, elevando el total frontend a 170 pruebas. Aprobaron Prettier, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. La salida temporal fue verificada y eliminada; el build sólo mantuvo las advertencias de sourcemaps conocidas. No se hizo push.
+
 ## 2026-08-07 — Transiciones seguras en tickets administrativos
 
 **Agente:** Codex
