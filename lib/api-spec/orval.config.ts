@@ -49,10 +49,9 @@ export default defineConfig({
     output: {
       client: "zod",
       target: path.resolve(apiZodSrc, "generated"),
-      schemas: {
-        path: path.resolve(apiZodSrc, "generated", "types"),
-        type: "typescript",
-      },
+      // Los validadores runtime se generan inline en api.ts. No emitir un
+      // segundo árbol TypeScript que el paquete privado no exporta ni consume.
+      schemas: false,
       mode: "split",
       clean: true,
       prettier: true,

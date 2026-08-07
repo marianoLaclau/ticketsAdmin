@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Generación OpenAPI sin modelos Zod huérfanos
+
+**Agente:** Codex
+**Estado:** centésima quincuagésima séptima remediación de la auditoría técnica, implementada localmente.
+
+- El target Zod de Orval declara ahora `schemas: false`: sus validadores runtime continúan generándose inline en `generated/api.ts`, pero deja de recrear un segundo árbol TypeScript que `@workspace/api-zod` no exportaba ni consumía.
+- La regeneración retiró 81 artefactos huérfanos y 1.606 líneas generadas. Una revisión repo-wide confirmó que no existían imports directos, profundos ni indirectos; el paquete es privado y solo expone su raíz. `generated/api.ts` y todo el cliente React permanecieron byte a byte sin cambios.
+- Se ejecutó codegen dos veces y el hash del diff fue idéntico, demostrando idempotencia. Aprobaron ESLint, la suite completa del monorepo, typecheck, build de producción y `git diff --check`; el gate `codegen:check` se ejecutará sobre el commit para comprobar que no quede drift. No se hizo push.
+
 ## 2026-08-07 — Retiro de scaffolding vacío del backend
 
 **Agente:** Codex
