@@ -35,6 +35,11 @@ import {
   NEW_PASSWORD_MAX_LENGTH,
   NEW_PASSWORD_MIN_LENGTH,
 } from '@/lib/password-policy';
+import {
+  clearIdentityScopedCache,
+  clearRevokedSessionState,
+} from '@/lib/session-state';
+import { publishSessionTransition } from '@/lib/session-sync';
 
 import gsbLogo from '@/assets/gsb-logo.jpg';
 
@@ -78,7 +83,9 @@ export default function ChangePassword() {
       },
       {
         onSuccess: (user) => {
+          clearIdentityScopedCache(queryClient, getGetMeQueryKey());
           queryClient.setQueryData(getGetMeQueryKey(), user);
+          publishSessionTransition(import.meta.env.BASE_URL);
           toast({
             variant: 'success',
             title: 'Contraseña definitiva creada',
@@ -96,7 +103,8 @@ export default function ChangePassword() {
     if (logout.isPending) return;
     logout.mutate(undefined as never, {
       onSuccess: () => {
-        queryClient.clear();
+        clearRevokedSessionState(queryClient);
+        publishSessionTransition(import.meta.env.BASE_URL);
         window.location.replace(import.meta.env.BASE_URL);
       },
       onError: (error) => {

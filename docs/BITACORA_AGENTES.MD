@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Sincronización segura de sesión entre pestañas
+
+**Agente:** Codex
+**Estado:** centésima quincuagésima remediación de la auditoría técnica, implementada localmente.
+
+- Login, logout, cambio de contraseña y revocación SSE publican una señal versionada en `localStorage`. El mensaje contiene solamente el `BASE_URL` normalizado y un nonce opaco: no transporta usuario, cookie, token, contraseña ni llave administrativa, y separa despliegues que compartan origen.
+- Cada pestaña escucha la señal desde cualquier ruta. El consumidor es idempotente: destruye mutaciones y purga toda la caché, descarta la identidad aceptada y reemplaza la URL por la entrada pública para volver a consultar la cookie autoritativa. La pestaña emisora realiza la misma limpieza antes de fijar el nuevo `/auth/me`, publicar o recargar.
+- Un `401` confirmado por `AuthGate` también se anuncia una sola vez cuando ya existía una identidad aceptada; la entrada pública anónima nunca publica, evitando ciclos de 401 y recargas. Las señales inválidas, ajenas, excesivas o sin almacenamiento disponible fallan de forma segura; si el navegador bloquea `localStorage`, la convergencia visual instantánea queda en modo best-effort y el backend, SSE y los 401 continúan siendo autoritativos.
+- Las pruebas cubren protocolo, aislamiento por despliegue, almacenamiento bloqueado, listener y limpieza one-shot con queries y mutaciones, rotación del propio epoch, política de consulta pública y pérdida 401 de una identidad aceptada. Aprobaron 180 pruebas unitarias y 5 de componentes, ESLint, ambos typechecks, build de producción, Prettier, `git diff --check` y dos revisiones cruzadas sin P0/P1; queda anotada para la etapa Playwright la verificación con dos pestañas y cookies reales. No se hizo push.
+
 ## 2026-08-07 — Frontera segura de identidad autenticada
 
 **Agente:** Codex

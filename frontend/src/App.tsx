@@ -29,12 +29,17 @@ import {
 import { getServerErrorCode } from "@/lib/error-messages";
 import { getAuthenticatedEntryPath } from "@/lib/password-change";
 import {
-  clearAuthenticatedQueries,
   clearIdentityScopedCache,
+  createRemoteSessionTransitionHandler,
   getConfirmedSessionUser,
   getSessionIdentityStatus,
   getSessionVerificationState,
+  PUBLIC_SESSION_QUERY_POLICY,
 } from "@/lib/session-state";
+import {
+  publishSessionTransition,
+  subscribeToSessionTransitions,
+} from "@/lib/session-sync";
 
 const Dashboard = React.lazy(() => import("@/pages/Dashboard"));
 const TicketList = React.lazy(() => import("@/pages/TicketList"));
@@ -51,16 +56,15 @@ const queryClient = new QueryClient({
   },
   queryCache: new QueryCache({
     onError: (error, query) => {
-      // Si cualquier request devuelve 401 (sesión vencida o revocada),
-      // se invalida /auth/me y el AuthGate manda de vuelta al login.
-      // IMPORTANTE: excluir a /auth/me de este handler — si su propio 401
-      // la invalida, se refetchea, vuelve a dar 401 y entra en loop infinito.
+      // Un 401 funcional obliga a revalidar /auth/me. Si falla la propia query
+      // de sesión, se purga el estado de la identidad anterior sin invalidarla:
+      // hacerlo aquí la refetchearía en loop antes de volver al login.
       const esQueryDeSesion = query.queryKey[0] === getGetMeQueryKey()[0];
       const isUnauthorized = (error as { status?: number })?.status === 401;
       const requiresPasswordChange =
         getServerErrorCode(error) === "PASSWORD_CHANGE_REQUIRED";
       if (esQueryDeSesion && isUnauthorized) {
-        clearAuthenticatedQueries(queryClient, getGetMeQueryKey());
+        clearIdentityScopedCache(queryClient, getGetMeQueryKey());
       } else if (
         !esQueryDeSesion &&
         (isUnauthorized || requiresPasswordChange)
@@ -137,8 +141,7 @@ function PublicEntry({ acceptedUserId, onAcceptUserId }: SessionIdentityProps) {
   } = useGetMe({
     query: {
       queryKey: getGetMeQueryKey(),
-      retry: false,
-      refetchOnWindowFocus: true,
+      ...PUBLIC_SESSION_QUERY_POLICY,
     },
   });
   const errorStatus = getErrorStatus(error);
@@ -251,6 +254,25 @@ function App() {
       currentUserId === userId ? currentUserId : userId,
     );
   }, []);
+  const reportConfirmedSessionLoss = React.useCallback(() => {
+    publishSessionTransition(import.meta.env.BASE_URL);
+  }, []);
+
+  React.useEffect(() => {
+    const handleTransition = createRemoteSessionTransitionHandler(queryClient, {
+      resetAcceptedIdentity: () => {
+        acceptedUserIdRef.current = null;
+        setAcceptedUserId(null);
+      },
+      reloadFromPublicEntry: () => {
+        window.location.replace(import.meta.env.BASE_URL);
+      },
+    });
+    return subscribeToSessionTransitions(
+      import.meta.env.BASE_URL,
+      handleTransition,
+    );
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -268,6 +290,7 @@ function App() {
                 <AuthGate
                   acceptedUserId={acceptedUserId}
                   onAcceptUserId={acceptUserId}
+                  onConfirmedSessionLoss={reportConfirmedSessionLoss}
                   passwordChangeContent={<ChangePassword />}
                 >
                   <ProtectedRouter />

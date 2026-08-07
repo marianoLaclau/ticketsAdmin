@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { AlertCircle, KeyRound, LogIn, User } from 'lucide-react';
 import { getLoginErrorMessage } from '@/lib/error-messages';
 import { clearIdentityScopedCache } from '@/lib/session-state';
+import { publishSessionTransition } from '@/lib/session-sync';
 
 import gsbLogo from '@/assets/gsb-logo.jpg';
 
@@ -32,6 +33,7 @@ export default function Login() {
           // preserva para reemplazarla sin recrear el observer de la entrada.
           clearIdentityScopedCache(queryClient, getGetMeQueryKey());
           queryClient.setQueryData(getGetMeQueryKey(), user);
+          publishSessionTransition(import.meta.env.BASE_URL);
           // PublicEntry acepta la nueva identidad y recién entonces navega.
           // Así ningún árbol protegido ve datos del usuario anterior.
         },

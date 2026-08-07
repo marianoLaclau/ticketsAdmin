@@ -5,12 +5,23 @@ import {
   clearAuthenticatedQueries,
   clearIdentityScopedCache,
   clearRevokedSessionState,
+  createRemoteSessionTransitionHandler,
   getConfirmedSessionUser,
   getSessionIdentityStatus,
   getSessionVerificationState,
+  PUBLIC_SESSION_QUERY_POLICY,
 } from "../src/lib/session-state.ts";
 
 describe("estado cliente de la sesión", () => {
+  it("verifica la entrada al montar sin competir con el envío del login", () => {
+    assert.deepEqual(PUBLIC_SESSION_QUERY_POLICY, {
+      refetchOnMount: true,
+      refetchOnWindowFocus: false,
+      retry: false,
+    });
+    assert.equal(Object.isFrozen(PUBLIC_SESSION_QUERY_POLICY), true);
+  });
+
   it("no confía en datos stale cuando la revalidación falla o sigue pendiente", () => {
     const staleUser = { id: 1 };
 
@@ -135,9 +146,61 @@ describe("estado cliente de la sesión", () => {
     queryClient.setQueryData(["/api/auth/me"], { id: 1 });
     queryClient.setQueryData(["tickets"], [{ id: 99 }]);
     queryClient.setQueryData(["dashboard", "stats"], { total: 12 });
+    queryClient.getMutationCache().build(queryClient, {
+      mutationKey: ["update-ticket", 99],
+      mutationFn: async () => undefined,
+    });
 
     clearRevokedSessionState(queryClient);
 
     assert.equal(queryClient.getQueryCache().getAll().length, 0);
+    assert.equal(queryClient.getMutationCache().getAll().length, 0);
+  });
+
+  it("una transición remota purga y recarga una sola vez", () => {
+    const queryClient = new QueryClient();
+    const actions: string[] = [];
+    queryClient.setQueryData(["/api/auth/me"], { id: 1 });
+    queryClient.setQueryData(["tickets"], [{ id: 99, ownerUserId: 1 }]);
+    queryClient.getMutationCache().build(queryClient, {
+      mutationKey: ["update-ticket", 99],
+      mutationFn: async () => undefined,
+    });
+    const handleTransition = createRemoteSessionTransitionHandler(queryClient, {
+      resetAcceptedIdentity: () => actions.push("reset"),
+      reloadFromPublicEntry: () => actions.push("reload"),
+    });
+
+    handleTransition();
+    handleTransition();
+
+    assert.equal(queryClient.getQueryCache().getAll().length, 0);
+    assert.equal(queryClient.getMutationCache().getAll().length, 0);
+    assert.deepEqual(actions, ["reset", "reload"]);
+  });
+
+  it("una rotación puede purgar la propia mutación antes de fijar la sesión nueva", async () => {
+    const queryClient = new QueryClient();
+    const sessionKey = ["/api/auth/me"] as const;
+    const rotatedUser = { id: 1, debe_cambiar_password: false };
+    queryClient.setQueryData(sessionKey, {
+      id: 1,
+      debe_cambiar_password: true,
+    });
+    queryClient.setQueryData(["tickets"], [{ id: 99, ownerUserId: 1 }]);
+    const passwordMutation = queryClient.getMutationCache().build(queryClient, {
+      mutationKey: ["change-own-password"],
+      mutationFn: async () => rotatedUser,
+      onSuccess: (user) => {
+        clearIdentityScopedCache(queryClient, sessionKey);
+        queryClient.setQueryData(sessionKey, user);
+      },
+    });
+
+    await passwordMutation.execute(undefined);
+
+    assert.deepEqual(queryClient.getQueryData(sessionKey), rotatedUser);
+    assert.equal(queryClient.getQueryData(["tickets"]), undefined);
+    assert.equal(queryClient.getMutationCache().getAll().length, 0);
   });
 });

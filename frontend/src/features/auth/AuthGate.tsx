@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { getGetMeQueryKey, useGetMe } from "@workspace/api-client-react";
 import { Loader2 } from "lucide-react";
@@ -21,6 +21,7 @@ export interface SessionIdentityProps {
 
 interface AuthGateProps extends SessionIdentityProps {
   children: ReactNode;
+  onConfirmedSessionLoss: () => void;
   passwordChangeContent: ReactNode;
 }
 
@@ -55,8 +56,10 @@ export function AuthGate({
   acceptedUserId,
   children,
   onAcceptUserId,
+  onConfirmedSessionLoss,
   passwordChangeContent,
 }: AuthGateProps) {
+  const sessionLossReportedRef = useRef(false);
   const [location, navigate] = useLocation();
   const {
     data: me,
@@ -91,8 +94,12 @@ export function AuthGate({
     if (sessionVerificationState !== "settled") return;
 
     if (isError) {
-      if (errorStatus === 401 && location !== "/") {
-        navigate("/", { replace: true });
+      if (errorStatus === 401) {
+        if (acceptedUserId !== null && !sessionLossReportedRef.current) {
+          sessionLossReportedRef.current = true;
+          onConfirmedSessionLoss();
+        }
+        if (location !== "/") navigate("/", { replace: true });
       }
       return;
     }
@@ -117,12 +124,14 @@ export function AuthGate({
     }
   }, [
     confirmedUser,
+    acceptedUserId,
     errorStatus,
     identityStatus,
     isError,
     location,
     navigate,
     onAcceptUserId,
+    onConfirmedSessionLoss,
     sessionVerificationState,
   ]);
 

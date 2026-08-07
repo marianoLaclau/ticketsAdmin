@@ -18,6 +18,7 @@ import {
 } from "@/lib/realtime-events";
 import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
 import { clearRevokedSessionState } from "@/lib/session-state";
+import { publishSessionTransition } from "@/lib/session-sync";
 import { Sidebar } from "@/components/layout/Sidebar";
 import gsbLogo from "@/assets/gsb-logo.jpg";
 
@@ -44,6 +45,7 @@ function useEventosEnVivo() {
         // sesión válida, montará también un EventSource nuevo.
         es.close();
         clearRevokedSessionState(queryClient);
+        publishSessionTransition(import.meta.env.BASE_URL);
         showToast({
           dedupeKey: "session-revoked",
           variant: "warning",

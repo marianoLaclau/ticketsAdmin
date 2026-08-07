@@ -20,6 +20,8 @@ import { ROL_SYSADMIN } from "@/lib/roles";
 import { getEstadoLabel } from "@/lib/estados";
 import { getUserErrorMessage } from "@/lib/error-messages";
 import { cn } from "@/lib/utils";
+import { clearRevokedSessionState } from "@/lib/session-state";
+import { publishSessionTransition } from "@/lib/session-sync";
 import gsbLogo from "@/assets/gsb-logo.jpg";
 
 interface SidebarProps {
@@ -56,7 +58,8 @@ export function Sidebar({
         // La caché de datos sí es propia de la sesión. La llave administrativa
         // persiste en el navegador, separada por usuario, para no pedirla en
         // cada ingreso al panel.
-        queryClient.clear();
+        clearRevokedSessionState(queryClient);
+        publishSessionTransition(import.meta.env.BASE_URL);
         onNavigate?.();
         // La recarga completa descarta cualquier árbol autenticado todavía
         // montado y obliga a verificar la cookie ya eliminada por el backend.

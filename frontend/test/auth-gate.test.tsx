@@ -14,6 +14,8 @@ import { getGetMeQueryKey, type AuthUser } from "@workspace/api-client-react";
 import { AuthGate } from "../src/features/auth/AuthGate.tsx";
 import { clearIdentityScopedCache } from "../src/lib/session-state.ts";
 
+const ignoreSessionLoss = () => undefined;
+
 notifyManager.setNotifyFunction((callback) => {
   act(callback);
 });
@@ -73,10 +75,12 @@ function createJsonResponse(body: unknown): Response {
 
 function SessionHarness({
   initialAcceptedUserId,
+  onConfirmedSessionLoss,
   queryClient,
   sessionQueryKey,
 }: {
   initialAcceptedUserId: number | null;
+  onConfirmedSessionLoss: () => void;
   queryClient: QueryClient;
   sessionQueryKey: QueryKey;
 }) {
@@ -99,6 +103,7 @@ function SessionHarness({
     <AuthGate
       acceptedUserId={acceptedUserId}
       onAcceptUserId={acceptUserId}
+      onConfirmedSessionLoss={onConfirmedSessionLoss}
       passwordChangeContent={
         <p data-testid="password-change-content">Cambiar contraseña</p>
       }
@@ -111,6 +116,7 @@ function SessionHarness({
 function renderGate(
   queryClient: QueryClient,
   initialAcceptedUserId: number | null,
+  onConfirmedSessionLoss: () => void = ignoreSessionLoss,
 ) {
   const sessionQueryKey = getGetMeQueryKey();
   const location = memoryLocation({ path: "/tickets" });
@@ -120,6 +126,7 @@ function renderGate(
       <Router hook={location.hook}>
         <SessionHarness
           initialAcceptedUserId={initialAcceptedUserId}
+          onConfirmedSessionLoss={onConfirmedSessionLoss}
           queryClient={queryClient}
           sessionQueryKey={sessionQueryKey}
         />
@@ -200,4 +207,42 @@ test("un cambio A→B bloquea el árbol y purga el estado de A antes de mostrar 
   assert.deepEqual(queryClient.getQueryData(sessionQueryKey), userB);
   assert.equal(queryClient.getQueryData(["tickets"]), undefined);
   assert.equal(queryClient.getMutationCache().getAll().length, 0);
+});
+
+test("un 401 de una identidad aceptada informa la pérdida una sola vez", async (t) => {
+  const queryClient = createQueryClient();
+  const sessionQueryKey = getGetMeQueryKey();
+  const unauthorizedError = Object.assign(new Error("Sesión vencida"), {
+    status: 401,
+  });
+  let reportedLosses = 0;
+  t.after(() => {
+    cleanup();
+    queryClient.clear();
+  });
+
+  queryClient.setQueryData(sessionQueryKey, userA, { updatedAt: 1 });
+  renderGate(queryClient, userA.id, () => {
+    reportedLosses += 1;
+  });
+  assert.equal(
+    screen.getByTestId("protected-content").textContent,
+    "Usuario 11",
+  );
+
+  await assert.rejects(
+    queryClient.fetchQuery({
+      queryKey: sessionQueryKey,
+      queryFn: async () => {
+        throw unauthorizedError;
+      },
+      staleTime: 0,
+    }),
+    unauthorizedError,
+  );
+
+  await flushQueryNotifications();
+  await waitFor(() => assert.equal(reportedLosses, 1));
+  assert.equal(screen.queryByTestId("protected-content"), null);
+  assert.equal(reportedLosses, 1);
 });

@@ -1,6 +1,16 @@
 import type { FetchStatus, QueryClient } from "@tanstack/react-query";
 
 /**
+ * La entrada pública verifica la cookie al montar, pero no mientras el usuario
+ * puede estar enviando el login: un GET viejo no debe competir con ese POST.
+ */
+export const PUBLIC_SESSION_QUERY_POLICY = Object.freeze({
+  refetchOnMount: true,
+  refetchOnWindowFocus: false,
+  retry: false,
+});
+
+/**
  * React Query puede conservar `data` mientras revalida y cuando un refetch
  * termina en error. Ningún consumidor debe usar esa identidad hasta que la
  * revalidación actual haya finalizado correctamente.
@@ -64,6 +74,10 @@ export function clearIdentityScopedCache(
   sessionQueryKey: readonly unknown[],
 ): void {
   clearAuthenticatedQueries(queryClient, sessionQueryKey);
+  destroySessionMutations(queryClient);
+}
+
+function destroySessionMutations(queryClient: QueryClient): void {
   const mutationCache = queryClient.getMutationCache();
   mutationCache.getAll().forEach((mutation) => mutation.destroy());
   mutationCache.clear();
@@ -75,5 +89,30 @@ export function clearIdentityScopedCache(
  * actual desde la entrada pública.
  */
 export function clearRevokedSessionState(queryClient: QueryClient): void {
+  destroySessionMutations(queryClient);
   queryClient.clear();
+}
+
+interface RemoteSessionTransitionActions {
+  resetAcceptedIdentity: () => void;
+  reloadFromPublicEntry: () => void;
+}
+
+/**
+ * Consume una sola vez una transición remota. La limpieza ocurre antes de
+ * cambiar estado o URL para que ningún render intermedio reutilice datos.
+ */
+export function createRemoteSessionTransitionHandler(
+  queryClient: QueryClient,
+  actions: RemoteSessionTransitionActions,
+): () => void {
+  let handled = false;
+
+  return () => {
+    if (handled) return;
+    handled = true;
+    clearRevokedSessionState(queryClient);
+    actions.resetAcceptedIdentity();
+    actions.reloadFromPublicEntry();
+  };
 }
