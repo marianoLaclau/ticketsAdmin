@@ -20,6 +20,7 @@ import {
   ErrorPage,
   getErrorStatus,
 } from "@/components/ErrorPage";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import { getServerErrorCode } from "@/lib/error-messages";
 import {
   PASSWORD_CHANGE_PATH,
@@ -101,9 +102,13 @@ function SoloSysAdmin({ children }: { children: React.ReactNode }) {
 
 function LoadingSession() {
   return (
-    <div className="min-h-screen bg-sidebar flex items-center justify-center">
-      <Loader2 className="h-8 w-8 text-white/60 animate-spin" />
-    </div>
+    <main className="flex min-h-screen items-center justify-center bg-sidebar">
+      <Loader2
+        className="h-8 w-8 animate-spin text-white/60 motion-reduce:animate-none"
+        aria-hidden="true"
+      />
+      <LoadingStatus>Verificando sesión</LoadingStatus>
+    </main>
   );
 }
 
@@ -115,7 +120,7 @@ function LoadingProtectedRoute() {
       aria-live="polite"
     >
       <Loader2
-        className="h-7 w-7 animate-spin text-muted-foreground"
+        className="h-7 w-7 animate-spin text-muted-foreground motion-reduce:animate-none"
         aria-hidden="true"
       />
       <span className="sr-only">Cargando pantalla</span>

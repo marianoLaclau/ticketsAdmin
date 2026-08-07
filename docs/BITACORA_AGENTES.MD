@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Estados de carga globales accesibles
+
+**Agente:** Codex
+**Estado:** centésima quinta remediación de la auditoría técnica, implementada localmente.
+
+- Los skeletons son ahora decorativos de forma obligatoria y desactivan su pulso cuando el sistema solicita movimiento reducido.
+- Se agregó un `LoadingStatus` reutilizable; la verificación de sesión conserva un único `<main>` y anuncia su estado, mientras el fallback de rutas protegidas mantiene una sola región `status` dentro del layout.
+- Ambos spinners globales son decorativos y respetan movimiento reducido. Se evitó `aria-busy` en loaders efímeros para que los lectores no difieran un anuncio hasta después del desmontaje.
+- Aprobaron las 90 pruebas frontend, Prettier, ESLint, typecheck, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Landmarks de error y rutas bajo subdirectorio
 
 **Agente:** Codex
