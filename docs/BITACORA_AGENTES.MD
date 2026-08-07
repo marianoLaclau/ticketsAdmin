@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Diálogo de gestión del ticket separado
+
+**Agente:** Codex
+**Estado:** septuagésima primera remediación de la auditoría técnica, implementada y validada localmente.
+
+- Estado, prioridad, progreso, fecha técnica y notas salieron de `TicketDetail.tsx` a `features/ticket-detail/TicketManagementDialog.tsx` como diálogo completamente controlado y sin hooks.
+- Draft, baseline, versión esperada, SSE, conflicto, recarga, permisos, validaciones, PATCH, caché y toasts permanecen en la página. Los callbacks preservan el baseline al cambiar estado y el fallback del slider; DOM, textos, opciones y bloqueos son equivalentes.
+- La revisión cruzada no encontró hallazgos P0/P1/P2. Aprobaron 85 pruebas, typecheck, ESLint, Prettier, build aislado y `diff --check`; sólo aparecieron advertencias conocidas. No se hizo push.
+
 ## 2026-08-07 — Panel de filtros de tickets aislado
 
 **Agente:** Codex

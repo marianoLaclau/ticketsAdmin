@@ -16,27 +16,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Slider } from '@/components/ui/slider';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog";
 
 import { isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
 import { getEstadoLabel } from '@/lib/estados';
@@ -49,11 +29,11 @@ import {
 } from '@/lib/error-messages';
 import { useAdminAccess, adminErrorMessage } from '@/hooks/use-admin-access';
 import { TicketDataEditDialog } from '@/components/tickets/TicketDataEditDialog';
-import { TicketVersionConflictAlert } from '@/components/tickets/TicketVersionConflictAlert';
 import { TicketCallSummaryCard } from '@/features/ticket-detail/TicketCallSummaryCard';
 import { TicketContactCard } from '@/features/ticket-detail/TicketContactCard';
 import { TicketHeaderSummary } from '@/features/ticket-detail/TicketHeaderSummary';
 import { TicketHistoryCard } from '@/features/ticket-detail/TicketHistoryCard';
+import { TicketManagementDialog } from '@/features/ticket-detail/TicketManagementDialog';
 import { TicketProgressCard } from '@/features/ticket-detail/TicketProgressCard';
 import { TicketTimingCard } from '@/features/ticket-detail/TicketTimingCard';
 import {
@@ -453,161 +433,42 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
           <EstadoBadge estado={ticket.estado} className="text-sm px-3 py-1" />
           <PrioridadBadge prioridad={ticket.prioridad} className="text-sm px-3 py-1" />
           
-          <Dialog open={isEditing} onOpenChange={handleEditDialogOpenChange}>
-            <DialogTrigger asChild>
-              <Button
-                variant="outline"
-                className="bg-white"
-                disabled={isReloadingConflict}
-              >
-                Editar Estado
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>Actualizar Ticket</DialogTitle>
-                <DialogDescription>
-                  Modifica el estado, prioridad o notas de gestión.
-                </DialogDescription>
-              </DialogHeader>
-              {versionConflict === 'management' && (
-                <TicketVersionConflictAlert
-                  isReloading={isReloadingConflict}
-                  onReload={() => void resolveManagementConflict()}
-                />
-              )}
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Estado</label>
-                    <Select
-                      value={editData.estado}
-                      onValueChange={(estado) =>
-                        setEditData((current) =>
-                          applyTicketManagementState(
-                            current,
-                            estado as TicketManagementForm['estado'],
-                            editBaseline?.values ?? current,
-                          ),
-                        )
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.values(TicketEstado).map((e: string) => (
-                          <SelectItem
-                            key={e}
-                            value={e}
-                            disabled={e === TicketEstado.cerrado && !puedeCerrar}
-                          >
-                            {getEstadoLabel(e).toUpperCase()}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {!puedeCerrar && (
-                      <p className="text-[11px] text-muted-foreground">
-                        Solo puede ser cerrado por un administrador
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Prioridad</label>
-                    <Select
-                      value={editData.prioridad}
-                      onValueChange={(prioridad) =>
-                        setEditData((current) => ({
-                          ...current,
-                          prioridad:
-                            prioridad as TicketManagementForm['prioridad'],
-                        }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.values(TicketPrioridad).map((p: string) => (
-                          <SelectItem key={p} value={p}>{p.toUpperCase()}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-3 pt-2">
-                  <div className="flex justify-between">
-                    <label className="text-sm font-medium">Progreso</label>
-                    <span className="text-sm text-slate-500">{editData.progreso}%</span>
-                  </div>
-                  <Slider 
-                    value={[editData.progreso]} 
-                    onValueChange={(value) =>
-                      setEditData((current) => ({
-                        ...current,
-                        progreso: value[0] ?? current.progreso,
-                      }))
-                    }
-                    max={100}
-                    step={5}
-                  />
-                </div>
-
-                {adminMode && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Fecha Límite</label>
-                    <Input
-                      type="datetime-local"
-                      value={editData.fecha_limite}
-                      onChange={(event) =>
-                        setEditData((current) => ({
-                          ...current,
-                          fecha_limite: event.target.value,
-                        }))
-                      }
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      Campo técnico protegido por la llave de administración.
-                    </p>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Notas Internas</label>
-                  <Textarea 
-                    value={editData.notas}
-                    onChange={(event) =>
-                      setEditData((current) => ({
-                        ...current,
-                        notas: event.target.value,
-                      }))
-                    }
-                    placeholder="Notas visibles solo para agentes..."
-                    className="h-24"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => handleEditDialogOpenChange(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={handleUpdateTicket}
-                  disabled={
-                    updateTicket.isPending ||
-                    versionConflict === 'management'
-                  }
-                >
-                  {updateTicket.isPending ? 'Guardando...' : 'Guardar Cambios'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <TicketManagementDialog
+            open={isEditing}
+            form={editData}
+            canCloseTickets={puedeCerrar}
+            showTechnicalDeadline={adminMode}
+            isReloadingConflict={isReloadingConflict}
+            hasVersionConflict={versionConflict === 'management'}
+            isSaving={updateTicket.isPending}
+            onOpenChange={handleEditDialogOpenChange}
+            onReloadLatest={() => void resolveManagementConflict()}
+            onStateChange={(estado) =>
+              setEditData((current) =>
+                applyTicketManagementState(
+                  current,
+                  estado,
+                  editBaseline?.values ?? current,
+                ),
+              )
+            }
+            onPriorityChange={(prioridad) =>
+              setEditData((current) => ({ ...current, prioridad }))
+            }
+            onProgressChange={(progreso) =>
+              setEditData((current) => ({
+                ...current,
+                progreso: progreso ?? current.progreso,
+              }))
+            }
+            onDeadlineChange={(fecha_limite) =>
+              setEditData((current) => ({ ...current, fecha_limite }))
+            }
+            onNotesChange={(notas) =>
+              setEditData((current) => ({ ...current, notas }))
+            }
+            onSave={handleUpdateTicket}
+          />
         </div>
       </div>
 
