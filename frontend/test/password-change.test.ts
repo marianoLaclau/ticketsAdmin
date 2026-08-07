@@ -1,5 +1,5 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
   AUTHENTICATED_HOME_PATH,
   PASSWORD_CHANGE_PATH,
@@ -8,10 +8,10 @@ import {
   getCurrentPasswordError,
   getPasswordChangeFormError,
   getRepeatedPasswordError,
-} from '../src/lib/password-change.ts';
+} from "../src/lib/password-change.ts";
 
-describe('flujo de cambio obligatorio de contraseña', () => {
-  it('elige el destino autenticado sin permitir escapar del cambio', () => {
+describe("flujo de cambio obligatorio de contraseña", () => {
+  it("elige el destino autenticado sin permitir escapar del cambio", () => {
     assert.equal(
       getAuthenticatedEntryPath({ debe_cambiar_password: true }),
       PASSWORD_CHANGE_PATH,
@@ -23,32 +23,32 @@ describe('flujo de cambio obligatorio de contraseña', () => {
     assert.equal(
       getAuthenticatedEntryPath({}),
       PASSWORD_CHANGE_PATH,
-      'un contrato incompleto debe fallar cerrado',
+      "un contrato incompleto debe fallar cerrado",
     );
   });
 
-  it('conserva compatibilidad con la contraseña temporal histórica', () => {
-    assert.equal(getCurrentPasswordError('x'), null);
-    assert.match(getCurrentPasswordError('') ?? '', /temporal/i);
-    assert.match(getCurrentPasswordError('x'.repeat(129)) ?? '', /128/i);
+  it("conserva compatibilidad con la contraseña temporal histórica", () => {
+    assert.equal(getCurrentPasswordError("x"), null);
+    assert.match(getCurrentPasswordError("") ?? "", /temporal/i);
+    assert.match(getCurrentPasswordError("x".repeat(129)) ?? "", /128/i);
   });
 
-  it('aplica política, diferencia y confirmación a la clave definitiva', () => {
-    const currentPassword = 'Temporal-2026-muy-segura';
-    const newPassword = 'Definitiva interna 2026 segura';
+  it("aplica política, diferencia y confirmación a la clave definitiva", () => {
+    const currentPassword = "Temporal-2026-muy-segura";
+    const newPassword = "Definitiva interna 2026 segura";
 
     assert.match(
-      getChangedPasswordError(currentPassword, 'corta') ?? '',
+      getChangedPasswordError(currentPassword, "corta") ?? "",
       /16/i,
     );
     assert.match(
-      getChangedPasswordError(currentPassword, currentPassword) ?? '',
+      getChangedPasswordError(currentPassword, currentPassword) ?? "",
       /diferente/i,
     );
     assert.equal(getChangedPasswordError(currentPassword, newPassword), null);
-    assert.match(getRepeatedPasswordError(newPassword, '') ?? '', /repet/i);
+    assert.match(getRepeatedPasswordError(newPassword, "") ?? "", /repet/i);
     assert.match(
-      getRepeatedPasswordError(newPassword, `${newPassword}!`) ?? '',
+      getRepeatedPasswordError(newPassword, `${newPassword}!`) ?? "",
       /no coinciden/i,
     );
     assert.equal(getRepeatedPasswordError(newPassword, newPassword), null);

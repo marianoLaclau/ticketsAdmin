@@ -1,4 +1,4 @@
-import type { QueryClient } from '@tanstack/react-query';
+import type { QueryClient } from "@tanstack/react-query";
 
 /**
  * React Query puede conservar `data` cuando un refetch termina en error. La

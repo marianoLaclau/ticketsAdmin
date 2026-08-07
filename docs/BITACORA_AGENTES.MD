@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Formato del estado de autenticación y sesión
+
+**Agente:** Codex
+**Estado:** centésima cuadragésima cuarta remediación de la auditoría técnica, implementada localmente.
+
+- Se normalizó con Prettier el formato de los helpers puros que deciden el cambio obligatorio de contraseña y limpian la caché de sesión, junto con sus pruebas directas. El lote quedó separado de cambios funcionales, JSX, estilos y código generado.
+- `prettier --debug-check` confirmó que la transformación conserva el árbol sintáctico: el diff se limita a comillas y distribución mecánica, sin alterar lógica, contratos ni consumidores.
+- Aprobaron las 6 pruebas dirigidas, las 160 pruebas frontend, Prettier, ESLint, typecheck, build de producción y `git diff --check`. La salida temporal fue verificada y eliminada; sólo persistieron las advertencias de sourcemaps conocidas. No se hizo push.
+
 ## 2026-08-07 — Verificación diferida de la llave administrativa
 
 **Agente:** Codex

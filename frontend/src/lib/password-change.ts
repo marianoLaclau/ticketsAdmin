@@ -1,8 +1,8 @@
-import { PASSWORD_MAX_LENGTH } from '@workspace/password-policy';
-import { getNewPasswordError } from './password-policy.ts';
+import { PASSWORD_MAX_LENGTH } from "@workspace/password-policy";
+import { getNewPasswordError } from "./password-policy.ts";
 
-export const PASSWORD_CHANGE_PATH = '/cambiar-contrasena';
-export const AUTHENTICATED_HOME_PATH = '/dashboard';
+export const PASSWORD_CHANGE_PATH = "/cambiar-contrasena";
+export const AUTHENTICATED_HOME_PATH = "/dashboard";
 
 export interface PasswordChangeFields {
   currentPassword: string;
@@ -19,7 +19,7 @@ export function getAuthenticatedEntryPath(user: {
 }
 
 export function getCurrentPasswordError(password: string): string | null {
-  if (!password) return 'Ingresá tu contraseña temporal.';
+  if (!password) return "Ingresá tu contraseña temporal.";
   if (password.length > PASSWORD_MAX_LENGTH) {
     return `La contraseña temporal no puede superar ${PASSWORD_MAX_LENGTH} caracteres.`;
   }
@@ -33,7 +33,7 @@ export function getChangedPasswordError(
   const policyError = getNewPasswordError(newPassword);
   if (policyError) return policyError;
   if (newPassword === currentPassword) {
-    return 'La contraseña nueva debe ser diferente de la temporal.';
+    return "La contraseña nueva debe ser diferente de la temporal.";
   }
   return null;
 }
@@ -42,8 +42,8 @@ export function getRepeatedPasswordError(
   newPassword: string,
   repeatedPassword: string,
 ): string | null {
-  if (!repeatedPassword) return 'Repetí la contraseña nueva.';
-  if (repeatedPassword !== newPassword) return 'Las contraseñas no coinciden.';
+  if (!repeatedPassword) return "Repetí la contraseña nueva.";
+  if (repeatedPassword !== newPassword) return "Las contraseñas no coinciden.";
   return null;
 }
 
