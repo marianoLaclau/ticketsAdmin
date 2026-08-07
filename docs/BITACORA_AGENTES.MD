@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Frescura temporal del Dashboard
+
+**Agente:** Codex
+**Estado:** centésima décima novena remediación de la auditoría técnica, implementada localmente.
+
+- Estadísticas y vencidos se actualizan cada cinco minutos mientras la pestaña está visible y también al recuperar el foco; así se cubren cruces de vencimiento que no generan una mutación ni un evento SSE.
+- Actividad y motivos no se sondean: continúan reaccionando a SSE y a cambios de rango. Al cambiar el día de negocio sólo se refrescan estadísticas y vencidos, reduciendo cuatro solicitudes explícitas a dos.
+- Un fallo de actualización ya no oculta datos válidos en caché: la pantalla completa de error queda reservada para la carga inicial y los fallos de refetch muestran un aviso no técnico, conservan la última información y permiten reintentar.
+- Aprobaron las 129 pruebas frontend, Prettier, ESLint, typecheck, build de producción, `git diff --check` y dos rondas de revisión cruzada sin hallazgos P0/P1/P2 después de corregir sus observaciones. No se hizo push.
+
 ## 2026-08-07 — Período del Dashboard sincronizado con la URL
 
 **Agente:** Codex

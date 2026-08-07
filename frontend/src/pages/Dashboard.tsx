@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import {
+  getGetDashboardStatsQueryKey,
+  getGetTicketsVencidosQueryKey,
   useGetDashboardStats,
   useGetActividadReciente,
   useGetTicketsVencidos,
@@ -8,6 +10,7 @@ import {
 } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoadingStatus } from "@/components/ui/loading-status";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +21,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Clock, CheckCircle2, TrendingUp, CalendarRange } from "lucide-react";
+import {
+  Clock,
+  CheckCircle2,
+  TrendingUp,
+  CalendarRange,
+  TriangleAlert,
+} from "lucide-react";
 import { DashboardKpiGrid } from "@/features/dashboard/DashboardKpiGrid";
 import { DashboardMotivesPriorityPanel } from "@/features/dashboard/DashboardMotivesPriorityPanel";
 import { DashboardRecentActivityPanel } from "@/features/dashboard/DashboardRecentActivityPanel";
@@ -77,6 +86,13 @@ function GaugeRing({
   );
 }
 
+const DASHBOARD_TEMPORAL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const DASHBOARD_TEMPORAL_QUERY_POLICY = {
+  refetchInterval: DASHBOARD_TEMPORAL_REFRESH_INTERVAL_MS,
+  refetchIntervalInBackground: false,
+  refetchOnWindowFocus: true,
+} as const;
+
 export default function Dashboard() {
   const [fechaReferencia, setFechaReferencia] = useState(() => new Date());
   const {
@@ -102,17 +118,25 @@ export default function Dashboard() {
   const businessDateKey = getDashboardBusinessDateKey(fechaReferencia);
   const dashboardRangeKey = getDashboardRangeKey(dashboardParams);
 
-  const statsQuery = useGetDashboardStats(dashboardParams);
+  const statsQuery = useGetDashboardStats(dashboardParams, {
+    query: {
+      queryKey: getGetDashboardStatsQueryKey(dashboardParams),
+      ...DASHBOARD_TEMPORAL_QUERY_POLICY,
+    },
+  });
   const actividadQuery = useGetActividadReciente({
     limit: 12,
     ...dashboardParams,
   });
-  const vencidosQuery = useGetTicketsVencidos(dashboardParams);
+  const vencidosQuery = useGetTicketsVencidos(dashboardParams, {
+    query: {
+      queryKey: getGetTicketsVencidosQueryKey(dashboardParams),
+      ...DASHBOARD_TEMPORAL_QUERY_POLICY,
+    },
+  });
   const motivosQuery = useGetMotivoStats(dashboardParams);
   const refetchStats = statsQuery.refetch;
-  const refetchActividad = actividadQuery.refetch;
   const refetchVencidos = vencidosQuery.refetch;
-  const refetchMotivos = motivosQuery.refetch;
   const refreshSnapshot = useRef({
     businessDateKey,
     rangeKey: dashboardRangeKey,
@@ -130,37 +154,25 @@ export default function Dashboard() {
     refreshSnapshot.current = currentSnapshot;
 
     if (shouldRefresh) {
-      void Promise.all([
-        refetchStats(),
-        refetchActividad(),
-        refetchVencidos(),
-        refetchMotivos(),
-      ]);
+      void Promise.all([refetchStats(), refetchVencidos()]);
     }
-  }, [
-    businessDateKey,
-    dashboardRangeKey,
-    refetchActividad,
-    refetchMotivos,
-    refetchStats,
-    refetchVencidos,
-  ]);
+  }, [businessDateKey, dashboardRangeKey, refetchStats, refetchVencidos]);
 
   const { data: stats, isLoading: loadingStats } = statsQuery;
   const { data: actividades, isLoading: loadingActividad } = actividadQuery;
   const { data: vencidos, isLoading: loadingVencidos } = vencidosQuery;
   const { data: motivos, isLoading: loadingMotivos } = motivosQuery;
 
-  const dashboardError =
-    statsQuery.error ??
-    actividadQuery.error ??
-    vencidosQuery.error ??
-    motivosQuery.error;
-  const dashboardIsError =
-    statsQuery.isError ||
-    actividadQuery.isError ||
-    vencidosQuery.isError ||
-    motivosQuery.isError;
+  const dashboardInitialError =
+    (statsQuery.isLoadingError ? statsQuery.error : undefined) ??
+    (actividadQuery.isLoadingError ? actividadQuery.error : undefined) ??
+    (vencidosQuery.isLoadingError ? vencidosQuery.error : undefined) ??
+    (motivosQuery.isLoadingError ? motivosQuery.error : undefined);
+  const dashboardHasRefreshError =
+    statsQuery.isRefetchError ||
+    actividadQuery.isRefetchError ||
+    vencidosQuery.isRefetchError ||
+    motivosQuery.isRefetchError;
   const dashboardIsFetching =
     statsQuery.isFetching ||
     actividadQuery.isFetching ||
@@ -169,19 +181,23 @@ export default function Dashboard() {
   const dashboardIsLoading =
     loadingStats || loadingActividad || loadingVencidos || loadingMotivos;
 
-  if (dashboardIsError) {
+  const refetchDashboard = () => {
+    void Promise.all([
+      statsQuery.refetch(),
+      actividadQuery.refetch(),
+      vencidosQuery.refetch(),
+      motivosQuery.refetch(),
+    ]);
+  };
+
+  if (dashboardInitialError) {
     return (
       <ErrorPage
         embedded
-        status={getErrorStatus(dashboardError) ?? 503}
+        status={getErrorStatus(dashboardInitialError) ?? 503}
         title="No pudimos cargar el dashboard"
         message="Una o más secciones no pudieron obtener sus datos. Reintentá para volver a cargar el panel."
-        onRetry={() => {
-          void statsQuery.refetch();
-          void actividadQuery.refetch();
-          void vencidosQuery.refetch();
-          void motivosQuery.refetch();
-        }}
+        onRetry={refetchDashboard}
         isRetrying={dashboardIsFetching}
       />
     );
@@ -222,6 +238,26 @@ export default function Dashboard() {
     <div className="mx-auto w-full max-w-[1400px] space-y-5 p-4 sm:p-6">
       {dashboardIsLoading ? (
         <LoadingStatus>Cargando dashboard</LoadingStatus>
+      ) : null}
+      {dashboardHasRefreshError ? (
+        <Alert variant="destructive">
+          <TriangleAlert className="h-4 w-4" />
+          <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              No pudimos actualizar todos los datos. Conservamos la última
+              información disponible.
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={dashboardIsFetching}
+              onClick={refetchDashboard}
+            >
+              {dashboardIsFetching ? "Actualizando..." : "Reintentar"}
+            </Button>
+          </AlertDescription>
+        </Alert>
       ) : null}
       {/* Header */}
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
