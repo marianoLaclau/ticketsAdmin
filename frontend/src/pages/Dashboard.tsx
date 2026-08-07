@@ -212,6 +212,15 @@ export default function Dashboard() {
     day: "numeric",
   });
   const periodoLabel = getDashboardPeriodLabel(periodo);
+  const appliedPeriodLabel = dashboardParams
+    ? getDashboardRangeLabel(dashboardParams)
+    : "Todo el historial";
+  const handlePeriodSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (periodo === "personalizado" && !errorPeriodo) {
+      applyPeriodoPersonalizado();
+    }
+  };
   const resueltosDelPeriodo =
     periodo === "todo" ? stats?.resueltos_hoy : stats?.resueltos_periodo;
 
@@ -270,100 +279,122 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <div className="w-full rounded-xl border bg-card p-3 shadow-sm xl:w-auto">
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-            <div className="min-w-[220px] space-y-1.5">
-              <Label
-                htmlFor="dashboard-periodo"
-                className="flex items-center gap-1.5 text-xs text-muted-foreground"
-              >
-                <CalendarRange className="h-3.5 w-3.5" />
-                Datos a visualizar
-              </Label>
-              <Select
-                value={periodo}
-                onValueChange={(value) =>
-                  selectPeriodo(value as DashboardPeriod)
-                }
-              >
-                <SelectTrigger id="dashboard-periodo">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todo">Todo</SelectItem>
-                  <SelectItem value="semana">Semana actual</SelectItem>
-                  <SelectItem value="mes">Mes actual</SelectItem>
-                  <SelectItem value="personalizado">
-                    Período personalizado
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {periodo === "personalizado" && (
-              <>
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="dashboard-desde"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Desde
-                  </Label>
-                  <Input
-                    id="dashboard-desde"
-                    type="date"
-                    value={periodoPersonalizado.fecha_desde}
-                    onChange={(event) =>
-                      setPeriodoPersonalizado((actual) => ({
-                        ...actual,
-                        fecha_desde: event.target.value,
-                      }))
-                    }
-                    className="w-full sm:w-[155px]"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="dashboard-hasta"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Hasta
-                  </Label>
-                  <Input
-                    id="dashboard-hasta"
-                    type="date"
-                    value={periodoPersonalizado.fecha_hasta}
-                    onChange={(event) =>
-                      setPeriodoPersonalizado((actual) => ({
-                        ...actual,
-                        fecha_hasta: event.target.value,
-                      }))
-                    }
-                    className="w-full sm:w-[155px]"
-                  />
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={Boolean(errorPeriodo)}
-                  onClick={applyPeriodoPersonalizado}
+        <form
+          className="w-full rounded-xl border bg-card p-3 shadow-sm xl:w-auto"
+          onSubmit={handlePeriodSubmit}
+        >
+          <fieldset className="m-0 min-w-0 border-0 p-0">
+            <legend className="sr-only">
+              Filtrar los datos del dashboard por período
+            </legend>
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+              <div className="min-w-[220px] space-y-1.5">
+                <Label
+                  htmlFor="dashboard-periodo"
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground"
                 >
-                  Aplicar
-                </Button>
-              </>
+                  <CalendarRange className="h-3.5 w-3.5" />
+                  Datos a visualizar
+                </Label>
+                <Select
+                  value={periodo}
+                  onValueChange={(value) =>
+                    selectPeriodo(value as DashboardPeriod)
+                  }
+                >
+                  <SelectTrigger id="dashboard-periodo">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todo">Todo</SelectItem>
+                    <SelectItem value="semana">Semana actual</SelectItem>
+                    <SelectItem value="mes">Mes actual</SelectItem>
+                    <SelectItem value="personalizado">
+                      Período personalizado
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {periodo === "personalizado" && (
+                <>
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="dashboard-desde"
+                      className="text-xs text-muted-foreground"
+                    >
+                      Desde
+                    </Label>
+                    <Input
+                      id="dashboard-desde"
+                      type="date"
+                      aria-invalid={errorPeriodo ? true : undefined}
+                      aria-describedby={
+                        errorPeriodo ? "dashboard-periodo-error" : undefined
+                      }
+                      value={periodoPersonalizado.fecha_desde}
+                      onChange={(event) =>
+                        setPeriodoPersonalizado((actual) => ({
+                          ...actual,
+                          fecha_desde: event.target.value,
+                        }))
+                      }
+                      className="w-full sm:w-[155px]"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="dashboard-hasta"
+                      className="text-xs text-muted-foreground"
+                    >
+                      Hasta
+                    </Label>
+                    <Input
+                      id="dashboard-hasta"
+                      type="date"
+                      aria-invalid={errorPeriodo ? true : undefined}
+                      aria-describedby={
+                        errorPeriodo ? "dashboard-periodo-error" : undefined
+                      }
+                      value={periodoPersonalizado.fecha_hasta}
+                      onChange={(event) =>
+                        setPeriodoPersonalizado((actual) => ({
+                          ...actual,
+                          fecha_hasta: event.target.value,
+                        }))
+                      }
+                      className="w-full sm:w-[155px]"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={Boolean(errorPeriodo)}
+                  >
+                    Aplicar
+                  </Button>
+                </>
+              )}
+            </div>
+            {periodo === "personalizado" && errorPeriodo && (
+              <p
+                id="dashboard-periodo-error"
+                className="mt-2 text-xs text-red-600"
+                role="alert"
+              >
+                {errorPeriodo}
+              </p>
             )}
-          </div>
-          {periodo === "personalizado" && errorPeriodo && (
-            <p className="mt-2 text-xs text-red-600" role="alert">
-              {errorPeriodo}
+            <p
+              className="mt-2 text-[11px] text-muted-foreground"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              Período aplicado: {appliedPeriodLabel}
             </p>
-          )}
-          {dashboardParams && (
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              Período aplicado: {getDashboardRangeLabel(dashboardParams)}
-            </p>
-          )}
-        </div>
+          </fieldset>
+        </form>
       </div>
 
       <DashboardKpiGrid

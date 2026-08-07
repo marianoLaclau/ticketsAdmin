@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Filtro accesible del Dashboard
+
+**Agente:** Codex
+**Estado:** centésima vigésima remediación de la auditoría técnica, implementada localmente.
+
+- El selector y las fechas forman ahora un grupo semántico con `form`, `fieldset` y una leyenda para tecnologías de asistencia; Enter aplica un rango personalizado válido igual que el botón.
+- Los dos campos de fecha informan `aria-invalid` y referencian el mensaje que explica el error. El rango realmente aplicado se muestra siempre —incluido “Todo el historial”— y sus cambios se anuncian de forma no intrusiva.
+- Se mantuvieron la distribución responsive y la separación entre fechas en edición y período aplicado. Aprobaron las 129 pruebas frontend, Prettier, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Frescura temporal del Dashboard
 
 **Agente:** Codex
