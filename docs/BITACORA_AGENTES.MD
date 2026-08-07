@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Paginación administrativa de tickets aislada
+
+**Agente:** Codex
+**Estado:** septuagésima cuarta remediación de la auditoría técnica, implementada y validada localmente.
+
+- Selector de tamaño, resumen y navegación salieron de `AdminTicketsTab.tsx` a `features/admin-tickets/AdminTicketsPagination.tsx` como vista pura de siete props y sin hooks.
+- Página, tamaño, query, totales, reinicio y ajuste al último resultado permanecen en el padre. Los callbacks anterior/siguiente conservan actualizaciones funcionales; DOM, opciones, textos, clases e inhabilitación son equivalentes.
+- La revisión cruzada no encontró hallazgos P0/P1/P2. Aprobaron las 9 pruebas dirigidas, typecheck, ESLint, Prettier, build aislado y `diff --check`; el temporal fue eliminado. No se hizo push.
+
 ## 2026-08-07 — Validación del PATCH de tickets separada
 
 **Agente:** Codex

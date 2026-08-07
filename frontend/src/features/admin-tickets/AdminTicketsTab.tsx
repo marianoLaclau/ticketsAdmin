@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { adminErrorMessage } from '@/hooks/use-admin-access';
 import { isTicketVersionConflict } from '@/lib/error-messages';
 import { SortableTableHead } from '@/components/SortableTableHead';
+import { AdminTicketsPagination } from '@/features/admin-tickets/AdminTicketsPagination';
 import { AdminTicketDeleteDialog } from '@/features/admin-tickets/AdminTicketDeleteDialog';
 import { AdminTicketFormDialog } from '@/features/admin-tickets/AdminTicketFormDialog';
 import { AdminTicketTableRow } from '@/features/admin-tickets/AdminTicketTableRow';
@@ -29,21 +30,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Plus,
   Search,
-  ChevronLeft,
-  ChevronRight,
   RotateCcw,
 } from 'lucide-react';
 import { getContactDisplayName } from '@/lib/contacto';
@@ -506,51 +498,15 @@ export function AdminTicketsTab({
               </TableBody>
             </Table>
           </div>
-          {/* Paginación */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-4 py-2.5 border-t bg-slate-50/50 text-sm">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>Mostrar</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(value) => setPageSize(Number(value))}
-              >
-                <SelectTrigger className="h-7 w-[70px] text-xs bg-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[10, 25, 50, 100].map((size) => (
-                    <SelectItem key={size} value={String(size)}>
-                      {size}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <span>por página</span>
-            </div>
-            <span className="text-muted-foreground text-xs">
-              {total} registros — página {page} de {totalPages}
-            </span>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 px-2 text-xs bg-white"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                <ChevronLeft className="h-3.5 w-3.5 mr-0.5" /> Anterior
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 px-2 text-xs bg-white"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Siguiente <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
-              </Button>
-            </div>
-          </div>
+          <AdminTicketsPagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            totalPages={totalPages}
+            onPageSizeChange={setPageSize}
+            onPreviousPage={() => setPage((current) => current - 1)}
+            onNextPage={() => setPage((current) => current + 1)}
+          />
         </div>
       </TabsContent>
 
