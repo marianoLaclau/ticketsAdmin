@@ -1,13 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   exportTicketsCsv,
   useListTickets,
   TicketSortBy,
-  type ListTicketsEstado,
-  type ListTicketsPrioridad,
-  type MotivoCategoria,
 } from "@workspace/api-client-react";
-import { useLocation } from "wouter";
+import { useLocation, useSearchParams } from "wouter";
 import {
   Table,
   TableBody,
@@ -42,68 +39,69 @@ import {
   isDefaultTicketSort,
   nextTicketSort,
   type TicketActiveFilters,
-  type TicketSortRule,
 } from "@/lib/ticket-list-controls";
+import {
+  parseTicketListUrlState,
+  serializeTicketListUrlState,
+  TICKET_LIST_LIMITS,
+  type TicketListUrlState,
+} from "@/lib/ticket-list-url";
 
 export default function TicketList() {
   const [, setLocation] = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
-  const [search, setSearch] = useState("");
-  const [estadoFilter, setEstadoFilter] = useState<string>("_all");
-  const [prioridadFilter, setPrioridadFilter] = useState<string>("_all");
-  const [motivoCategoriaFilter, setMotivoCategoriaFilter] =
-    useState<string>("_all");
-  const [vencidosFilter, setVencidosFilter] = useState(false);
-
-  // Date and Time filters
-  const [fechaDesde, setFechaDesde] = useState("");
-  const [fechaHasta, setFechaHasta] = useState("");
-  const [horaDesde, setHoraDesde] = useState("");
-  const [horaHasta, setHoraHasta] = useState("");
-  const [empresa, setEmpresa] = useState("");
-
-  // Orden server-side sobre el conjunto completo + paginación.
-  const [sorts, setSorts] = useState<TicketSortRule[]>(createDefaultTicketSort);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [isExporting, setIsExporting] = useState(false);
 
-  // Al cambiar cualquier filtro u orden, volver a la primera página
-  useEffect(() => {
-    setPage(1);
-  }, [
-    search,
-    estadoFilter,
-    prioridadFilter,
-    motivoCategoriaFilter,
-    vencidosFilter,
-    fechaDesde,
-    fechaHasta,
-    horaDesde,
-    horaHasta,
-    empresa,
-    sorts,
-    pageSize,
-  ]);
+  const urlState = useMemo(
+    () => parseTicketListUrlState(searchParams),
+    [searchParams],
+  );
+  const {
+    filters: activeFilters,
+    sort: sorts,
+    page,
+    limit: pageSize,
+  } = urlState;
+  const currentSearch = searchParams.toString();
+  const canonicalSearch = useMemo(
+    () => serializeTicketListUrlState(urlState).toString(),
+    [urlState],
+  );
 
-  const activeFilters: TicketActiveFilters = {
-    ...(search ? { search } : {}),
-    ...(estadoFilter !== "_all"
-      ? { estado: estadoFilter as ListTicketsEstado }
-      : {}),
-    ...(prioridadFilter !== "_all"
-      ? { prioridad: prioridadFilter as ListTicketsPrioridad }
-      : {}),
-    ...(motivoCategoriaFilter !== "_all"
-      ? { motivo_categoria: motivoCategoriaFilter as MotivoCategoria }
-      : {}),
-    ...(vencidosFilter ? { vencidos: true } : {}),
-    ...(fechaDesde ? { fecha_desde: fechaDesde } : {}),
-    ...(fechaHasta ? { fecha_hasta: fechaHasta } : {}),
-    ...(horaDesde ? { hora_desde: horaDesde } : {}),
-    ...(horaHasta ? { hora_hasta: horaHasta } : {}),
-    ...(empresa ? { empresa } : {}),
-  };
+  useEffect(() => {
+    if (currentSearch !== canonicalSearch) {
+      setSearchParams(canonicalSearch, { replace: true });
+    }
+  }, [canonicalSearch, currentSearch, setSearchParams]);
+
+  const updateUrlState = useCallback(
+    (
+      update: (current: TicketListUrlState) => TicketListUrlState,
+      replace = true,
+    ) => {
+      setSearchParams(
+        (currentParams) =>
+          serializeTicketListUrlState(
+            update(parseTicketListUrlState(currentParams)),
+          ),
+        { replace },
+      );
+    },
+    [setSearchParams],
+  );
+
+  function updateFilter<Key extends keyof TicketActiveFilters>(
+    key: Key,
+    value: TicketActiveFilters[Key],
+  ): void {
+    updateUrlState((current) => ({
+      ...current,
+      filters: { ...current.filters, [key]: value },
+      page: 1,
+    }));
+  }
+
   const params = buildTicketListParams(activeFilters, sorts, page, pageSize);
   const exportParams = buildTicketExportParams(activeFilters, sorts);
 
@@ -119,27 +117,34 @@ export default function TicketList() {
   const total = listResponse?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  useEffect(() => {
+    if (listResponse && page > totalPages) {
+      updateUrlState((current) => ({ ...current, page: totalPages }), true);
+    }
+  }, [listResponse, page, totalPages, updateUrlState]);
+
   const clearFilters = () => {
-    setSearch("");
-    setEstadoFilter("_all");
-    setPrioridadFilter("_all");
-    setMotivoCategoriaFilter("_all");
-    setVencidosFilter(false);
-    setFechaDesde("");
-    setFechaHasta("");
-    setHoraDesde("");
-    setHoraHasta("");
-    setEmpresa("");
+    updateUrlState((current) => ({
+      ...current,
+      filters: {},
+      page: 1,
+    }));
   };
 
   const handleSort = (column: TicketSortBy, additive: boolean) => {
-    setSorts((current) => nextTicketSort(current, column, additive));
-    setPage(1);
+    updateUrlState((current) => ({
+      ...current,
+      sort: nextTicketSort(current.sort, column, additive),
+      page: 1,
+    }));
   };
 
   const resetSort = () => {
-    setSorts(createDefaultTicketSort());
-    setPage(1);
+    updateUrlState((current) => ({
+      ...current,
+      sort: createDefaultTicketSort(),
+      page: 1,
+    }));
   };
 
   const handleExportCsv = async () => {
@@ -198,28 +203,46 @@ export default function TicketList() {
 
       <TicketListFiltersPanel
         values={{
-          search,
-          estado: estadoFilter,
-          prioridad: prioridadFilter,
-          motivoCategoria: motivoCategoriaFilter,
-          vencidos: vencidosFilter,
-          fechaDesde,
-          fechaHasta,
-          horaDesde,
-          horaHasta,
-          empresa,
+          search: activeFilters.search ?? "",
+          estado: activeFilters.estado ?? "_all",
+          prioridad: activeFilters.prioridad ?? "_all",
+          motivoCategoria: activeFilters.motivo_categoria ?? "_all",
+          vencidos: activeFilters.vencidos ?? false,
+          fechaDesde: activeFilters.fecha_desde ?? "",
+          fechaHasta: activeFilters.fecha_hasta ?? "",
+          horaDesde: activeFilters.hora_desde ?? "",
+          horaHasta: activeFilters.hora_hasta ?? "",
+          empresa: activeFilters.empresa ?? "",
         }}
         onChange={{
-          search: setSearch,
-          estado: setEstadoFilter,
-          prioridad: setPrioridadFilter,
-          motivoCategoria: setMotivoCategoriaFilter,
-          vencidos: setVencidosFilter,
-          fechaDesde: setFechaDesde,
-          fechaHasta: setFechaHasta,
-          horaDesde: setHoraDesde,
-          horaHasta: setHoraHasta,
-          empresa: setEmpresa,
+          search: (value) => updateFilter("search", value),
+          estado: (value) =>
+            updateFilter(
+              "estado",
+              value === "_all"
+                ? undefined
+                : (value as TicketActiveFilters["estado"]),
+            ),
+          prioridad: (value) =>
+            updateFilter(
+              "prioridad",
+              value === "_all"
+                ? undefined
+                : (value as TicketActiveFilters["prioridad"]),
+            ),
+          motivoCategoria: (value) =>
+            updateFilter(
+              "motivo_categoria",
+              value === "_all"
+                ? undefined
+                : (value as TicketActiveFilters["motivo_categoria"]),
+            ),
+          vencidos: (value) => updateFilter("vencidos", value),
+          fechaDesde: (value) => updateFilter("fecha_desde", value),
+          fechaHasta: (value) => updateFilter("fecha_hasta", value),
+          horaDesde: (value) => updateFilter("hora_desde", value),
+          horaHasta: (value) => updateFilter("hora_hasta", value),
+          empresa: (value) => updateFilter("empresa", value),
         }}
         isExporting={isExporting}
         onExport={handleExportCsv}
@@ -379,13 +402,19 @@ export default function TicketList() {
             <span>Mostrar</span>
             <Select
               value={String(pageSize)}
-              onValueChange={(v) => setPageSize(Number(v))}
+              onValueChange={(value) =>
+                updateUrlState((current) => ({
+                  ...current,
+                  limit: Number(value) as TicketListUrlState["limit"],
+                  page: 1,
+                }))
+              }
             >
               <SelectTrigger className="h-7 w-[70px] text-xs bg-white">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {[10, 25, 50, 100].map((n) => (
+                {TICKET_LIST_LIMITS.map((n) => (
                   <SelectItem key={n} value={String(n)}>
                     {n}
                   </SelectItem>
@@ -403,7 +432,15 @@ export default function TicketList() {
               size="sm"
               className="h-7 px-2 text-xs bg-white"
               disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
+              onClick={() =>
+                updateUrlState(
+                  (current) => ({
+                    ...current,
+                    page: Math.max(1, current.page - 1),
+                  }),
+                  false,
+                )
+              }
             >
               <ChevronLeft className="h-3.5 w-3.5 mr-0.5" /> Anterior
             </Button>
@@ -412,7 +449,15 @@ export default function TicketList() {
               size="sm"
               className="h-7 px-2 text-xs bg-white"
               disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() =>
+                updateUrlState(
+                  (current) => ({
+                    ...current,
+                    page: Math.min(totalPages, current.page + 1),
+                  }),
+                  false,
+                )
+              }
             >
               Siguiente <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
             </Button>

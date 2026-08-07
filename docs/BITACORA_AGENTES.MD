@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Filtros de Tickets sincronizados con la URL
+
+**Agente:** Codex
+**Estado:** centésima décima segunda remediación de la auditoría técnica, implementada localmente.
+
+- Tickets usa la URL como única fuente para filtros, orden compuesto, página y tamaño; recargar y navegar con Atrás/Adelante ya conserva el estado del listado.
+- Los cambios de filtros, orden y tamaño vuelven explícitamente a la primera página; la paginación crea historial, las ediciones de filtros lo reemplazan y una respuesta con página fuera de rango se corrige sin dejar una entrada inválida.
+- La URL se canonicaliza, la exportación deriva del mismo estado visible y se eliminó la sincronización bidireccional con doce estados locales.
+- Aprobaron las 99 pruebas frontend, Prettier, ESLint, typecheck, build de producción, `git diff --check` y revisión cruzada sin hallazgos P0/P1. El retorno contextual desde el detalle queda deliberadamente separado en el siguiente commit. No se hizo push.
+
 ## 2026-08-07 — Codec de filtros de Tickets en la URL
 
 **Agente:** Codex
