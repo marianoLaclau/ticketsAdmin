@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Filter, ChevronLeft, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import { ErrorPage, getErrorStatus } from "@/components/ErrorPage";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { TicketListFiltersPanel } from "@/features/ticket-list/TicketListFiltersPanel";
@@ -225,8 +226,13 @@ export default function TicketList() {
         onClear={clearFilters}
       />
 
+      {isLoading ? <LoadingStatus>Cargando llamados</LoadingStatus> : null}
+
       {/* Table Area */}
-      <div className="flex-1 bg-card border border-border rounded-md shadow-sm overflow-hidden flex flex-col">
+      <div
+        className="flex-1 bg-card border border-border rounded-md shadow-sm overflow-hidden flex flex-col"
+        aria-busy={isLoading}
+      >
         <TicketSortToolbar
           isResetDisabled={isDefaultTicketSort(sorts)}
           onReset={resetSort}
@@ -304,7 +310,7 @@ export default function TicketList() {
             <TableBody>
               {isLoading ? (
                 Array.from({ length: 10 }).map((_, i) => (
-                  <TableRow key={i}>
+                  <TableRow key={i} aria-hidden="true">
                     <TableCell className="py-2.5">
                       <Skeleton className="h-4 w-20" />
                     </TableCell>

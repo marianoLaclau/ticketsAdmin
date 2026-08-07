@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Carga accesible en Tickets
+
+**Agente:** Codex
+**Estado:** centésima sexta remediación de la auditoría técnica, implementada localmente.
+
+- La pantalla de Tickets anuncia una sola vez “Cargando llamados” cuando realmente muestra placeholders; los refetches con datos visibles no generan locuciones periódicas.
+- El área estable de resultados alterna `aria-busy` y las diez filas skeleton quedan fuera del árbol accesible, manteniendo HTML de tabla válido.
+- Aprobaron las 90 pruebas frontend, Prettier, ESLint, typecheck, `git diff --check` y revisión cruzada sin hallazgos P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Estados de carga globales accesibles
 
 **Agente:** Codex
