@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — TypeScript estricto en el backend
+
+**Agente:** Codex
+**Estado:** centésima quincuagésima primera remediación de la auditoría técnica, implementada localmente.
+
+- `backend/tsconfig.json` ahora exige `noUnusedLocals`, `noUnusedParameters`, `strictFunctionTypes` y `noImplicitOverride`. El alcance queda deliberadamente limitado al servicio: no modifica el contrato compartido de TypeScript ni fuerza cambios simultáneos en librerías, frontend o scripts.
+- Las cuatro reglas ya se cumplían antes de activarlas, por lo que el cambio no altera comportamiento ni producción generada; convierte ese estado limpio en un gate que impedirá reintroducir símbolos muertos, parámetros olvidados, callbacks inseguros u overrides implícitos.
+- Aprobaron el typecheck dirigido, ESLint del backend, las 209 pruebas del servicio y `git diff --check`. No se hizo push.
+
 ## 2026-08-07 — Sincronización segura de sesión entre pestañas
 
 **Agente:** Codex
