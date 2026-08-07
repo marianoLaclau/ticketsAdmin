@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Utilidades de sesión normalizadas
+
+**Agente:** Codex
+**Estado:** septuagésima novena remediación de la auditoría técnica, implementada localmente.
+
+- `backend/src/lib/session-cookie.ts` se normalizó con la política Prettier explícita; el diff sólo ajusta saltos de línea y la firma de una función, sin modificar expresiones, constantes ni comportamiento.
+- La migración de formato comienza con un único archivo pequeño y pruebas propias para mantener commits revisables y evitar un barrido masivo.
+- Se validarán Prettier, ESLint, la suite dirigida de cookies de sesión y el typecheck backend antes de commitear. No se hizo push.
+
 ## 2026-08-07 — Política de formato explicitada
 
 **Agente:** Codex

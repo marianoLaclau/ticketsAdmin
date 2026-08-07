@@ -35,7 +35,9 @@ export function getSessionToken(req: Request): string | null {
 
 export function hashSessionToken(token: string): string {
   if (!SESSION_TOKEN_PATTERN.test(token)) {
-    throw new Error("El token de sesión debe tener 64 caracteres hexadecimales");
+    throw new Error(
+      "El token de sesión debe tener 64 caracteres hexadecimales",
+    );
   }
   const digest = createHash("sha256")
     .update(SESSION_TOKEN_HASH_DOMAIN)
@@ -46,7 +48,9 @@ export function hashSessionToken(token: string): string {
 
 export function setSessionCookie(res: Response, token: string): void {
   if (!SESSION_TOKEN_PATTERN.test(token)) {
-    throw new Error("El token de sesión debe tener 64 caracteres hexadecimales");
+    throw new Error(
+      "El token de sesión debe tener 64 caracteres hexadecimales",
+    );
   }
   res.cookie(SESSION_COOKIE, token, {
     ...SESSION_COOKIE_OPTIONS,
@@ -58,10 +62,7 @@ export function clearSessionCookie(res: Response): void {
   res.clearCookie(SESSION_COOKIE, SESSION_COOKIE_OPTIONS);
 }
 
-export function isSessionExpired(
-  expiration: Date,
-  now = new Date(),
-): boolean {
+export function isSessionExpired(expiration: Date, now = new Date()): boolean {
   const expirationTime = expiration.getTime();
   const nowTime = now.getTime();
   return (
