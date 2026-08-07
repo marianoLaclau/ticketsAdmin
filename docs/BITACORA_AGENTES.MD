@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Ayuda de ordenamiento del listado aislada
+
+**Agente:** Codex
+**Estado:** sexagésima cuarta remediación de la auditoría técnica, implementada y validada localmente.
+
+- La ayuda de orden múltiple y su acción de restablecimiento salieron de `TicketList.tsx` a `features/ticket-list/TicketSortToolbar.tsx`, sin hooks ni estado propio.
+- El listado conserva criterios y callback; `resetSort` sigue restaurando fecha de llegada descendente y página 1. Se mantuvieron estructura, texto, `kbd`, título, clases, icono y condición de deshabilitado.
+- La revisión cruzada no encontró hallazgos P0/P1/P2. Aprobaron las 9 pruebas dirigidas, typecheck, ESLint, Prettier acotado, build aislado y `diff --check`; el temporal fue eliminado. No se hizo push.
+
 ## 2026-08-07 — Confirmación de borrado administrativo aislada
 
 **Agente:** Codex

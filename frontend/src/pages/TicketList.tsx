@@ -23,7 +23,6 @@ import {
   ChevronRight,
   Download,
   Loader2,
-  RotateCcw,
 } from 'lucide-react';
 import { getEstadoLabel } from '@/lib/estados';
 import { MOTIVO_CATEGORIA_OPTIONS } from '@/lib/motivos';
@@ -31,6 +30,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorPage, getErrorStatus } from '@/components/ErrorPage';
 import { SortableTableHead } from '@/components/SortableTableHead';
 import { TicketListTableRow } from '@/features/ticket-list/TicketListTableRow';
+import { TicketSortToolbar } from '@/features/ticket-list/TicketSortToolbar';
 import { useToast } from '@/hooks/use-toast';
 import { getUserErrorMessage } from '@/lib/error-messages';
 import {
@@ -386,24 +386,10 @@ export default function TicketList() {
 
       {/* Table Area */}
       <div className="flex-1 bg-card border border-border rounded-md shadow-sm overflow-hidden flex flex-col">
-        <div className="flex shrink-0 flex-col items-start justify-between gap-1.5 border-b border-slate-200 bg-slate-50/60 px-3 py-1.5 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:gap-3">
-          <span>
-            Ordená con un clic. Usá <kbd className="rounded border bg-white px-1 font-sans">Shift</kbd> + clic para
-            combinar varias columnas; los números indican su prioridad.
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={resetSort}
-            disabled={isDefaultTicketSort(sorts)}
-            className="h-7 shrink-0 gap-1.5 px-2 text-[11px] font-medium"
-            title="Volver a Fecha de llegada, más recientes primero"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Restablecer orden
-          </Button>
-        </div>
+        <TicketSortToolbar
+          isResetDisabled={isDefaultTicketSort(sorts)}
+          onReset={resetSort}
+        />
         <div className="overflow-x-auto overflow-y-auto flex-1 bg-white">
           <Table>
             <TableHeader className="bg-slate-50/80 sticky top-0 z-10 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
