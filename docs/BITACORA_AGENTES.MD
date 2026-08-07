@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Encabezado informativo del ticket aislado
+
+**Agente:** Codex
+**Estado:** sexagésima sexta remediación de la auditoría técnica, implementada y validada localmente.
+
+- Navegación, motivo, indicador de vencimiento y metadatos salieron de `TicketDetail.tsx` a `features/ticket-detail/TicketHeaderSummary.tsx` con un contrato estrecho y sin hooks.
+- El layout exterior, badges de estado/prioridad y diálogo de gestión permanecen en la página; draft, baseline, conflicto optimista, permisos y mutaciones no se tocaron. Se preservaron DOM, clases, ARIA, fallbacks, fecha, asignación y rutas.
+- La revisión cruzada no encontró hallazgos P0/P1/P2. Aprobaron 85 pruebas, typecheck, ESLint dirigido, Prettier acotado, build aislado y `diff --check`; sólo aparecieron advertencias ya conocidas. No se hizo push.
+
 ## 2026-08-07 — Actividad reciente del dashboard separada
 
 **Agente:** Codex

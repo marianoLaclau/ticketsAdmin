@@ -38,12 +38,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-import { 
-  ArrowLeft, 
-  User, 
-  Clock, 
-} from 'lucide-react';
-import { formatDate, isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
+import { isVencido, EstadoBadge, PrioridadBadge } from '@/lib/utils-tickets';
 import { getEstadoLabel } from '@/lib/estados';
 import { dateTimeLocalValueToIso, toDateTimeLocalValue } from '@/lib/datetime-local';
 import { puedeCerrarTickets } from '@/lib/roles';
@@ -57,6 +52,7 @@ import { TicketDataEditDialog } from '@/components/tickets/TicketDataEditDialog'
 import { TicketVersionConflictAlert } from '@/components/tickets/TicketVersionConflictAlert';
 import { TicketCallSummaryCard } from '@/features/ticket-detail/TicketCallSummaryCard';
 import { TicketContactCard } from '@/features/ticket-detail/TicketContactCard';
+import { TicketHeaderSummary } from '@/features/ticket-detail/TicketHeaderSummary';
 import { TicketHistoryCard } from '@/features/ticket-detail/TicketHistoryCard';
 import { TicketProgressCard } from '@/features/ticket-detail/TicketProgressCard';
 import { TicketTimingCard } from '@/features/ticket-detail/TicketTimingCard';
@@ -72,7 +68,6 @@ import {
   shouldApplyTicketRevision,
   type TicketEditBaseline,
 } from '@/lib/ticket-version';
-import { getAssignedDisplayName } from '@/lib/asignacion';
 
 const EMPTY_MANAGEMENT_FORM: TicketManagementForm = {
   estado: TicketEstado.nuevo,
@@ -443,39 +438,16 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
     <div className="p-8 max-w-6xl mx-auto w-full space-y-6 pb-24">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <Button 
-            variant="outline" 
-            size="icon" 
-            onClick={() => setLocation(adminMode ? '/admin' : '/tickets')}
-            className="mt-1 shrink-0 bg-white"
-            aria-label={adminMode ? 'Volver a Administración' : 'Volver a Tickets'}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                {ticket.motivo?.trim() || 'Sin motivo proporcionado'}
-              </h1>
-              {vencido && (
-                <span className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full font-medium flex items-center gap-1 border border-red-200">
-                  <Clock className="h-3 w-3" /> Vencido
-                </span>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-500">
-              <span className="flex items-center gap-1">
-                <Clock className="h-3.5 w-3.5" />
-                Creado: {formatDate(ticket.fecha_creacion)}
-              </span>
-              <span className="flex items-center gap-1">
-                <User className="h-3.5 w-3.5" />
-                Asignado a: {getAssignedDisplayName(ticket.asignado_a)}
-              </span>
-            </div>
-          </div>
-        </div>
+        <TicketHeaderSummary
+          reason={ticket.motivo}
+          createdAt={ticket.fecha_creacion}
+          assignedTo={ticket.asignado_a}
+          overdue={vencido}
+          backLabel={
+            adminMode ? 'Volver a Administración' : 'Volver a Tickets'
+          }
+          onBack={() => setLocation(adminMode ? '/admin' : '/tickets')}
+        />
 
         <div className="flex items-center gap-3 shrink-0">
           <EstadoBadge estado={ticket.estado} className="text-sm px-3 py-1" />
