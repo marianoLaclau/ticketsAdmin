@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Validación del PATCH de tickets separada
+
+**Agente:** Codex
+**Estado:** septuagésima tercera remediación de la auditoría técnica, implementada y validada localmente.
+
+- Whitelist, detección de campos técnicos, RFC3339, email y coerción Zod salieron de `routes/tickets.ts` a `lib/ticket-update-validation.ts`, sin Express ni acceso a datos.
+- Autorización técnica, acceso a cuarentena, mensajes y precedencia de errores permanecen equivalentes. La transacción PATCH, control de versión, auditoría y SSE no se movieron; el guard independiente de seguimientos continúa en la ruta.
+- La revisión cruzada no encontró hallazgos P0/P1/P2. Aprobaron 6 pruebas unitarias nuevas, 22 pruebas de rutas, typecheck del backend, ESLint, Prettier y `diff --check`. No se hizo push.
+
 ## 2026-08-07 — Distribución de estados del dashboard aislada
 
 **Agente:** Codex

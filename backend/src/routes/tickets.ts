@@ -19,7 +19,6 @@ import {
   ListSeguimientosParams,
   ListSeguimientosQueryParams,
   ListTicketsQueryParams,
-  UpdateTicketBody,
   UpdateTicketParams,
   UpdateTicketQueryParams,
 } from "@workspace/api-zod";
@@ -54,47 +53,14 @@ import {
   formatTicketAuditAuthor,
   getTicketAuditEditedFields,
 } from "../lib/ticket-audit";
+import {
+  hasTechnicalTicketUpdateFields,
+  parseTicketUpdateBody,
+} from "../lib/ticket-update-validation";
 import { broadcastEvent } from "../lib/events";
-import { findInvalidRfc3339DateTimeField } from "../lib/rfc3339";
 
 const router = Router();
 const ticketCsvExportTimeoutMs = readTicketCsvExportTimeoutMs();
-
-const TECHNICAL_TICKET_UPDATE_FIELDS = [
-  "hora",
-  "notificado",
-  "audio_url",
-  "fecha_resolucion",
-  "fecha_limite",
-] as const;
-
-const TICKET_UPDATE_FIELDS = [
-  "expected_version",
-  "hora",
-  "nombre",
-  "apellido",
-  "telefono",
-  "dni",
-  "empresa",
-  "email",
-  "motivo",
-  "resumen",
-  "notificado",
-  "estado",
-  "prioridad",
-  "audio_url",
-  "notas",
-  "fecha_limite",
-  "fecha_resolucion",
-  "progreso",
-] as const;
-
-const TICKET_UPDATE_DATE_FIELDS = [
-  "fecha_limite",
-  "fecha_resolucion",
-] as const;
-
-const OPTIONAL_EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 type TicketUpdates = Partial<typeof ticketsTable.$inferInsert>;
 
@@ -124,29 +90,12 @@ function hasOnlyBodyFields(
   );
 }
 
-function hasOwn(value: object, field: string): boolean {
-  return Object.prototype.hasOwnProperty.call(value, field);
-}
-
-function hasInvalidTicketUpdateEmail(body: Record<string, unknown>): boolean {
-  if (!hasOwn(body, "email") || body.email === null) return false;
-  if (typeof body.email !== "string") return true;
-
-  const email = body.email.trim();
-  return email.length > 254 || (email.length > 0 && !OPTIONAL_EMAIL_PATTERN.test(email));
-}
-
 function requireTechnicalTicketUpdate(
   req: Request,
   res: Response,
   next: NextFunction,
 ) {
-  const body = req.body;
-  const hasTechnicalFields =
-    isObjectBody(body) &&
-    TECHNICAL_TICKET_UPDATE_FIELDS.some((field) => hasOwn(body, field));
-
-  if (!hasTechnicalFields) {
+  if (!hasTechnicalTicketUpdateFields(req.body)) {
     next();
     return;
   }
@@ -361,52 +310,9 @@ router.patch(
       res.status(400).json({ error: "Parámetros de consulta inválidos" });
       return;
     }
-    if (!hasOnlyBodyFields(req.body, TICKET_UPDATE_FIELDS)) {
-      res.status(400).json({ error: "El cuerpo contiene campos no permitidos" });
-      return;
-    }
-
-    const invalidDateField = findInvalidRfc3339DateTimeField(
-      req.body,
-      TICKET_UPDATE_DATE_FIELDS,
-    );
-    if (invalidDateField) {
-      res.status(400).json({
-        error: `El campo ${invalidDateField} debe ser una fecha RFC3339 válida con zona horaria`,
-      });
-      return;
-    }
-
-    if (hasInvalidTicketUpdateEmail(req.body)) {
-      res.status(400).json({ error: "El email no tiene un formato válido" });
-      return;
-    }
-
-    const bodyForParsing = typeof req.body.email === "string"
-      ? { ...req.body, email: req.body.email.trim() || null }
-      : req.body;
-    const bodyParsed = UpdateTicketBody.safeParse(bodyForParsing);
+    const bodyParsed = parseTicketUpdateBody(req.body);
     if (!bodyParsed.success) {
-      res.status(400).json({ error: "Datos de actualización inválidos" });
-      return;
-    }
-    if (
-      Object.keys(req.body).every((field) => field === "expected_version")
-    ) {
-      res.status(400).json({ error: "Indicá al menos un campo para actualizar" });
-      return;
-    }
-    if (!Number.isSafeInteger(bodyParsed.data.expected_version)) {
-      res
-        .status(400)
-        .json({ error: "La versión esperada debe ser un entero válido" });
-      return;
-    }
-    if (
-      bodyParsed.data.progreso !== undefined &&
-      !Number.isInteger(bodyParsed.data.progreso)
-    ) {
-      res.status(400).json({ error: "El progreso debe ser un número entero" });
+      res.status(400).json({ error: bodyParsed.error });
       return;
     }
 
