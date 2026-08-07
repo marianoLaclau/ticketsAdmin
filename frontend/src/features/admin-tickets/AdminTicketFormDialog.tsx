@@ -1,6 +1,6 @@
-import type { Dispatch, SetStateAction } from 'react';
-import { TicketEstado, TicketPrioridad } from '@workspace/api-client-react';
-import { Button } from '@/components/ui/button';
+import type { Dispatch, SetStateAction } from "react";
+import { TicketEstado, TicketPrioridad } from "@workspace/api-client-react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,38 +8,38 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { TicketVersionConflictAlert } from '@/components/tickets/TicketVersionConflictAlert';
-import { getEstadoLabel } from '@/lib/estados';
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { TicketVersionConflictAlert } from "@/components/tickets/TicketVersionConflictAlert";
+import { getEstadoLabel } from "@/lib/estados";
 import type {
   AdminTicketForm,
   AdminTicketTextField,
-} from '@/lib/admin-ticket-form';
+} from "@/lib/admin-ticket-form";
 
 const CAMPOS_TEXTO: Array<{
   campo: AdminTicketTextField;
   label: string;
   requerido?: boolean;
 }> = [
-  { campo: 'conversation_id', label: 'Conversation ID', requerido: true },
-  { campo: 'hora', label: 'Hora (HH:MM)', requerido: true },
-  { campo: 'nombre', label: 'Nombre', requerido: true },
-  { campo: 'apellido', label: 'Apellido' },
-  { campo: 'telefono', label: 'Teléfono' },
-  { campo: 'dni', label: 'DNI' },
-  { campo: 'empresa', label: 'Empresa' },
-  { campo: 'email', label: 'Email' },
-  { campo: 'audio_url', label: 'URL del audio' },
+  { campo: "conversation_id", label: "Conversation ID", requerido: true },
+  { campo: "hora", label: "Hora (HH:MM)", requerido: true },
+  { campo: "nombre", label: "Nombre", requerido: true },
+  { campo: "apellido", label: "Apellido" },
+  { campo: "telefono", label: "Teléfono" },
+  { campo: "dni", label: "DNI" },
+  { campo: "empresa", label: "Empresa" },
+  { campo: "email", label: "Email" },
+  { campo: "audio_url", label: "URL del audio" },
 ];
 
 interface AdminTicketFormDialogProps {
@@ -73,13 +73,13 @@ export function AdminTicketFormDialog({
         <DialogHeader>
           <DialogTitle>
             {editingId === null
-              ? 'Nuevo registro'
+              ? "Nuevo registro"
               : `Editar registro #${editingId}`}
           </DialogTitle>
           <DialogDescription>
             {editingId === null
-              ? 'Alta manual directa en la base (el flujo normal es la ingesta automática por llamada).'
-              : 'Edición directa de los campos habilitados del registro.'}
+              ? "Alta manual directa en la base (el flujo normal es la ingesta automática por llamada)."
+              : "Edición directa de los campos habilitados del registro."}
           </DialogDescription>
         </DialogHeader>
         {hasVersionConflict && (
@@ -96,14 +96,14 @@ export function AdminTicketFormDialog({
                 {requerido && <span className="text-red-500"> *</span>}
               </Label>
               <Input
-                value={form[campo] ?? ''}
+                value={form[campo] ?? ""}
                 onChange={(event) =>
                   onFormChange((current) => ({
                     ...current,
                     [campo]: event.target.value,
                   }))
                 }
-                disabled={campo === 'conversation_id' && editingId !== null}
+                disabled={campo === "conversation_id" && editingId !== null}
                 className="h-8 text-sm"
               />
             </div>
@@ -115,7 +115,7 @@ export function AdminTicketFormDialog({
               onValueChange={(estado) =>
                 onFormChange((current) => ({
                   ...current,
-                  estado: estado as AdminTicketForm['estado'],
+                  estado: estado as AdminTicketForm["estado"],
                 }))
               }
             >
@@ -138,7 +138,7 @@ export function AdminTicketFormDialog({
               onValueChange={(prioridad) =>
                 onFormChange((current) => ({
                   ...current,
-                  prioridad: prioridad as AdminTicketForm['prioridad'],
+                  prioridad: prioridad as AdminTicketForm["prioridad"],
                 }))
               }
             >
@@ -212,7 +212,7 @@ export function AdminTicketFormDialog({
               !form.motivo.trim()
             }
           >
-            {isSaving ? 'Guardando...' : 'Guardar'}
+            {isSaving ? "Guardando..." : "Guardar"}
           </Button>
         </DialogFooter>
       </DialogContent>

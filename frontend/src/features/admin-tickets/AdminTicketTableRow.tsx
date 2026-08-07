@@ -1,23 +1,23 @@
-import type { Ticket } from '@workspace/api-client-react';
-import { AlertCircle, Eye, Mail, Pencil, Phone, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { TableCell, TableRow } from '@/components/ui/table';
+import type { Ticket } from "@workspace/api-client-react";
+import { AlertCircle, Eye, Mail, Pencil, Phone, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TableCell, TableRow } from "@/components/ui/table";
 import {
   getAssignedDisplayName,
   hasAssignedDisplayName,
-} from '@/lib/asignacion';
+} from "@/lib/asignacion";
 import {
   getContactDisplayEmail,
   getContactDisplayName,
   getContactDisplayPhone,
-} from '@/lib/contacto';
-import { getMotivoCategoriaConfig } from '@/lib/motivos';
+} from "@/lib/contacto";
+import { getMotivoCategoriaConfig } from "@/lib/motivos";
 import {
   EstadoBadge,
   formatDate,
   isVencido,
   PrioridadBadge,
-} from '@/lib/utils-tickets';
+} from "@/lib/utils-tickets";
 
 interface AdminTicketTableRowProps {
   ticket: Ticket;
@@ -35,12 +35,12 @@ export function AdminTicketTableRow({
   onDelete,
 }: AdminTicketTableRowProps) {
   const conversationId =
-    ticket.conversation_id?.trim() || 'Sin ID de conversación';
+    ticket.conversation_id?.trim() || "Sin ID de conversación";
   const phone = getContactDisplayPhone(ticket.telefono);
   const email = getContactDisplayEmail(ticket.email);
-  const company = ticket.empresa?.trim() || 'Sin empresa asociada';
+  const company = ticket.empresa?.trim() || "Sin empresa asociada";
   const category = getMotivoCategoriaConfig(ticket.motivo_categoria);
-  const reason = ticket.motivo?.trim() || 'Sin motivo proporcionado';
+  const reason = ticket.motivo?.trim() || "Sin motivo proporcionado";
   const assigned = getAssignedDisplayName(ticket.asignado_a);
   const hasAssigned = hasAssignedDisplayName(ticket.asignado_a);
   const overdue = isVencido(ticket.fecha_limite, ticket.estado);
@@ -53,12 +53,12 @@ export function AdminTicketTableRow({
       <TableCell>
         <div className="flex flex-col whitespace-nowrap">
           <span className="font-medium text-foreground">
-            {formatDate(ticket.fecha_creacion).split(',')[0]}
+            {formatDate(ticket.fecha_creacion).split(",")[0]}
           </span>
           <span className="text-[11px] tabular-nums text-muted-foreground">
             {ticket.hora?.trim()
               ? `${ticket.hora} hs`
-              : 'Sin hora proporcionada'}
+              : "Sin hora proporcionada"}
           </span>
         </div>
       </TableCell>
@@ -80,20 +80,20 @@ export function AdminTicketTableRow({
           </span>
           <span
             className="flex min-w-0 items-center text-[11px] text-muted-foreground"
-            title={phone ?? 'Sin teléfono proporcionado'}
+            title={phone ?? "Sin teléfono proporcionado"}
           >
             <Phone className="mr-1 h-3 w-3 shrink-0" aria-hidden="true" />
             <span className="truncate">
-              {phone ?? 'Sin teléfono proporcionado'}
+              {phone ?? "Sin teléfono proporcionado"}
             </span>
           </span>
           <span
             className="flex min-w-0 items-center text-[11px] text-muted-foreground"
-            title={email ?? 'Sin email proporcionado'}
+            title={email ?? "Sin email proporcionado"}
           >
             <Mail className="mr-1 h-3 w-3 shrink-0" aria-hidden="true" />
             <span className="truncate">
-              {email ?? 'Sin email proporcionado'}
+              {email ?? "Sin email proporcionado"}
             </span>
           </span>
         </div>
@@ -126,7 +126,7 @@ export function AdminTicketTableRow({
       </TableCell>
       <TableCell>
         <span
-          className={`block truncate ${hasAssigned ? 'font-medium text-slate-700' : 'text-muted-foreground'}`}
+          className={`block truncate ${hasAssigned ? "font-medium text-slate-700" : "text-muted-foreground"}`}
           title={assigned}
         >
           {assigned}
@@ -135,7 +135,7 @@ export function AdminTicketTableRow({
       <TableCell>
         {ticket.fecha_limite ? (
           <div
-            className={`flex items-center gap-1.5 whitespace-nowrap text-xs ${overdue ? 'font-semibold text-red-600' : 'text-muted-foreground'}`}
+            className={`flex items-center gap-1.5 whitespace-nowrap text-xs ${overdue ? "font-semibold text-red-600" : "text-muted-foreground"}`}
           >
             {overdue && (
               <AlertCircle

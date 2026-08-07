@@ -1,5 +1,5 @@
-import type { Ticket } from '@workspace/api-client-react';
-import { getContactDisplayName } from '@/lib/contacto';
+import type { Ticket } from "@workspace/api-client-react";
+import { getContactDisplayName } from "@/lib/contacto";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -9,7 +9,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from "@/components/ui/alert-dialog";
 
 interface AdminTicketDeleteDialogProps {
   ticket: Ticket | null;
@@ -35,7 +35,7 @@ export function AdminTicketDeleteDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>¿Eliminar este registro?</AlertDialogTitle>
           <AlertDialogDescription>
-            Se va a eliminar el registro de{' '}
+            Se va a eliminar el registro de{" "}
             <strong>{getContactDisplayName(ticket)}</strong> ({ticket?.motivo})
             junto con todos sus seguimientos. No se puede deshacer.
           </AlertDialogDescription>
@@ -46,7 +46,7 @@ export function AdminTicketDeleteDialog({
             onClick={onConfirm}
             className="bg-red-600 hover:bg-red-700"
           >
-            {isDeleting ? 'Eliminando...' : 'Eliminar'}
+            {isDeleting ? "Eliminando..." : "Eliminar"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

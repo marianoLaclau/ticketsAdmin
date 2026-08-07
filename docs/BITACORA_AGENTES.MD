@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Formato completo de tickets administrativos
+
+**Agente:** Codex
+**Estado:** centésima novena remediación de la auditoría técnica, implementada localmente.
+
+- Se normalizaron los cuatro componentes pendientes de `features/admin-tickets`: paginación, confirmación de borrado, fila y formulario. La feature completa comparte ahora el formato raíz.
+- Los fingerprints AST de los cuatro archivos permanecieron idénticos.
+- Aprobaron la prueba dirigida 6/6, Prettier, ESLint, typecheck y `git diff --check`. No se hizo push.
+
 ## 2026-08-07 — Carga accesible en Dashboard
 
 **Agente:** Codex
