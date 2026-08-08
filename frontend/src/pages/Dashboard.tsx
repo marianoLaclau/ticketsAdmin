@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link } from "wouter";
 import {
   getGetDashboardStatsQueryKey,
   getGetTicketsVencidosQueryKey,
@@ -8,7 +7,6 @@ import {
   useGetTicketsVencidos,
   useGetMotivoStats,
 } from "@workspace/api-client-react";
-import { Skeleton } from "@/components/ui/skeleton";
 import { LoadingStatus } from "@/components/ui/loading-status";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -21,20 +19,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Clock,
-  CheckCircle2,
-  CalendarRange,
-  TriangleAlert,
-} from "lucide-react";
+import { CalendarRange, TriangleAlert } from "lucide-react";
 import { DashboardKpiGrid } from "@/features/dashboard/DashboardKpiGrid";
 import { DashboardMotivesPriorityPanel } from "@/features/dashboard/DashboardMotivesPriorityPanel";
+import { DashboardOverdueTicketsPanel } from "@/features/dashboard/DashboardOverdueTicketsPanel";
 import { DashboardPerformancePanel } from "@/features/dashboard/DashboardPerformancePanel";
 import { DashboardRecentActivityPanel } from "@/features/dashboard/DashboardRecentActivityPanel";
 import { DashboardStatusDistribution } from "@/features/dashboard/DashboardStatusDistribution";
 import { useDashboardPeriodUrl } from "@/features/dashboard/useDashboardPeriodUrl";
-import { PrioridadBadge } from "@/lib/utils-tickets";
-import { getContactDisplayName } from "@/lib/contacto";
 import { ErrorPage, getErrorStatus } from "@/components/ErrorPage";
 import {
   DASHBOARD_TIME_ZONE,
@@ -394,108 +386,12 @@ export default function Dashboard() {
             isPrioritiesLoading={loadingStats}
           />
 
-          {/* Tickets vencidos */}
-          <div className="bg-card border border-red-100 rounded-xl shadow-sm overflow-hidden">
-            <div className="bg-red-50 px-5 py-3 border-b border-red-100 flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-red-800 flex items-center gap-2 uppercase tracking-wider">
-                <Clock className="h-3.5 w-3.5" />
-                Requieren Atención Inmediata
-              </h3>
-              {stats?.vencidos ? (
-                <span className="bg-red-500 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full">
-                  {stats.vencidos} vencidos
-                </span>
-              ) : null}
-            </div>
-            {loadingVencidos ? (
-              <div className="p-4 space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="h-9 w-full" />
-                ))}
-              </div>
-            ) : !vencidos || vencidos.length === 0 ? (
-              <div className="p-8 text-center flex flex-col items-center gap-2">
-                <CheckCircle2 className="h-7 w-7 text-emerald-300" />
-                <p className="text-sm text-slate-400">
-                  Todos los tickets están al día
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <caption className="sr-only">
-                    Tickets vencidos que requieren atención inmediata
-                  </caption>
-                  <thead className="text-[11px] uppercase text-muted-foreground bg-slate-50/60">
-                    <tr>
-                      <th scope="col" className="px-5 py-2 font-medium">
-                        Contacto
-                      </th>
-                      <th scope="col" className="px-5 py-2 font-medium">
-                        Motivo
-                      </th>
-                      <th scope="col" className="px-5 py-2 font-medium">
-                        Prioridad
-                      </th>
-                      <th
-                        scope="col"
-                        className="px-5 py-2 font-medium text-right"
-                      >
-                        Venció hace
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {vencidos.map((ticket) => {
-                      const fechaLimite = ticket.fecha_limite;
-                      if (!fechaLimite) return null;
-
-                      const limitDate = new Date(fechaLimite);
-                      const diffHours = Math.floor(
-                        (today.getTime() - limitDate.getTime()) /
-                          (1000 * 60 * 60),
-                      );
-                      const vencioStr =
-                        diffHours > 24
-                          ? `${Math.floor(diffHours / 24)}d`
-                          : `${diffHours}h`;
-                      return (
-                        <tr key={ticket.id}>
-                          <td className="px-5 py-2.5">
-                            <Link
-                              href={`/tickets/${ticket.id}`}
-                              className="-m-1 block rounded-md p-1 underline-offset-4 hover:bg-red-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                            >
-                              <span className="block text-sm font-medium text-foreground hover:underline">
-                                {getContactDisplayName(ticket)}
-                              </span>
-                              {ticket.empresa && (
-                                <span className="block text-[11px] text-slate-400">
-                                  {ticket.empresa}
-                                </span>
-                              )}
-                            </Link>
-                          </td>
-                          <td
-                            className="px-5 py-2.5 text-slate-600 text-sm truncate max-w-[180px]"
-                            title={ticket.motivo}
-                          >
-                            {ticket.motivo}
-                          </td>
-                          <td className="px-5 py-2.5">
-                            <PrioridadBadge prioridad={ticket.prioridad} />
-                          </td>
-                          <td className="px-5 py-2.5 text-right font-bold text-red-600 text-xs">
-                            {vencioStr}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          <DashboardOverdueTicketsPanel
+            tickets={vencidos}
+            overdueCount={stats?.vencidos ?? 0}
+            isLoading={loadingVencidos}
+            referenceTimeMs={today.getTime()}
+          />
         </div>
 
         <DashboardRecentActivityPanel

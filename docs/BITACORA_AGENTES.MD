@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Tickets vencidos desacoplados del Dashboard
+
+**Agente:** Codex
+**Estado:** centésima sexagésima octava remediación de la auditoría técnica, implementada localmente.
+
+- El panel de tickets vencidos pasó a `DashboardOverdueTicketsPanel.tsx`; `Dashboard.tsx` conserva la consulta y el instante de referencia, y bajó de 513 a 409 líneas.
+- La extracción preserva el contador proveniente de estadísticas, el umbral exacto de más de 24 horas para cambiar de horas a días, la omisión de vencimientos nulos, los tres estados visuales y toda la semántica de tabla y enlaces. El reloj se inyecta como valor para evitar deriva temporal y mantener el componente determinista.
+- Tres pruebas de componente cubren carga, vacío, contador, filas, enlaces, contacto, motivo, prioridad, horas, días y límite nulo con un router y reloj en memoria. Aprobaron las 198 pruebas del frontend, typecheck, ESLint, Prettier, build de producción y `git diff --check`; una revisión independiente no encontró P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Rendimiento desacoplado del Dashboard
 
 **Agente:** Codex
