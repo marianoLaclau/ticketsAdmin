@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-08 — Listado de roles desacoplado de sus mutaciones
+
+**Agente:** Codex
+**Estado:** centésima septuagésima cuarta remediación de la auditoría técnica, implementada localmente.
+
+- El GET del catálogo pasó a `admin-role-list-handler.ts`; `admin-roles.ts` conserva `router.get("/", listAdminRoles)` como primera ruta y todas las mutaciones, y bajó de 249 a 211 líneas.
+- Validación, mensajes, búsqueda OR, filtro compartido, count, orden, límite, offset y respuesta fueron trasladados literalmente. Los guards SysAdmin + llave siguen aplicándose una sola vez en el router administrativo padre y el nuevo handler no crea ciclos ni montajes alternativos.
+- Aprobaron las 56 pruebas RBAC dirigidas, las 215 pruebas completas del backend, typecheck, ESLint, Prettier, build y `git diff --check`; una revisión independiente confirmó equivalencia y no encontró P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-08 — Contrato del catálogo administrativo de roles cubierto
 
 **Agente:** Codex
