@@ -26,11 +26,8 @@ import {
   requireSysAdmin,
   type SessionUser,
 } from "../lib/auth";
-import {
-  buildTicketOrderBy,
-  buildTicketWhere,
-  parseTicketSortQuery,
-} from "../lib/ticket-query";
+import { buildTicketWhere } from "../lib/ticket-query";
+import { buildTicketOrderBy, parseTicketSortQuery } from "../lib/ticket-sort";
 import {
   normalizeTicketQuery,
   parseBooleanQueryParam,

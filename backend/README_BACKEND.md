@@ -57,7 +57,8 @@ backend/
       events.ts                → registro de clientes SSE y broadcastEvent()
       logger.ts                 → instancia de pino
       load-env.ts                → carga el .env de la raíz del monorepo (walk-up)
-      ticket-query.ts             → filtros y orden server-side compartidos por listado/CSV
+      ticket-query.ts             → filtros SQL compartidos por listado/CSV
+      ticket-sort.ts              → contrato y orden server-side compartido por listado/CSV
       ticket-csv.ts                 → serialización segura del export completo
       prioridad-automatica.ts        → evaluación y promoción transaccional de prioridades
       prioridad-automatica-runner.ts  → pasada de arranque + ejecución periódica sin solapamientos

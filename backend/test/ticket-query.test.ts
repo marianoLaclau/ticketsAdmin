@@ -6,13 +6,15 @@ import { and } from "drizzle-orm";
 import { ticketsTable } from "@workspace/db/schema";
 import {
   buildTicketFilterConditions,
-  buildTicketOrderBy,
   buildTicketWhere,
+} from "../src/lib/ticket-query.ts";
+import {
+  buildTicketOrderBy,
   MAX_TICKET_SORT_CRITERIA,
   normalizeTicketSort,
   parseTicketSortQuery,
   TICKET_SORT_BY_VALUES,
-} from "../src/lib/ticket-query.ts";
+} from "../src/lib/ticket-sort.ts";
 
 interface Fixture {
   id: number;
@@ -248,10 +250,14 @@ describe("orden de tickets", () => {
     assert.deepEqual(orderedIds(db, "motivo_categoria", "asc"), [4, 2, 3, 1]);
 
     sqlite
-      .prepare("UPDATE tickets SET motivo_categoria = 'reclamos', motivo = ? WHERE id = ?")
+      .prepare(
+        "UPDATE tickets SET motivo_categoria = 'reclamos', motivo = ? WHERE id = ?",
+      )
       .run("Zeta", 2);
     sqlite
-      .prepare("UPDATE tickets SET motivo_categoria = 'reclamos', motivo = ? WHERE id = ?")
+      .prepare(
+        "UPDATE tickets SET motivo_categoria = 'reclamos', motivo = ? WHERE id = ?",
+      )
       .run("Alfa", 3);
     assert.deepEqual(orderedIds(db, "motivo_categoria", "asc"), [4, 3, 2, 1]);
     sqlite.close();

@@ -93,7 +93,8 @@ Las reglas importantes viven fuera de los handlers cuando pueden reutilizarse:
 - `lib/password-policy`: política única de credenciales nuevas para servidor y UI.
 - `backend/src/lib/prioridad-automatica.ts`: promoción de prioridad a `alta`/`urgente`.
 - `backend/src/lib/prioridad-automatica-runner.ts`: ejecución al arranque y periódica.
-- `backend/src/lib/ticket-query.ts`: filtros y orden server-side.
+- `backend/src/lib/ticket-query.ts`: filtros SQL y composición del `WHERE` compartido.
+- `backend/src/lib/ticket-sort.ts`: validación y expresiones de orden server-side para listado y CSV.
 - `backend/src/lib/ticket-audit.ts`: autor, campos editados y texto estable de los seguimientos de auditoría.
 - `backend/src/lib/dashboard-queries.ts`: agregaciones SQL de KPIs y motivos, separadas del transporte HTTP.
 - `backend/src/lib/dashboard-date-range.ts`: períodos y día operativo en la zona estable de Buenos Aires.

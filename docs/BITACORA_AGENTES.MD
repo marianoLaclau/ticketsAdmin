@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Ordenamiento separado de los filtros SQL de tickets
+
+**Agente:** Codex
+**Estado:** centésima sexagésima sexta remediación de la auditoría técnica, implementada localmente.
+
+- Whitelist, defaults, parser compuesto y expresiones SQL de orden pasaron a `ticket-sort.ts`; `ticket-query.ts` conserva únicamente filtros de negocio y composición del `WHERE`, y bajó de 380 a 125 líneas.
+- Listado y exportación CSV importan explícitamente el mismo parser y constructor de orden, sin reexports de compatibilidad que oculten la nueva frontera. Null-last, día + hora, desempate por ID, orden operativo de estado/prioridad y etiquetas de categorías permanecen idénticos.
+- README y arquitectura reflejan ambas responsabilidades. Aprobaron las 211 pruebas del backend, typecheck, ESLint dirigido, Prettier, build y `git diff --check`; una revisión independiente no encontró P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Componentes Vite sin directivas residuales de Next.js
 
 **Agente:** Codex

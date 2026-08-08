@@ -16,12 +16,9 @@ import {
   type TicketCsvExportDeadline,
   type PreparedTicketCsvStream,
 } from "../lib/ticket-csv-stream";
-import {
-  buildTicketOrderBy,
-  buildTicketWhere,
-  parseTicketSortQuery,
-} from "../lib/ticket-query";
+import { buildTicketWhere } from "../lib/ticket-query";
 import { normalizeTicketQuery } from "../lib/ticket-query-normalization";
+import { buildTicketOrderBy, parseTicketSortQuery } from "../lib/ticket-sort";
 
 const ticketCsvExportTimeoutMs = readTicketCsvExportTimeoutMs();
 
