@@ -376,7 +376,32 @@ describe("listado y exportación de tickets", () => {
 });
 
 describe("acceso a registros en cuarentena", () => {
-  it("exige SysAdmin y llave en detalle, PATCH y seguimientos", async () => {
+  it("exige SysAdmin y llave en listado, detalle, PATCH y seguimientos", async () => {
+    const listAsOperator = await request("/tickets?incluir_vacios=true");
+    assert.equal(listAsOperator.status, 403);
+
+    const listWithoutKey = await request("/tickets?incluir_vacios=true", {
+      role: "SysAdmin",
+      userId: 2,
+    });
+    assert.equal(listWithoutKey.status, 401);
+
+    const list = await request("/tickets?incluir_vacios=true", {
+      role: "SysAdmin",
+      userId: 2,
+      adminKey: "admin-test-key",
+    });
+    assert.equal(list.status, 200);
+    const listBody = (await list.json()) as {
+      tickets: Array<{ id: number }>;
+      total: number;
+    };
+    assert.equal(listBody.total, 3);
+    assert.equal(
+      listBody.tickets.some(({ id }) => id === 3),
+      true,
+    );
+
     const detailAsOperator = await request("/tickets/3?incluir_vacios=true");
     assert.equal(detailAsOperator.status, 403);
 

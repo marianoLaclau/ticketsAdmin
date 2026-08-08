@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-08 — Doble autorización del listado de cuarentena cubierta
+
+**Agente:** Codex
+**Estado:** centésima octogésima remediación de la auditoría técnica, implementada localmente.
+
+- Se amplió únicamente la prueba de integración de cuarentena: `GET /tickets?incluir_vacios=true` devuelve 403 a un operador, 401 a un SysAdmin sin llave y 200 sólo con ambas credenciales.
+- El caso autorizado exige simultáneamente `total=3` y la presencia del ticket vacío, mientras el listado operativo existente conserva `total=2`; así se fijan tanto el guard como la aplicación efectiva del predicado ampliado sin falsos positivos entre filas y count.
+- Aprobaron las 25 pruebas dirigidas de rutas de tickets, las 215 pruebas completas del backend, typecheck, ESLint, Prettier, build y `git diff --check`; la revisión independiente no encontró P0/P1/P2/P3. No se modificó producción ni se hizo push.
+
 ## 2026-08-08 — Fila del catálogo de roles desacoplada
 
 **Agente:** Codex
