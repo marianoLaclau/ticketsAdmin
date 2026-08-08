@@ -229,9 +229,14 @@ test("cada ejecucion construye y verifica referencias de imagen identificables",
       /io\.ticketsadmin\.db-rollback-epoch="\$\{TICKETSADMIN_DB_ROLLBACK_EPOCH\}"/,
     );
     assert.match(dockerfile, /io\.ticketsadmin\.compose-contract-sha256/);
+    assert.match(
+      dockerfile,
+      /^COPY package\.json pnpm-lock\.yaml pnpm-workspace\.yaml \.\/$/m,
+    );
     assert.ok(
-      dockerfile.indexOf("COPY package.json pnpm-lock.yaml") <
-        dockerfile.indexOf("RUN pnpm install --frozen-lockfile"),
+      dockerfile.indexOf(
+        "COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./",
+      ) < dockerfile.indexOf("RUN pnpm install --frozen-lockfile"),
     );
     assert.ok(
       dockerfile.indexOf("RUN pnpm install --frozen-lockfile") <

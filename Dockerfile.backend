@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN corepack enable
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY backend/package.json ./backend/package.json
 COPY frontend/package.json ./frontend/package.json
 COPY scripts/package.json ./scripts/package.json

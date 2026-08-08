@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-08 — Configuración heredada de pnpm retirada de Docker
+
+**Agente:** Codex
+**Estado:** centésima septuagésima sexta remediación de la auditoría técnica, implementada localmente.
+
+- Se eliminó `.npmrc`: pnpm 11.13.1 no incorporaba sus dos claves a la configuración de proyecto, `autoInstallPeers: false` ya tiene una única fuente en `pnpm-workspace.yaml` y `strictPeerDependencies` conserva su valor efectivo `undefined`.
+- Ambos Dockerfiles copian ahora exactamente `package.json`, `pnpm-lock.yaml` y `pnpm-workspace.yaml` antes de la instalación. El contrato de readiness exige esa línea en las dos imágenes para impedir que reaparezca una dependencia hacia un archivo ausente o inerte.
+- Aprobaron la búsqueda sin referencias residuales, instalación offline congelada, test contractual, quality gate completo, chequeos Docker sin advertencias y builds Docker completos de backend y frontend; el lockfile permaneció intacto. La revisión independiente cerró sin P0/P1/P2 y su P3 documental quedó resuelto con esta entrada. No se hizo push.
+
 ## 2026-08-08 — Fila del catálogo de usuarios desacoplada
 
 **Agente:** Codex
