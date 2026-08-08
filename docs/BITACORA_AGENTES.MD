@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-08 — Fila del catálogo de roles desacoplada
+
+**Agente:** Codex
+**Estado:** centésima septuagésima novena remediación de la auditoría técnica, implementada localmente.
+
+- Las seis celdas y acciones pasaron a `AdminRoleTableRow.tsx`; `AdminRolesTab.tsx` conserva política, estado y mutaciones, y bajó de 597 a 530 líneas.
+- La apertura de eliminación quedó nombrada en `openDeleteRole`, que rechaza una generación obsoleta, una mutación pendiente o un rol del sistema antes de modificar estado. La fila recibe esa decisión ya resuelta y mantiene fallbacks, títulos, labels y bloqueos exactos sin duplicar `esRolSistema`.
+- Tres pruebas de componente cubren contenido por columna, fecha, fallback, estados, callbacks, mutación pendiente y protección de sistema. Aprobaron las 208 pruebas del frontend, typecheck, ESLint, Prettier, build y `git diff --check`; la revisión independiente cerró sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-08 — Formulario de roles desacoplado
 
 **Agente:** Codex

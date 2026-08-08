@@ -14,10 +14,8 @@ import {
 import {
   AlertTriangle,
   Loader2,
-  Pencil,
   Plus,
   Search,
-  Trash2,
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -30,17 +28,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LoadingStatus } from '@/components/ui/loading-status';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TabsContent } from '@/components/ui/tabs';
 import { AdminRoleFormDialog } from '@/features/admin-directory/AdminRoleFormDialog';
-import { AdminStatusBadge } from '@/features/admin-directory/AdminStatusBadge';
+import { AdminRoleTableRow } from '@/features/admin-directory/AdminRoleTableRow';
 import {
   createAdminRoleForm,
   createEmptyAdminRoleForm,
@@ -58,7 +54,6 @@ import { AdminCredentialNotice } from '@/components/admin/AdminCredentialNotice'
 import type { AdminCredentialState } from '@/lib/admin-credential-state';
 import type { AdminDirectoryRolesUrlState } from '@/lib/admin-directory-url';
 import { esRolSistema } from '@/lib/roles';
-import { formatDate } from '@/lib/utils-tickets';
 
 interface AdminRolesTabProps {
   request: RequestInit;
@@ -199,6 +194,17 @@ export function AdminRolesTab({
     setEditingRole(role);
     setRoleForm(createAdminRoleForm(role));
     setRoleDialogOpen(true);
+  };
+
+  const openDeleteRole = (role: AdminRole) => {
+    if (
+      !isCurrentOperation(operationGeneration) ||
+      roleMutationPending ||
+      esRolSistema(role.nombre)
+    ) {
+      return;
+    }
+    setRoleToDelete(role);
   };
 
   const saveRole = () => {
@@ -454,88 +460,15 @@ export function AdminRolesTab({
                   </TableRow>
                 ) : (
                   visibleRoles.map((role) => (
-                    <TableRow key={role.id}>
-                      <TableCell className="tabular-nums text-muted-foreground">{role.id}</TableCell>
-                      <TableCell className="font-medium">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span>{role.nombre}</span>
-                          {esRolSistema(role.nombre) && (
-                            <Badge variant="outline" className="text-[10px] font-medium uppercase tracking-wide">
-                              Sistema protegido
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-xl text-muted-foreground">{role.descripcion || '—'}</TableCell>
-                      <TableCell>
-                        <AdminStatusBadge active={role.activo} />
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                        {formatDate(role.fecha_actualizacion)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Switch
-                            checked={role.activo}
-                            onCheckedChange={() => toggleRole(role)}
-                            disabled={roleMutationPending || esRolSistema(role.nombre)}
-                            aria-label={
-                              esRolSistema(role.nombre)
-                                ? `${role.nombre}: rol del sistema protegido, permanece activo`
-                                : role.activo
-                                  ? `Desactivar rol ${role.nombre}`
-                                  : `Activar rol ${role.nombre}`
-                            }
-                            title={
-                              esRolSistema(role.nombre)
-                                ? 'Los roles del sistema deben permanecer activos'
-                                : role.activo
-                                  ? 'Desactivar rol'
-                                  : 'Activar rol'
-                            }
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => openEditRole(role)}
-                            disabled={roleMutationPending}
-                            title="Editar rol"
-                            aria-label={`Editar rol ${role.nombre}`}
-                          >
-                            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-red-600 hover:text-red-700"
-                            onClick={() => {
-                              if (
-                                isCurrentOperation(operationGeneration) &&
-                                !roleMutationPending
-                              ) {
-                                setRoleToDelete(role);
-                              }
-                            }}
-                            disabled={
-                              roleMutationPending || esRolSistema(role.nombre)
-                            }
-                            aria-label={
-                              esRolSistema(role.nombre)
-                                ? `${role.nombre}: rol del sistema protegido, no se puede eliminar`
-                                : `Eliminar rol ${role.nombre}`
-                            }
-                            title={
-                              esRolSistema(role.nombre)
-                                ? 'Los roles del sistema no se pueden eliminar'
-                                : 'Eliminar rol'
-                            }
-                          >
-                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                    <AdminRoleTableRow
+                      key={role.id}
+                      role={role}
+                      isSystemRole={esRolSistema(role.nombre)}
+                      isMutationPending={roleMutationPending}
+                      onToggle={toggleRole}
+                      onEdit={openEditRole}
+                      onDelete={openDeleteRole}
+                    />
                   ))
                 )}
               </TableBody>
