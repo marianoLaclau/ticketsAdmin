@@ -1,9 +1,8 @@
 import { Router } from "express";
 import { db, rolesTable, sesionesTable, usuariosTable } from "@workspace/db";
-import { and, asc, count, eq, like, or, type SQL } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   CreateAdminUserBody,
-  ListAdminUsersQueryParams,
   ResetAdminUserPasswordBody,
   ResetAdminUserPasswordParams,
   UpdateAdminUserBody,
@@ -20,14 +19,10 @@ import {
   normalizeOptionalText,
   normalizeRequiredText,
 } from "./admin-route-helpers";
+import { listAdminUsers } from "./admin-user-list-handler";
+import { PUBLIC_ADMIN_USER_COLUMNS } from "./admin-user-public-columns";
 
 const router = Router();
-
-const parseBooleanQueryParam = (value: unknown): unknown => {
-  if (value === "true" || value === true) return true;
-  if (value === "false" || value === false) return false;
-  return value;
-};
 
 const normalizeEmail = (value: string): string => value.trim().toLowerCase();
 const normalizeUsername = (value: string): string => value.trim().toLowerCase();
@@ -40,74 +35,7 @@ const readPasswordFromBody = (body: unknown): unknown => {
 const hasLoginIdentity = (value: string | null): value is string =>
   typeof value === "string" && value.trim().length > 0;
 
-// Nunca devolver password_hash en una respuesta HTTP — ni siquiera hasheada,
-// una contraseña no tiene por qué viajar de vuelta al cliente.
-const PUBLIC_USER_COLUMNS = {
-  id: usuariosTable.id,
-  nombre: usuariosTable.nombre,
-  apellido: usuariosTable.apellido,
-  username: usuariosTable.username,
-  email: usuariosTable.email,
-  role_id: usuariosTable.role_id,
-  activo: usuariosTable.activo,
-  debe_cambiar_password: usuariosTable.debe_cambiar_password,
-  fecha_creacion: usuariosTable.fecha_creacion,
-  fecha_actualizacion: usuariosTable.fecha_actualizacion,
-};
-
-router.get("/", async (req, res) => {
-  const parsed = ListAdminUsersQueryParams.safeParse({
-    ...req.query,
-    activo: parseBooleanQueryParam(req.query.activo),
-  });
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid query params" });
-    return;
-  }
-
-  const { search, role_id: roleId, activo, page = 1, limit = 20 } = parsed.data;
-  if (
-    !Number.isInteger(page) ||
-    !Number.isInteger(limit) ||
-    (roleId !== undefined && !Number.isInteger(roleId))
-  ) {
-    res.status(400).json({ error: "Invalid query params" });
-    return;
-  }
-
-  const conditions: SQL[] = [];
-  const normalizedSearch = search?.trim();
-  if (normalizedSearch) {
-    conditions.push(
-      or(
-        like(usuariosTable.nombre, `%${normalizedSearch}%`),
-        like(usuariosTable.apellido, `%${normalizedSearch}%`),
-        like(usuariosTable.email, `%${normalizedSearch}%`),
-      )!,
-    );
-  }
-  if (roleId !== undefined) conditions.push(eq(usuariosTable.role_id, roleId));
-  if (activo !== undefined) conditions.push(eq(usuariosTable.activo, activo));
-
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
-  const offset = (page - 1) * limit;
-  const [users, [{ total }]] = await Promise.all([
-    db
-      .select(PUBLIC_USER_COLUMNS)
-      .from(usuariosTable)
-      .where(where)
-      .orderBy(
-        asc(usuariosTable.nombre),
-        asc(usuariosTable.apellido),
-        asc(usuariosTable.id),
-      )
-      .limit(limit)
-      .offset(offset),
-    db.select({ total: count() }).from(usuariosTable).where(where),
-  ]);
-
-  res.json({ users, total, page, limit });
-});
+router.get("/", listAdminUsers);
 
 router.post("/", async (req, res) => {
   const passwordPolicyError = getNewPasswordPolicyError(
@@ -173,7 +101,7 @@ router.post("/", async (req, res) => {
           role_id: parsed.data.role_id,
           activo: parsed.data.activo,
         })
-        .returning(PUBLIC_USER_COLUMNS)
+        .returning(PUBLIC_ADMIN_USER_COLUMNS)
         .get();
       return { kind: "created", user } as const;
     });
@@ -329,7 +257,7 @@ router.patch("/:id", async (req, res) => {
         .update(usuariosTable)
         .set(updates)
         .where(eq(usuariosTable.id, current.id))
-        .returning(PUBLIC_USER_COLUMNS)
+        .returning(PUBLIC_ADMIN_USER_COLUMNS)
         .get();
       const roleChanged =
         body.data.role_id !== undefined && body.data.role_id !== current.roleId;

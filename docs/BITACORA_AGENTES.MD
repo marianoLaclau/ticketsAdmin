@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-08 — Listado de usuarios y proyección pública desacoplados
+
+**Agente:** Codex
+**Estado:** centésima septuagésima séptima remediación de la auditoría técnica, implementada localmente.
+
+- El GET del catálogo pasó a `admin-user-list-handler.ts`; `admin-users.ts` conserva el primer montaje y todas las mutaciones, y bajó de 448 a 376 líneas. Coerción, validación, filtros AND, búsqueda OR, total, orden, paginación y respuesta se trasladaron sin cambios.
+- `admin-user-public-columns.ts` define la única allowlist pública para listado, alta y PATCH. Importa sólo el schema, no inicializa la base y excluye `password_hash`; sus usos restantes siguen limitados a verificaciones internas de autenticación y seguridad.
+- Aprobaron las 56 pruebas RBAC dirigidas, las 215 pruebas completas del backend, typecheck, ESLint, Prettier, build y `git diff --check`; la revisión independiente confirmó guards, grafo acíclico y equivalencia sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-08 — Configuración heredada de pnpm retirada de Docker
 
 **Agente:** Codex
