@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Filtro temporal desacoplado del Dashboard
+
+**Agente:** Codex
+**Estado:** centésima septuagésima primera remediación de la auditoría técnica, implementada localmente.
+
+- El formulario controlado de período pasó a `DashboardPeriodFilter.tsx`; `Dashboard.tsx` conserva el hook de URL, validación, borrador, parámetros aplicados y consultas, y bajó de 409 a 298 líneas.
+- La frontera usa callbacks explícitos para período, ambas fechas y aplicación. Se preservan clases, IDs, leyenda, estado accesible, asociación del error y la guarda que impide aplicar un rango inválido o enviar un período no personalizado.
+- Tres pruebas de componente cubren selección Radix, ausencia/presencia de fechas, cambios del borrador, etiqueta aplicada independiente, submit válido, error accesible y submit inválido directo. Aprobaron las 201 pruebas del frontend, typecheck, ESLint, Prettier, build de producción y `git diff --check`; una revisión independiente no encontró P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Contrato del catálogo administrativo de usuarios cubierto
 
 **Agente:** Codex
