@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Catálogo sin la dependencia residual de Framer Motion
+
+**Agente:** Codex
+**Estado:** centésima sexagésima tercera remediación de la auditoría técnica, implementada localmente.
+
+- Se retiró `framer-motion` del catálogo central de pnpm. Su dependencia ya había sido eliminada del frontend y del lockfile, pero la versión huérfana seguía sugiriendo una capacidad que el workspace no instala ni utiliza.
+- Una búsqueda completa confirmó que no quedan imports, manifests, entradas de lockfile ni enlaces instalados del paquete. El frontend conserva 106 módulos productivos alcanzables y no se eliminó código de interfaz.
+- Aprobaron inventario recursivo de dependencias, lint, typecheck, build del frontend y `git diff --check`; el lockfile permaneció intacto. Una revisión independiente no encontró P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Bundle backend fail-fast y sin externals especulativos
 
 **Agente:** Codex
