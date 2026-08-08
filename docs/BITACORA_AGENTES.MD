@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-08 — Formulario de roles desacoplado
+
+**Agente:** Codex
+**Estado:** centésima septuagésima octava remediación de la auditoría técnica, implementada localmente.
+
+- El diálogo controlado pasó a `AdminRoleFormDialog.tsx`; `AdminRolesTab.tsx` conserva política, validación, guards, mutaciones y efectos, y bajó de 657 a 597 líneas.
+- La frontera mantiene IDs, textos, clases, límites y callbacks. Para roles del sistema siguen bloqueados nombre y estado, la descripción permanece editable y `changeRoleDialogOpen` continúa siendo la única puerta protegida de apertura y cierre.
+- Dos pruebas de componente cubren alta, edición, actualización controlada, límites, switch, callbacks, protección de sistema y estado de guardado. Aprobaron las 205 pruebas del frontend, typecheck, ESLint, Prettier, build y `git diff --check`; la revisión independiente cerró sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-08 — Listado de usuarios y proyección pública desacoplados
 
 **Agente:** Codex
