@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-08 — Fila del catálogo de usuarios desacoplada
+
+**Agente:** Codex
+**Estado:** centésima septuagésima quinta remediación de la auditoría técnica, implementada localmente.
+
+- La presentación de cada usuario pasó a `AdminUserTableRow.tsx`; `AdminUsersTab.tsx` conserva consultas, mutaciones, guards y diálogos, y bajó de 800 a 742 líneas.
+- La frontera mantiene las ocho celdas en su orden original, fallbacks, fecha, estados, badges y nombres accesibles. Los tres bloqueos siguen siendo independientes y los callbacks reciben el mismo objeto de dominio, sin introducir hooks ni estado en la fila.
+- Dos pruebas de componente fijan contenido por columna, fallbacks, activación, edición, reset, identidad y cardinalidad exacta de callbacks. Aprobaron las 203 pruebas del frontend, typecheck, ESLint, Prettier, build y `git diff --check`; los dos P3 señalados por la revisión independiente se corrigieron antes del commit. No se hizo push.
+
 ## 2026-08-08 — Listado de roles desacoplado de sus mutaciones
 
 **Agente:** Codex

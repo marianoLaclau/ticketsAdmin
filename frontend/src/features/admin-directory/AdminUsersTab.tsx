@@ -16,14 +16,12 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
-  KeyRound,
-  Pencil,
   Plus,
   Search,
 } from 'lucide-react';
 import { AdminUserFormDialog } from '@/features/admin-directory/AdminUserFormDialog';
 import { AdminUserPasswordDialog } from '@/features/admin-directory/AdminUserPasswordDialog';
-import { AdminStatusBadge } from '@/features/admin-directory/AdminStatusBadge';
+import { AdminUserTableRow } from '@/features/admin-directory/AdminUserTableRow';
 import {
   createAdminUserForm,
   createEmptyAdminUserForm,
@@ -36,13 +34,11 @@ import type {
   AdminDirectoryUsersUrlUpdate,
 } from '@/features/admin-directory/useAdminDirectoryUrl';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LoadingStatus } from '@/components/ui/loading-status';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TabsContent } from '@/components/ui/tabs';
 import { adminErrorMessage } from '@/hooks/use-admin-access';
@@ -55,7 +51,6 @@ import {
 } from '@/lib/admin-directory-url';
 import type { AdminCredentialState } from '@/lib/admin-credential-state';
 import { getNewPasswordError } from '@/lib/password-policy';
-import { formatDate } from '@/lib/utils-tickets';
 
 interface AdminUsersTabProps {
   request: RequestInit;
@@ -646,70 +641,17 @@ export function AdminUsersTab({
                     </TableRow>
                   ) : (
                     users.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="tabular-nums text-muted-foreground">{user.id}</TableCell>
-                        <TableCell className="font-medium">
-                          {user.nombre} {user.apellido ?? ''}
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-mono text-xs text-slate-600">{user.username ?? '—'}</div>
-                          {user.debe_cambiar_password && (
-                            <Badge
-                              variant="outline"
-                              className="mt-1 border-amber-200 bg-amber-50 text-[10px] font-medium text-amber-700"
-                            >
-                              Cambio de contraseña pendiente
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{user.email}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{roleById.get(user.role_id) ?? `Rol #${user.role_id}`}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <AdminStatusBadge active={user.activo} />
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                          {formatDate(user.fecha_actualizacion)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Switch
-                              checked={user.activo}
-                              onCheckedChange={() => toggleUser(user)}
-                              disabled={updateUser.isPending}
-                              aria-label={
-                                user.activo
-                                  ? `Desactivar usuario ${user.username ?? user.email}`
-                                  : `Activar usuario ${user.username ?? user.email}`
-                              }
-                              title={user.activo ? 'Desactivar usuario' : 'Activar usuario'}
-                            />
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => openEditUser(user)}
-                              disabled={userMutationPending}
-                              title="Editar usuario"
-                              aria-label={`Editar usuario ${user.username ?? user.email}`}
-                            >
-                              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-amber-600 hover:text-amber-700"
-                              onClick={() => openResetPassword(user)}
-                              disabled={resetPassword.isPending}
-                              title="Asignar contraseña temporal"
-                              aria-label={`Asignar contraseña temporal a ${user.username ?? user.email}`}
-                            >
-                              <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                      <AdminUserTableRow
+                        key={user.id}
+                        user={user}
+                        roleName={roleById.get(user.role_id)}
+                        isStatusToggleDisabled={updateUser.isPending}
+                        isEditDisabled={userMutationPending}
+                        isPasswordResetDisabled={resetPassword.isPending}
+                        onToggle={toggleUser}
+                        onEdit={openEditUser}
+                        onResetPassword={openResetPassword}
+                      />
                     ))
                   )}
                 </TableBody>
