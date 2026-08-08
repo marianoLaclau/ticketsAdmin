@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Contrato del catálogo administrativo de usuarios cubierto
+
+**Agente:** Codex
+**Estado:** centésima septuagésima remediación de la auditoría técnica, implementada localmente.
+
+- Se agregaron pruebas de integración, sin modificar producción, para fijar la combinación AND de búsqueda, rol y `activo=false` del catálogo de usuarios. Cinco filas controladas aíslan cada predicado: la prueba falla inequívocamente si se omite cualquiera de los tres filtros.
+- Dos páginas de una fila confirman que el total se calcula antes de paginar y que el orden estable por nombre, apellido e ID se aplica antes del offset. También se verifica la proyección sin `password_hash` y se rechazan booleanos no canónicos y valores fraccionarios para rol, página y límite.
+- Aprobaron las 54 pruebas RBAC dirigidas, las 213 pruebas completas del backend, typecheck, ESLint dirigido, build y `git diff --check`. Una revisión independiente detectó un falso positivo en el primer fixture; se incorporó el distractor faltante y la revisión final quedó sin P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Plugin tipográfico inerte retirado del frontend
 
 **Agente:** Codex

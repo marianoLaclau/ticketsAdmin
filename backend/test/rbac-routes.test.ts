@@ -1633,6 +1633,115 @@ describe("catálogo administrativo de usuarios", () => {
       );
     }
   });
+
+  it("combina filtros antes de paginar y conserva el orden estable", async () => {
+    const insertUser = sqlite.prepare(
+      `INSERT INTO usuarios
+       (id, nombre, apellido, username, email, password_hash,
+        debe_cambiar_password, role_id, activo)
+       VALUES (?, ?, ?, ?, ?, NULL, 0, ?, ?)`,
+    );
+    insertUser.run(
+      101,
+      "Filtro",
+      "Zulu",
+      "filtro-zulu",
+      "filtro-zulu@example.test",
+      5,
+      0,
+    );
+    insertUser.run(
+      102,
+      "Filtro",
+      "Alfa",
+      "filtro-alfa",
+      "filtro-alfa@example.test",
+      5,
+      0,
+    );
+    insertUser.run(
+      103,
+      "Filtro",
+      "Otro rol",
+      "filtro-otro-rol",
+      "filtro-otro-rol@example.test",
+      2,
+      0,
+    );
+    insertUser.run(
+      104,
+      "Filtro",
+      "Activo",
+      "filtro-activo",
+      "filtro-activo@example.test",
+      5,
+      1,
+    );
+    insertUser.run(
+      105,
+      "Ajeno",
+      "Externo",
+      "ajeno",
+      "ajeno@example.test",
+      5,
+      0,
+    );
+    const cookie = await adminSession();
+
+    const payloads = [];
+    for (const page of [1, 2]) {
+      const response = await adminRequest(
+        `/admin/users?search=Filtro&role_id=5&activo=false&page=${page}&limit=1`,
+        cookie,
+      );
+      assert.equal(response.status, 200);
+      payloads.push(
+        (await response.json()) as {
+          users: Array<Record<string, unknown>>;
+          total: number;
+          page: number;
+          limit: number;
+        },
+      );
+    }
+
+    assert.deepEqual(
+      payloads.map(({ total, page, limit, users }) => ({
+        total,
+        page,
+        limit,
+        ids: users.map((user) => user.id),
+        apellidos: users.map((user) => user.apellido),
+      })),
+      [
+        { total: 2, page: 1, limit: 1, ids: [102], apellidos: ["Alfa"] },
+        { total: 2, page: 2, limit: 1, ids: [101], apellidos: ["Zulu"] },
+      ],
+    );
+    for (const { users } of payloads) {
+      assert.equal(users.length, 1);
+      assert.equal(users[0]?.role_id, 5);
+      assert.equal(users[0]?.activo, false);
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(users[0], "password_hash"),
+        false,
+      );
+    }
+  });
+
+  it("rechaza booleanos y enteros inválidos en el catálogo", async () => {
+    const cookie = await adminSession();
+
+    for (const query of ["activo=0", "role_id=1.5", "page=1.5", "limit=1.5"]) {
+      const response = await adminRequest(`/admin/users?${query}`, cookie);
+      assert.equal(response.status, 400, query);
+      assert.deepEqual(
+        await response.json(),
+        { error: "Invalid query params" },
+        query,
+      );
+    }
+  });
 });
 
 describe("roles base protegidos", () => {
