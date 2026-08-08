@@ -7,16 +7,14 @@ import {
 import {
   db,
   seguimientosTable,
-  ticketVisibleCondition,
   ticketsTable,
   type Ticket,
 } from "@workspace/db";
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import {
   DeleteTicketParams,
   GetTicketParams,
   GetTicketQueryParams,
-  ListTicketsQueryParams,
   UpdateTicketParams,
   UpdateTicketQueryParams,
 } from "@workspace/api-zod";
@@ -26,8 +24,6 @@ import {
   requireSysAdmin,
   type SessionUser,
 } from "../lib/auth";
-import { buildTicketWhere } from "../lib/ticket-query";
-import { buildTicketOrderBy, parseTicketSortQuery } from "../lib/ticket-sort";
 import {
   normalizeTicketQuery,
   parseBooleanQueryParam,
@@ -49,6 +45,7 @@ import {
   createTicketFollowup,
   listTicketFollowups,
 } from "./ticket-followup-handlers";
+import { listTickets } from "./ticket-list-handler";
 
 const router = Router();
 
@@ -94,57 +91,7 @@ function requireAdminForEmptyTickets(
 
 // Listado operativo/administrativo: los filtros y el orden se aplican antes
 // de la paginación y comparten exactamente la misma semántica con el CSV.
-router.get("/tickets", requireAdminForEmptyTickets, async (req, res) => {
-  const parsed = ListTicketsQueryParams.safeParse(
-    normalizeTicketQuery(req.query),
-  );
-  if (!parsed.success) {
-    res.status(400).json({ error: "Parámetros de consulta inválidos" });
-    return;
-  }
-
-  const {
-    incluir_vacios: includeEmpty = false,
-    sort_by: requestedSortBy,
-    order: requestedOrder,
-    sort: requestedSort,
-    page = 1,
-    limit = 20,
-  } = parsed.data;
-  if (!Number.isInteger(page) || !Number.isInteger(limit)) {
-    res.status(400).json({ error: "La paginación debe usar números enteros" });
-    return;
-  }
-
-  const where = buildTicketWhere(
-    parsed.data,
-    includeEmpty ? [] : [ticketVisibleCondition],
-    { now: new Date() },
-  );
-  const sortResult = parseTicketSortQuery(
-    requestedSort,
-    requestedSortBy,
-    requestedOrder,
-  );
-  if (!sortResult.ok) {
-    res.status(400).json({ error: "Parámetros de ordenamiento inválidos" });
-    return;
-  }
-  const offset = (page - 1) * limit;
-
-  const [tickets, [{ total }]] = await Promise.all([
-    db
-      .select()
-      .from(ticketsTable)
-      .where(where)
-      .orderBy(...buildTicketOrderBy(sortResult.criteria))
-      .limit(limit)
-      .offset(offset),
-    db.select({ total: count() }).from(ticketsTable).where(where),
-  ]);
-
-  res.json({ tickets, total, page, limit });
-});
+router.get("/tickets", requireAdminForEmptyTickets, listTickets);
 
 // Debe declararse antes de `/:id` para que Express no interprete export.csv
 // como un identificador de ticket.

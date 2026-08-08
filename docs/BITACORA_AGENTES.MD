@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-08 — Listado operativo de tickets desacoplado
+
+**Agente:** Codex
+**Estado:** centésima octogésima primera remediación de la auditoría técnica, implementada localmente.
+
+- El GET paginado pasó a `ticket-list-handler.ts`; `tickets.ts` conserva middleware, detalle, PATCH y seguimientos, y bajó de 383 a 330 líneas.
+- `requireAdminForEmptyTickets` continúa inmediatamente antes del handler y el orden crítico sigue siendo listado, `export.csv` y `/:id`. Parseo, mensajes, reloj único, filtros, orden, paginación, count y respuesta se trasladaron literalmente, sin montaje alternativo ni ciclos.
+- Aprobaron las 39 pruebas dirigidas de rutas, filtros y normalización, las 215 pruebas completas del backend, typecheck, ESLint, Prettier, build y `git diff --check`; la revisión independiente confirmó equivalencia y seguridad sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-08 — Doble autorización del listado de cuarentena cubierta
 
 **Agente:** Codex
