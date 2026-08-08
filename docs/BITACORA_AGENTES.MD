@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Allowlist de scripts alineada con pnpm 11
+
+**Agente:** Codex
+**Estado:** centésima septuagésima segunda remediación de la auditoría técnica, implementada localmente.
+
+- Se eliminó `onlyBuiltDependencies`, configuración heredada que pnpm 11 consolidó en `allowBuilds` según su [guía oficial de migración](https://pnpm.io/migration). La política efectiva tiene ahora una sola fuente.
+- `allowBuilds` conserva únicamente `esbuild` y `better-sqlite3`, presentes en el lockfile y necesarios para build/transpilación y SQLite nativo. Se retiraron permisos latentes para `@swc/core`, `msw` y `unrs-resolver`, ausentes de fuentes, manifests y lockfile.
+- `pnpm config get` confirmó la ausencia de la clave antigua y el mapa exacto de dos entradas. Instalación offline congelada, rebuild de ambos paquetes, smoke de SQLite y esbuild, lockfile byte a byte estable y quality gate completo quedaron verdes; una revisión independiente no encontró P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Filtro temporal desacoplado del Dashboard
 
 **Agente:** Codex
