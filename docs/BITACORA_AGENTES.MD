@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-08 — Primitiva CardFooter sin consumidores retirada
+
+**Agente:** Codex
+**Estado:** centésima octogésima segunda remediación de la auditoría técnica, implementada localmente.
+
+- Se eliminaron definición, `displayName` y export de `CardFooter`: sus únicas tres referencias estaban dentro de `card.tsx`, el módulo es privado y los diez consumidores conservan todos los exports que realmente importan.
+- La búsqueda quedó en cero referencias, el CSS mantuvo el mismo asset `index-BrJGtAy5.css` y el build redujo el chunk principal informado de 408,25 a 408,10 kB. No se mezcló el formateo heredado del archivo con esta eliminación funcional de 13 líneas.
+- Aprobaron las 208 pruebas del frontend, typecheck, ESLint, build y `git diff --check`; la revisión independiente cerró sin P0/P1/P2 y su P3 documental quedó resuelto con esta entrada. No se hizo push.
+
 ## 2026-08-08 — Listado operativo de tickets desacoplado
 
 **Agente:** Codex
