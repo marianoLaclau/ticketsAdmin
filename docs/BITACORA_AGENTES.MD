@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Plugin tipográfico inerte retirado del frontend
+
+**Agente:** Codex
+**Estado:** centésima sexagésima novena remediación de la auditoría técnica, implementada localmente.
+
+- Se retiraron la directiva de Tailwind y la dependencia directa `@tailwindcss/typography`: el frontend no contiene clases `prose` ni otra referencia a sus utilidades, por lo que el plugin registraba estilos que nunca llegaban al CSS generado.
+- El lockfile eliminó únicamente el plugin y sus dos transitivas exclusivas, `postcss-selector-parser` y `cssesc`. Una instalación congelada reconstruyó los 611 paquetes restantes desde el store local, sin descargas ni cambios de versiones.
+- El build anterior y el posterior produjeron el mismo asset `index-BrJGtAy5.css`, de 74.758 bytes y SHA-256 `d554f48f510d46adf32b5741a938d08c65bc2a305e8f06f150dd5f9abde6d2ab`. Aprobaron instalación congelada, las 198 pruebas del frontend, typecheck, ESLint, build de producción, búsqueda de referencias y `git diff --check`; una revisión independiente no encontró P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Tickets vencidos desacoplados del Dashboard
 
 **Agente:** Codex
