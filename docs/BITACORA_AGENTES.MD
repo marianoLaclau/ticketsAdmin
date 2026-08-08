@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Rendimiento desacoplado del Dashboard
+
+**Agente:** Codex
+**Estado:** centésima sexagésima séptima remediación de la auditoría técnica, implementada localmente.
+
+- El indicador circular y el panel completo de Rendimiento pasaron a `DashboardPerformancePanel.tsx`; `Dashboard.tsx` conserva las consultas, el período y todos los cálculos de negocio, y bajó de 642 a 513 líneas.
+- La nueva frontera recibe únicamente seis valores presentacionales. Etiquetas, métricas, estilos, indicador SVG y cinco estados de carga permanecen equivalentes, sin modificar API, caché, navegación ni dependencias.
+- Dos pruebas de componente cubren la presentación de la tasa y sus cuatro métricas, además de verificar que los valores y el indicador no se expongan durante la carga. Aprobaron las 195 pruebas del frontend, typecheck, ESLint, Prettier, build de producción y `git diff --check`; una revisión independiente no encontró P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Ordenamiento separado de los filtros SQL de tickets
 
 **Agente:** Codex
