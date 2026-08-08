@@ -1586,6 +1586,79 @@ describe("catálogo administrativo de roles", () => {
     assert.equal(payload.roles[0]?.id, created.id);
     assert.equal(payload.roles[0]?.nombre, created.nombre);
   });
+
+  it("busca por nombre o descripción antes de ordenar y paginar", async () => {
+    const insertRole = sqlite.prepare(
+      `INSERT INTO roles (id, nombre, descripcion, activo)
+       VALUES (?, ?, ?, 1)`,
+    );
+    insertRole.run(101, "Zulu", "Filtro descripcion");
+    insertRole.run(102, "Alfa Filtro", "Sin coincidencia");
+    insertRole.run(103, "Ajeno", "Externo");
+    const cookie = await adminSession();
+
+    const payloads = [];
+    for (const page of [1, 2]) {
+      const response = await adminRequest(
+        `/admin/roles?search=Filtro&page=${page}&limit=1`,
+        cookie,
+      );
+      assert.equal(response.status, 200);
+      payloads.push(
+        (await response.json()) as {
+          roles: Array<{
+            id: number;
+            nombre: string;
+            descripcion: string | null;
+          }>;
+          total: number;
+          page: number;
+          limit: number;
+        },
+      );
+    }
+
+    assert.deepEqual(
+      payloads.map(({ total, page, limit, roles }) => ({
+        total,
+        page,
+        limit,
+        ids: roles.map((role) => role.id),
+        nombres: roles.map((role) => role.nombre),
+      })),
+      [
+        {
+          total: 2,
+          page: 1,
+          limit: 1,
+          ids: [102],
+          nombres: ["Alfa Filtro"],
+        },
+        {
+          total: 2,
+          page: 2,
+          limit: 1,
+          ids: [101],
+          nombres: ["Zulu"],
+        },
+      ],
+    );
+    for (const { roles } of payloads) assert.equal(roles.length, 1);
+  });
+
+  it("rechaza paginación fraccionaria en el catálogo", async () => {
+    const cookie = await adminSession();
+
+    for (const query of ["page=1.5", "limit=1.5"]) {
+      const response = await adminRequest(`/admin/roles?${query}`, cookie);
+      assert.equal(response.status, 400, query);
+      assert.deepEqual(
+        await response.json(),
+        { error: "Invalid pagination params" },
+        query,
+      );
+    }
+  });
 });
 
 describe("catálogo administrativo de usuarios", () => {

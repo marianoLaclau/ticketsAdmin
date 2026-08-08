@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-08 — Contrato del catálogo administrativo de roles cubierto
+
+**Agente:** Codex
+**Estado:** centésima septuagésima tercera remediación de la auditoría técnica, implementada localmente.
+
+- Se agregaron pruebas de integración, sin modificar producción, para fijar la búsqueda del catálogo por nombre o descripción. Dos roles coinciden por ramas independientes y un tercero actúa como control negativo, por lo que eliminar la búsqueda o convertir el OR en AND hace fallar el contrato.
+- Dos páginas de una fila prueban total previo a paginar, orden alfabético antes del offset y segunda página real. Casos fraccionarios alcanzan específicamente el guard de enteros y fijan su respuesta 400.
+- Aprobaron las 56 pruebas RBAC dirigidas, las 215 pruebas completas del backend, typecheck, ESLint dirigido, build y `git diff --check`; una revisión contrafactual independiente no encontró P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-07 — Allowlist de scripts alineada con pnpm 11
 
 **Agente:** Codex
