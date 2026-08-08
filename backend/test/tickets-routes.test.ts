@@ -205,7 +205,10 @@ function assertOwnProperties(
   }
 }
 
-function fakeEventResponse(received: string[]): Response {
+function fakeEventResponse(
+  received: string[],
+  onWrite?: (payload: string) => void,
+): Response {
   let closeListener: (() => void) | undefined;
   const response = {
     destroyed: false,
@@ -216,6 +219,7 @@ function fakeEventResponse(received: string[]): Response {
     },
     write(payload: string) {
       received.push(payload);
+      onWrite?.(payload);
       return true;
     },
     end() {
@@ -992,6 +996,83 @@ describe("fecha de resolución al reabrir", () => {
 });
 
 describe("seguimientos manuales", () => {
+  it("devuelve 404 y no notifica para un ticket inexistente", async () => {
+    const received: string[] = [];
+    const eventClient = fakeEventResponse(received);
+    assert.equal(addEventClient(eventClient), true);
+
+    try {
+      const history = await request("/tickets/999/seguimientos");
+      assert.equal(history.status, 404);
+
+      const creation = await jsonRequest("/tickets/999/seguimientos", "POST", {
+        nota: "No debe persistirse",
+      });
+      assert.equal(creation.status, 404);
+      assert.equal(
+        (
+          sqlite
+            .prepare("SELECT count(*) AS total FROM seguimientos")
+            .get() as { total: number }
+        ).total,
+        0,
+      );
+      assert.equal(received.length, 0);
+    } finally {
+      eventClient.end();
+    }
+  });
+
+  it("publica la actualización después del commit y nunca ante rollback", async () => {
+    const received: string[] = [];
+    const observer = new Database(databasePath, { readonly: true });
+    let visibleAtBroadcast = false;
+    const eventClient = fakeEventResponse(received, () => {
+      visibleAtBroadcast =
+        observer
+          .prepare("SELECT id FROM seguimientos WHERE nota = ?")
+          .get("Nota confirmada") !== undefined;
+    });
+
+    try {
+      assert.equal(addEventClient(eventClient), true);
+      const created = await jsonRequest("/tickets/1/seguimientos", "POST", {
+        nota: "Nota confirmada",
+      });
+      assert.equal(created.status, 201);
+      assert.equal(visibleAtBroadcast, true);
+      assert.equal(received.length, 1);
+      assert.deepEqual(
+        JSON.parse((received[0] ?? "").replace(/^data: /, "").trim()),
+        { ticket_id: 1, tipo: "ticket_actualizado" },
+      );
+
+      sqlite.exec(`
+        CREATE TRIGGER fail_ticket_audit
+        BEFORE INSERT ON seguimientos
+        WHEN NEW.nota = 'Forzar rollback'
+        BEGIN
+          SELECT RAISE(ABORT, 'fallo forzado');
+        END;
+      `);
+      const failed = await jsonRequest("/tickets/1/seguimientos", "POST", {
+        nota: "Forzar rollback",
+      });
+      assert.equal(failed.status, 500);
+      assert.equal(
+        sqlite
+          .prepare("SELECT id FROM seguimientos WHERE nota = ?")
+          .get("Forzar rollback"),
+        undefined,
+      );
+      assert.equal(received.length, 1);
+    } finally {
+      sqlite.exec("DROP TRIGGER IF EXISTS fail_ticket_audit");
+      eventClient.end();
+      observer.close();
+    }
+  });
+
   it("solo admite nota, deriva el autor y ordena por fecha e id", async () => {
     const forged = await jsonRequest("/tickets/1/seguimientos", "POST", {
       nota: "Intento",

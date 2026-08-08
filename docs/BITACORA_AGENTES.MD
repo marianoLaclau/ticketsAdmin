@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Seguimientos desacoplados del router de tickets
+
+**Agente:** Codex
+**Estado:** centésima sexagésima cuarta remediación de la auditoría técnica, implementada localmente.
+
+- Los handlers HTTP para listar y crear seguimientos manuales pasaron a `ticket-followup-handlers.ts`; validación, autor derivado de sesión, transacción, orden y SSE conservan el contrato anterior. `tickets.ts` mantiene visibles las rutas, su posición y el guard de SysAdmin + llave para ampliar acceso a cuarentena, y bajó de 502 a 386 líneas.
+- La condición SQL compartida de acceso quedó en `ticket-access.ts`, sin importar el router ni abrir ciclos. Su contrato aclara que `includeEmpty=true` solo construye alcance y requiere autorización previa del endpoint.
+- Se agregaron regresiones para 404 de GET/POST sin escrituras ni eventos y para publicación SSE posterior al commit, observada desde una segunda conexión SQLite; un trigger fuerza rollback y confirma que no se notifica. Aprobaron las 211 pruebas del backend, typecheck, ESLint dirigido, Prettier, build y `git diff --check`; dos revisiones independientes no encontraron P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Catálogo sin la dependencia residual de Framer Motion
 
 **Agente:** Codex

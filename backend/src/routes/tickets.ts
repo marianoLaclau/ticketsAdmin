@@ -11,16 +11,11 @@ import {
   ticketsTable,
   type Ticket,
 } from "@workspace/db";
-import { and, asc, count, eq, type SQL } from "drizzle-orm";
+import { and, asc, count, eq } from "drizzle-orm";
 import {
-  CreateSeguimientoBody,
-  CreateSeguimientoParams,
-  CreateSeguimientoQueryParams,
   DeleteTicketParams,
   GetTicketParams,
   GetTicketQueryParams,
-  ListSeguimientosParams,
-  ListSeguimientosQueryParams,
   ListTicketsQueryParams,
   UpdateTicketParams,
   UpdateTicketQueryParams,
@@ -51,7 +46,12 @@ import {
 } from "../lib/ticket-update-validation";
 import { buildTicketUpdateChanges } from "../lib/ticket-update-changes";
 import { broadcastEvent } from "../lib/events";
+import { buildTicketAccessCondition } from "../lib/ticket-access";
 import { exportTicketsCsv } from "./ticket-csv-route";
+import {
+  createTicketFollowup,
+  listTicketFollowups,
+} from "./ticket-followup-handlers";
 
 const router = Router();
 
@@ -66,20 +66,6 @@ type PatchTransactionResult =
     }
   | { kind: "unchanged"; ticket: Ticket }
   | { kind: "updated"; ticket: Ticket };
-
-function isObjectBody(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function hasOnlyBodyFields(
-  value: unknown,
-  allowed: readonly string[],
-): value is Record<string, unknown> {
-  return (
-    isObjectBody(value) &&
-    Object.keys(value).every((field) => allowed.includes(field))
-  );
-}
 
 function requireTechnicalTicketUpdate(
   req: Request,
@@ -107,12 +93,6 @@ function requireAdminForEmptyTickets(
   }
 
   requireSysAdmin(req, res, () => requireAdminKey(req, res, next));
-}
-
-function ticketAccessCondition(id: number, includeEmpty: boolean): SQL {
-  return includeEmpty
-    ? eq(ticketsTable.id, id)
-    : and(eq(ticketsTable.id, id), ticketVisibleCondition)!;
 }
 
 // Listado operativo/administrativo: los filtros y el orden se aplican antes
@@ -188,7 +168,9 @@ router.get("/tickets/:id", requireAdminForEmptyTickets, async (req, res) => {
   const [ticket] = await db
     .select()
     .from(ticketsTable)
-    .where(ticketAccessCondition(params.data.id, query.data.incluir_vacios));
+    .where(
+      buildTicketAccessCondition(params.data.id, query.data.incluir_vacios),
+    );
   if (!ticket) {
     res.status(404).json({ error: "Ticket no encontrado" });
     return;
@@ -229,7 +211,7 @@ router.patch(
     const authUser = res.locals.authUser as SessionUser;
     const autor = formatTicketAuditAuthor(authUser);
     const now = new Date();
-    const accessCondition = ticketAccessCondition(
+    const accessCondition = buildTicketAccessCondition(
       params.data.id,
       query.data.incluir_vacios,
     );
@@ -392,111 +374,13 @@ router.delete(
 router.get(
   "/tickets/:id/seguimientos",
   requireAdminForEmptyTickets,
-  async (req, res) => {
-    const params = ListSeguimientosParams.safeParse({ id: req.params.id });
-    const query = ListSeguimientosQueryParams.safeParse(
-      normalizeTicketQuery(req.query),
-    );
-    if (!params.success || !Number.isInteger(params.data.id)) {
-      res.status(400).json({ error: "Identificador de ticket inválido" });
-      return;
-    }
-    if (!query.success) {
-      res.status(400).json({ error: "Parámetros de consulta inválidos" });
-      return;
-    }
-
-    const [ticket] = await db
-      .select({ id: ticketsTable.id })
-      .from(ticketsTable)
-      .where(ticketAccessCondition(params.data.id, query.data.incluir_vacios));
-    if (!ticket) {
-      res.status(404).json({ error: "Ticket no encontrado" });
-      return;
-    }
-
-    const seguimientos = await db
-      .select()
-      .from(seguimientosTable)
-      .where(eq(seguimientosTable.ticket_id, ticket.id))
-      .orderBy(
-        asc(seguimientosTable.fecha_creacion),
-        asc(seguimientosTable.id),
-      );
-    res.json(seguimientos);
-  },
+  listTicketFollowups,
 );
 
 router.post(
   "/tickets/:id/seguimientos",
   requireAdminForEmptyTickets,
-  async (req, res) => {
-    const params = CreateSeguimientoParams.safeParse({ id: req.params.id });
-    const query = CreateSeguimientoQueryParams.safeParse(
-      normalizeTicketQuery(req.query),
-    );
-    if (!params.success || !Number.isInteger(params.data.id)) {
-      res.status(400).json({ error: "Identificador de ticket inválido" });
-      return;
-    }
-    if (!query.success) {
-      res.status(400).json({ error: "Parámetros de consulta inválidos" });
-      return;
-    }
-    if (!hasOnlyBodyFields(req.body, ["nota"])) {
-      res
-        .status(400)
-        .json({ error: "El seguimiento solo admite el campo nota" });
-      return;
-    }
-
-    const body = CreateSeguimientoBody.safeParse(req.body);
-    if (!body.success) {
-      res.status(400).json({ error: "Datos del seguimiento inválidos" });
-      return;
-    }
-    const nota = body.data.nota.trim();
-    if (!nota) {
-      res.status(400).json({ error: "La nota del seguimiento es obligatoria" });
-      return;
-    }
-
-    const authUser = res.locals.authUser as SessionUser;
-    const autor = formatTicketAuditAuthor(authUser);
-    const accessCondition = ticketAccessCondition(
-      params.data.id,
-      query.data.incluir_vacios,
-    );
-
-    const seguimiento = db.transaction((tx) => {
-      const ticket = tx
-        .select({ id: ticketsTable.id })
-        .from(ticketsTable)
-        .where(accessCondition)
-        .get();
-      if (!ticket) return null;
-
-      return tx
-        .insert(seguimientosTable)
-        .values({
-          ticket_id: ticket.id,
-          nota,
-          autor,
-        })
-        .returning()
-        .get();
-    });
-
-    if (!seguimiento) {
-      res.status(404).json({ error: "Ticket no encontrado" });
-      return;
-    }
-
-    broadcastEvent("ticket_actualizado", {
-      ticket_id: params.data.id,
-    });
-    res.status(201).json(seguimiento);
-  },
+  createTicketFollowup,
 );
 
 export default router;
