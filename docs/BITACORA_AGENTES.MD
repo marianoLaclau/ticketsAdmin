@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-07 — Componentes Vite sin directivas residuales de Next.js
+
+**Agente:** Codex
+**Estado:** centésima sexagésima quinta remediación de la auditoría técnica, implementada localmente.
+
+- Se retiró la directiva `'use client'` de `Tooltip`, `Label`, `Select` y `Progress`. En esta aplicación Vite todo el árbol frontend ya se ejecuta en cliente; la marca de frontera para React Server Components era inerte y provenía del scaffold original de los componentes.
+- Eran las únicas cuatro directivas de ese tipo y coincidían con los cuatro avisos de sourcemap del build. Su eliminación no modifica imports, JSX, estilos, refs ni exports.
+- Aprobaron pruebas del frontend, typecheck, ESLint, build de producción sin los cuatro avisos y `git diff --check`. Una revisión independiente no encontró P0/P1/P2. No se hizo push.
+
 ## 2026-08-07 — Seguimientos desacoplados del router de tickets
 
 **Agente:** Codex
