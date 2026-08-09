@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Elevación administrativa por sesión implementada
+
+**Agente:** Codex
+**Estado:** ducentésima sexta remediación de la auditoría técnica, implementada localmente.
+
+- Se incorporaron GET, POST y DELETE de `/auth/admin-elevation` detrás de sesión válida, contraseña definitiva y rol SysAdmin. La API key se entrega una sola vez al elevar, se compara en tiempo constante y la sesión persiste únicamente una huella versionada y el vencimiento absoluto de quince minutos, siempre acotado por el fin de la sesión.
+- La implementación falla cerrada ante configuración ausente, rotación de clave, expiración y carreras de escritura; limita cinco claves erróneas por sesión y conserva respuestas estables. La revocación es idempotente, pero un DELETE vacío o repetido ya no puede reiniciar el limitador y evadir el bloqueo. El JSON sintácticamente inválido del endpoint también se normaliza a `ADMIN_ELEVATION_INVALID_BODY` sin alterar otros parsers.
+- Aprobaron las 11 pruebas HTTP focalizadas, ambos typechecks del backend, ESLint, Prettier y `git diff --check`; una revisión independiente detectó y verificó las dos correcciones de seguridad anteriores y cerró el resto sin hallazgos. No se hizo push.
+
 ## 2026-08-09 — CRUD administrativo de tickets desacoplado
 
 **Agente:** Codex

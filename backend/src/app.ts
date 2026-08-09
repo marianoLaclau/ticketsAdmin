@@ -3,6 +3,7 @@ import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { adminElevationInvalidJsonErrorHandler } from "./routes/auth-admin-elevation-handler";
 
 const app: Express = express();
 
@@ -31,6 +32,7 @@ app.use(
 );
 app.use(cookieParser());
 app.use(express.json());
+app.use(adminElevationInvalidJsonErrorHandler);
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
