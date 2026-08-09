@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Cambio propio de contraseña desacoplado
+
+**Agente:** Codex
+**Estado:** centésima octogésima séptima remediación de la auditoría técnica, implementada localmente.
+
+- `POST /auth/password` pasó a `auth-password-handler.ts`; `auth.ts` conserva middleware, login, logout y sesión actual, y bajó de 425 a 276 líneas.
+- Se preservaron la precedencia sesión → política → contrato, KDF fuera de la transacción, hash observado, relectura de cuenta/sesión/rol, CAS `id + password_hash`, rotación atómica, cookies, TTL y cierre SSE posterior al commit. `no-store` y el orden login → password → logout → me permanecen en el router.
+- Aprobaron las 57 pruebas RBAC dirigidas, las 216 pruebas completas del backend, typecheck, ESLint, Prettier, build y `git diff --check`; la revisión independiente comparó seguridad, concurrencia, imports y grafo sin encontrar P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — Sesión requerida por el cambio de contraseña cubierta
 
 **Agente:** Codex
