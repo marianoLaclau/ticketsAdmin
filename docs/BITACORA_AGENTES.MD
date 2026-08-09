@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Sesión requerida por el cambio de contraseña cubierta
+
+**Agente:** Codex
+**Estado:** centésima octogésima sexta remediación de la auditoría técnica, implementada localmente.
+
+- Se agregó una regresión HTTP previa a separar el handler: `POST /auth/password` sin sesión o con cookie malformada responde `401`, código estable `SESSION_INVALID` y `Cache-Control: no-store` antes de validar el body.
+- El caso malformado exige además la cookie de borrado completa. El caso que nunca envió cookie no congela ese detalle incidental, evitando sobreespecificar una cabecera que no forma parte del contrato probado.
+- Aprobaron las 57 pruebas RBAC dirigidas, typecheck, ESLint y `git diff --check`; el bloque agregado coincide con el formato canónico del archivo y la revisión independiente quedó sin P0/P1/P2/P3 después de retirar la sobreespecificación detectada. No se modificó producción ni se hizo push.
+
 ## 2026-08-09 — Proyección de cuenta autenticable centralizada
 
 **Agente:** Codex

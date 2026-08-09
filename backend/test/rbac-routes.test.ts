@@ -350,6 +350,29 @@ describe("ciclo de la cookie de sesión", () => {
     assert.equal(response.headers.get("cache-control"), "no-store");
   });
 
+  it("rechaza el cambio de contraseña sin sesión y limpia una cookie malformada", async () => {
+    const missing = await fetch(`${baseUrl}/auth/password`, { method: "POST" });
+    assert.equal(missing.status, 401);
+    assert.deepEqual(await missing.json(), {
+      code: "SESSION_INVALID",
+      error: "Sin sesión válida",
+    });
+    assert.equal(missing.headers.get("cache-control"), "no-store");
+
+    const malformed = await requestWithSession(
+      "/auth/password",
+      "gsb_session=no-es-un-token",
+      { method: "POST" },
+    );
+    assert.equal(malformed.status, 401);
+    assert.deepEqual(await malformed.json(), {
+      code: "SESSION_INVALID",
+      error: "Sin sesión válida",
+    });
+    assertClearedSessionCookie(malformed);
+    assert.equal(malformed.headers.get("cache-control"), "no-store");
+  });
+
   it("limpia una cookie malformada también desde el candado global", async () => {
     const missing = await fetch(`${baseUrl}/protected-test`);
     assert.equal(missing.status, 401);
