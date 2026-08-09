@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Superficie pública accidental del frontend reducida
+
+**Agente:** Codex
+**Estado:** centésima octogésima novena remediación de la auditoría técnica, implementada localmente.
+
+- Veintinueve tipos, constantes, interfaces y helpers de dieciocho archivos dejaron de exportarse porque cada identificador sólo existe y se consume dentro de su propio módulo. Las implementaciones permanecen intactas y disponibles localmente.
+- El diff cambia exclusivamente `export X` por `X`: no modifica nombres, firmas, cuerpos, inicializadores ni uniones. Una búsqueda global confirmó cero imports, reexports, barrels, pruebas o artefactos generados que dependieran de esa superficie accidental.
+- Aprobaron las 211 pruebas del frontend, ambos typechecks, ESLint, build y `git diff --check`; la revisión independiente confirmó las 29 sustituciones exactas sin P0/P1/P2/P3. La normalización global de finales de línea y formato permanece separada para su commit mecánico posterior. No se hizo push.
+
 ## 2026-08-09 — Login desacoplado del router de autenticación
 
 **Agente:** Codex

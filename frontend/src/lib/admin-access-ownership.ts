@@ -1,22 +1,22 @@
 const ADMIN_KEY_STORAGE_PREFIX = "admin-key:user:";
-export const LEGACY_ADMIN_KEY_STORAGE = "admin-key";
+const LEGACY_ADMIN_KEY_STORAGE = "admin-key";
 
 export interface AdminCredentialSnapshot {
   readonly ownerUserId: number;
   readonly key: string;
 }
 
-export type AdminCredentialPersistence =
+type AdminCredentialPersistence =
   | { readonly kind: "set"; readonly storageKey: string; readonly key: string }
   | { readonly kind: "remove"; readonly storageKey: string }
   | { readonly kind: "none" };
 
-export interface AdminCredentialSavePlan {
+interface AdminCredentialSavePlan {
   readonly snapshot: AdminCredentialSnapshot | null;
   readonly persistence: AdminCredentialPersistence;
 }
 
-export interface OwnedAdminAccess {
+interface OwnedAdminAccess {
   readonly adminKey: string;
   readonly adminRequest: RequestInit;
 }

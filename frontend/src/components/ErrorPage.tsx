@@ -62,7 +62,7 @@ const DEFAULT_ERROR: ErrorCopy = {
   icon: AlertTriangle,
 };
 
-export type ErrorPageProps = {
+type ErrorPageProps = {
   status?: number;
   title?: string;
   message?: string;

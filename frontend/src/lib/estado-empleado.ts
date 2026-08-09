@@ -1,4 +1,4 @@
-export type EstadoEmpleado = "Activo" | "Inactivo";
+type EstadoEmpleado = "Activo" | "Inactivo";
 
 interface EstadoEmpleadoConfig {
   label: "Activo" | "Inactivo";

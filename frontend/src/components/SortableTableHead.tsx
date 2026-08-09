@@ -4,7 +4,7 @@ import { TableHead } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import type { TicketSortState } from '@/lib/ticket-list-controls';
 
-export interface SortableTableHeadProps {
+interface SortableTableHeadProps {
   label: string;
   column: TicketSortBy;
   sorts: TicketSortState;

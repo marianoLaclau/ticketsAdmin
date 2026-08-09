@@ -19,15 +19,15 @@ export const ADMIN_DIRECTORY_USER_LIMITS = Object.freeze([
   10, 25, 50, 100,
 ] as const);
 
-export type AdminDirectoryStatus =
+type AdminDirectoryStatus =
   (typeof ADMIN_DIRECTORY_USER_STATUSES)[number];
-export type AdminDirectoryUserStatus = AdminDirectoryStatus;
-export type AdminDirectoryRoleStatus = AdminDirectoryStatus;
+type AdminDirectoryUserStatus = AdminDirectoryStatus;
+type AdminDirectoryRoleStatus = AdminDirectoryStatus;
 export type AdminDirectoryUserLimit =
   (typeof ADMIN_DIRECTORY_USER_LIMITS)[number];
 
-export const DEFAULT_ADMIN_DIRECTORY_USER_PAGE = 1;
-export const DEFAULT_ADMIN_DIRECTORY_USER_LIMIT: AdminDirectoryUserLimit = 10;
+const DEFAULT_ADMIN_DIRECTORY_USER_PAGE = 1;
+const DEFAULT_ADMIN_DIRECTORY_USER_LIMIT: AdminDirectoryUserLimit = 10;
 
 export interface AdminDirectoryUsersUrlState {
   search?: string;

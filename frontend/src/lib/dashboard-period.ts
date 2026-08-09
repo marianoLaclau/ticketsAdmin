@@ -7,7 +7,7 @@ export type DashboardDateParams = {
   fecha_hasta: string;
 };
 
-export interface DashboardRefreshSnapshot {
+interface DashboardRefreshSnapshot {
   businessDateKey: string;
   rangeKey: string;
 }

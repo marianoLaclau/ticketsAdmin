@@ -1,6 +1,6 @@
 export const SESSION_REVOKED_EVENT = 'sesion_revocada';
 
-export interface RealtimeEvent {
+interface RealtimeEvent {
   tipo: string;
   ticket_id?: number | string;
   nombre?: string | null;

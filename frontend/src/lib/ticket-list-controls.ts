@@ -16,7 +16,7 @@ export interface TicketSortRule {
 
 export type TicketSortState = readonly TicketSortRule[];
 
-export const DEFAULT_TICKET_SORT: TicketSortRule = {
+const DEFAULT_TICKET_SORT: TicketSortRule = {
   sortBy: 'fecha_creacion',
   order: 'desc',
 };
@@ -91,7 +91,7 @@ function normalizedOptionalText(value: string | undefined): string | undefined {
   return normalized || undefined;
 }
 
-export function compactTicketFilters(filters: TicketActiveFilters): TicketActiveFilters {
+function compactTicketFilters(filters: TicketActiveFilters): TicketActiveFilters {
   const compact: TicketActiveFilters = {};
   const search = normalizedOptionalText(filters.search);
   const empresa = normalizedOptionalText(filters.empresa);

@@ -4,7 +4,7 @@ import { getNewPasswordError } from "./password-policy.ts";
 export const PASSWORD_CHANGE_PATH = "/cambiar-contrasena";
 export const AUTHENTICATED_HOME_PATH = "/dashboard";
 
-export interface PasswordChangeFields {
+interface PasswordChangeFields {
   currentPassword: string;
   newPassword: string;
   repeatedPassword: string;

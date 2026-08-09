@@ -24,7 +24,7 @@ export function getConfirmedSessionUser<T>(
     : undefined;
 }
 
-export type SessionVerificationState = "settled" | "verifying" | "paused";
+type SessionVerificationState = "settled" | "verifying" | "paused";
 
 export function getSessionVerificationState(state: {
   isPending: boolean;
@@ -35,7 +35,7 @@ export function getSessionVerificationState(state: {
   return "settled";
 }
 
-export type SessionIdentityStatus = "unconfirmed" | "changed" | "accepted";
+type SessionIdentityStatus = "unconfirmed" | "changed" | "accepted";
 
 /**
  * Obliga a reconciliar la caché antes de continuar con una identidad nueva.

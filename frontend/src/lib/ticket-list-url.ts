@@ -15,7 +15,7 @@ import {
 import { isValidCalendarDate } from "./calendar-date.ts";
 
 export const DEFAULT_TICKET_LIST_PAGE = 1;
-export const DEFAULT_TICKET_LIST_LIMIT = 10;
+const DEFAULT_TICKET_LIST_LIMIT = 10;
 export const TICKET_LIST_LIMITS = [10, 25, 50, 100] as const;
 
 export type TicketListLimit = (typeof TICKET_LIST_LIMITS)[number];

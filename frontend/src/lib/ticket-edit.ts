@@ -1,7 +1,7 @@
 import type { Ticket } from '@workspace/api-client-react';
 import type { TicketChanges } from './ticket-version';
 
-export const FUNCTIONAL_TICKET_FIELD_LABELS = {
+const FUNCTIONAL_TICKET_FIELD_LABELS = {
   nombre: 'Nombre',
   apellido: 'Apellido',
   telefono: 'Teléfono',
@@ -12,7 +12,7 @@ export const FUNCTIONAL_TICKET_FIELD_LABELS = {
   resumen: 'Resumen del llamado',
 } as const;
 
-export const TICKET_AUDIT_FIELD_LABELS: Readonly<Record<string, string>> = {
+const TICKET_AUDIT_FIELD_LABELS: Readonly<Record<string, string>> = {
   ...FUNCTIONAL_TICKET_FIELD_LABELS,
   hora: 'Hora del llamado',
   notificado: 'Notificación',

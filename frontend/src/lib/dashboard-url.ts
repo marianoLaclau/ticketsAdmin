@@ -17,7 +17,7 @@ const DASHBOARD_PERIOD_MAP = {
   mes: true,
   personalizado: true,
 } as const satisfies Record<DashboardPeriod, true>;
-export const DASHBOARD_URL_PERIODS = Object.keys(
+const DASHBOARD_URL_PERIODS = Object.keys(
   DASHBOARD_PERIOD_MAP,
 ) as DashboardPeriod[];
 const DASHBOARD_PERIODS = new Set<string>(DASHBOARD_URL_PERIODS);

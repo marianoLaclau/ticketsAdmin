@@ -1,7 +1,7 @@
 import { TicketEstado, TicketPrioridad } from '@workspace/api-client-react';
 import { getEstadoLabel } from './estados';
 
-export const getEstadoColor = (estado: string) => {
+const getEstadoColor = (estado: string) => {
   switch (estado) {
     case TicketEstado.nuevo: return 'bg-slate-400';
     case TicketEstado.en_proceso: return 'bg-blue-500';
@@ -12,7 +12,7 @@ export const getEstadoColor = (estado: string) => {
   }
 };
 
-export const getPrioridadStyle = (prioridad: string) => {
+const getPrioridadStyle = (prioridad: string) => {
   switch (prioridad) {
     case TicketPrioridad.baja: return 'bg-slate-100 text-slate-600';
     case TicketPrioridad.media: return 'bg-blue-50 text-blue-700';

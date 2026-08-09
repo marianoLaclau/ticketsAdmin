@@ -27,7 +27,7 @@ interface AdminDirectoryUrlController {
   selectTab: (value: string) => void;
 }
 
-export type AdminDirectoryUrlUpdate = (
+type AdminDirectoryUrlUpdate = (
   current: AdminDirectoryUrlState,
 ) => AdminDirectoryUrlState;
 
