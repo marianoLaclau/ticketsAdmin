@@ -23,7 +23,7 @@ import type { AdminTicketDetailNavigationState } from "@/lib/ticket-navigation";
 
 interface AdminTicketTableRowProps {
   ticket: Ticket;
-  isEditDisabled: boolean;
+  areCrudActionsDisabled: boolean;
   navigationState: AdminTicketDetailNavigationState;
   onEdit: (ticket: Ticket) => void;
   onDelete: (ticket: Ticket) => void;
@@ -31,7 +31,7 @@ interface AdminTicketTableRowProps {
 
 export function AdminTicketTableRow({
   ticket,
-  isEditDisabled,
+  areCrudActionsDisabled,
   navigationState,
   onEdit,
   onDelete,
@@ -178,7 +178,7 @@ export function AdminTicketTableRow({
               event.stopPropagation();
               onEdit(ticket);
             }}
-            disabled={isEditDisabled}
+            disabled={areCrudActionsDisabled}
             title={`Editar ticket #${ticket.id}`}
             aria-label={`Editar ticket #${ticket.id}`}
           >
@@ -192,6 +192,7 @@ export function AdminTicketTableRow({
               event.stopPropagation();
               onDelete(ticket);
             }}
+            disabled={areCrudActionsDisabled}
             title={`Eliminar ticket #${ticket.id}`}
             aria-label={`Eliminar ticket #${ticket.id}`}
           >

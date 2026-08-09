@@ -115,6 +115,7 @@ export function AdminTicketsTab({
     form,
     setForm,
     isSaving,
+    areCrudActionsDisabled,
     isReloadingTicket,
     hasVersionConflict,
     aEliminar,
@@ -160,7 +161,7 @@ export function AdminTicketsTab({
         errorMessage={
           listQuery.isError ? adminErrorMessage(listQuery.error) : null
         }
-        isEditDisabled={isReloadingTicket}
+        areCrudActionsDisabled={areCrudActionsDisabled}
         detailNavigationState={detailNavigationState}
         page={page}
         pageSize={pageSize}
@@ -210,6 +211,7 @@ export function AdminTicketsTab({
       <AdminTicketDeleteDialog
         ticket={aEliminar}
         isDeleting={isDeleting}
+        isConfirmDisabled={areCrudActionsDisabled}
         onDismiss={descartarEliminacion}
         onConfirm={confirmarEliminar}
       />

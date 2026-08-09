@@ -26,7 +26,7 @@ interface AdminTicketsListPanelProps {
   tickets: readonly Ticket[];
   isLoading: boolean;
   errorMessage: string | null;
-  isEditDisabled: boolean;
+  areCrudActionsDisabled: boolean;
   detailNavigationState: AdminTicketDetailNavigationState;
   page: number;
   pageSize: TicketListLimit;
@@ -50,7 +50,7 @@ export function AdminTicketsListPanel({
   tickets,
   isLoading,
   errorMessage,
-  isEditDisabled,
+  areCrudActionsDisabled,
   detailNavigationState,
   page,
   pageSize,
@@ -78,7 +78,11 @@ export function AdminTicketsListPanel({
             onChange={(event) => onSearchChange(event.target.value)}
           />
         </div>
-        <Button onClick={onCreate} className="h-9 w-full sm:w-auto">
+        <Button
+          onClick={onCreate}
+          disabled={areCrudActionsDisabled}
+          className="h-9 w-full sm:w-auto"
+        >
           <Plus className="mr-1.5 h-4 w-4" /> Nuevo registro
         </Button>
       </div>
@@ -223,7 +227,7 @@ export function AdminTicketsListPanel({
                   <AdminTicketTableRow
                     key={ticket.id}
                     ticket={ticket}
-                    isEditDisabled={isEditDisabled}
+                    areCrudActionsDisabled={areCrudActionsDisabled}
                     navigationState={detailNavigationState}
                     onEdit={onEdit}
                     onDelete={onDelete}

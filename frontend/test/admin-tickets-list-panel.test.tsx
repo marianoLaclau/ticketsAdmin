@@ -61,7 +61,7 @@ const defaultProps: ComponentProps<typeof AdminTicketsListPanel> = {
   tickets: [ticket],
   isLoading: false,
   errorMessage: null,
-  isEditDisabled: false,
+  areCrudActionsDisabled: false,
   detailNavigationState: {
     source: "admin-ticket-list",
     returnTo: "/admin",
@@ -208,14 +208,16 @@ test("conserva los bloqueos de orden, edición y límites de página", (t) => {
   renderPanel({
     ...defaultProps,
     isDefaultSort: true,
-    isEditDisabled: true,
+    areCrudActionsDisabled: true,
     page: 1,
     totalPages: 1,
   });
 
   for (const name of [
     "Restablecer orden",
+    "Nuevo registro",
     "Editar ticket #41",
+    "Eliminar ticket #41",
     "Anterior",
     "Siguiente",
   ]) {
@@ -224,4 +226,9 @@ test("conserva los bloqueos de orden, edición y límites de página", (t) => {
       true,
     );
   }
+
+  assert.equal(
+    screen.getByRole("link", { name: "Abrir ticket #41" }).getAttribute("href"),
+    "/admin/tickets/41",
+  );
 });

@@ -67,12 +67,16 @@ export function useAdminTicketsCrud({
   const [isReloadingTicket, setIsReloadingTicket] = useState(false);
   const [hasVersionConflict, setHasVersionConflict] = useState(false);
   const reloadAttemptRef = useRef(0);
+  const reloadOperationRef = useRef(0);
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [form, setForm] = useState<AdminTicketForm>(createEmptyAdminTicketForm);
   const [editBaseline, setEditBaseline] =
     useState<TicketEditBaseline<AdminTicketForm> | null>(null);
   const [aEliminar, setAEliminar] = useState<Ticket | null>(null);
   const resetAccessBoundaryRef = useRef(accessBoundary);
+  const isCrudPending =
+    createTicket.isPending || updateTicket.isPending || deleteTicket.isPending;
+  const areCrudActionsDisabled = isCrudPending || isReloadingTicket;
 
   const refrescarTickets = () => invalidateTicketDomainQueries(queryClient);
 
@@ -108,6 +112,7 @@ export function useAdminTicketsCrud({
     if (resetAccessBoundaryRef.current === accessBoundary) return;
     resetAccessBoundaryRef.current = accessBoundary;
     reloadAttemptRef.current += 1;
+    reloadOperationRef.current += 1;
     setDialogAbierto(false);
     setIsReloadingTicket(false);
     setHasVersionConflict(false);
@@ -121,17 +126,19 @@ export function useAdminTicketsCrud({
   }, [accessBoundary, resetCreateTicket, resetDeleteTicket, resetUpdateTicket]);
 
   const cambiarEstadoDialogo = (open: boolean) => {
+    if (open && areCrudActionsDisabled) return;
     setDialogAbierto(open);
     if (!open) {
       reloadAttemptRef.current += 1;
-      setIsReloadingTicket(false);
       setEditBaseline(null);
       setHasVersionConflict(false);
     }
   };
 
   const abrirCrear = () => {
-    if (!isCurrentOperation(operationGeneration)) return;
+    if (!isCurrentOperation(operationGeneration) || areCrudActionsDisabled) {
+      return;
+    }
     reloadAttemptRef.current += 1;
     setIsReloadingTicket(false);
     setEditandoId(null);
@@ -142,7 +149,9 @@ export function useAdminTicketsCrud({
   };
 
   const abrirEditar = (ticket: Ticket) => {
-    if (!isCurrentOperation(operationGeneration) || isReloadingTicket) return;
+    if (!isCurrentOperation(operationGeneration) || areCrudActionsDisabled) {
+      return;
+    }
     reloadAttemptRef.current += 1;
     const snapshot = ticketToAdminTicketForm(ticket);
     setEditandoId(ticket.id);
@@ -153,16 +162,14 @@ export function useAdminTicketsCrud({
   };
 
   const abrirEliminar = (ticket: Ticket) => {
-    if (!isCurrentOperation(operationGeneration)) return;
+    if (!isCurrentOperation(operationGeneration) || areCrudActionsDisabled) {
+      return;
+    }
     setAEliminar(ticket);
   };
 
   const guardarRegistro = () => {
-    if (
-      !isCurrentOperation(operationGeneration) ||
-      createTicket.isPending ||
-      updateTicket.isPending
-    ) {
+    if (!isCurrentOperation(operationGeneration) || areCrudActionsDisabled) {
       return;
     }
     const operationAccessGeneration = operationGeneration;
@@ -246,13 +253,15 @@ export function useAdminTicketsCrud({
     if (
       !isCurrentOperation(operationGeneration) ||
       editandoId === null ||
-      isReloadingTicket
+      areCrudActionsDisabled
     ) {
       return;
     }
     const operationAccessGeneration = operationGeneration;
     const reloadAttempt = reloadAttemptRef.current + 1;
     reloadAttemptRef.current = reloadAttempt;
+    const reloadOperation = reloadOperationRef.current + 1;
+    reloadOperationRef.current = reloadOperation;
     setIsReloadingTicket(true);
     try {
       const [latestTicket] = await Promise.all([
@@ -284,7 +293,7 @@ export function useAdminTicketsCrud({
       });
     } finally {
       if (
-        reloadAttemptRef.current === reloadAttempt &&
+        reloadOperationRef.current === reloadOperation &&
         isCurrentOperation(operationAccessGeneration)
       ) {
         setIsReloadingTicket(false);
@@ -296,7 +305,7 @@ export function useAdminTicketsCrud({
     if (
       !isCurrentOperation(operationGeneration) ||
       !aEliminar ||
-      deleteTicket.isPending
+      areCrudActionsDisabled
     ) {
       return;
     }
@@ -328,6 +337,7 @@ export function useAdminTicketsCrud({
     form,
     setForm,
     isSaving: createTicket.isPending || updateTicket.isPending,
+    areCrudActionsDisabled,
     isReloadingTicket,
     hasVersionConflict,
     aEliminar,

@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Operaciones administrativas de tickets serializadas
+
+**Agente:** Codex
+**Estado:** ducentésima séptima remediación de la auditoría técnica, implementada localmente.
+
+- Alta, edición, borrado y recarga de conflicto se serializan dentro de una misma frontera administrativa. Mientras una operación está pendiente se puede cerrar o cancelar su diálogo, pero no abrir otro borrador ni disparar una segunda mutación que una respuesta tardía pudiera cerrar o sobrescribir.
+- El bloqueo se refleja en Nuevo, Editar, Eliminar y la confirmación destructiva; el enlace Abrir permanece disponible porque no muta datos. Dos referencias separan la vigencia del resultado de recarga de su ciclo visual, y la caché versionada rechaza una respuesta PATCH de revisión 4 si ya recibió la 5.
+- Aprobaron las 226 pruebas del frontend —incluidas regresiones de alta, actualización, eliminación, recarga y caché dentro de la misma generación—, ambos typechecks, ESLint, Prettier, build y `git diff --check`. La auditoría final cerró sin P0/P1/P2. No se hizo push.
+
 ## 2026-08-09 — Elevación administrativa por sesión implementada
 
 **Agente:** Codex

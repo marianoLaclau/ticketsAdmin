@@ -14,6 +14,7 @@ import {
 interface AdminTicketDeleteDialogProps {
   ticket: Ticket | null;
   isDeleting: boolean;
+  isConfirmDisabled: boolean;
   onDismiss: () => void;
   onConfirm: () => void;
 }
@@ -21,6 +22,7 @@ interface AdminTicketDeleteDialogProps {
 export function AdminTicketDeleteDialog({
   ticket,
   isDeleting,
+  isConfirmDisabled,
   onDismiss,
   onConfirm,
 }: AdminTicketDeleteDialogProps) {
@@ -44,6 +46,7 @@ export function AdminTicketDeleteDialog({
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
+            disabled={isConfirmDisabled}
             className="bg-red-600 hover:bg-red-700"
           >
             {isDeleting ? "Eliminando..." : "Eliminar"}

@@ -528,14 +528,13 @@ test("una recarga tardía no contamina un editor abierto después", async (t) =>
   await waitFor(() => assert.ok(resolveDetail));
   assert.equal(view.result.current.isReloadingTicket, true);
 
-  act(() => {
-    view.result.current.cambiarEstadoDialogo(false);
-    view.result.current.abrirCrear();
-    view.result.current.setForm((current) => ({
-      ...current,
-      nombre: "Nuevo borrador",
-    }));
-  });
+  act(() => view.result.current.cambiarEstadoDialogo(false));
+  assert.equal(view.result.current.dialogAbierto, false);
+  assert.equal(view.result.current.areCrudActionsDisabled, true);
+
+  act(() => view.result.current.abrirCrear());
+  assert.equal(view.result.current.dialogAbierto, false);
+
   await act(async () => {
     resolveDetail?.(
       jsonResponse({
@@ -545,6 +544,17 @@ test("una recarga tardía no contamina un editor abierto después", async (t) =>
       } satisfies Ticket),
     );
     await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+
+  await waitFor(() =>
+    assert.equal(view.result.current.areCrudActionsDisabled, false),
+  );
+  act(() => {
+    view.result.current.abrirCrear();
+    view.result.current.setForm((current) => ({
+      ...current,
+      nombre: "Nuevo borrador",
+    }));
   });
 
   assert.equal(refetchCurrentList.mock.callCount(), 1);
@@ -558,4 +568,350 @@ test("una recarga tardía no contamina un editor abierto después", async (t) =>
     ticket.version,
   );
   assert.equal(observed[0]?.headers.get("x-test-query"), "detail");
+});
+
+test("serializa un alta pendiente dentro de la misma generación", async (t) => {
+  let resolveCreate: ((response: Response) => void) | undefined;
+  let createRequests = 0;
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async (
+      _input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (method !== "POST") {
+        throw new Error(`Solicitud inesperada en la prueba: ${method}`);
+      }
+      createRequests += 1;
+      return new Promise<Response>((resolve) => {
+        resolveCreate = resolve;
+      });
+    },
+  );
+
+  const queryClient = createQueryClient();
+  const listQueryKey = ["/api/tickets", "pending-create"] as const;
+  seedList(queryClient, listQueryKey);
+  t.after(() => {
+    cleanup();
+    queryClient.clear();
+  });
+  const view = renderHook(
+    () =>
+      useAdminTicketsCrud({
+        request: mutationRequest,
+        queryRequest,
+        adminAccessState: "ready",
+        accessVersion: 1,
+        accessGeneration: 0,
+        currentListQueryKey: listQueryKey,
+        refetchCurrentList: async () => undefined,
+      }),
+    { wrapper: createWrapper(queryClient) },
+  );
+
+  act(() => {
+    view.result.current.abrirCrear();
+    view.result.current.setForm((current) => ({
+      ...current,
+      conversation_id: "pending-create",
+      hora: "11:30",
+      nombre: "Alta pendiente",
+      motivo: "Prueba de serialización",
+    }));
+  });
+  act(() => view.result.current.guardarRegistro());
+  await waitFor(() => assert.ok(resolveCreate));
+  await waitFor(() =>
+    assert.equal(view.result.current.areCrudActionsDisabled, true),
+  );
+
+  act(() => view.result.current.cambiarEstadoDialogo(false));
+  assert.equal(view.result.current.dialogAbierto, false);
+  act(() => {
+    view.result.current.cambiarEstadoDialogo(true);
+    view.result.current.abrirCrear();
+    view.result.current.abrirEditar(ticket);
+    view.result.current.abrirEliminar(ticket);
+    view.result.current.guardarRegistro();
+  });
+  assert.equal(view.result.current.dialogAbierto, false);
+  assert.equal(view.result.current.editandoId, null);
+  assert.equal(view.result.current.aEliminar, null);
+  assert.equal(createRequests, 1);
+
+  await act(async () => {
+    resolveCreate?.(
+      jsonResponse(
+        {
+          ...ticket,
+          id: 52,
+          version: 1,
+          conversation_id: "pending-create",
+          nombre: "Alta pendiente",
+        } satisfies Ticket,
+        201,
+      ),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await waitFor(() =>
+    assert.equal(view.result.current.areCrudActionsDisabled, false),
+  );
+
+  act(() => view.result.current.abrirCrear());
+  assert.equal(view.result.current.dialogAbierto, true);
+  assert.equal(view.result.current.editandoId, null);
+});
+
+test("serializa una actualización pendiente dentro de la misma generación", async (t) => {
+  let resolveUpdate: ((response: Response) => void) | undefined;
+  let updateRequests = 0;
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async (
+      _input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (method !== "PATCH") {
+        throw new Error(`Solicitud inesperada en la prueba: ${method}`);
+      }
+      updateRequests += 1;
+      return new Promise<Response>((resolve) => {
+        resolveUpdate = resolve;
+      });
+    },
+  );
+
+  const queryClient = createQueryClient();
+  const listQueryKey = ["/api/tickets", "pending-update"] as const;
+  seedList(queryClient, listQueryKey);
+  t.after(() => {
+    cleanup();
+    queryClient.clear();
+  });
+  const view = renderHook(
+    () =>
+      useAdminTicketsCrud({
+        request: mutationRequest,
+        queryRequest,
+        adminAccessState: "ready",
+        accessVersion: 1,
+        accessGeneration: 0,
+        currentListQueryKey: listQueryKey,
+        refetchCurrentList: async () => undefined,
+      }),
+    { wrapper: createWrapper(queryClient) },
+  );
+
+  act(() => {
+    view.result.current.abrirEditar(ticket);
+    view.result.current.setForm((current) => ({
+      ...current,
+      nombre: "Cambio pendiente",
+    }));
+  });
+  act(() => view.result.current.guardarRegistro());
+  await waitFor(() => assert.ok(resolveUpdate));
+  await waitFor(() =>
+    assert.equal(view.result.current.areCrudActionsDisabled, true),
+  );
+
+  act(() => view.result.current.cambiarEstadoDialogo(false));
+  assert.equal(view.result.current.dialogAbierto, false);
+  act(() => {
+    view.result.current.cambiarEstadoDialogo(true);
+    view.result.current.abrirCrear();
+    view.result.current.abrirEditar(ticket);
+    view.result.current.abrirEliminar(ticket);
+    view.result.current.guardarRegistro();
+  });
+  assert.equal(view.result.current.dialogAbierto, false);
+  assert.equal(view.result.current.aEliminar, null);
+  assert.equal(updateRequests, 1);
+
+  await act(async () => {
+    resolveUpdate?.(
+      jsonResponse({
+        ...ticket,
+        version: 4,
+        nombre: "Cambio pendiente",
+      } satisfies Ticket),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await waitFor(() =>
+    assert.equal(view.result.current.areCrudActionsDisabled, false),
+  );
+
+  act(() => view.result.current.abrirCrear());
+  assert.equal(view.result.current.dialogAbierto, true);
+  assert.equal(view.result.current.editandoId, null);
+});
+
+test("serializa una eliminación pendiente dentro de la misma generación", async (t) => {
+  let resolveDelete: ((response: Response) => void) | undefined;
+  let deleteRequests = 0;
+  const secondTicket = {
+    ...ticket,
+    id: 42,
+    version: 1,
+    conversation_id: "conversation-42",
+    nombre: "Segundo ticket",
+  } satisfies Ticket;
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async (
+      _input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (method !== "DELETE") {
+        throw new Error(`Solicitud inesperada en la prueba: ${method}`);
+      }
+      deleteRequests += 1;
+      return new Promise<Response>((resolve) => {
+        resolveDelete = resolve;
+      });
+    },
+  );
+
+  const queryClient = createQueryClient();
+  const listQueryKey = ["/api/tickets", "pending-delete"] as const;
+  seedList(queryClient, listQueryKey);
+  t.after(() => {
+    cleanup();
+    queryClient.clear();
+  });
+  const view = renderHook(
+    () =>
+      useAdminTicketsCrud({
+        request: mutationRequest,
+        queryRequest,
+        adminAccessState: "ready",
+        accessVersion: 1,
+        accessGeneration: 0,
+        currentListQueryKey: listQueryKey,
+        refetchCurrentList: async () => undefined,
+      }),
+    { wrapper: createWrapper(queryClient) },
+  );
+
+  act(() => view.result.current.abrirEliminar(ticket));
+  act(() => view.result.current.confirmarEliminar());
+  await waitFor(() => assert.ok(resolveDelete));
+  await waitFor(() =>
+    assert.equal(view.result.current.areCrudActionsDisabled, true),
+  );
+  assert.equal(view.result.current.isDeleting, true);
+
+  act(() => view.result.current.descartarEliminacion());
+  assert.equal(view.result.current.aEliminar, null);
+  act(() => {
+    view.result.current.abrirCrear();
+    view.result.current.abrirEditar(ticket);
+    view.result.current.abrirEliminar(secondTicket);
+    view.result.current.confirmarEliminar();
+  });
+  assert.equal(view.result.current.dialogAbierto, false);
+  assert.equal(view.result.current.aEliminar, null);
+  assert.equal(deleteRequests, 1);
+
+  await act(async () => {
+    resolveDelete?.(new Response(null, { status: 204 }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await waitFor(() =>
+    assert.equal(view.result.current.areCrudActionsDisabled, false),
+  );
+
+  act(() => view.result.current.abrirEliminar(secondTicket));
+  assert.deepEqual(view.result.current.aEliminar, secondTicket);
+});
+
+test("una respuesta versión 4 no reemplaza la revisión 5 de la caché", async (t) => {
+  let resolveUpdate: ((response: Response) => void) | undefined;
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async (
+      _input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (method !== "PATCH") {
+        throw new Error(`Solicitud inesperada en la prueba: ${method}`);
+      }
+      return new Promise<Response>((resolve) => {
+        resolveUpdate = resolve;
+      });
+    },
+  );
+
+  const queryClient = createQueryClient();
+  const listQueryKey = ["/api/tickets", "newer-cache"] as const;
+  seedList(queryClient, listQueryKey);
+  const invalidateQueries = t.mock.method(queryClient, "invalidateQueries");
+  t.after(() => {
+    cleanup();
+    queryClient.clear();
+  });
+  const view = renderHook(
+    () =>
+      useAdminTicketsCrud({
+        request: mutationRequest,
+        queryRequest,
+        adminAccessState: "ready",
+        accessVersion: 1,
+        accessGeneration: 0,
+        currentListQueryKey: listQueryKey,
+        refetchCurrentList: async () => undefined,
+      }),
+    { wrapper: createWrapper(queryClient) },
+  );
+
+  act(() => {
+    view.result.current.abrirEditar(ticket);
+    view.result.current.setForm((current) => ({
+      ...current,
+      nombre: "Respuesta PATCH",
+    }));
+  });
+  act(() => view.result.current.guardarRegistro());
+  await waitFor(() => assert.ok(resolveUpdate));
+
+  const newerTicket = {
+    ...ticket,
+    version: 5,
+    nombre: "Actualización SSE",
+  } satisfies Ticket;
+  queryClient.setQueryData<TicketListResponse>(listQueryKey, {
+    tickets: [newerTicket],
+    total: 1,
+    page: 1,
+    limit: 10,
+  });
+
+  await act(async () => {
+    resolveUpdate?.(
+      jsonResponse({
+        ...ticket,
+        version: 4,
+        nombre: "Respuesta PATCH",
+      } satisfies Ticket),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await waitFor(() => assert.equal(view.result.current.isSaving, false));
+
+  assert.deepEqual(
+    queryClient.getQueryData<TicketListResponse>(listQueryKey)?.tickets[0],
+    newerTicket,
+  );
+  assert.equal(invalidateQueries.mock.callCount(), 1);
 });
