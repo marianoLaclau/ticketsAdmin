@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Contexto interno de sesión centralizado
+
+**Agente:** Codex
+**Estado:** centésima nonagésima octava remediación de la auditoría técnica, implementada localmente.
+
+- `getSessionContext` resuelve en una sola consulta usuario público, hash interno del token, vencimiento de sesión y estado persistido de elevación. `requireSession` comparte ese resultado mediante `authUser` y `authSession`, sin duplicar lecturas en una sesión válida.
+- `getSessionUser` conserva exactamente el DTO público anterior y `/auth/me` continúa exponiendo sólo identidad, rol y cambio obligatorio de contraseña. Token, hash, vencimientos y huella administrativa permanecen exclusivamente en `res.locals` y nunca se serializan desde una ruta productiva.
+- Aprobaron las 59 pruebas RBAC/cookie, typecheck de fuente y tests, ESLint y `git diff --check`; la revisión independiente verificó además expiración, limpieza y revocación por usuario o rol inactivo sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — Política pura de elevación administrativa definida
 
 **Agente:** Codex

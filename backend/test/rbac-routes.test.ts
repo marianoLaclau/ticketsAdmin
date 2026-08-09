@@ -58,6 +58,7 @@ const [
   { default: adminRouter },
   { default: productionRouter },
   {
+    getSessionContext,
     purgeExpiredSessions,
     requirePasswordChangeCompleted,
     requireSession,
@@ -94,6 +95,15 @@ app.use(requireSession);
 app.use(requirePasswordChangeCompleted);
 app.get("/protected-test", (_req, res) => {
   res.json({ ok: true });
+});
+app.get("/session-context-test", (_req, res) => {
+  const session = res.locals.authSession as
+    NonNullable<Awaited<ReturnType<typeof getSessionContext>>> | undefined;
+  if (!session) {
+    res.status(500).json({ error: "Contexto interno ausente" });
+    return;
+  }
+  res.json(session);
 });
 app.use(adminRouter);
 app.use("/api", productionRouter);
@@ -343,6 +353,75 @@ describe("ciclo de la cookie de sesión", () => {
     );
     assert.equal(functional.status, 200);
     assert.equal(functional.headers.get("cache-control"), null);
+  });
+
+  it("mantiene privado el contexto interno al consultar la identidad", async () => {
+    const authenticated = await login("operadora");
+    const cookie = sessionCookie(authenticated);
+    const rawToken = cookie.slice("gsb_session=".length);
+    const tokenHash = hashSessionToken(rawToken);
+    const sessionExpiresAt = new Date(Date.now() + 45 * 60_000);
+    const adminElevationExpiresAt = new Date(Date.now() + 10 * 60_000);
+    const adminElevationKeyFingerprint = `v1:sha256:${"a".repeat(64)}`;
+    sqlite
+      .prepare(
+        `UPDATE sesiones
+         SET fecha_expiracion = ?, admin_elevacion_hasta = ?,
+             admin_elevacion_clave_hash = ?
+         WHERE token = ?`,
+      )
+      .run(
+        sessionExpiresAt.getTime(),
+        adminElevationExpiresAt.getTime(),
+        adminElevationKeyFingerprint,
+        tokenHash,
+      );
+
+    const me = await requestWithSession("/auth/me", cookie);
+    assert.equal(me.status, 200);
+    assert.deepEqual(await me.json(), {
+      id: 2,
+      nombre: "Operadora",
+      apellido: null,
+      email: "operadora@example.test",
+      rol: "Mesa personalizada",
+      debe_cambiar_password: false,
+    });
+
+    const context = await requestWithSession("/session-context-test", cookie);
+    assert.equal(context.status, 200);
+    assert.deepEqual(await context.json(), {
+      user: {
+        id: 2,
+        nombre: "Operadora",
+        apellido: null,
+        email: "operadora@example.test",
+        rol: "Mesa personalizada",
+        debe_cambiar_password: false,
+      },
+      tokenHash,
+      sessionExpiresAt: sessionExpiresAt.toISOString(),
+      adminElevationExpiresAt: adminElevationExpiresAt.toISOString(),
+      adminElevationKeyFingerprint,
+    });
+
+    const directContext = await getSessionContext({
+      cookies: { gsb_session: rawToken },
+    } as unknown as express.Request);
+    assert.deepEqual(directContext, {
+      user: {
+        id: 2,
+        nombre: "Operadora",
+        apellido: null,
+        email: "operadora@example.test",
+        rol: "Mesa personalizada",
+        debe_cambiar_password: false,
+      },
+      tokenHash,
+      sessionExpiresAt,
+      adminElevationExpiresAt,
+      adminElevationKeyFingerprint,
+    });
   });
 
   it("no crea una cookie de borrado cuando la sesión nunca fue enviada", async () => {

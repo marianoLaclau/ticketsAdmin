@@ -59,9 +59,17 @@ export interface SessionUser {
   debe_cambiar_password: boolean;
 }
 
-export async function getSessionUser(
+export interface SessionContext {
+  user: SessionUser;
+  tokenHash: string;
+  sessionExpiresAt: Date;
+  adminElevationExpiresAt: Date | null;
+  adminElevationKeyFingerprint: string | null;
+}
+
+export async function getSessionContext(
   req: Request,
-): Promise<SessionUser | null> {
+): Promise<SessionContext | null> {
   const token = getSessionToken(req);
   if (!token) return null;
   const tokenHash = hashSessionToken(token);
@@ -69,6 +77,8 @@ export async function getSessionUser(
   const [row] = await db
     .select({
       expiracion: sesionesTable.fecha_expiracion,
+      admin_elevacion_hasta: sesionesTable.admin_elevacion_hasta,
+      admin_elevacion_clave_hash: sesionesTable.admin_elevacion_clave_hash,
       usuario_id: usuariosTable.id,
       nombre: usuariosTable.nombre,
       apellido: usuariosTable.apellido,
@@ -99,13 +109,25 @@ export async function getSessionUser(
   }
 
   return {
-    id: row.usuario_id,
-    nombre: row.nombre,
-    apellido: row.apellido,
-    email: row.email,
-    rol: row.rol,
-    debe_cambiar_password: row.debe_cambiar_password,
+    user: {
+      id: row.usuario_id,
+      nombre: row.nombre,
+      apellido: row.apellido,
+      email: row.email,
+      rol: row.rol,
+      debe_cambiar_password: row.debe_cambiar_password,
+    },
+    tokenHash,
+    sessionExpiresAt: row.expiracion,
+    adminElevationExpiresAt: row.admin_elevacion_hasta,
+    adminElevationKeyFingerprint: row.admin_elevacion_clave_hash,
   };
+}
+
+export async function getSessionUser(
+  req: Request,
+): Promise<SessionUser | null> {
+  return (await getSessionContext(req))?.user ?? null;
 }
 
 // Candado global: toda ruta montada después de este middleware exige sesión.
@@ -114,13 +136,14 @@ export async function requireSession(
   res: Response,
   next: NextFunction,
 ) {
-  const user = await getSessionUser(req);
-  if (!user) {
+  const session = await getSessionContext(req);
+  if (!session) {
     if (hasSessionCookie(req)) clearSessionCookie(res);
     res.status(401).json({ error: "Sesión requerida" });
     return;
   }
-  res.locals.authUser = user;
+  res.locals.authUser = session.user;
+  res.locals.authSession = session;
   next();
 }
 
