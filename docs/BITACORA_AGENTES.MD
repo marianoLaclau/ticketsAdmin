@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Listado administrativo de tickets desacoplado
+
+**Agente:** Codex
+**Estado:** centésima nonagésima cuarta remediación de la auditoría técnica, implementada localmente.
+
+- Tabla, estados de carga/error/vacío, ordenamiento visual, acciones y paginación pasaron a `AdminTicketsListPanel.tsx`; `AdminTicketsTab.tsx` conserva consultas, filtros, URL, reglas de orden y mutaciones y bajó de 645 a 452 líneas.
+- La frontera explícita mantiene once columnas, navegación con contexto, bloqueo durante recarga, guard de generación para eliminar y todas las transiciones de página y tamaño. Una prueba de componente fija delegación y precedencia de estados.
+- Aprobaron 35 pruebas dirigidas, ambos typechecks, ESLint, Prettier, build y `git diff --check`; la revisión independiente ejecutó además las 3 pruebas focalizadas y quedó sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — Reset administrativo de contraseña desacoplado
 
 **Agente:** Codex
