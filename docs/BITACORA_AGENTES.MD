@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Contrato TypeScript strict global activado
+
+**Agente:** Codex
+**Estado:** centésima nonagésima sexta remediación de la auditoría técnica, implementada localmente.
+
+- `tsconfig.base.json` declara ahora `strict: true`; los diez proyectos del workspace lo heredan sin overrides y conservan por legibilidad sus garantías explícitas anteriores.
+- El cambio efectivo adicional en TypeScript 5.9 es `strictBuiltinIteratorReturn: true`, que evita aceptar silenciosamente retornos inseguros de iteradores. También deja al workspace preparado para futuros subflags incorporados por TypeScript al modo estricto.
+- El typecheck completo aprobó sin requerir cambios de producción ni pruebas; `tsc --showConfig` confirmó todos los subflags strict activos en raíz, backend, frontend, tests, scripts y cinco librerías. La revisión independiente quedó sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — Persistencia mínima para elevación administrativa por sesión
 
 **Agente:** Codex
