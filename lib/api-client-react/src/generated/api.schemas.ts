@@ -56,6 +56,96 @@ export interface LoginRateLimitError {
   retry_after_seconds: number;
 }
 
+export interface AdminElevationStatus {
+  active: boolean;
+  /** @nullable */
+  expires_at: string | null;
+}
+
+export interface AdminElevationInput {
+  /**
+     * Credencial administrativa presentada una sola vez. Nunca se devuelve ni se persiste de forma reutilizable.
+     * @minLength 1
+     */
+  admin_key: string;
+}
+
+export type AdminElevationBadRequestErrorCode = typeof AdminElevationBadRequestErrorCode[keyof typeof AdminElevationBadRequestErrorCode];
+
+
+export const AdminElevationBadRequestErrorCode = {
+  ADMIN_ELEVATION_INVALID_BODY: 'ADMIN_ELEVATION_INVALID_BODY',
+} as const;
+
+export interface AdminElevationBadRequestError {
+  code: AdminElevationBadRequestErrorCode;
+  error: string;
+}
+
+export type AdminElevationUnauthorizedErrorCode = typeof AdminElevationUnauthorizedErrorCode[keyof typeof AdminElevationUnauthorizedErrorCode];
+
+
+export const AdminElevationUnauthorizedErrorCode = {
+  SESSION_INVALID: 'SESSION_INVALID',
+  ADMIN_KEY_INVALID: 'ADMIN_KEY_INVALID',
+} as const;
+
+export interface AdminElevationUnauthorizedError {
+  code: AdminElevationUnauthorizedErrorCode;
+  error: string;
+}
+
+export type AdminElevationSessionUnauthorizedErrorCode = typeof AdminElevationSessionUnauthorizedErrorCode[keyof typeof AdminElevationSessionUnauthorizedErrorCode];
+
+
+export const AdminElevationSessionUnauthorizedErrorCode = {
+  SESSION_INVALID: 'SESSION_INVALID',
+} as const;
+
+export interface AdminElevationSessionUnauthorizedError {
+  code: AdminElevationSessionUnauthorizedErrorCode;
+  error: string;
+}
+
+export type AdminElevationForbiddenErrorCode = typeof AdminElevationForbiddenErrorCode[keyof typeof AdminElevationForbiddenErrorCode];
+
+
+export const AdminElevationForbiddenErrorCode = {
+  SYSADMIN_REQUIRED: 'SYSADMIN_REQUIRED',
+  PASSWORD_CHANGE_REQUIRED: 'PASSWORD_CHANGE_REQUIRED',
+} as const;
+
+export interface AdminElevationForbiddenError {
+  code: AdminElevationForbiddenErrorCode;
+  error: string;
+}
+
+export type AdminElevationRateLimitErrorCode = typeof AdminElevationRateLimitErrorCode[keyof typeof AdminElevationRateLimitErrorCode];
+
+
+export const AdminElevationRateLimitErrorCode = {
+  ADMIN_ELEVATION_RATE_LIMITED: 'ADMIN_ELEVATION_RATE_LIMITED',
+} as const;
+
+export interface AdminElevationRateLimitError {
+  code: AdminElevationRateLimitErrorCode;
+  error: string;
+  /** @minimum 1 */
+  retry_after_seconds: number;
+}
+
+export type AdminElevationUnavailableErrorCode = typeof AdminElevationUnavailableErrorCode[keyof typeof AdminElevationUnavailableErrorCode];
+
+
+export const AdminElevationUnavailableErrorCode = {
+  ADMIN_ELEVATION_UNAVAILABLE: 'ADMIN_ELEVATION_UNAVAILABLE',
+} as const;
+
+export interface AdminElevationUnavailableError {
+  code: AdminElevationUnavailableErrorCode;
+  error: string;
+}
+
 export type TicketVersionConflictCode = typeof TicketVersionConflictCode[keyof typeof TicketVersionConflictCode];
 
 

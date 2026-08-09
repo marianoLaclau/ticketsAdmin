@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Contrato de elevación administrativa tipado
+
+**Agente:** Codex
+**Estado:** ducentésima segunda remediación de la auditoría técnica, implementada localmente.
+
+- OpenAPI define GET, POST y DELETE de `/auth/admin-elevation`, protegidos sólo por la cookie de sesión. POST recibe `admin_key` requerido y `writeOnly`; las tres operaciones devuelven únicamente `{ active, expires_at }` y DELETE es idempotente.
+- El contrato distingue cuerpo inválido, sesión inválida, clave incorrecta, rol o cambio de contraseña requeridos, límite de intentos y servicio no disponible. GET y DELETE sólo anuncian `SESSION_INVALID`; POST conserva la unión precisa con `ADMIN_KEY_INVALID`, y GET diagnostica además una configuración ausente mediante 503.
+- Codegen actualizó exclusivamente cliente, modelos y validadores esperados. Aprobaron typecheck de librerías, schema check, Prettier y `git diff --check`; la revisión independiente detectó y verificó la corrección del único P3 contractual y cerró sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — CRUD de roles administrativos desacoplado
 
 **Agente:** Codex

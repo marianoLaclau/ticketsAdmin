@@ -200,6 +200,43 @@ export const GetMeResponse = zod.object({
 
 
 /**
+ * Devuelve únicamente el estado de la elevación asociada a la sesión actual. Requiere una sesión vigente con rol SysAdmin y no expone la clave ni su huella persistida.
+ * @summary Consultar la elevación administrativa de la sesión
+ */
+export const GetAdminElevationResponse = zod.object({
+  "active": zod.boolean(),
+  "expires_at": zod.coerce.date().nullable()
+})
+
+
+/**
+ * Presenta la clave administrativa una sola vez para elevar únicamente la sesión SysAdmin actual. La credencial no se devuelve ni se persiste de forma reutilizable y no se acepta mediante headers.
+ * @summary Elevar temporalmente la sesión administrativa
+ */
+
+
+
+export const CreateAdminElevationBody = zod.object({
+  "admin_key": zod.string().min(1).describe('Credencial administrativa presentada una sola vez. Nunca se devuelve ni se persiste de forma reutilizable.\n')
+})
+
+export const CreateAdminElevationResponse = zod.object({
+  "active": zod.boolean(),
+  "expires_at": zod.coerce.date().nullable()
+})
+
+
+/**
+ * Elimina de forma idempotente la elevación de la sesión SysAdmin actual sin requerir que la clave administrativa vuelva a presentarse.
+ * @summary Revocar la elevación administrativa de la sesión
+ */
+export const DeleteAdminElevationResponse = zod.object({
+  "active": zod.boolean(),
+  "expires_at": zod.coerce.date().nullable()
+})
+
+
+/**
  * Recibe el JSON que arma ElevenLabs al finalizar una llamada. Requiere el header x-api-key. Idempotente por conversation_id: si el ticket ya existe devuelve 200 con created=false.
  * @summary Ingesta de una llamada desde n8n
  */

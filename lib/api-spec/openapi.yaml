@@ -378,6 +378,132 @@ paths:
         "401":
           description: Sin sesión válida
 
+  /auth/admin-elevation:
+    get:
+      operationId: getAdminElevation
+      tags: [auth]
+      summary: Consultar la elevación administrativa de la sesión
+      description: >
+        Devuelve únicamente el estado de la elevación asociada a la sesión
+        actual. Requiere una sesión vigente con rol SysAdmin y no expone la
+        clave ni su huella persistida.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Estado actual de la elevación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminElevationStatus"
+        "401":
+          description: Sesión ausente o inválida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminElevationSessionUnauthorizedError"
+        "403":
+          description: La sesión no pertenece a un SysAdmin habilitado o aún usa una contraseña temporal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminElevationForbiddenError"
+        "503":
+          description: La elevación administrativa no está disponible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminElevationUnavailableError"
+
+    post:
+      operationId: createAdminElevation
+      tags: [auth]
+      summary: Elevar temporalmente la sesión administrativa
+      description: >
+        Presenta la clave administrativa una sola vez para elevar únicamente
+        la sesión SysAdmin actual. La credencial no se devuelve ni se persiste
+        de forma reutilizable y no se acepta mediante headers.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminElevationInput"
+      responses:
+        "200":
+          description: Elevación concedida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminElevationStatus"
+        "400":
+          description: Cuerpo de elevación inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminElevationBadRequestError"
+        "401":
+          description: Sesión inválida o clave administrativa incorrecta
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminElevationUnauthorizedError"
+        "403":
+          description: La sesión no pertenece a un SysAdmin habilitado o aún usa una contraseña temporal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminElevationForbiddenError"
+        "429":
+          description: Demasiados intentos de elevación para esta sesión
+          headers:
+            Retry-After:
+              description: Segundos que faltan para volver a intentar
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminElevationRateLimitError"
+        "503":
+          description: La elevación administrativa no está disponible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminElevationUnavailableError"
+
+    delete:
+      operationId: deleteAdminElevation
+      tags: [auth]
+      summary: Revocar la elevación administrativa de la sesión
+      description: >
+        Elimina de forma idempotente la elevación de la sesión SysAdmin actual
+        sin requerir que la clave administrativa vuelva a presentarse.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Elevación revocada o previamente ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminElevationStatus"
+        "401":
+          description: Sesión ausente o inválida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminElevationSessionUnauthorizedError"
+        "403":
+          description: La sesión no pertenece a un SysAdmin habilitado o aún usa una contraseña temporal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminElevationForbiddenError"
+
   /webhooks/ticket:
     post:
       operationId: ingestTicket
@@ -1151,6 +1277,115 @@ components:
         retry_after_seconds:
           type: integer
           minimum: 1
+
+    AdminElevationStatus:
+      type: object
+      additionalProperties: false
+      required:
+        - active
+        - expires_at
+      properties:
+        active:
+          type: boolean
+        expires_at:
+          type: ["string", "null"]
+          format: date-time
+
+    AdminElevationInput:
+      type: object
+      additionalProperties: false
+      required:
+        - admin_key
+      properties:
+        admin_key:
+          type: string
+          minLength: 1
+          writeOnly: true
+          description: >
+            Credencial administrativa presentada una sola vez. Nunca se
+            devuelve ni se persiste de forma reutilizable.
+
+    AdminElevationBadRequestError:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - error
+      properties:
+        code:
+          type: string
+          enum: [ADMIN_ELEVATION_INVALID_BODY]
+        error:
+          type: string
+
+    AdminElevationUnauthorizedError:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - error
+      properties:
+        code:
+          type: string
+          enum: [SESSION_INVALID, ADMIN_KEY_INVALID]
+        error:
+          type: string
+
+    AdminElevationSessionUnauthorizedError:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - error
+      properties:
+        code:
+          type: string
+          enum: [SESSION_INVALID]
+        error:
+          type: string
+
+    AdminElevationForbiddenError:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - error
+      properties:
+        code:
+          type: string
+          enum: [SYSADMIN_REQUIRED, PASSWORD_CHANGE_REQUIRED]
+        error:
+          type: string
+
+    AdminElevationRateLimitError:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - error
+        - retry_after_seconds
+      properties:
+        code:
+          type: string
+          enum: [ADMIN_ELEVATION_RATE_LIMITED]
+        error:
+          type: string
+        retry_after_seconds:
+          type: integer
+          minimum: 1
+
+    AdminElevationUnavailableError:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - error
+      properties:
+        code:
+          type: string
+          enum: [ADMIN_ELEVATION_UNAVAILABLE]
+        error:
+          type: string
 
     TicketVersionConflict:
       type: object

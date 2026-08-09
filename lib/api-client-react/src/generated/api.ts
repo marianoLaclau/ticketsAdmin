@@ -21,6 +21,14 @@ import type {
 
 import type {
   ActividadItem,
+  AdminElevationBadRequestError,
+  AdminElevationForbiddenError,
+  AdminElevationInput,
+  AdminElevationRateLimitError,
+  AdminElevationSessionUnauthorizedError,
+  AdminElevationStatus,
+  AdminElevationUnauthorizedError,
+  AdminElevationUnavailableError,
   AdminImportInput,
   AdminImportResult,
   AdminRole,
@@ -712,6 +720,228 @@ export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = Err
 
 
 
+
+export const getGetAdminElevationUrl = () => {
+
+
+
+
+  return `/api/auth/admin-elevation`
+}
+
+/**
+ * Devuelve únicamente el estado de la elevación asociada a la sesión actual. Requiere una sesión vigente con rol SysAdmin y no expone la clave ni su huella persistida.
+ * @summary Consultar la elevación administrativa de la sesión
+ */
+export const getAdminElevation = async ( options?: RequestInit): Promise<AdminElevationStatus> => {
+
+  return customFetch<AdminElevationStatus>(getGetAdminElevationUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminElevationQueryKey = () => {
+    return [
+    `/api/auth/admin-elevation`
+    ] as const;
+    }
+
+
+export const getGetAdminElevationQueryOptions = <TData = Awaited<ReturnType<typeof getAdminElevation>>, TError = ErrorType<AdminElevationSessionUnauthorizedError | AdminElevationForbiddenError | AdminElevationUnavailableError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminElevation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminElevationQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminElevation>>> = ({ signal }) => getAdminElevation({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminElevation>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminElevationQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminElevation>>>
+export type GetAdminElevationQueryError = ErrorType<AdminElevationSessionUnauthorizedError | AdminElevationForbiddenError | AdminElevationUnavailableError>
+
+
+/**
+ * @summary Consultar la elevación administrativa de la sesión
+ */
+
+export function useGetAdminElevation<TData = Awaited<ReturnType<typeof getAdminElevation>>, TError = ErrorType<AdminElevationSessionUnauthorizedError | AdminElevationForbiddenError | AdminElevationUnavailableError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminElevation>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminElevationQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAdminElevationUrl = () => {
+
+
+
+
+  return `/api/auth/admin-elevation`
+}
+
+/**
+ * Presenta la clave administrativa una sola vez para elevar únicamente la sesión SysAdmin actual. La credencial no se devuelve ni se persiste de forma reutilizable y no se acepta mediante headers.
+ * @summary Elevar temporalmente la sesión administrativa
+ */
+export const createAdminElevation = async (adminElevationInput: AdminElevationInput, options?: RequestInit): Promise<AdminElevationStatus> => {
+
+  return customFetch<AdminElevationStatus>(getCreateAdminElevationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminElevationInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAdminElevationMutationOptions = <TError = ErrorType<AdminElevationBadRequestError | AdminElevationUnauthorizedError | AdminElevationForbiddenError | AdminElevationRateLimitError | AdminElevationUnavailableError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminElevation>>, TError,{data: BodyType<AdminElevationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdminElevation>>, TError,{data: BodyType<AdminElevationInput>}, TContext> => {
+
+const mutationKey = ['createAdminElevation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminElevation>>, {data: BodyType<AdminElevationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAdminElevation(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAdminElevationMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminElevation>>>
+    export type CreateAdminElevationMutationBody = BodyType<AdminElevationInput>
+    export type CreateAdminElevationMutationError = ErrorType<AdminElevationBadRequestError | AdminElevationUnauthorizedError | AdminElevationForbiddenError | AdminElevationRateLimitError | AdminElevationUnavailableError>
+
+    /**
+ * @summary Elevar temporalmente la sesión administrativa
+ */
+export const useCreateAdminElevation = <TError = ErrorType<AdminElevationBadRequestError | AdminElevationUnauthorizedError | AdminElevationForbiddenError | AdminElevationRateLimitError | AdminElevationUnavailableError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminElevation>>, TError,{data: BodyType<AdminElevationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAdminElevation>>,
+        TError,
+        {data: BodyType<AdminElevationInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAdminElevationMutationOptions(options));
+    }
+
+export const getDeleteAdminElevationUrl = () => {
+
+
+
+
+  return `/api/auth/admin-elevation`
+}
+
+/**
+ * Elimina de forma idempotente la elevación de la sesión SysAdmin actual sin requerir que la clave administrativa vuelva a presentarse.
+ * @summary Revocar la elevación administrativa de la sesión
+ */
+export const deleteAdminElevation = async ( options?: RequestInit): Promise<AdminElevationStatus> => {
+
+  return customFetch<AdminElevationStatus>(getDeleteAdminElevationUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAdminElevationMutationOptions = <TError = ErrorType<AdminElevationSessionUnauthorizedError | AdminElevationForbiddenError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminElevation>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminElevation>>, TError,void, TContext> => {
+
+const mutationKey = ['deleteAdminElevation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAdminElevation>>, void> = () => {
+
+
+          return  deleteAdminElevation(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAdminElevationMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminElevation>>>
+
+    export type DeleteAdminElevationMutationError = ErrorType<AdminElevationSessionUnauthorizedError | AdminElevationForbiddenError>
+
+    /**
+ * @summary Revocar la elevación administrativa de la sesión
+ */
+export const useDeleteAdminElevation = <TError = ErrorType<AdminElevationSessionUnauthorizedError | AdminElevationForbiddenError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminElevation>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAdminElevation>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDeleteAdminElevationMutationOptions(options));
+    }
 
 export const getIngestTicketUrl = () => {
 
