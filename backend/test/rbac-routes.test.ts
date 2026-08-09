@@ -1838,6 +1838,40 @@ describe("catálogo administrativo de usuarios", () => {
       );
     }
   });
+
+  it("rechaza resets con usuario inválido o inexistente sin mutar credenciales", async () => {
+    const operatorLogin = await login("operadora");
+    assert.equal(operatorLogin.status, 200);
+    sessionCookie(operatorLogin);
+    const cookie = await adminSession();
+    const readAccount = () =>
+      sqlite
+        .prepare(
+          `SELECT password_hash, debe_cambiar_password,
+                  (SELECT count(*) FROM sesiones WHERE usuario_id = 2) AS sesiones
+           FROM usuarios WHERE id = 2`,
+        )
+        .get() as {
+        password_hash: string;
+        debe_cambiar_password: number;
+        sesiones: number;
+      };
+    const before = readAccount();
+    assert.equal(before.sesiones, 1);
+
+    for (const [path, status] of [
+      ["/admin/users/no-es-id/password", 400],
+      ["/admin/users/999/password", 404],
+    ] as const) {
+      const response = await adminRequest(path, cookie, {
+        method: "POST",
+        body: JSON.stringify({ password: "Temporal inexistente segura 2026" }),
+      });
+      assert.equal(response.status, status, path);
+    }
+
+    assert.deepEqual(readAccount(), before);
+  });
 });
 
 describe("roles base protegidos", () => {

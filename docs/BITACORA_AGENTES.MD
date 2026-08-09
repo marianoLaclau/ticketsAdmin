@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Bordes del reset administrativo de contraseña cubiertos
+
+**Agente:** Codex
+**Estado:** centésima nonagésima primera remediación de la auditoría técnica, implementada localmente.
+
+- Una regresión HTTP fija `400` para identificador no numérico y `404` para usuario inexistente al restablecer contraseña, antes de separar el handler.
+- El control inicia una sesión real del usuario observado, exige `sesiones=1` y compara después hash, flag de cambio obligatorio y cantidad de sesiones. Así detecta tanto una mutación de credenciales como una revocación indebida, sin depender de un cero vacuo.
+- Aprobaron las 58 pruebas RBAC dirigidas, typecheck, ESLint y `git diff --check`; el bloque agregado coincide con el formato canónico del archivo y la revisión independiente quedó sin P0/P1/P2/P3 tras fortalecer el fixture. No se modificó producción ni se hizo push.
+
 ## 2026-08-09 — Lectura de contraseña administrativa compartida
 
 **Agente:** Codex
