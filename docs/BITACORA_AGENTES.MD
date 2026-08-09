@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Persistencia mínima para elevación administrativa por sesión
+
+**Agente:** Codex
+**Estado:** centésima nonagésima quinta remediación de la auditoría técnica, implementada localmente.
+
+- La migración `0016_admin_session_elevation` agrega a cada sesión un vencimiento de elevación y una columna para la huella de la clave configurada. Ambas son anulables: las sesiones existentes se conservan sin elevar y no se incorpora ningún campo para persistir la API key reutilizable.
+- El esquema Drizzle, snapshot y journal quedaron alineados; una regresión valida preservación, escritura del estado mínimo, cascada de usuario, integridad y la cadena real idempotente de 17 migraciones. Los fixtures manuales de RBAC y seed reflejan la nueva forma sin alterar las pruebas legacy de migración.
+- Aprobaron 69 pruebas de base —68 efectivas y una omisión por permisos de Windows—, 71 pruebas backend dirigidas, `drizzle-kit check`, typecheck de librerías y `git diff --check`; la revisión independiente comparó snapshots y compatibilidad sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — Listado administrativo de tickets desacoplado
 
 **Agente:** Codex

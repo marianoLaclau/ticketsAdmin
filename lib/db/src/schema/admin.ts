@@ -71,6 +71,13 @@ export const sesionesTable = sqliteTable("sesiones", {
   fecha_expiracion: integer("fecha_expiracion", {
     mode: "timestamp_ms",
   }).notNull(),
+  // La elevación administrativa pertenece a una sesión concreta y expira de
+  // forma independiente. Sólo se persiste una huella de la clave configurada,
+  // nunca la credencial reutilizable que presentó el navegador.
+  admin_elevacion_hasta: integer("admin_elevacion_hasta", {
+    mode: "timestamp_ms",
+  }),
+  admin_elevacion_clave_hash: text("admin_elevacion_clave_hash"),
   fecha_creacion: integer("fecha_creacion", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),

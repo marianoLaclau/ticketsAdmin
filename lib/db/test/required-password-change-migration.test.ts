@@ -129,7 +129,7 @@ describe("migración de cambio obligatorio de contraseña", () => {
           .prepare("SELECT count(*) AS total FROM __drizzle_migrations")
           .get() as { total: number }
       ).total,
-      16,
+      17,
     );
     assert.deepEqual(ensureTicketQuarantineProjection(sqlite), {
       repaired: false,
