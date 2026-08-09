@@ -106,23 +106,43 @@ bootstrap.exec(indexMigrationSql);
 bootstrap.exec(quarantineMigrationSql);
 bootstrap.close();
 
-const [{ default: ticketsRouter }, { sqlite }, { addEventClient }] =
+const [
+  { default: ticketsRouter },
+  { sqlite },
+  { addEventClient },
+  { fingerprintAdminApiKey },
+] =
   await Promise.all([
     import("../src/routes/tickets.ts"),
     import("@workspace/db"),
     import("../src/lib/events.ts"),
+    import("../src/lib/admin-elevation.ts"),
   ]);
 
 const app = express();
 app.use(express.json());
 app.use((req, res, next) => {
   const userId = Number(req.header("x-test-user") ?? "1");
-  res.locals.authUser = {
+  const authUser = {
     id: userId,
     nombre: userId === 2 ? "Sistema" : "Operadora",
     apellido: userId === 2 ? "Admin" : "Uno",
     email: userId === 2 ? "sys@example.test" : "operadora@example.test",
     rol: req.header("x-test-role") ?? "Operador",
+    debe_cambiar_password: false,
+  };
+  const isElevated = req.header("x-test-elevated") === "1";
+  res.locals.authUser = authUser;
+  res.locals.authSession = {
+    user: authUser,
+    tokenHash: `sha256:${"a".repeat(64)}`,
+    sessionExpiresAt: new Date(Date.now() + 60 * 60_000),
+    adminElevationExpiresAt: isElevated
+      ? new Date(Date.now() + 15 * 60_000)
+      : null,
+    adminElevationKeyFingerprint: isElevated
+      ? fingerprintAdminApiKey("admin-test-key")
+      : null,
   };
   next();
 });
@@ -147,14 +167,27 @@ interface RequestOptions extends RequestInit {
   role?: string;
   userId?: number;
   adminKey?: string;
+  adminIntent?: string;
+  elevated?: boolean;
 }
 
 function request(path: string, options: RequestOptions = {}) {
-  const { role, userId, adminKey, headers, ...init } = options;
+  const {
+    role,
+    userId,
+    adminKey,
+    adminIntent,
+    elevated,
+    headers,
+    ...init
+  } = options;
   const requestHeaders = new Headers(headers);
   requestHeaders.set("x-test-role", role ?? "Operador");
   requestHeaders.set("x-test-user", String(userId ?? 1));
   if (adminKey !== undefined) requestHeaders.set("x-admin-key", adminKey);
+  if (adminIntent !== undefined)
+    requestHeaders.set("x-admin-intent", adminIntent);
+  if (elevated) requestHeaders.set("x-test-elevated", "1");
   if (init.body !== undefined)
     requestHeaders.set("Content-Type", "application/json");
 
@@ -236,6 +269,7 @@ beforeEach(() => {
     DROP TRIGGER IF EXISTS fail_ticket_audit;
     DELETE FROM seguimientos;
     DELETE FROM tickets;
+    DELETE FROM sqlite_sequence WHERE name IN ('tickets', 'seguimientos');
     DELETE FROM usuarios;
     DELETE FROM roles;
 
@@ -386,6 +420,38 @@ describe("acceso a registros en cuarentena", () => {
     });
     assert.equal(listWithoutKey.status, 401);
 
+    const elevatedWithoutIntent = await request(
+      "/tickets?incluir_vacios=true",
+      { role: "SysAdmin", userId: 2, elevated: true },
+    );
+    assert.equal(elevatedWithoutIntent.status, 401);
+    assert.deepEqual(await elevatedWithoutIntent.json(), {
+      error: "Clave de administración inválida",
+    });
+
+    const elevatedWithWrongIntent = await request(
+      "/tickets?incluir_vacios=true",
+      {
+        role: "SysAdmin",
+        userId: 2,
+        elevated: true,
+        adminIntent: "true",
+      },
+    );
+    assert.equal(elevatedWithWrongIntent.status, 401);
+
+    const elevatedList = await request("/tickets?incluir_vacios=true", {
+      role: "SysAdmin",
+      userId: 2,
+      elevated: true,
+      adminIntent: "1",
+    });
+    assert.equal(elevatedList.status, 200);
+    assert.equal(
+      ((await elevatedList.json()) as { total: number }).total,
+      3,
+    );
+
     const list = await request("/tickets?incluir_vacios=true", {
       role: "SysAdmin",
       userId: 2,
@@ -439,6 +505,19 @@ describe("acceso a registros en cuarentena", () => {
       { role: "SysAdmin", userId: 2 },
     );
     assert.equal(followUpWithoutKey.status, 401);
+
+    const patchWithElevation = await jsonRequest(
+      "/tickets/3?incluir_vacios=true",
+      "PATCH",
+      { nombre: "Persona identificada" },
+      {
+        role: "SysAdmin",
+        userId: 2,
+        elevated: true,
+        adminIntent: "1",
+      },
+    );
+    assert.equal(patchWithElevation.status, 200);
   });
 });
 
@@ -458,7 +537,8 @@ describe("eliminación administrativa", () => {
         method: "DELETE",
         role: "SysAdmin",
         userId: 2,
-        adminKey: "admin-test-key",
+        elevated: true,
+        adminIntent: "1",
       });
       assert.equal(deleted.status, 204);
       assert.equal(
@@ -899,6 +979,19 @@ describe("edición y auditoría atómica", () => {
       { role: "SysAdmin", userId: 2, adminKey: "admin-test-key" },
     );
     assert.equal(asAdmin.status, 200);
+
+    const asElevatedAdmin = await jsonRequest(
+      "/tickets/1",
+      "PATCH",
+      { fecha_limite: "2026-07-31T12:00:00.000Z" },
+      {
+        role: "SysAdmin",
+        userId: 2,
+        elevated: true,
+        adminIntent: "1",
+      },
+    );
+    assert.equal(asElevatedAdmin.status, 200);
   });
 });
 

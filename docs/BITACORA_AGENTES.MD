@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Rutas administrativas habilitadas por elevación de sesión
+
+**Agente:** Codex
+**Estado:** ducentésima undécima remediación de la auditoría técnica, implementada localmente.
+
+- La frontera administrativa acepta ahora rol SysAdmin, elevación vigente ligada a la clave configurada y el header fijo no secreto `x-admin-intent: 1`. Configuración ausente, expiración, fingerprint inválido o rotación fallan cerrados; el rol continúa evaluándose antes de la elevación.
+- El acceso se aplica de forma uniforme a `/admin/*`, cuarentena mediante `incluir_vacios`, edición técnica y borrado. La API key cruda se conserva temporalmente como compatibilidad mientras se migra el frontend, sin debilitar la sesión ni el rol; se retirará en un corte posterior.
+- Aprobaron 97 pruebas dirigidas de autenticación, elevación y tickets, ambos typechecks backend, ESLint y `git diff --check`. Las regresiones distinguen ausencia o valor incorrecto del intent, cuarentena, PATCH técnico y DELETE; la revisión independiente cerró sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — Controladores del detalle de ticket desacoplados
 
 **Agente:** Codex

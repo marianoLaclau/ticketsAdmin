@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from "express";
 import { db, sesionesTable, usuariosTable, rolesTable } from "@workspace/db";
 import { eq, lte } from "drizzle-orm";
 import { ROL_SYSADMIN } from "./rbac";
+import { isAdminElevationActive } from "./admin-elevation";
 import {
   clearSessionCookie,
   getSessionToken,
@@ -192,10 +193,17 @@ export function requireSysAdmin(
   next();
 }
 
-// Admin: la clave es obligatoria y falla de forma cerrada. Una configuración
-// ausente o vacía nunca debe convertir accidentalmente una ruta protegida en
-// pública; el servidor devuelve 503 hasta que ADMIN_API_KEY sea configurada.
-export function requireAdminKey(
+/**
+ * Frontera transitoria del panel administrativo.
+ *
+ * Las sesiones elevadas usan un header fijo y no secreto para volver
+ * intencionales las solicitudes de navegador. Mientras el frontend migra se
+ * conserva la API key cruda como compatibilidad servidor-a-servidor; se
+ * retirará cuando ningún consumidor la envíe en cada request.
+ * Una configuración ausente siempre devuelve 503 porque también es necesaria
+ * para validar la huella de una elevación vigente.
+ */
+export function requireAdminAccess(
   req: Request,
   res: Response,
   next: NextFunction,
@@ -207,10 +215,35 @@ export function requireAdminKey(
       .json({ error: "ADMIN_API_KEY no está configurada en el servidor" });
     return;
   }
+
   const providedKey = req.header("x-admin-key");
-  if (!providedKey || !safeEquals(providedKey, configuredKey)) {
-    res.status(401).json({ error: "Clave de administración inválida" });
+  if (providedKey && safeEquals(providedKey, configuredKey)) {
+    next();
     return;
   }
-  next();
+
+  if (req.header("x-admin-intent") === "1") {
+    const session = res.locals.authSession as SessionContext | undefined;
+    const isElevated =
+      session !== undefined &&
+      isAdminElevationActive({
+        now: new Date(),
+        sessionExpiresAt: session.sessionExpiresAt,
+        elevationExpiresAt: session.adminElevationExpiresAt,
+        storedKeyFingerprint: session.adminElevationKeyFingerprint,
+        configuredAdminApiKey: configuredKey,
+      });
+    if (isElevated) {
+      next();
+      return;
+    }
+
+    res.status(401).json({
+      code: "ADMIN_ELEVATION_REQUIRED",
+      error: "Elevación administrativa requerida",
+    });
+    return;
+  }
+
+  res.status(401).json({ error: "Clave de administración inválida" });
 }

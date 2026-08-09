@@ -187,6 +187,30 @@ function adminRequest(
   return requestWithSession(path, cookie, { ...init, headers });
 }
 
+function elevatedAdminRequest(
+  path: string,
+  cookie: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set("x-admin-intent", "1");
+  return requestWithSession(path, cookie, { ...init, headers });
+}
+
+async function elevateAdminSession(cookie: string): Promise<void> {
+  const response = await requestWithSession("/auth/admin-elevation", cookie, {
+    method: "POST",
+    body: JSON.stringify({ admin_key: "rbac-admin-key" }),
+  });
+  assert.equal(response.status, 200);
+  const payload = (await response.json()) as {
+    active: boolean;
+    expires_at: string | null;
+  };
+  assert.equal(payload.active, true);
+  assert.ok(payload.expires_at);
+}
+
 function changeOwnPassword(
   cookie: string,
   currentPassword: string,
@@ -251,6 +275,7 @@ async function readStreamUntilClosed(
 }
 
 beforeEach(async () => {
+  process.env.ADMIN_API_KEY = "rbac-admin-key";
   loginAttemptLimiter.resetAll();
   loginKdfThroughputLimiter.resetAll();
   const passwordHash = await hashPassword(password);
@@ -1634,6 +1659,68 @@ describe("política de contraseñas nuevas", () => {
       assert.equal(stored.debe_cambiar_password, 1);
       assert.equal(sessions.total, 0);
       currentPassword = validPassword;
+    }
+  });
+});
+
+describe("autorización administrativa elevada", () => {
+  it("usa una intención no secreta después de elevar y permite revocar", async () => {
+    const cookie = await adminSession();
+
+    const beforeElevation = await elevatedAdminRequest("/admin/roles", cookie);
+    assert.equal(beforeElevation.status, 401);
+    assert.deepEqual(await beforeElevation.json(), {
+      code: "ADMIN_ELEVATION_REQUIRED",
+      error: "Elevación administrativa requerida",
+    });
+
+    await elevateAdminSession(cookie);
+    const elevated = await elevatedAdminRequest("/admin/roles", cookie);
+    assert.equal(elevated.status, 200);
+
+    // Compatibilidad temporal para consumidores que todavía envían la clave
+    // en cada request; se retira después de migrar el frontend.
+    const legacy = await adminRequest("/admin/roles", cookie);
+    assert.equal(legacy.status, 200);
+
+    const revoked = await requestWithSession("/auth/admin-elevation", cookie, {
+      method: "DELETE",
+    });
+    assert.equal(revoked.status, 200);
+    assert.deepEqual(await revoked.json(), {
+      active: false,
+      expires_at: null,
+    });
+
+    const afterRevocation = await elevatedAdminRequest("/admin/roles", cookie);
+    assert.equal(afterRevocation.status, 401);
+    assert.deepEqual(await afterRevocation.json(), {
+      code: "ADMIN_ELEVATION_REQUIRED",
+      error: "Elevación administrativa requerida",
+    });
+  });
+
+  it("falla cerrado al rotar o retirar la clave configurada", async () => {
+    const cookie = await adminSession();
+    await elevateAdminSession(cookie);
+
+    try {
+      process.env.ADMIN_API_KEY = "rbac-admin-key-rotated";
+      const rotated = await elevatedAdminRequest("/admin/roles", cookie);
+      assert.equal(rotated.status, 401);
+      assert.deepEqual(await rotated.json(), {
+        code: "ADMIN_ELEVATION_REQUIRED",
+        error: "Elevación administrativa requerida",
+      });
+
+      delete process.env.ADMIN_API_KEY;
+      const unavailable = await elevatedAdminRequest("/admin/roles", cookie);
+      assert.equal(unavailable.status, 503);
+      assert.deepEqual(await unavailable.json(), {
+        error: "ADMIN_API_KEY no está configurada en el servidor",
+      });
+    } finally {
+      process.env.ADMIN_API_KEY = "rbac-admin-key";
     }
   });
 });

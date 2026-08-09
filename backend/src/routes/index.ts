@@ -20,7 +20,7 @@ router.use(requireSession);
 router.use(requirePasswordChangeCompleted);
 router.use(ticketsRouter);
 router.use(dashboardRouter);
-router.use(adminRouter); // además exige x-admin-key (doble verificación)
+router.use(adminRouter); // además exige elevación administrativa
 router.use(eventsRouter);
 
 export default router;
