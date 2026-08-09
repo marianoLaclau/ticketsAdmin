@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Controladores del detalle de ticket desacoplados
+
+**Agente:** Codex
+**Estado:** ducentésima décima remediación de la auditoría técnica, implementada localmente.
+
+- Edición de gestión y datos funcionales, CAS, conflictos, recarga y caché monotónica pasaron a `useTicketDetailEditing.ts`; borrador y alta de seguimientos pasaron a `useTicketSeguimiento.ts`. `TicketDetail.tsx` bajó de 587 a 253 líneas físicas y quedó centrado en consultas, navegación y composición visual.
+- Se conservaron literalmente modos operativo/administrativo, `incluir_vacios`, request administrativo, PATCH mínimo, versiones esperadas, recarga concurrente de ticket e historial, invalidaciones y mensajes. Tres regresiones fijan el reintento CAS, el rechazo de una respuesta vieja frente a una revisión SSE y el contrato de seguimiento administrativo.
+- Aprobaron las 230 pruebas del frontend, ambos typechecks, ESLint, Prettier, build de 2.553 módulos y `git diff --check`. La revisión independiente cerró sin regresiones P0/P1/P2/P3 y aisló dos carreras heredadas —cambio de ticket y callbacks tardíos— para el microcorte inmediato siguiente. No se hizo push.
+
 ## 2026-08-09 — Ingesta compartida modularizada
 
 **Agente:** Codex
