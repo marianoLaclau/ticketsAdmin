@@ -139,7 +139,9 @@ export async function requireSession(
   const session = await getSessionContext(req);
   if (!session) {
     if (hasSessionCookie(req)) clearSessionCookie(res);
-    res.status(401).json({ error: "Sesión requerida" });
+    res
+      .status(401)
+      .json({ code: "SESSION_INVALID", error: "Sesión requerida" });
     return;
   }
   res.locals.authUser = session.user;
@@ -182,7 +184,9 @@ export function requireSysAdmin(
 ) {
   const user = res.locals.authUser as SessionUser | undefined;
   if (!user || user.rol !== ROL_SYSADMIN) {
-    res.status(403).json({ error: "Requiere rol SysAdmin" });
+    res
+      .status(403)
+      .json({ code: "SYSADMIN_REQUIRED", error: "Requiere rol SysAdmin" });
     return;
   }
   next();

@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Rechazos de sesión y SysAdmin estabilizados
+
+**Agente:** Codex
+**Estado:** ducentésima tercera remediación de la auditoría técnica, implementada localmente.
+
+- `requireSession` conserva HTTP 401 y ahora identifica el rechazo con `SESSION_INVALID`; `requireSysAdmin` conserva HTTP 403 y agrega `SYSADMIN_REQUIRED`. Ambos cuerpos coinciden con el contrato de elevación sin depender de textos para tomar decisiones.
+- Se mantuvieron intactos limpieza de cookie, `/auth/me`, SSE, cambio obligatorio de contraseña y el orden SysAdmin → clave administrativa. Las regresiones fijan ruta funcional sin cookie, cookie malformada, stream sin sesión y catálogos de roles y usuarios accedidos por un operador.
+- Aprobaron las 59 pruebas RBAC dirigidas, typecheck de fuente y tests y `git diff --check`; la revisión independiente confirmó códigos, estados y efectos laterales sin P0/P1/P2/P3. El lint global de tests se trabaja en su propio corte. No se hizo push.
+
 ## 2026-08-09 — Contrato de elevación administrativa tipado
 
 **Agente:** Codex

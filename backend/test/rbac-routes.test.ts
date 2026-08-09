@@ -457,6 +457,10 @@ describe("ciclo de la cookie de sesión", () => {
   it("limpia una cookie malformada también desde el candado global", async () => {
     const missing = await fetch(`${baseUrl}/protected-test`);
     assert.equal(missing.status, 401);
+    assert.deepEqual(await missing.json(), {
+      code: "SESSION_INVALID",
+      error: "Sesión requerida",
+    });
     assert.equal(missing.headers.get("set-cookie"), null);
 
     const malformed = await requestWithSession(
@@ -464,6 +468,10 @@ describe("ciclo de la cookie de sesión", () => {
       "gsb_session=no-es-un-token",
     );
     assert.equal(malformed.status, 401);
+    assert.deepEqual(await malformed.json(), {
+      code: "SESSION_INVALID",
+      error: "Sesión requerida",
+    });
     assertClearedSessionCookie(malformed);
   });
 
@@ -575,7 +583,10 @@ describe("ciclo de la cookie de sesión", () => {
     const response = await fetch(`${baseUrl}/api/events`);
 
     assert.equal(response.status, 401);
-    assert.deepEqual(await response.json(), { error: "Sesión requerida" });
+    assert.deepEqual(await response.json(), {
+      code: "SESSION_INVALID",
+      error: "Sesión requerida",
+    });
   });
 
   it("expone el contrato SSE y cierra el stream al revocar la sesión", async () => {
@@ -1647,6 +1658,7 @@ describe("catálogo administrativo de roles", () => {
     );
     assert.equal(asOperator.status, 403);
     assert.deepEqual(await asOperator.json(), {
+      code: "SYSADMIN_REQUIRED",
       error: "Requiere rol SysAdmin",
     });
   });
@@ -1785,6 +1797,7 @@ describe("catálogo administrativo de usuarios", () => {
     );
     assert.equal(asOperator.status, 403);
     assert.deepEqual(await asOperator.json(), {
+      code: "SYSADMIN_REQUIRED",
       error: "Requiere rol SysAdmin",
     });
 
