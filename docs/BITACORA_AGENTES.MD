@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — CRUD de usuarios administrativos desacoplado
+
+**Agente:** Codex
+**Estado:** centésima nonagésima segunda remediación de la auditoría técnica, implementada localmente.
+
+- La creación, edición, activación, desactivación y restablecimiento de contraseña de usuarios, junto con sus formularios y diálogos, pasaron a `useAdminUsersCrud.ts`; `AdminUsersTab.tsx` bajó de 687 a 424 líneas y conserva consultas, filtros, URL y renderizado.
+- El hook mantiene las invalidaciones selectivas y protege cada operación con la generación de la frontera administrativa. Una respuesta tardía de una credencial anterior no puede cerrar ni sobrescribir el formulario vigente, ni refrescar su caché.
+- Aprobaron las 212 pruebas del frontend, ambos typechecks, ESLint, Prettier, build y `git diff --check`; dos revisiones independientes confirmaron el contrato y la cobertura por capas sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — Bordes del reset administrativo de contraseña cubiertos
 
 **Agente:** Codex

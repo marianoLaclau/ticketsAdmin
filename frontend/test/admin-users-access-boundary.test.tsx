@@ -10,6 +10,7 @@ import {
   type AdminUserListResponse,
 } from "@workspace/api-client-react";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -336,4 +337,135 @@ test("impide reabrir un diálogo mientras su mutación sigue pendiente", async (
   );
 
   view.unmount();
+});
+
+test("ignora una creación tardía después de cambiar la frontera administrativa", async (t) => {
+  const pendingPosts: Array<(response: Response) => void> = [];
+  const userDirectoryRequests: string[] = [];
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = input instanceof Request ? input.url : String(input);
+      const method = (init?.method ?? "GET").toUpperCase();
+
+      if (method === "POST") {
+        return new Promise<Response>((resolve) => pendingPosts.push(resolve));
+      }
+      if (url.includes("/api/admin/roles")) {
+        return jsonResponse({ roles: [role], total: 1, page: 1, limit: 100 });
+      }
+      if (url.includes("/api/admin/users")) {
+        userDirectoryRequests.push(url);
+        return jsonResponse({
+          users: [existingUser],
+          total: 1,
+          page: 1,
+          limit: 10,
+        });
+      }
+      throw new Error(`Solicitud inesperada en la prueba: ${method} ${url}`);
+    },
+  );
+
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        staleTime: Number.POSITIVE_INFINITY,
+        gcTime: Number.POSITIVE_INFINITY,
+      },
+      mutations: { gcTime: Number.POSITIVE_INFINITY },
+    },
+  });
+  seedDirectoryQueries(queryClient, 1);
+  seedDirectoryQueries(queryClient, 2);
+  t.after(() => {
+    cleanup();
+    queryClient.clear();
+  });
+
+  const renderHarness = (props: HarnessProps) => (
+    <QueryClientProvider client={queryClient}>
+      <DirectoryHarness {...props} />
+    </QueryClientProvider>
+  );
+  const view = render(
+    renderHarness({
+      adminAccessState: "ready",
+      accessVersion: 1,
+      accessGeneration: 0,
+    }),
+  );
+  const browser = userEvent.setup();
+  const validPassword = "Frase administrativa segura 2026";
+
+  await browser.click(screen.getByRole("button", { name: "Nuevo usuario" }));
+  fireEvent.change(screen.getByLabelText("Nombre *"), {
+    target: { value: "Solicitud anterior" },
+  });
+  fireEvent.change(screen.getByLabelText("Nombre de usuario *"), {
+    target: { value: "solicitud.anterior" },
+  });
+  fireEvent.change(screen.getByLabelText("Email *"), {
+    target: { value: "anterior@example.test" },
+  });
+  fireEvent.change(screen.getByLabelText("Contraseña temporal *"), {
+    target: { value: validPassword },
+  });
+  fireEvent.change(screen.getByLabelText("Repetir contraseña temporal *"), {
+    target: { value: validPassword },
+  });
+  await browser.click(screen.getByRole("button", { name: "Guardar usuario" }));
+  await waitFor(() => assert.equal(pendingPosts.length, 1));
+
+  view.rerender(
+    renderHarness({
+      adminAccessState: "pending",
+      accessVersion: 1,
+      accessGeneration: 1,
+    }),
+  );
+  view.rerender(
+    renderHarness({
+      adminAccessState: "ready",
+      accessVersion: 2,
+      accessGeneration: 1,
+    }),
+  );
+
+  const newUserButton = screen.getByRole("button", { name: "Nuevo usuario" });
+  await waitFor(() =>
+    assert.equal(newUserButton.hasAttribute("disabled"), false),
+  );
+  await browser.click(newUserButton);
+  fireEvent.change(screen.getByLabelText("Nombre *"), {
+    target: { value: "Borrador vigente" },
+  });
+  userDirectoryRequests.length = 0;
+
+  await act(async () => {
+    pendingPosts[0]?.(
+      jsonResponse(
+        {
+          ...existingUser,
+          id: 9,
+          nombre: "Solicitud anterior",
+          apellido: null,
+          username: "solicitud.anterior",
+          email: "anterior@example.test",
+          debe_cambiar_password: true,
+        } satisfies AdminUser,
+        201,
+      ),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+
+  assert.ok(screen.getByRole("dialog"));
+  assert.equal(
+    (screen.getByLabelText("Nombre *") as HTMLInputElement).value,
+    "Borrador vigente",
+  );
+  assert.equal(userDirectoryRequests.length, 0);
 });
