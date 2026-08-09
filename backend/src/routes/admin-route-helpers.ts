@@ -11,6 +11,11 @@ export const normalizeOptionalText = (
 export const hasOwn = (value: object, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, key);
 
+export const readPasswordFromBody = (body: unknown): unknown => {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  return (body as { password?: unknown }).password;
+};
+
 export const hasSqliteConstraint = (
   error: unknown,
   constraint: string,

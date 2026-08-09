@@ -18,6 +18,7 @@ import {
   hasSqliteConstraint,
   normalizeOptionalText,
   normalizeRequiredText,
+  readPasswordFromBody,
 } from "./admin-route-helpers";
 import { listAdminUsers } from "./admin-user-list-handler";
 import { PUBLIC_ADMIN_USER_COLUMNS } from "./admin-user-public-columns";
@@ -26,11 +27,6 @@ const router = Router();
 
 const normalizeEmail = (value: string): string => value.trim().toLowerCase();
 const normalizeUsername = (value: string): string => value.trim().toLowerCase();
-
-const readPasswordFromBody = (body: unknown): unknown => {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
-  return (body as { password?: unknown }).password;
-};
 
 const hasLoginIdentity = (value: string | null): value is string =>
   typeof value === "string" && value.trim().length > 0;

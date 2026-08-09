@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Lectura de contraseña administrativa compartida
+
+**Agente:** Codex
+**Estado:** centésima nonagésima remediación de la auditoría técnica, implementada localmente.
+
+- `readPasswordFromBody` pasó literalmente a `admin-route-helpers.ts`; alta y reset de usuarios siguen siendo sus dos consumidores y comparten una frontera neutral antes de separar el handler de restablecimiento.
+- Se conservaron tipo `unknown → unknown`, rechazo de valores nulos, primitivos y arrays, y lectura exclusiva de la propiedad `password`. El helper no incorpora dependencias, consultas ni imports del router, por lo que no introduce ciclos.
+- Aprobaron las 57 pruebas RBAC dirigidas, typecheck, ESLint, Prettier y `git diff --check`; la revisión independiente confirmó equivalencia y consumidores sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — Superficie pública accidental del frontend reducida
 
 **Agente:** Codex
