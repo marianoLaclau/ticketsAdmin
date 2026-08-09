@@ -12,15 +12,10 @@ import {
   type AdminUserInput,
   type AdminUserUpdate,
 } from '@workspace/api-client-react';
-import {
-  AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
-  Plus,
-  Search,
-} from 'lucide-react';
+import { AlertTriangle, Plus, Search } from 'lucide-react';
 import { AdminUserFormDialog } from '@/features/admin-directory/AdminUserFormDialog';
 import { AdminUserPasswordDialog } from '@/features/admin-directory/AdminUserPasswordDialog';
+import { AdminUsersPagination } from '@/features/admin-directory/AdminUsersPagination';
 import { AdminUserTableRow } from '@/features/admin-directory/AdminUserTableRow';
 import {
   createAdminUserForm,
@@ -45,10 +40,7 @@ import { adminErrorMessage } from '@/hooks/use-admin-access';
 import { useAdminOperationGuard } from '@/hooks/use-admin-operation-guard';
 import { useToast } from '@/hooks/use-toast';
 import { AdminCredentialNotice } from '@/components/admin/AdminCredentialNotice';
-import {
-  ADMIN_DIRECTORY_USER_LIMITS,
-  type AdminDirectoryUsersUrlState,
-} from '@/lib/admin-directory-url';
+import type { AdminDirectoryUsersUrlState } from '@/lib/admin-directory-url';
 import type { AdminCredentialState } from '@/lib/admin-credential-state';
 import { getNewPasswordError } from '@/lib/password-policy';
 
@@ -222,14 +214,6 @@ export function AdminUsersTab({
       else next.status = value;
       return next;
     });
-  };
-
-  const selectUserPageSize = (value: string) => {
-    const limit = ADMIN_DIRECTORY_USER_LIMITS.find(
-      (candidate) => String(candidate) === value,
-    );
-    if (!limit) return;
-    updateUrlState((current) => ({ ...current, limit, page: 1 }));
   };
 
   const goToUserPage = (page: number) => {
@@ -658,59 +642,20 @@ export function AdminUsersTab({
               </Table>
             </div>
 
-            <div className="flex flex-col items-center justify-between gap-2 border-t border-border bg-slate-50/60 px-4 py-2.5 sm:flex-row">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>Mostrar</span>
-                <Select value={String(userPageSize)} onValueChange={selectUserPageSize}>
-                  <SelectTrigger
-                    className="h-7 w-[70px] bg-white text-xs"
-                    aria-label="Cantidad de usuarios por página"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[10, 25, 50, 100].map((size) => (
-                      <SelectItem key={size} value={String(size)}>
-                        {size}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <span>por página</span>
-              </div>
-              <span
-                className="text-xs text-muted-foreground"
-                role={userResultsAvailable ? 'status' : undefined}
-                aria-live={userResultsAvailable ? 'polite' : undefined}
-                aria-atomic={userResultsAvailable ? 'true' : undefined}
-              >
-                {usersQuery.isLoading
-                  ? 'Cargando registros...'
-                  : usersQuery.isError
-                    ? 'No se pudieron cargar los registros.'
-                    : `${userTotal} registros — página ${userPage} de ${userTotalPages}`}
-              </span>
-              <nav className="flex items-center gap-1" aria-label="Paginación de usuarios">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 bg-white px-2 text-xs"
-                  disabled={userPage <= 1}
-                  onClick={() => goToUserPage(userPage - 1)}
-                >
-                  <ChevronLeft className="mr-0.5 h-3.5 w-3.5" aria-hidden="true" /> Anterior
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 bg-white px-2 text-xs"
-                  disabled={userPage >= userTotalPages}
-                  onClick={() => goToUserPage(userPage + 1)}
-                >
-                  Siguiente <ChevronRight className="ml-0.5 h-3.5 w-3.5" aria-hidden="true" />
-                </Button>
-              </nav>
-            </div>
+            <AdminUsersPagination
+              page={userPage}
+              pageSize={userPageSize}
+              total={userTotal}
+              totalPages={userTotalPages}
+              isLoading={usersQuery.isLoading}
+              isError={usersQuery.isError}
+              hasResults={userResultsAvailable}
+              onPageSizeChange={(limit) =>
+                updateUrlState((current) => ({ ...current, limit, page: 1 }))
+              }
+              onPreviousPage={() => goToUserPage(userPage - 1)}
+              onNextPage={() => goToUserPage(userPage + 1)}
+            />
           </div>
         </TabsContent>
 

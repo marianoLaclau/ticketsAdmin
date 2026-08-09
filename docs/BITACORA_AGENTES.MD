@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Paginación del directorio de usuarios desacoplada
+
+**Agente:** Codex
+**Estado:** centésima octogésima cuarta remediación de la auditoría técnica, implementada localmente.
+
+- La presentación y accesibilidad de la paginación pasaron a `AdminUsersPagination.tsx`; `AdminUsersTab.tsx` conserva consulta, URL, corrección de página y mutaciones, y bajó de 742 a 687 líneas.
+- Los tamaños dejaron de duplicar el literal `[10, 25, 50, 100]`: el componente valida contra `ADMIN_DIRECTORY_USER_LIMITS` y entrega un `AdminDirectoryUserLimit` tipado. Cambiar tamaño continúa reiniciando a página 1 y anterior/siguiente siguen pasando por la navegación defensiva `push` del padre.
+- Tres pruebas de componente fijan selección, callbacks, límites, loading, error, resumen listo y región viva ARIA. Aprobaron las 211 pruebas del frontend, ambos typechecks, ESLint, Prettier en los archivos nuevos, build y `git diff --check`; la revisión independiente confirmó paridad visual y funcional sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — Detalle de tickets desacoplado
 
 **Agente:** Codex
