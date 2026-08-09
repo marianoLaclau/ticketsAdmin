@@ -15,10 +15,7 @@ import {
   lte,
   not,
 } from "drizzle-orm";
-import {
-  seguimientosTable,
-  ticketsTable,
-} from "../src/schema/tickets";
+import { seguimientosTable, ticketsTable } from "../src/schema/tickets";
 import { ticketVisibleCondition } from "../src/ticket-visibility";
 
 const migrationSql = readFileSync(
@@ -319,7 +316,7 @@ describe("migracion de indices temporales de lectura", () => {
       );
     }
 
-    assert.equal(sqlite.pragma("foreign_key_check").length, 0);
+    assert.equal((sqlite.pragma("foreign_key_check") as unknown[]).length, 0);
     assert.equal(sqlite.pragma("integrity_check", { simple: true }), "ok");
     sqlite.close();
   });

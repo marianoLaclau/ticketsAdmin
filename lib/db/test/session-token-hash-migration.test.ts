@@ -34,10 +34,10 @@ describe("migración de hashes de sesión", () => {
 
     sqlite.exec(migrationSql);
 
-    assert.deepEqual(
-      sqlite.prepare("SELECT id, role_id FROM usuarios").get(),
-      { id: 7, role_id: 3 },
-    );
+    assert.deepEqual(sqlite.prepare("SELECT id, role_id FROM usuarios").get(), {
+      id: 7,
+      role_id: 3,
+    });
     assert.deepEqual(sqlite.prepare("SELECT id FROM roles").get(), { id: 3 });
     assert.equal(
       (
@@ -52,7 +52,10 @@ describe("migración de hashes de sesión", () => {
       pk: number;
     }>;
     assert.equal(columns.find(({ name }) => name === "token")?.pk, 1);
-    assert.equal(columns.some(({ name }) => name === "token_hash"), false);
+    assert.equal(
+      columns.some(({ name }) => name === "token_hash"),
+      false,
+    );
 
     const digest = `sha256:${"b".repeat(64)}`;
     sqlite
@@ -80,7 +83,7 @@ describe("migración de hashes de sesión", () => {
       0,
     );
     assert.deepEqual(sqlite.prepare("SELECT id FROM roles").get(), { id: 3 });
-    assert.equal(sqlite.pragma("foreign_key_check").length, 0);
+    assert.equal((sqlite.pragma("foreign_key_check") as unknown[]).length, 0);
     assert.equal(sqlite.pragma("integrity_check", { simple: true }), "ok");
     sqlite.close();
   });

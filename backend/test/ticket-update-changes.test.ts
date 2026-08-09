@@ -42,7 +42,6 @@ function createTicket(overrides: Partial<Ticket> = {}): Ticket {
 
 function parseBody(value: Record<string, unknown>): ParsedTicketUpdateBody {
   const result = parseTicketUpdateBody(value);
-  assert.equal(result.success, true);
   if (!result.success) throw new Error(result.error);
   return result.data;
 }

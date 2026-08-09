@@ -47,7 +47,9 @@ type InsertTicket = {
   resolvedAt?: string | null;
 };
 
-function createDatabase(verbose?: (message: string) => void) {
+function createDatabase(
+  verbose?: (message?: unknown, ...additionalArgs: unknown[]) => void,
+) {
   const sqlite = new Database(":memory:", { verbose });
   sqlite.pragma("foreign_keys = ON");
   sqlite.exec(`
@@ -164,7 +166,7 @@ describe("consultas SQL del dashboard", () => {
   it("devuelve el contrato vacío con números estables y un snapshot diferido", () => {
     const statements: string[] = [];
     const { sqlite, database } = createDatabase((statement) => {
-      statements.push(statement);
+      statements.push(String(statement));
     });
     statements.length = 0;
 

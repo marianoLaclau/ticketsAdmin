@@ -64,7 +64,7 @@ function crearDeadlineManual() {
       callback = nuevoCallback;
       return timer;
     },
-    cancelarTimeout(handle: typeof timer) {
+    cancelarTimeout(handle: unknown) {
       assert.strictEqual(handle, timer);
       cancelaciones += 1;
       callback = undefined;

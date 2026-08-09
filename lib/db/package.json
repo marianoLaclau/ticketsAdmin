@@ -15,7 +15,8 @@
     "push": "drizzle-kit push --config ./drizzle.config.ts && pnpm run reconcile-quarantine",
     "push-force": "drizzle-kit push --force --config ./drizzle.config.ts && pnpm run reconcile-quarantine",
     "reconcile-quarantine": "tsx ./src/ensure-ticket-quarantine-cli.ts",
-    "test": "tsx --test ./test/*.test.ts"
+    "test": "tsx --test ./test/*.test.ts",
+    "typecheck:test": "tsc -p tsconfig.test.json"
   },
   "dependencies": {
     "better-sqlite3": "^12.4.1",

@@ -10,7 +10,9 @@
     "test": "pnpm run test:unit && pnpm run test:components",
     "test:unit": "node --test ./test/*.test.ts",
     "test:components": "tsx --tsconfig tsconfig.test.json --import global-jsdom/register --test ./test/*.test.tsx",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit"
+    "typecheck": "pnpm run typecheck:src && pnpm run typecheck:test",
+    "typecheck:src": "tsc -p tsconfig.json --noEmit",
+    "typecheck:test": "tsc -p tsconfig.test.json"
   },
   "devDependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.7",

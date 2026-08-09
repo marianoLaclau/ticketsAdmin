@@ -1,8 +1,9 @@
 {
   "extends": "./tsconfig.json",
-  "include": ["src/**/*", "test/**/*.test.tsx"],
+  "include": ["src/**/*", "test/**/*.ts", "test/**/*.tsx"],
   "exclude": ["node_modules", "build", "dist"],
   "compilerOptions": {
+    "incremental": false,
     "noEmit": true,
     "jsx": "react-jsx"
   },

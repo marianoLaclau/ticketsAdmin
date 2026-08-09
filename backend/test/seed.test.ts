@@ -57,6 +57,20 @@ const passwordInicial = "Bootstrap-2026-muy-seguro";
 const passwordDiferente = "Otra-clave-2026-muy-segura";
 const passwordHeredado = "admin";
 
+function requiredNumberField(row: unknown, field: "id" | "total"): number {
+  assert.ok(row && typeof row === "object" && field in row);
+  const value = (row as Record<string, unknown>)[field];
+  if (typeof value !== "number") assert.fail(`${field} debe ser numÃ©rico`);
+  return value;
+}
+
+function requiredStringField(row: unknown, field: "password_hash"): string {
+  assert.ok(row && typeof row === "object" && field in row);
+  const value = (row as Record<string, unknown>)[field];
+  if (typeof value !== "string") assert.fail(`${field} debe ser texto`);
+  return value;
+}
+
 async function crearSeedHeredado(email = "sysadmin") {
   const roleExistente = sqlite
     .prepare("SELECT id FROM roles WHERE nombre = 'SysAdmin'")
@@ -250,18 +264,24 @@ describe("bootstrap seguro del SysAdmin", () => {
     assert.equal(actual.password_hash, heredado.passwordHash);
     assert.equal(actual.debe_cambiar_password, 0);
     assert.equal(
-      sqlite
-        .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?")
-        .get(heredado.id)!.total,
+      requiredNumberField(
+        sqlite
+          .prepare(
+            "SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?",
+          )
+          .get(heredado.id),
+        "total",
+      ),
       1,
     );
   });
 
   it("rota la credencial heredada, revoca solo sus sesiones y es idempotente", async () => {
     const heredado = await crearSeedHeredado("admin");
-    const roleId = sqlite
-      .prepare("SELECT id FROM roles WHERE nombre = 'SysAdmin'")
-      .get()!.id;
+    const roleId = requiredNumberField(
+      sqlite.prepare("SELECT id FROM roles WHERE nombre = 'SysAdmin'").get(),
+      "id",
+    );
     const otroHash = await hashPassword("Operador-2026-clave-segura");
     const otroUsuario = sqlite
       .prepare(
@@ -303,15 +323,25 @@ describe("bootstrap seguro del SysAdmin", () => {
       true,
     );
     assert.equal(
-      sqlite
-        .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?")
-        .get(heredado.id)!.total,
+      requiredNumberField(
+        sqlite
+          .prepare(
+            "SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?",
+          )
+          .get(heredado.id),
+        "total",
+      ),
       0,
     );
     assert.equal(
-      sqlite
-        .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?")
-        .get(otroUsuario.lastInsertRowid)!.total,
+      requiredNumberField(
+        sqlite
+          .prepare(
+            "SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?",
+          )
+          .get(otroUsuario.lastInsertRowid),
+        "total",
+      ),
       1,
     );
 
@@ -338,9 +368,10 @@ describe("bootstrap seguro del SysAdmin", () => {
 
   it("rota un admin heredado sin promoverlo cuando ya existe el sysadmin canónico", async () => {
     const heredado = await crearSeedHeredado("admin");
-    const roleId = sqlite
-      .prepare("SELECT id FROM roles WHERE nombre = 'SysAdmin'")
-      .get()!.id;
+    const roleId = requiredNumberField(
+      sqlite.prepare("SELECT id FROM roles WHERE nombre = 'SysAdmin'").get(),
+      "id",
+    );
     const operadorRoleId = Number(
       sqlite.prepare("INSERT INTO roles (nombre) VALUES ('Operador')").run()
         .lastInsertRowid,
@@ -374,9 +405,12 @@ describe("bootstrap seguro del SysAdmin", () => {
          WHERE u.id = ?`,
       )
       .get(heredado.id) as { password_hash: string; rol: string };
-    const hashSeguroActual = sqlite
-      .prepare("SELECT password_hash FROM usuarios WHERE id = ?")
-      .get(sysadminSeguro.lastInsertRowid)!.password_hash;
+    const hashSeguroActual = requiredStringField(
+      sqlite
+        .prepare("SELECT password_hash FROM usuarios WHERE id = ?")
+        .get(sysadminSeguro.lastInsertRowid),
+      "password_hash",
+    );
     assert.equal(
       await verifyPassword(passwordInicial, adminRotado.password_hash),
       true,
@@ -384,15 +418,25 @@ describe("bootstrap seguro del SysAdmin", () => {
     assert.equal(adminRotado.rol, "Operador");
     assert.equal(hashSeguroActual, hashSeguro);
     assert.equal(
-      sqlite
-        .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?")
-        .get(heredado.id)!.total,
+      requiredNumberField(
+        sqlite
+          .prepare(
+            "SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?",
+          )
+          .get(heredado.id),
+        "total",
+      ),
       0,
     );
     assert.equal(
-      sqlite
-        .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?")
-        .get(sysadminSeguro.lastInsertRowid)!.total,
+      requiredNumberField(
+        sqlite
+          .prepare(
+            "SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?",
+          )
+          .get(sysadminSeguro.lastInsertRowid),
+        "total",
+      ),
       1,
     );
   });
@@ -434,7 +478,10 @@ describe("bootstrap seguro del SysAdmin", () => {
       "cada cuenta debe recibir una sal única",
     );
     assert.equal(
-      sqlite.prepare("SELECT count(*) AS total FROM sesiones").get()!.total,
+      requiredNumberField(
+        sqlite.prepare("SELECT count(*) AS total FROM sesiones").get(),
+        "total",
+      ),
       0,
     );
   });
@@ -530,9 +577,14 @@ describe("bootstrap seguro del SysAdmin", () => {
     );
     assert.equal(migrado.password_hash, hashSeguro);
     assert.equal(
-      sqlite
-        .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?")
-        .get(usuario.lastInsertRowid)!.total,
+      requiredNumberField(
+        sqlite
+          .prepare(
+            "SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?",
+          )
+          .get(usuario.lastInsertRowid),
+        "total",
+      ),
       0,
     );
   });
@@ -540,9 +592,14 @@ describe("bootstrap seguro del SysAdmin", () => {
   it("reactiva los roles base sin modificar contraseñas seguras", async () => {
     process.env.BOOTSTRAP_SYSADMIN_PASSWORD = passwordInicial;
     await ensureAdminSeed();
-    const hashAnterior = sqlite
-      .prepare("SELECT password_hash FROM usuarios WHERE username = 'sysadmin'")
-      .get()!.password_hash;
+    const hashAnterior = requiredStringField(
+      sqlite
+        .prepare(
+          "SELECT password_hash FROM usuarios WHERE username = 'sysadmin'",
+        )
+        .get(),
+      "password_hash",
+    );
     sqlite.prepare("UPDATE roles SET activo = 0").run();
     delete process.env.BOOTSTRAP_SYSADMIN_PASSWORD;
 
@@ -556,9 +613,14 @@ describe("bootstrap seguro del SysAdmin", () => {
       { nombre: "Operador", activo: 1 },
       { nombre: "SysAdmin", activo: 1 },
     ]);
-    const hashActual = sqlite
-      .prepare("SELECT password_hash FROM usuarios WHERE username = 'sysadmin'")
-      .get()!.password_hash;
+    const hashActual = requiredStringField(
+      sqlite
+        .prepare(
+          "SELECT password_hash FROM usuarios WHERE username = 'sysadmin'",
+        )
+        .get(),
+      "password_hash",
+    );
     assert.equal(hashActual, hashAnterior);
   });
 
@@ -598,13 +660,21 @@ describe("bootstrap seguro del SysAdmin", () => {
       true,
     );
     assert.equal(
-      sqlite
-        .prepare("SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?")
-        .get(heredado.id)!.total,
+      requiredNumberField(
+        sqlite
+          .prepare(
+            "SELECT count(*) AS total FROM sesiones WHERE usuario_id = ?",
+          )
+          .get(heredado.id),
+        "total",
+      ),
       1,
     );
     assert.equal(
-      sqlite.prepare("SELECT count(*) AS total FROM roles").get()!.total,
+      requiredNumberField(
+        sqlite.prepare("SELECT count(*) AS total FROM roles").get(),
+        "total",
+      ),
       1,
     );
   });
@@ -626,11 +696,17 @@ describe("bootstrap seguro del SysAdmin", () => {
     }
 
     assert.equal(
-      sqlite.prepare("SELECT count(*) AS total FROM roles").get()!.total,
+      requiredNumberField(
+        sqlite.prepare("SELECT count(*) AS total FROM roles").get(),
+        "total",
+      ),
       0,
     );
     assert.equal(
-      sqlite.prepare("SELECT count(*) AS total FROM usuarios").get()!.total,
+      requiredNumberField(
+        sqlite.prepare("SELECT count(*) AS total FROM usuarios").get(),
+        "total",
+      ),
       0,
     );
   });

@@ -118,6 +118,9 @@ importers:
         specifier: ^10.5.0
         version: 10.5.0
     devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
       '@types/cookie-parser':
         specifier: ^1.4.10
         version: 1.4.10(@types/express@5.0.6)
@@ -300,12 +303,18 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0
     devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.5
       tsx:
         specifier: 'catalog:'
         version: 4.23.0
 
   lib/password-policy:
     devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.5
       tsx:
         specifier: 'catalog:'
         version: 4.23.0

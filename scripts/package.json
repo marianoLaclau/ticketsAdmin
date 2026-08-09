@@ -9,7 +9,9 @@
     "import-excel": "tsx ./src/import-excel.ts",
     "restore-db": "tsx ./src/restore-db.ts",
     "test": "tsx --test ./test/*.test.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "pnpm run typecheck:src && pnpm run typecheck:test",
+    "typecheck:src": "tsc -p tsconfig.json --noEmit",
+    "typecheck:test": "tsc -p tsconfig.test.json",
     "verify-db": "tsx ./src/verify-db.ts"
   },
   "dependencies": {

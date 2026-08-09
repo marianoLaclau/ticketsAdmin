@@ -100,7 +100,7 @@ describe("migración de cambio obligatorio de contraseña", () => {
         /constraint failed/i,
       );
     }
-    assert.equal(sqlite.pragma("foreign_key_check").length, 0);
+    assert.equal((sqlite.pragma("foreign_key_check") as unknown[]).length, 0);
     assert.equal(sqlite.pragma("integrity_check", { simple: true }), "ok");
     sqlite.close();
   });
@@ -134,7 +134,7 @@ describe("migración de cambio obligatorio de contraseña", () => {
     assert.deepEqual(ensureTicketQuarantineProjection(sqlite), {
       repaired: false,
     });
-    assert.equal(sqlite.pragma("foreign_key_check").length, 0);
+    assert.equal((sqlite.pragma("foreign_key_check") as unknown[]).length, 0);
     assert.equal(sqlite.pragma("integrity_check", { simple: true }), "ok");
     sqlite.close();
   });

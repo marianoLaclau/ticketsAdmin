@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Todas las pruebas incorporadas al sistema de tipos
+
+**Agente:** Codex
+**Estado:** centésima nonagésima novena remediación de la auditoría técnica, implementada localmente.
+
+- Backend, DB, ingesta, política de contraseñas y scripts tienen ahora proyectos `tsconfig.test.json`; frontend amplió el suyo a pruebas `.ts` y `.tsx`. El gate raíz separa librerías, fuentes ejecutables y tests y cubre los 102 archivos de prueba actuales, incluidos 87 que antes no pasaban por `tsc`.
+- Los paquetes declaran sus tipos directos de Node y SQLite y el lockfile quedó sincronizado. Los errores descubiertos se resolvieron con narrowings comprobables en runtime para filas y pragmas SQLite, firmas reales de streams/callbacks/timers y eliminación de una aserción que impedía el narrowing.
+- El typecheck raíz aprobó completo dos veces y las pruebas focalizadas sumaron 93 casos backend y 15 de DB; `git diff --check` quedó limpio. Una revisión independiente verificó globs, `noEmit`, ausencia de artefactos y que ningún cast silencie fallos sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — Contexto interno de sesión centralizado
 
 **Agente:** Codex

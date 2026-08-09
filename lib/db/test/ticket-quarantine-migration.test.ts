@@ -274,7 +274,7 @@ describe("materialización de cuarentena", () => {
       "tickets_cuarentena_ticket_insert",
       "tickets_cuarentena_ticket_update",
     ]);
-    assert.equal(sqlite.pragma("foreign_key_check").length, 0);
+    assert.equal((sqlite.pragma("foreign_key_check") as unknown[]).length, 0);
     assert.equal(sqlite.pragma("integrity_check", { simple: true }), "ok");
     sqlite.close();
   });
@@ -422,7 +422,7 @@ describe("materialización de cuarentena", () => {
       ).total,
       0,
     );
-    assert.equal(sqlite.pragma("foreign_key_check").length, 0);
+    assert.equal((sqlite.pragma("foreign_key_check") as unknown[]).length, 0);
     assert.equal(sqlite.pragma("integrity_check", { simple: true }), "ok");
     sqlite.close();
   });

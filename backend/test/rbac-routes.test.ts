@@ -221,7 +221,7 @@ function readStreamChunkWithTimeout(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   message: string,
   timeoutMs = 1_000,
-): Promise<ReadableStreamReadResult<Uint8Array>> {
+): ReturnType<ReadableStreamDefaultReader<Uint8Array>["read"]> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
     reader.read().then(
