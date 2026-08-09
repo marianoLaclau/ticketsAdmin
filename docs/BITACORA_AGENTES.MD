@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Login desacoplado del router de autenticación
+
+**Agente:** Codex
+**Estado:** centésima octogésima octava remediación de la auditoría técnica, implementada localmente.
+
+- La operación completa de login pasó a `auth-login-handler.ts`; `auth.ts` quedó como composition root de 49 líneas para `no-store`, login, cambio de contraseña, logout y sesión actual.
+- Reserva y liquidación del rate limit, listener `finish`, KDF dummy, respuesta uniforme, rehash concurrente de dos intentos, KDF externo, relectura transaccional, CAS, sesión atómica, reset del límite y cookie posterior al commit se trasladaron como una sola frontera, sin subdividir la operación sensible.
+- Aprobaron las 72 pruebas dirigidas de RBAC, rate limit, hashes y cookies, las 216 pruebas completas del backend, typecheck, ESLint, Prettier, build y `git diff --check`; la revisión independiente confirmó paridad de seguridad, concurrencia, middleware y grafo sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — Cambio propio de contraseña desacoplado
 
 **Agente:** Codex
