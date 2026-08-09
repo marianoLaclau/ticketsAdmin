@@ -1,23 +1,10 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMemo } from "react";
 import {
   getListAdminRolesQueryKey,
-  getListAdminUsersQueryKey,
-  useCreateAdminRole,
-  useDeleteAdminRole,
   useListAdminRoles,
-  useUpdateAdminRole,
-  type AdminRole,
-  type AdminRoleInput,
-  type AdminRoleUpdate,
-} from '@workspace/api-client-react';
-import {
-  AlertTriangle,
-  Loader2,
-  Plus,
-  Search,
-} from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+} from "@workspace/api-client-react";
+import { AlertTriangle, Loader2, Plus, Search } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,33 +14,41 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LoadingStatus } from '@/components/ui/loading-status';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { TabsContent } from '@/components/ui/tabs';
-import { AdminRoleFormDialog } from '@/features/admin-directory/AdminRoleFormDialog';
-import { AdminRoleTableRow } from '@/features/admin-directory/AdminRoleTableRow';
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
-  createAdminRoleForm,
-  createEmptyAdminRoleForm,
-  filterAdminRoles,
-  type AdminRoleFormState,
-} from '@/features/admin-directory/model';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { LoadingStatus } from "@/components/ui/loading-status";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TabsContent } from "@/components/ui/tabs";
+import { AdminRoleFormDialog } from "@/features/admin-directory/AdminRoleFormDialog";
+import { AdminRoleTableRow } from "@/features/admin-directory/AdminRoleTableRow";
+import { filterAdminRoles } from "@/features/admin-directory/model";
+import { useAdminRolesCrud } from "@/features/admin-directory/useAdminRolesCrud";
 import type {
   AdminDirectoryRolesUrlUpdate,
   AdminDirectoryUrlNavigation,
-} from '@/features/admin-directory/useAdminDirectoryUrl';
-import { adminErrorMessage } from '@/hooks/use-admin-access';
-import { useAdminOperationGuard } from '@/hooks/use-admin-operation-guard';
-import { useToast } from '@/hooks/use-toast';
-import { AdminCredentialNotice } from '@/components/admin/AdminCredentialNotice';
-import type { AdminCredentialState } from '@/lib/admin-credential-state';
-import type { AdminDirectoryRolesUrlState } from '@/lib/admin-directory-url';
-import { esRolSistema } from '@/lib/roles';
+} from "@/features/admin-directory/useAdminDirectoryUrl";
+import { adminErrorMessage } from "@/hooks/use-admin-access";
+import { AdminCredentialNotice } from "@/components/admin/AdminCredentialNotice";
+import type { AdminCredentialState } from "@/lib/admin-credential-state";
+import type { AdminDirectoryRolesUrlState } from "@/lib/admin-directory-url";
+import { esRolSistema } from "@/lib/roles";
 
 interface AdminRolesTabProps {
   request: RequestInit;
@@ -77,30 +72,10 @@ export function AdminRolesTab({
   urlState,
   updateUrlState,
 }: AdminRolesTabProps) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const hasAdminAccess = adminAccessState === 'ready';
-  const accessBoundary = `${adminAccessState}:${accessVersion}:${accessGeneration}`;
-  const { isCurrentOperation, operationGeneration } = useAdminOperationGuard(
-    adminAccessState,
-    accessGeneration,
-  );
+  const hasAdminAccess = adminAccessState === "ready";
 
-  const showError =
-    (title: string, operationAccessGeneration: number) => (error: unknown) => {
-      if (!isCurrentOperation(operationAccessGeneration)) return;
-      toast({
-        variant: 'destructive',
-        title,
-        description: adminErrorMessage(error),
-      });
-    };
-
-  const refreshUsers = () => queryClient.invalidateQueries({ queryKey: getListAdminUsersQueryKey() });
-  const refreshRoles = () => queryClient.invalidateQueries({ queryKey: getListAdminRolesQueryKey() });
-
-  const roleSearch = urlState.search ?? '';
-  const roleStatusFilter = urlState.status ?? '_all';
+  const roleSearch = urlState.search ?? "";
+  const roleStatusFilter = urlState.status ?? "_all";
 
   const roleListParams = useMemo(
     () => ({
@@ -112,7 +87,7 @@ export function AdminRolesTab({
   );
   const roleListQueryKey = [
     ...getListAdminRolesQueryKey(roleListParams),
-    'admin-access',
+    "admin-access",
     accessVersion,
   ] as const;
   const rolesQuery = useListAdminRoles(roleListParams, {
@@ -137,20 +112,38 @@ export function AdminRolesTab({
   };
 
   const selectRoleStatus = (value: string) => {
-    if (value !== '_all' && value !== 'active' && value !== 'inactive') return;
+    if (value !== "_all" && value !== "active" && value !== "inactive") return;
     updateUrlState((current) => {
       const next = { ...current };
-      if (value === '_all') delete next.status;
+      if (value === "_all") delete next.status;
       else next.status = value;
       return next;
     });
   };
 
-  const [roleDialogOpen, setRoleDialogOpen] = useState(false);
-  const [editingRole, setEditingRole] = useState<AdminRole | null>(null);
-  const [roleToDelete, setRoleToDelete] = useState<AdminRole | null>(null);
-  const [roleForm, setRoleForm] = useState<AdminRoleFormState>(createEmptyAdminRoleForm);
-  const editingSystemRole = Boolean(editingRole && esRolSistema(editingRole.nombre));
+  const {
+    roleDialogOpen,
+    editingRole,
+    editingSystemRole,
+    roleToDelete,
+    roleForm,
+    setRoleForm,
+    roleMutationPending,
+    isDeleteRolePending,
+    openCreateRole,
+    openEditRole,
+    openDeleteRole,
+    saveRole,
+    toggleRole,
+    confirmDeleteRole,
+    changeRoleDialogOpen,
+    changeRoleDeleteOpen,
+  } = useAdminRolesCrud({
+    request,
+    adminAccessState,
+    accessVersion,
+    accessGeneration,
+  });
 
   const visibleRoles = useMemo(
     () => filterAdminRoles(listedRoles, roleSearch, roleStatusFilter),
@@ -160,190 +153,7 @@ export function AdminRolesTab({
     !rolesQuery.isLoading && !rolesQuery.isError && visibleRoles.length > 0;
   const roleTableHasWideRows = rolesQuery.isLoading || roleResultsAvailable;
 
-  const createRole = useCreateAdminRole({ request });
-  const updateRole = useUpdateAdminRole({ request });
-  const deleteRole = useDeleteAdminRole({ request });
-  const roleMutationPending =
-    createRole.isPending || updateRole.isPending || deleteRole.isPending;
-  const { reset: resetCreateRole } = createRole;
-  const { reset: resetUpdateRole } = updateRole;
-  const { reset: resetDeleteRole } = deleteRole;
-  const resetAccessBoundaryRef = useRef(accessBoundary);
-
-  useLayoutEffect(() => {
-    if (resetAccessBoundaryRef.current === accessBoundary) return;
-    resetAccessBoundaryRef.current = accessBoundary;
-    setRoleDialogOpen(false);
-    setEditingRole(null);
-    setRoleToDelete(null);
-    setRoleForm(createEmptyAdminRoleForm());
-    resetCreateRole();
-    resetUpdateRole();
-    resetDeleteRole();
-  }, [accessBoundary, resetCreateRole, resetDeleteRole, resetUpdateRole]);
-
-  const openCreateRole = () => {
-    if (!isCurrentOperation(operationGeneration) || roleMutationPending) return;
-    setEditingRole(null);
-    setRoleForm(createEmptyAdminRoleForm());
-    setRoleDialogOpen(true);
-  };
-
-  const openEditRole = (role: AdminRole) => {
-    if (!isCurrentOperation(operationGeneration) || roleMutationPending) return;
-    setEditingRole(role);
-    setRoleForm(createAdminRoleForm(role));
-    setRoleDialogOpen(true);
-  };
-
-  const openDeleteRole = (role: AdminRole) => {
-    if (
-      !isCurrentOperation(operationGeneration) ||
-      roleMutationPending ||
-      esRolSistema(role.nombre)
-    ) {
-      return;
-    }
-    setRoleToDelete(role);
-  };
-
-  const saveRole = () => {
-    if (
-      !isCurrentOperation(operationGeneration) ||
-      createRole.isPending ||
-      updateRole.isPending ||
-      deleteRole.isPending
-    )
-      return;
-    const operationAccessGeneration = operationGeneration;
-    const nombre = roleForm.nombre.trim();
-    if (!nombre) {
-      toast({
-        variant: 'warning',
-        title: 'Falta el nombre del rol',
-        description: 'Ingresá un nombre antes de guardar.',
-      });
-      return;
-    }
-
-    const data: AdminRoleInput = {
-      nombre,
-      descripcion: roleForm.descripcion.trim() || null,
-      activo: roleForm.activo,
-    };
-    const onSuccess = () => {
-      if (!isCurrentOperation(operationAccessGeneration)) return;
-      setRoleDialogOpen(false);
-      void refreshRoles();
-      void refreshUsers();
-      toast({
-        variant: 'success',
-        title: editingRole ? 'Rol actualizado' : 'Rol creado',
-        description: nombre,
-      });
-    };
-
-    if (editingRole) {
-      updateRole.mutate(
-        { id: editingRole.id, data: data satisfies AdminRoleUpdate },
-        {
-          onSuccess,
-          onError: showError(
-            'No se pudo actualizar el rol',
-            operationAccessGeneration,
-          ),
-        },
-      );
-    } else {
-      createRole.mutate(
-        { data },
-        {
-          onSuccess,
-          onError: showError(
-            'No se pudo crear el rol',
-            operationAccessGeneration,
-          ),
-        },
-      );
-    }
-  };
-
-  const toggleRole = (role: AdminRole) => {
-    if (
-      !isCurrentOperation(operationGeneration) ||
-      roleMutationPending ||
-      esRolSistema(role.nombre)
-    )
-      return;
-    const operationAccessGeneration = operationGeneration;
-    updateRole.mutate(
-      { id: role.id, data: { activo: !role.activo } },
-      {
-        onSuccess: () => {
-          if (!isCurrentOperation(operationAccessGeneration)) return;
-          void refreshRoles();
-          void refreshUsers();
-          toast({
-            variant: role.activo ? 'warning' : 'success',
-            title: role.activo ? 'Rol desactivado' : 'Rol activado',
-            description: role.nombre,
-          });
-        },
-        onError: showError(
-          role.activo
-            ? 'No se pudo desactivar el rol'
-            : 'No se pudo activar el rol',
-          operationAccessGeneration,
-        ),
-      },
-    );
-  };
-
-  const confirmDeleteRole = () => {
-    if (
-      !isCurrentOperation(operationGeneration) ||
-      !roleToDelete ||
-      deleteRole.isPending ||
-      esRolSistema(roleToDelete.nombre)
-    )
-      return;
-    const operationAccessGeneration = operationGeneration;
-    const role = roleToDelete;
-    deleteRole.mutate(
-      { id: role.id },
-      {
-        onSuccess: () => {
-          if (!isCurrentOperation(operationAccessGeneration)) return;
-          setRoleToDelete(null);
-          void refreshRoles();
-          toast({
-            variant: 'success',
-            title: 'Rol eliminado',
-            description: role.nombre,
-          });
-        },
-        onError: showError(
-          'No se pudo eliminar el rol',
-          operationAccessGeneration,
-        ),
-      },
-    );
-  };
-
-  const changeRoleDialogOpen = (open: boolean) => {
-    if (
-      !isCurrentOperation(operationGeneration) ||
-      (open && roleMutationPending)
-    ) return;
-    setRoleDialogOpen(open);
-  };
-
-  const changeRoleDeleteOpen = (open: boolean) => {
-    if (!isCurrentOperation(operationGeneration) || open) return;
-    setRoleToDelete(null);
-  };
-
-  if (adminAccessState !== 'ready') {
+  if (adminAccessState !== "ready") {
     return (
       <TabsContent value="roles">
         <AdminCredentialNotice
@@ -401,14 +211,15 @@ export function AdminRolesTab({
             <AlertTriangle className="h-4 w-4" aria-hidden="true" />
             <AlertTitle>Se muestran los primeros 100 roles</AlertTitle>
             <AlertDescription>
-              Refiná la búsqueda cuando necesites localizar un rol fuera de este directorio.
+              Refiná la búsqueda cuando necesites localizar un rol fuera de este
+              directorio.
             </AlertDescription>
           </Alert>
         )}
 
         {rolesQuery.isFetching ? (
           <LoadingStatus>
-            {rolesQuery.isLoading ? 'Cargando roles' : 'Actualizando roles'}
+            {rolesQuery.isLoading ? "Cargando roles" : "Actualizando roles"}
           </LoadingStatus>
         ) : null}
 
@@ -423,16 +234,28 @@ export function AdminRolesTab({
           aria-busy={rolesQuery.isFetching}
         >
           <div className="overflow-x-auto">
-            <Table className={roleTableHasWideRows ? 'min-w-[850px]' : undefined}>
-              <TableCaption className="sr-only">Directorio de roles</TableCaption>
+            <Table
+              className={roleTableHasWideRows ? "min-w-[850px]" : undefined}
+            >
+              <TableCaption className="sr-only">
+                Directorio de roles
+              </TableCaption>
               <TableHeader className="bg-slate-50/80">
                 <TableRow>
-                  <TableHead className="w-[70px] text-xs uppercase">ID</TableHead>
+                  <TableHead className="w-[70px] text-xs uppercase">
+                    ID
+                  </TableHead>
                   <TableHead className="text-xs uppercase">Nombre</TableHead>
-                  <TableHead className="text-xs uppercase">Descripción</TableHead>
+                  <TableHead className="text-xs uppercase">
+                    Descripción
+                  </TableHead>
                   <TableHead className="text-xs uppercase">Estado</TableHead>
-                  <TableHead className="text-xs uppercase">Actualizado</TableHead>
-                  <TableHead className="w-[170px] text-right text-xs uppercase">Acciones</TableHead>
+                  <TableHead className="text-xs uppercase">
+                    Actualizado
+                  </TableHead>
+                  <TableHead className="w-[170px] text-right text-xs uppercase">
+                    Acciones
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -448,14 +271,24 @@ export function AdminRolesTab({
                   ))
                 ) : rolesQuery.isError ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-32 text-center text-sm text-destructive">
-                      <span role="alert">{adminErrorMessage(rolesQuery.error)}</span>
+                    <TableCell
+                      colSpan={6}
+                      className="h-32 text-center text-sm text-destructive"
+                    >
+                      <span role="alert">
+                        {adminErrorMessage(rolesQuery.error)}
+                      </span>
                     </TableCell>
                   </TableRow>
                 ) : visibleRoles.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-32 text-center text-sm text-muted-foreground">
-                      <span role="status">No hay roles que coincidan con los filtros.</span>
+                    <TableCell
+                      colSpan={6}
+                      className="h-32 text-center text-sm text-muted-foreground"
+                    >
+                      <span role="status">
+                        No hay roles que coincidan con los filtros.
+                      </span>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -476,14 +309,14 @@ export function AdminRolesTab({
           </div>
           <div
             className="border-t bg-slate-50/60 px-4 py-2.5 text-xs text-muted-foreground"
-            role={roleResultsAvailable ? 'status' : undefined}
-            aria-live={roleResultsAvailable ? 'polite' : undefined}
-            aria-atomic={roleResultsAvailable ? 'true' : undefined}
+            role={roleResultsAvailable ? "status" : undefined}
+            aria-live={roleResultsAvailable ? "polite" : undefined}
+            aria-atomic={roleResultsAvailable ? "true" : undefined}
           >
             {rolesQuery.isLoading
-              ? 'Cargando roles...'
+              ? "Cargando roles..."
               : rolesQuery.isError
-                ? 'No se pudieron cargar los roles.'
+                ? "No se pudieron cargar los roles."
                 : `${visibleRoles.length} de ${rolesQuery.data?.total ?? 0} roles visibles`}
           </div>
         </div>
@@ -506,20 +339,25 @@ export function AdminRolesTab({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar el rol “{roleToDelete?.nombre}”?</AlertDialogTitle>
+            <AlertDialogTitle>
+              ¿Eliminar el rol “{roleToDelete?.nombre}”?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer. Si el rol está asignado a algún usuario, el servidor impedirá
-              eliminarlo; en ese caso podés desactivarlo.
+              Esta acción no se puede deshacer. Si el rol está asignado a algún
+              usuario, el servidor impedirá eliminarlo; en ese caso podés
+              desactivarlo.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDeleteRole}
-              disabled={deleteRole.isPending}
+              disabled={isDeleteRolePending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleteRole.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              {isDeleteRolePending && (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              )}
               Eliminar rol
             </AlertDialogAction>
           </AlertDialogFooter>

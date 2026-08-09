@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — CRUD de roles administrativos desacoplado
+
+**Agente:** Codex
+**Estado:** ducentésima primera remediación de la auditoría técnica, implementada localmente.
+
+- Formularios, diálogos, alta, edición, activación, desactivación y borrado de roles pasaron a `useAdminRolesCrud.ts`; `AdminRolesTab.tsx` bajó de 530 a 353 líneas y conserva consulta versionada, filtros, URL, listado y renderizado.
+- El hook mantiene payloads y mensajes, invalida roles y usuarios cuando corresponde, protege roles del sistema y replica la granularidad original de estados pendientes. La frontera estado/versión/generación limpia borradores y observers, y cada callback tardío se descarta antes de cerrar, invalidar o notificar.
+- Aprobaron las 217 pruebas del frontend y las 4 focalizadas, ambos typechecks, ESLint, Prettier, build y `git diff --check`; una revisión independiente verificó conducta y UTF-8 sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — Intentos de elevación administrativa limitados por sesión
 
 **Agente:** Codex
