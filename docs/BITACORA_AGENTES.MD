@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Detalle de tickets desacoplado
+
+**Agente:** Codex
+**Estado:** centésima octogésima tercera remediación de la auditoría técnica, implementada localmente.
+
+- `GET /tickets/:id` pasó a `ticket-detail-handler.ts`; `tickets.ts` conserva el montaje, el guard administrativo, PATCH, eliminación y seguimientos, sin mezclar la lectura individual con las escrituras.
+- `export.csv` continúa declarado antes de `/:id` y `requireAdminForEmptyTickets` permanece inmediatamente antes del handler. Validación, mensajes, condición de acceso, consulta del ticket y orden estable del historial se trasladaron literalmente.
+- Aprobaron las 25 pruebas dirigidas de rutas de tickets, las 215 pruebas completas del backend, typecheck, ESLint, Prettier, build y `git diff --check`; la revisión independiente confirmó equivalencia, propagación async de Express 5 y ausencia de ciclos sin encontrar P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-08 — Primitiva CardFooter sin consumidores retirada
 
 **Agente:** Codex

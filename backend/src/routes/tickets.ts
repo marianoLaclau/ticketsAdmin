@@ -10,11 +10,9 @@ import {
   ticketsTable,
   type Ticket,
 } from "@workspace/db";
-import { and, asc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   DeleteTicketParams,
-  GetTicketParams,
-  GetTicketQueryParams,
   UpdateTicketParams,
   UpdateTicketQueryParams,
 } from "@workspace/api-zod";
@@ -45,6 +43,7 @@ import {
   createTicketFollowup,
   listTicketFollowups,
 } from "./ticket-followup-handlers";
+import { getTicketDetail } from "./ticket-detail-handler";
 import { listTickets } from "./ticket-list-handler";
 
 const router = Router();
@@ -97,37 +96,7 @@ router.get("/tickets", requireAdminForEmptyTickets, listTickets);
 // como un identificador de ticket.
 router.get("/tickets/export.csv", exportTicketsCsv);
 
-router.get("/tickets/:id", requireAdminForEmptyTickets, async (req, res) => {
-  const params = GetTicketParams.safeParse({ id: req.params.id });
-  const query = GetTicketQueryParams.safeParse(normalizeTicketQuery(req.query));
-  if (!params.success || !Number.isInteger(params.data.id)) {
-    res.status(400).json({ error: "Identificador de ticket inválido" });
-    return;
-  }
-  if (!query.success) {
-    res.status(400).json({ error: "Parámetros de consulta inválidos" });
-    return;
-  }
-
-  const [ticket] = await db
-    .select()
-    .from(ticketsTable)
-    .where(
-      buildTicketAccessCondition(params.data.id, query.data.incluir_vacios),
-    );
-  if (!ticket) {
-    res.status(404).json({ error: "Ticket no encontrado" });
-    return;
-  }
-
-  const seguimientos = await db
-    .select()
-    .from(seguimientosTable)
-    .where(eq(seguimientosTable.ticket_id, ticket.id))
-    .orderBy(asc(seguimientosTable.fecha_creacion), asc(seguimientosTable.id));
-
-  res.json({ ...ticket, seguimientos });
-});
+router.get("/tickets/:id", requireAdminForEmptyTickets, getTicketDetail);
 
 router.patch(
   "/tickets/:id",
