@@ -3,7 +3,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   getListAdminUsersQueryKey,
   useCreateAdminUser,
-  useResetAdminUserPassword,
   useUpdateAdminUser,
   type AdminRole,
   type AdminUser,
@@ -17,6 +16,7 @@ import {
   createRoleNameMap,
   type AdminUserFormState,
 } from "@/features/admin-directory/model";
+import { useAdminUserPasswordReset } from "@/features/admin-directory/useAdminUserPasswordReset";
 import { adminErrorMessage } from "@/hooks/use-admin-access";
 import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { useToast } from "@/hooks/use-toast";
@@ -49,19 +49,20 @@ export function useAdminUsersCrud({
 
   const createUser = useCreateAdminUser({ request });
   const updateUser = useUpdateAdminUser({ request });
-  const resetPassword = useResetAdminUserPassword({ request });
   const { reset: resetCreateUser } = createUser;
   const { reset: resetUpdateUser } = updateUser;
-  const { reset: resetUserPassword } = resetPassword;
+  const passwordReset = useAdminUserPasswordReset({
+    request,
+    adminAccessState,
+    accessVersion,
+    accessGeneration,
+  });
 
   const [userDialogOpen, setUserDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [userForm, setUserForm] = useState<AdminUserFormState>(
     createEmptyAdminUserForm,
   );
-  const [passwordUser, setPasswordUser] = useState<AdminUser | null>(null);
-  const [password, setPassword] = useState("");
-  const [repeatedPassword, setRepeatedPassword] = useState("");
   const resetAccessBoundaryRef = useRef(accessBoundary);
 
   const refreshUsers = () =>
@@ -83,75 +84,9 @@ export function useAdminUsersCrud({
     setUserDialogOpen(false);
     setEditingUser(null);
     setUserForm(createEmptyAdminUserForm());
-    setPasswordUser(null);
-    setPassword("");
-    setRepeatedPassword("");
     resetCreateUser();
     resetUpdateUser();
-    resetUserPassword();
-  }, [accessBoundary, resetCreateUser, resetUpdateUser, resetUserPassword]);
-
-  const closeResetPassword = () => {
-    setPasswordUser(null);
-    setPassword("");
-    setRepeatedPassword("");
-  };
-
-  const openResetPassword = (user: AdminUser) => {
-    if (!isCurrentOperation(operationGeneration) || resetPassword.isPending) {
-      return;
-    }
-    setPassword("");
-    setRepeatedPassword("");
-    setPasswordUser(user);
-  };
-
-  const savePassword = () => {
-    if (
-      !isCurrentOperation(operationGeneration) ||
-      !passwordUser ||
-      resetPassword.isPending
-    ) {
-      return;
-    }
-    const operationAccessGeneration = operationGeneration;
-    const passwordError = getNewPasswordError(password);
-    if (passwordError) {
-      toast({
-        variant: "warning",
-        title: "Contraseña no válida",
-        description: passwordError,
-      });
-      return;
-    }
-    if (password !== repeatedPassword) {
-      toast({
-        variant: "warning",
-        title: "Las contraseñas no coinciden",
-        description: "Revisá los dos campos de contraseña.",
-      });
-      return;
-    }
-    resetPassword.mutate(
-      { id: passwordUser.id, data: { password } },
-      {
-        onSuccess: () => {
-          if (!isCurrentOperation(operationAccessGeneration)) return;
-          closeResetPassword();
-          void refreshUsers();
-          toast({
-            variant: "success",
-            title: "Contraseña temporal asignada",
-            description: `${passwordUser.nombre} deberá reemplazarla al ingresar. Sus sesiones anteriores fueron cerradas.`,
-          });
-        },
-        onError: showError(
-          "No se pudo actualizar la contraseña",
-          operationAccessGeneration,
-        ),
-      },
-    );
-  };
+  }, [accessBoundary, resetCreateUser, resetUpdateUser]);
 
   const openCreateUser = () => {
     if (
@@ -335,21 +270,13 @@ export function useAdminUsersCrud({
     editingUser,
     userForm,
     setUserForm,
-    passwordUser,
-    password,
-    setPassword,
-    repeatedPassword,
-    setRepeatedPassword,
     userMutationPending: createUser.isPending || updateUser.isPending,
     isUserStatusTogglePending: updateUser.isPending,
-    isPasswordResetPending: resetPassword.isPending,
     openCreateUser,
     openEditUser,
     changeUserDialogOpen,
     saveUser,
     toggleUser,
-    openResetPassword,
-    closeResetPassword,
-    savePassword,
+    ...passwordReset,
   };
 }

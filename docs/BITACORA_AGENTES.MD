@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Reset de contraseñas administrativas aislado
+
+**Agente:** Codex
+**Estado:** ducentésima octava remediación de la auditoría técnica, implementada localmente.
+
+- Estado, validaciones, mutación, mensajes, invalidación y limpieza de frontera del reset de contraseña pasaron a `useAdminUserPasswordReset.ts`. `useAdminUsersCrud.ts` bajó de 355 a 282 líneas y conserva sin cambios el façade consumido por `AdminUsersTab`.
+- El hook mantiene el payload mínimo, la política de contraseñas, los estados pendientes y el guard por generación. Una regresión comprueba que un éxito tardío de la credencial anterior no cierre ni vacíe el nuevo diálogo y tampoco invalide el directorio vigente.
+- Aprobaron las 227 pruebas del frontend —180 unitarias y 47 de componentes—, ambos typechecks, ESLint, Prettier, build de 2.553 módulos y `git diff --check`. La revisión independiente cerró sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — Operaciones administrativas de tickets serializadas
 
 **Agente:** Codex

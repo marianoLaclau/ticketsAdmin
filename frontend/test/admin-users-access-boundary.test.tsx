@@ -469,3 +469,127 @@ test("ignora una creación tardía después de cambiar la frontera administrativ
   );
   assert.equal(userDirectoryRequests.length, 0);
 });
+
+test("ignora un reset de contraseña tardío después de cambiar la frontera administrativa", async (t) => {
+  const pendingPasswordResets: Array<(response: Response) => void> = [];
+  const userDirectoryRequests: string[] = [];
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = input instanceof Request ? input.url : String(input);
+      const method = (init?.method ?? "GET").toUpperCase();
+
+      if (
+        method === "POST" &&
+        url.includes(`/api/admin/users/${existingUser.id}/password`)
+      ) {
+        return new Promise<Response>((resolve) =>
+          pendingPasswordResets.push(resolve),
+        );
+      }
+      if (url.includes("/api/admin/roles")) {
+        return jsonResponse({ roles: [role], total: 1, page: 1, limit: 100 });
+      }
+      if (url.includes("/api/admin/users")) {
+        userDirectoryRequests.push(url);
+        return jsonResponse({
+          users: [existingUser],
+          total: 1,
+          page: 1,
+          limit: 10,
+        });
+      }
+      throw new Error(`Solicitud inesperada en la prueba: ${method} ${url}`);
+    },
+  );
+
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        staleTime: Number.POSITIVE_INFINITY,
+        gcTime: Number.POSITIVE_INFINITY,
+      },
+      mutations: { gcTime: Number.POSITIVE_INFINITY },
+    },
+  });
+  seedDirectoryQueries(queryClient, 1);
+  seedDirectoryQueries(queryClient, 2);
+  t.after(() => {
+    cleanup();
+    queryClient.clear();
+  });
+
+  const renderHarness = (props: HarnessProps) => (
+    <QueryClientProvider client={queryClient}>
+      <DirectoryHarness {...props} />
+    </QueryClientProvider>
+  );
+  const view = render(
+    renderHarness({
+      adminAccessState: "ready",
+      accessVersion: 1,
+      accessGeneration: 0,
+    }),
+  );
+  const browser = userEvent.setup();
+  const stalePassword = "Frase administrativa anterior 2026";
+
+  await browser.click(
+    screen.getByRole("button", {
+      name: "Asignar contraseña temporal a ana.perez",
+    }),
+  );
+  fireEvent.change(screen.getByLabelText("Nueva contraseña temporal"), {
+    target: { value: stalePassword },
+  });
+  fireEvent.change(screen.getByLabelText("Repetir contraseña temporal"), {
+    target: { value: stalePassword },
+  });
+  await browser.click(
+    screen.getByRole("button", { name: "Asignar contraseña" }),
+  );
+  await waitFor(() => assert.equal(pendingPasswordResets.length, 1));
+
+  view.rerender(
+    renderHarness({
+      adminAccessState: "pending",
+      accessVersion: 1,
+      accessGeneration: 1,
+    }),
+  );
+  view.rerender(
+    renderHarness({
+      adminAccessState: "ready",
+      accessVersion: 2,
+      accessGeneration: 1,
+    }),
+  );
+
+  const resetButton = screen.getByRole("button", {
+    name: "Asignar contraseña temporal a ana.perez",
+  });
+  await waitFor(() =>
+    assert.equal(resetButton.hasAttribute("disabled"), false),
+  );
+  await browser.click(resetButton);
+  const currentPassword = "Frase administrativa vigente 2026";
+  fireEvent.change(screen.getByLabelText("Nueva contraseña temporal"), {
+    target: { value: currentPassword },
+  });
+  userDirectoryRequests.length = 0;
+
+  await act(async () => {
+    pendingPasswordResets[0]?.(new Response(null, { status: 204 }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+
+  assert.ok(screen.getByRole("dialog"));
+  assert.equal(
+    (screen.getByLabelText("Nueva contraseña temporal") as HTMLInputElement)
+      .value,
+    currentPassword,
+  );
+  assert.equal(userDirectoryRequests.length, 0);
+});
