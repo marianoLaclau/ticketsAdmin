@@ -25,38 +25,16 @@ import {
 import { getNewPasswordPolicyError } from "../lib/new-password-policy";
 import { executeLoginKdf, loginAttemptLimiter } from "../lib/login-rate-limit";
 import { logger } from "../lib/logger";
+import {
+  AUTH_ACCOUNT_COLUMNS,
+  type AuthAccountRecord,
+} from "./auth-account-selection";
 
 const router = Router();
 
-interface LoginUserRecord {
-  id: number;
-  username: string | null;
-  nombre: string;
-  apellido: string | null;
-  email: string;
-  password_hash: string;
-  activo: boolean;
-  rol: string;
-  rol_activo: boolean;
-  debe_cambiar_password: boolean;
-}
-
-const LOGIN_USER_COLUMNS = {
-  id: usuariosTable.id,
-  username: usuariosTable.username,
-  nombre: usuariosTable.nombre,
-  apellido: usuariosTable.apellido,
-  email: usuariosTable.email,
-  password_hash: usuariosTable.password_hash,
-  activo: usuariosTable.activo,
-  rol: rolesTable.nombre,
-  rol_activo: rolesTable.activo,
-  debe_cambiar_password: usuariosTable.debe_cambiar_password,
-};
-
 type LoginTransactionResult =
-  | { kind: "authenticated"; user: LoginUserRecord }
-  | { kind: "hash_changed"; user: LoginUserRecord }
+  | { kind: "authenticated"; user: AuthAccountRecord }
+  | { kind: "hash_changed"; user: AuthAccountRecord }
   | { kind: "invalid" };
 
 const LOGIN_RATE_LIMIT_ERROR = {
@@ -126,7 +104,7 @@ router.post("/auth/login", async (req, res) => {
   });
 
   const [user] = await db
-    .select(LOGIN_USER_COLUMNS)
+    .select(AUTH_ACCOUNT_COLUMNS)
     .from(usuariosTable)
     .innerJoin(rolesTable, eq(usuariosTable.role_id, rolesTable.id))
     .where(eq(usuariosTable.username, usuarioNormalizado));
@@ -158,11 +136,11 @@ router.post("/auth/login", async (req, res) => {
 
   const token = randomBytes(32).toString("hex");
   const tokenHash = hashSessionToken(token);
-  let candidate: LoginUserRecord = {
+  let candidate: AuthAccountRecord = {
     ...user,
     password_hash: user.password_hash,
   };
-  let authenticatedUser: LoginUserRecord | null = null;
+  let authenticatedUser: AuthAccountRecord | null = null;
 
   // Dos logins pueden verificar a la vez el mismo hash legado. El primero lo
   // migra; el segundo vuelve a verificar una sola vez el hash nuevo en lugar
@@ -186,7 +164,7 @@ router.post("/auth/login", async (req, res) => {
       // relee el estado y se exige el mismo hash, evitando que un reset
       // concurrente termine autenticando la contraseña anterior.
       const current = tx
-        .select(LOGIN_USER_COLUMNS)
+        .select(AUTH_ACCOUNT_COLUMNS)
         .from(usuariosTable)
         .innerJoin(rolesTable, eq(usuariosTable.role_id, rolesTable.id))
         .where(eq(usuariosTable.id, candidate.id))
@@ -201,7 +179,7 @@ router.post("/auth/login", async (req, res) => {
         return { kind: "invalid" };
       }
 
-      const stableCurrent: LoginUserRecord = {
+      const stableCurrent: AuthAccountRecord = {
         ...current,
         password_hash: current.password_hash,
       };
@@ -348,7 +326,7 @@ router.post("/auth/password", async (req, res) => {
   const result = db.transaction((tx) => {
     const current = tx
       .select({
-        ...LOGIN_USER_COLUMNS,
+        ...AUTH_ACCOUNT_COLUMNS,
         session_expires_at: sesionesTable.fecha_expiracion,
       })
       .from(sesionesTable)

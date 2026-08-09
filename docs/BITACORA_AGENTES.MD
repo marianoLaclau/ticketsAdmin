@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Proyección de cuenta autenticable centralizada
+
+**Agente:** Codex
+**Estado:** centésima octogésima quinta remediación de la auditoría técnica, implementada localmente.
+
+- Las diez columnas y el tipo usados para autenticar y revalidar una cuenta pasaron a `auth-account-selection.ts`; login y cambio propio de contraseña consumen ahora una única proyección neutral.
+- El módulo nuevo sólo depende de las tablas de usuarios y roles, no ejecuta consultas ni importa el router. Así prepara la separación de handlers sin duplicar aliases ni crear el ciclo `auth.ts → handler → auth.ts`.
+- Aprobaron las 56 pruebas RBAC dirigidas, las 215 pruebas completas del backend, typecheck, ESLint, Prettier, build y `git diff --check`; la revisión independiente confirmó equivalencia exacta de campos, tipos y grafo sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — Paginación del directorio de usuarios desacoplada
 
 **Agente:** Codex
