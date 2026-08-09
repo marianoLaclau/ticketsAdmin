@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Política pura de elevación administrativa definida
+
+**Agente:** Codex
+**Estado:** centésima nonagésima séptima remediación de la auditoría técnica, implementada localmente.
+
+- `admin-elevation.ts` define una elevación absoluta de quince minutos, siempre acotada por el vencimiento de la sesión. Fechas inválidas, sesión vencida, campos nulos, elevación vencida o posterior a la sesión y configuración ausente fallan de forma cerrada.
+- La API key se transforma en una huella SHA-256 versionada y separada por dominio; el grant persistible sólo contiene vencimiento y fingerprint. Una rotación invalida elevaciones previas y la comparación valida primero el formato fijo y luego usa `timingSafeEqual` sobre los digests.
+- Aprobaron las 6 pruebas focalizadas, typecheck backend, ESLint y Prettier; la revisión independiente verificó TTL, bordes temporales, cap de sesión, rotación y ausencia de filtraciones sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — Contrato TypeScript strict global activado
 
 **Agente:** Codex
