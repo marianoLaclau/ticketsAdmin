@@ -101,7 +101,7 @@ async function main() {
     console.warn(`⚠ Columnas sin mapear (se ignoran): ${sinMapear.join(", ")}`);
   }
   if (![...columnas.values()].includes("conversation_id")) {
-    console.error("✗ No se encontró ninguna columna que mapee a conversation_id. Ajustá HEADER_ALIASES en lib/ingesta/src/index.ts");
+    console.error("✗ No se encontró ninguna columna que mapee a conversation_id. Ajustá HEADER_ALIASES en lib/ingesta/src/headers.ts");
     process.exit(1);
   }
 

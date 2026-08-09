@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Ingesta compartida modularizada
+
+**Agente:** Codex
+**Estado:** ducentésima novena remediación de la auditoría técnica, implementada localmente.
+
+- El antiguo monolito de `lib/ingesta/src/index.ts` se dividió por responsabilidad en fechas y horas, CSV, encabezados, tipos y mapeo de filas. `index.ts` quedó como un barrel público de 28 líneas; motivos, SLA y Serin continúan en sus módulos previos.
+- Se preservaron exactamente los 29 exports runtime, los seis exports de tipo, todas las firmas y el comportamiento de los consumidores. No se introdujeron ciclos, imports profundos externos ni nuevas superficies del paquete; el mensaje del importador Excel ahora señala el módulo real de `HEADER_ALIASES`.
+- Aprobaron 48 pruebas, typecheck de ingesta/backend/scripts, ESLint, Prettier de los seis archivos y `git diff --check`. La revisión diferencial comparó miles de CSV, fechas, encabezados y filas contra HEAD y cerró sin P0/P1/P2; su único P3 documental quedó corregido. No se hizo push.
+
 ## 2026-08-09 — Reset de contraseñas administrativas aislado
 
 **Agente:** Codex
