@@ -3,8 +3,6 @@ import { db, rolesTable, sesionesTable, usuariosTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import {
   CreateAdminUserBody,
-  ResetAdminUserPasswordBody,
-  ResetAdminUserPasswordParams,
   UpdateAdminUserBody,
   UpdateAdminUserParams,
 } from "@workspace/api-zod";
@@ -20,6 +18,7 @@ import {
   normalizeRequiredText,
   readPasswordFromBody,
 } from "./admin-route-helpers";
+import { resetAdminUserPassword } from "./admin-user-password-handler";
 import { listAdminUsers } from "./admin-user-list-handler";
 import { PUBLIC_ADMIN_USER_COLUMNS } from "./admin-user-public-columns";
 
@@ -316,57 +315,6 @@ router.patch("/:id", async (req, res) => {
 
 // Establecer/reestablecer la contraseña de un usuario. Revoca todas sus
 // sesiones activas: si estaba logueado, queda afuera hasta usar la clave nueva.
-router.post("/:id/password", async (req, res) => {
-  const params = ResetAdminUserPasswordParams.safeParse({ id: req.params.id });
-  if (!params.success || !Number.isInteger(params.data.id)) {
-    res.status(400).json({ error: "Invalid id" });
-    return;
-  }
-  const passwordPolicyError = getNewPasswordPolicyError(
-    readPasswordFromBody(req.body),
-  );
-  if (passwordPolicyError) {
-    res.status(400).json({ error: passwordPolicyError });
-    return;
-  }
-  const body = ResetAdminUserPasswordBody.safeParse(req.body);
-  if (!body.success) {
-    res.status(400).json({ error: "Invalid body" });
-    return;
-  }
-
-  const passwordHash = await hashPassword(body.data.password);
-  const updated = db.transaction((tx) => {
-    const current = tx
-      .select({ username: usuariosTable.username })
-      .from(usuariosTable)
-      .where(eq(usuariosTable.id, params.data.id))
-      .get();
-    if (!current) return { kind: "not_found" } as const;
-
-    const result = tx
-      .update(usuariosTable)
-      .set({
-        password_hash: passwordHash,
-        debe_cambiar_password: true,
-        fecha_actualizacion: new Date(),
-      })
-      .where(eq(usuariosTable.id, params.data.id))
-      .run();
-    if (result.changes !== 1) return { kind: "not_found" } as const;
-    tx.delete(sesionesTable)
-      .where(eq(sesionesTable.usuario_id, params.data.id))
-      .run();
-    return { kind: "updated", username: current.username } as const;
-  });
-  if (updated.kind === "not_found") {
-    res.status(404).json({ error: "Usuario no encontrado" });
-    return;
-  }
-  revokeEventClientsForUsers([params.data.id]);
-  if (updated.username) loginAttemptLimiter.reset(updated.username);
-
-  res.status(204).end();
-});
+router.post("/:id/password", resetAdminUserPassword);
 
 export default router;

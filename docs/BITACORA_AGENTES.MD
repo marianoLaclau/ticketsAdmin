@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Reset administrativo de contraseña desacoplado
+
+**Agente:** Codex
+**Estado:** centésima nonagésima tercera remediación de la auditoría técnica, implementada localmente.
+
+- El restablecimiento de contraseña de usuarios pasó a `admin-user-password-handler.ts`; `admin-users.ts` bajó de 376 a 320 líneas y quedó limitado a registrar la ruta junto con el resto del CRUD.
+- Se preservaron literalmente el orden de validación, el KDF previo, la actualización de hash y flag y la revocación de sesiones dentro de la transacción, además del cierre SSE y la limpieza del limitador posteriores al commit. El guard SysAdmin y la clave administrativa permanecen en el router padre.
+- Aprobaron las 58 pruebas RBAC dirigidas, typecheck, ESLint, Prettier y `git diff --check`; una revisión independiente verificó equivalencia funcional sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — CRUD de usuarios administrativos desacoplado
 
 **Agente:** Codex
