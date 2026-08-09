@@ -10,6 +10,41 @@ const typedSourceFiles = [
   'lib/*/src/**/*.{ts,tsx}',
 ];
 
+const typedTestFiles = [
+  'backend/test/**/*.ts',
+  'frontend/test/**/*.{ts,tsx}',
+  'scripts/test/**/*.ts',
+  'lib/*/test/**/*.{ts,tsx}',
+];
+
+const promiseSafetyRules = {
+  '@typescript-eslint/await-thenable': 'error',
+  '@typescript-eslint/no-floating-promises': [
+    'error',
+    {
+      // node:test owns the lifecycle of registered suites, cases and hooks.
+      // Their returned promises are intentionally consumed by the runner.
+      allowForKnownSafeCalls: [
+        {
+          from: 'package',
+          package: 'node:test',
+          name: [
+            'after',
+            'afterEach',
+            'before',
+            'beforeEach',
+            'describe',
+            'it',
+            'suite',
+            'test',
+          ],
+        },
+      ],
+    },
+  ],
+  '@typescript-eslint/no-misused-promises': 'error',
+};
+
 export default defineConfig(
   globalIgnores([
     '**/node_modules/**',
@@ -52,11 +87,24 @@ export default defineConfig(
         tsconfigRootDir: import.meta.dirname,
       },
     },
-    rules: {
-      '@typescript-eslint/await-thenable': 'error',
-      '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/no-misused-promises': 'error',
+    rules: promiseSafetyRules,
+  },
+  {
+    files: typedTestFiles,
+    languageOptions: {
+      parserOptions: {
+        project: [
+          './backend/tsconfig.test.json',
+          './frontend/tsconfig.test.json',
+          './scripts/tsconfig.test.json',
+          './lib/db/tsconfig.test.json',
+          './lib/ingesta/tsconfig.test.json',
+          './lib/password-policy/tsconfig.test.json',
+        ],
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
+    rules: promiseSafetyRules,
   },
   {
     files: ['frontend/src/**/*.{ts,tsx}'],

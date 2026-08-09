@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Promesas de todas las pruebas auditadas por ESLint
+
+**Agente:** Codex
+**Estado:** ducentésima cuarta remediación de la auditoría técnica, implementada localmente.
+
+- ESLint carga los seis proyectos TypeScript de tests y aplica `await-thenable`, `no-floating-promises` y `no-misused-promises` a backend, frontend, librerías y scripts. Los 103 archivos actuales quedan cubiertos exactamente una vez, sin programas mezclados ni artefactos emitidos.
+- La única excepción tipada permite que `node:test` sea dueño de las promesas devueltas al registrar suites, casos y hooks; está ligada al paquete y sus nombres de lifecycle, por lo que funciones locales homónimas y cualquier otra promesa flotante continúan fallando.
+- El lint de los seis árboles aprobó en 35,9 segundos. Una prueba de configuración confirmó que dos promesas arbitrarias son rechazadas y sólo el registro real de `node:test` es admitido; la revisión independiente cerró sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — Rechazos de sesión y SysAdmin estabilizados
 
 **Agente:** Codex
