@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — CRUD administrativo de tickets desacoplado
+
+**Agente:** Codex
+**Estado:** ducentésima quinta remediación de la auditoría técnica, implementada localmente.
+
+- Creación, edición, borrado, formularios, caché versionada, conflictos, recarga e invalidaciones pasaron a `useAdminTicketsCrud.ts`; `AdminTicketsTab.tsx` quedó en 205 líneas y conserva consulta, listado, filtros, URL, orden y composición.
+- Cuatro pruebas de componente fijan payloads y `RequestInit`, no-op, caché e invalidaciones, conflicto y reintento con nueva versión, purga de frontera y respuestas tardías de mutación o recarga. Se preservaron `incluir_vacios`, PATCH mínimo y rechazo de revisiones antiguas.
+- Aprobaron las 221 pruebas del frontend, ambos typechecks, ESLint, Prettier, build y `git diff --check`. La auditoría confirmó extracción fiel sin regresiones P0/P1 y aisló una carrera P2 preexistente dentro de la misma generación para el microcorte inmediato siguiente; no se mezcló con este refactor. No se hizo push.
+
 ## 2026-08-09 — Promesas de todas las pruebas auditadas por ESLint
 
 **Agente:** Codex
