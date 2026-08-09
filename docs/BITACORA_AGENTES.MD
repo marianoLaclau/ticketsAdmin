@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Intentos de elevación administrativa limitados por sesión
+
+**Agente:** Codex
+**Estado:** ducentésima remediación de la auditoría técnica, implementada localmente.
+
+- `AdminElevationRateLimiter` especializa el limitador concurrente ya probado: admite cinco fallos confirmados por sesión en una ventana de quince minutos y bloquea el sexto durante otros quince, con una capacidad estricta de 20.000 sesiones.
+- Sólo acepta el hash versionado de una sesión; nunca recibe el token ni la API key crudos. Las reservas pendientes cierran carreras paralelas, `refund` no suma un fallo y `resetSession` limpia contador y bloqueo después de una validación correcta.
+- Aprobaron las 6 pruebas focalizadas, typecheck de fuente y tests backend, ESLint, Prettier y `git diff --check`; la revisión independiente verificó ventanas exactas, aislamiento, capacidad e identidades sin P0/P1/P2/P3. No se hizo push.
+
 ## 2026-08-09 — Todas las pruebas incorporadas al sistema de tipos
 
 **Agente:** Codex
