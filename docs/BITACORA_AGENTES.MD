@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Elevación administrativa modelada en el frontend
+
+**Agente:** Codex
+**Estado:** ducentésima décima cuarta remediación de la auditoría técnica, implementada localmente.
+
+- Se incorporó un hook de elevación ligado al SysAdmin confirmado y con contraseña definitiva. Consulta el grant por identidad, presenta la API key únicamente en el body de un POST directo —fuera de MutationCache, queries, storage, estado y headers reutilizables— y expone después sólo la intención fija no secreta `x-admin-intent: 1`.
+- Elevación, revocación, expiración y cambios de identidad se serializan mediante lock, `AbortController`, secuencia y frontera confirmada en fase de commit. Los GET de foco o recarga validan identidad y generación, quedan deshabilitados durante acciones y no pueden pisar un POST confirmado ni restaurar una revocación; hasta confirmar la frontera la salida falla cerrada.
+- Doce regresiones cubren Strict Mode, estabilidad entre renders, recarga activa, ausencia total del secreto, errores 401/429/503, doble submit, expiración determinista, A→B→A y carreras GET/POST y GET/DELETE. Aprobaron las pruebas focalizadas, typecheck del hook y sus tests, ESLint, Prettier y `git diff --check`; la reauditoría independiente cerró sin P0/P1/P2. No se hizo push.
+
 ## 2026-08-09 — Credenciales administrativas legacy purgadas al iniciar
 
 **Agente:** Codex
