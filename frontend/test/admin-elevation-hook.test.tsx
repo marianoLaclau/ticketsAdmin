@@ -70,11 +70,15 @@ interface HookProbe {
   rerender: () => void;
 }
 
-function renderHookProbe(queryClient: QueryClient, strict = false): HookProbe {
+function renderHookProbe(
+  queryClient: QueryClient,
+  strict = false,
+  enabled = true,
+): HookProbe {
   let latest: AdminElevationAccess | null = null;
 
   function Probe() {
-    latest = useAdminElevation();
+    latest = useAdminElevation({ enabled });
     return null;
   }
 
@@ -699,6 +703,23 @@ test("no consulta ni eleva con contraseña temporal o identidad no SysAdmin", as
   const probe = renderHookProbe(queryClient);
 
   assert.equal(probe.current.state, "missing");
+  assert.equal(await probe.current.elevate("no-debe-enviarse"), false);
+  assert.equal(fetchMock.mock.callCount(), 0);
+});
+
+test("permite desactivar la elevación en pantallas operativas", async (t) => {
+  const fetchMock = t.mock.method(globalThis, "fetch", async () =>
+    jsonResponse(INACTIVE),
+  );
+  const queryClient = createQueryClient();
+  t.after(() => {
+    cleanup();
+    queryClient.clear();
+  });
+
+  const probe = renderHookProbe(queryClient, false, false);
+  await waitFor(() => assert.equal(probe.current.state, "missing"));
+  assert.deepEqual(probe.current.adminRequest, {});
   assert.equal(await probe.current.elevate("no-debe-enviarse"), false);
   assert.equal(fetchMock.mock.callCount(), 0);
 });

@@ -34,6 +34,10 @@ export interface AdminElevationAccess {
   readonly accessGeneration: number;
 }
 
+interface UseAdminElevationOptions {
+  readonly enabled?: boolean;
+}
+
 const INACTIVE_ELEVATION = Object.freeze({
   active: false,
   expires_at: null,
@@ -76,7 +80,9 @@ interface OperationContext {
  * React. La clave existe solamente como argumento local mientras se construye
  * el POST de elevación; las operaciones posteriores usan una intención fija.
  */
-export function useAdminElevation(): AdminElevationAccess {
+export function useAdminElevation(
+  { enabled = true }: UseAdminElevationOptions = {},
+): AdminElevationAccess {
   const queryClient = useQueryClient();
   const meQuery = useGetMe({
     query: {
@@ -91,6 +97,7 @@ export function useAdminElevation(): AdminElevationAccess {
     fetchStatus: meQuery.fetchStatus,
   });
   const eligibleUserId =
+    enabled &&
     confirmedUser?.rol === ROL_SYSADMIN &&
     confirmedUser.debe_cambiar_password === false
       ? confirmedUser.id

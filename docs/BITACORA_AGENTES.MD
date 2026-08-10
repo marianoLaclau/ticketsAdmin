@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Elevación administrativa aislada del modo operativo
+
+**Agente:** Codex
+**Estado:** ducentésima décima quinta remediación de la auditoría técnica, implementada localmente.
+
+- El hook de elevación admite ahora una habilitación explícita para que pantallas compartidas entre rutas operativas y administrativas puedan conservar el orden estable de hooks sin consultar ni elevar una sesión desde el modo común.
+- Con la opción deshabilitada la frontera permanece cerrada, no expone headers, rechaza cualquier intento programático de elevación y no ejecuta requests aunque el usuario confirmado sea SysAdmin.
+- Aprobaron las 13 regresiones focalizadas del hook, incluida la nueva separación operativa, y `git diff --check`. No se hizo push.
+
 ## 2026-08-09 — Elevación administrativa modelada en el frontend
 
 **Agente:** Codex
