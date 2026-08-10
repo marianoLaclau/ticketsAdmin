@@ -207,6 +207,50 @@ test("un unico lock abarca baseline, backup, freshness, rollout y smoke", () => 
   );
 });
 
+test("acota healthz al baseline legacy autorizado y conserva readyz estricto", () => {
+  const legacySmoke = shellFunction("smoke_legacy_baseline");
+  const readySmoke = shellFunction("smoke_services");
+  const baselineSmoke = shellFunction("smoke_captured_baseline");
+  const rollback = shellFunction("rollback_application");
+  const main = shellFunction("main");
+
+  assert.match(legacySmoke, /BASELINE_RELEASE_ID/);
+  assert.match(legacySmoke, /legacy-unversioned-adoption/);
+  assert.match(legacySmoke, /ALLOW_LEGACY_ADOPTION/);
+  assert.match(legacySmoke, /127\.0\.0\.1:5000\/api\/healthz/);
+  assert.match(legacySmoke, /127\.0\.0\.1:3000\/api\/healthz/);
+  assert.match(legacySmoke, /\{"status":"ok"\}/);
+  assert.doesNotMatch(legacySmoke, /\/api\/readyz/);
+
+  assert.match(readySmoke, /127\.0\.0\.1:5000\/api\/readyz/);
+  assert.match(readySmoke, /127\.0\.0\.1:3000\/api\/readyz/);
+  assert.match(readySmoke, /\{"status":"ready"\}/);
+  assert.doesNotMatch(readySmoke, /\/api\/healthz/);
+
+  assert.match(baselineSmoke, /BASELINE_RELEASE_ID/);
+  assert.match(baselineSmoke, /legacy-unversioned-adoption/);
+  assert.match(baselineSmoke, /smoke_legacy_baseline/);
+  assert.match(baselineSmoke, /smoke_services/);
+  assert.match(rollback, /smoke_services/);
+  assert.doesNotMatch(rollback, /smoke_legacy_baseline/);
+
+  assertPatternsInOrder(
+    main,
+    [
+      /capture_baseline/,
+      /assert_ledger_matches_captured_baseline/,
+      /authorize_baseline_transition/,
+      /smoke_captured_baseline/,
+      /create_predeploy_backup/,
+      /register_pending_release/,
+      /deploy_candidates/,
+      /verify_deployed_release/,
+      /smoke_services/,
+    ],
+    "la autorizacion y el checkpoint deben preceder toda mutacion candidata",
+  );
+});
+
 test("confirma imagenes, topologia y volumen despues del rollout", () => {
   const verification = shellFunction("verify_running_release");
   const candidateVerification = shellFunction("verify_deployed_release");
@@ -378,6 +422,8 @@ test("calcula el epoch de base desde la cadena Git y gatea la adopcion legacy", 
       /revalidate_candidates/,
       /capture_baseline/,
       /authorize_baseline_transition/,
+      /smoke_captured_baseline/,
+      /create_predeploy_backup/,
       /deploy_candidates/,
     ],
     "los contratos y la autorizacion deben resolverse antes de mutar servicios",

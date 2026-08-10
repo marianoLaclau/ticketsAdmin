@@ -110,6 +110,7 @@ const legacyBaseline = process.env.FAKE_LEGACY_BASELINE === "true";
 const preLedgerBaseline = process.env.FAKE_PRE_LEDGER_BASELINE === "true";
 const omitComposeSecret = process.env.FAKE_OMIT_COMPOSE_SECRET === "true";
 const candidateSucceeds = process.env.FAKE_CANDIDATE_SUCCEEDS === "true";
+const candidateReadinessFails = process.env.FAKE_CANDIDATE_READINESS_FAILS === "true";
 const failRuntimeRead = process.env.FAKE_FAIL_RUNTIME_READ === "true";
 const preLedgerBaselineRelease = "git-" + "9".repeat(40) + "-run-123-1";
 const candidateBackend = process.env.FAKE_CANDIDATE_BACKEND;
@@ -165,7 +166,12 @@ if (command === "git") {
 if (command === "curl") {
   const url = args[args.length - 1];
   if (url === "http://127.0.0.1:3000/") output('<div id="root"></div>');
-  else if (url.endsWith("/api/readyz")) output('{"status":"ready"}');
+  else if (url.endsWith("/api/healthz")) output('{"status":"ok"}');
+  else if (url.endsWith("/api/readyz")) {
+    if (legacyBaseline && state.phase === "baseline") fail("legacy baseline has no readyz");
+    if (candidateReadinessFails && state.phase === "candidate-active") fail("candidate readyz failed");
+    output('{"status":"ready"}');
+  }
   else fail("unsupported fake curl URL");
   process.exit(0);
 }
@@ -820,6 +826,7 @@ function runMainScenario(
   legacyBaseline: boolean,
   options: {
     candidateSucceeds?: boolean;
+    candidateReadinessFails?: boolean;
     composeDriftAfterConfigs?: number;
     corruptLedger?: boolean;
     failRuntimeRead?: boolean;
@@ -1097,6 +1104,9 @@ function runMainScenario(
         FAKE_PRE_LEDGER_BASELINE: String(options.preLedgerBaseline ?? false),
         FAKE_OMIT_COMPOSE_SECRET: String(options.omitComposeSecret ?? false),
         FAKE_CANDIDATE_SUCCEEDS: String(options.candidateSucceeds ?? false),
+        FAKE_CANDIDATE_READINESS_FAILS: String(
+          options.candidateReadinessFails ?? false,
+        ),
         FAKE_FAIL_RUNTIME_READ: String(options.failRuntimeRead ?? false),
         FAKE_CANDIDATE_BACKEND: candidateBackend,
         FAKE_CANDIDATE_FRONTEND: candidateFrontend,
@@ -1259,6 +1269,18 @@ test(
       assert.equal(scenario.outputs.rollback_attempted, "false");
       assert.equal(scenario.outputs.rollback_status, "not-needed");
       assert.equal(scenario.outputs.rollback_eligible, "true");
+      const curlUrls = scenario.events
+        .filter((event) => event.command === "curl")
+        .map((event) => event.args.at(-1));
+      assert.equal(
+        curlUrls.some((url) => url?.endsWith("/api/healthz")),
+        false,
+        "un baseline administrado o la candidata no deben usar healthz",
+      );
+      assert.ok(
+        curlUrls.some((url) => url?.endsWith("/api/readyz")),
+        "el baseline administrado y la candidata deben exigir readyz",
+      );
       const published = readdirSync(scenario.backupDirectory);
       assert.equal(published.filter((name) => name.endsWith(".db")).length, 1);
       assert.equal(
@@ -1290,6 +1312,11 @@ test(
         scenario.initialState.volumeId,
       );
       assert.deepEqual(readdirSync(scenario.backupDirectory), []);
+      assert.equal(
+        scenario.events.filter((event) => event.command === "curl").length,
+        0,
+        "la adopcion legacy no autorizada debe fallar antes de sus smokes",
+      );
       assert.match(
         scenario.result.stderr,
         /transicion requiere autorizacion explicita/,
@@ -1355,6 +1382,70 @@ test(
       assert.equal(scenario.result.status, 1, scenario.result.stderr);
       assert.equal(scenario.events.filter(isComposeUp).length, 1);
       assert.equal(scenario.finalState.phase, "candidate-partial");
+      assert.equal(scenario.outputs.rollback_attempted, "false");
+      assert.equal(scenario.outputs.rollback_status, "ineligible-baseline");
+      const baselineCurlUrls = scenario.events
+        .filter(
+          (event) => event.command === "curl" && event.phase === "baseline",
+        )
+        .map((event) => event.args.at(-1));
+      assert.deepEqual(baselineCurlUrls, [
+        "http://127.0.0.1:5000/api/healthz",
+        "http://127.0.0.1:3000/",
+        "http://127.0.0.1:3000/api/healthz",
+      ]);
+      const backupIndex = scenario.events.findIndex(
+        (event) =>
+          event.command === "docker" &&
+          event.args[0] === "exec" &&
+          event.args.includes("/app/dist/backup-db.mjs"),
+      );
+      const composeUpIndex = scenario.events.findIndex(isComposeUp);
+      assert.ok(backupIndex >= 0 && composeUpIndex > backupIndex);
+      const published = readdirSync(scenario.backupDirectory);
+      assert.equal(published.filter((name) => name.endsWith(".db")).length, 1);
+      assert.equal(
+        published.filter((name) => name.endsWith(".manifest.json")).length,
+        1,
+      );
+      assertNoDataRollbackOrBroadTeardown(scenario.events);
+    } finally {
+      scenario.cleanup();
+    }
+  },
+);
+
+test(
+  "la candidata nunca cae a healthz si su readyz falla tras adoptar legacy",
+  { skip: process.platform === "win32" },
+  () => {
+    const scenario = runMainScenario(true, {
+      candidateReadinessFails: true,
+      candidateSucceeds: true,
+      releaseArgs: [
+        "--allow-legacy-adoption",
+        "--expected-baseline-release",
+        "legacy-unversioned-adoption",
+        "--expected-baseline-backend-image-id",
+        baselineBackendImageId,
+        "--expected-baseline-frontend-image-id",
+        baselineFrontendImageId,
+      ],
+    });
+    try {
+      assert.equal(scenario.result.status, 1);
+      assert.match(
+        scenario.result.stderr,
+        /readiness directa del backend fallo/,
+      );
+      const candidateCurlUrls = scenario.events
+        .filter(
+          (event) =>
+            event.command === "curl" && event.phase === "candidate-active",
+        )
+        .map((event) => event.args.at(-1));
+      assert.deepEqual(candidateCurlUrls, ["http://127.0.0.1:5000/api/readyz"]);
+      assert.equal(scenario.events.filter(isComposeUp).length, 1);
       assert.equal(scenario.outputs.rollback_attempted, "false");
       assert.equal(scenario.outputs.rollback_status, "ineligible-baseline");
       assertNoDataRollbackOrBroadTeardown(scenario.events);

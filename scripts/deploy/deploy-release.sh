@@ -1791,6 +1791,20 @@ rollback_application() {
   )
 }
 
+smoke_legacy_baseline() {
+  local spa
+
+  [[ "$BASELINE_RELEASE_ID" == "legacy-unversioned-adoption" &&
+    "$ALLOW_LEGACY_ADOPTION" == "true" ]] ||
+    die "el smoke healthz solo esta permitido para una adopcion legacy autorizada"
+  [[ "$(curl -fsS --max-time 5 http://127.0.0.1:5000/api/healthz)" == '{"status":"ok"}' ]] ||
+    die "health historico directo del backend fallo"
+  spa="$(curl -fsS --max-time 5 http://127.0.0.1:3000/)" || die "la SPA historica no respondio"
+  grep -Fq '<div id="root"></div>' <<<"$spa" || die "el frontend historico no sirvio la SPA esperada"
+  [[ "$(curl -fsS --max-time 5 http://127.0.0.1:3000/api/healthz)" == '{"status":"ok"}' ]] ||
+    die "health historico del backend a traves de Nginx fallo"
+}
+
 smoke_services() {
   local spa
   [[ "$(curl -fsS --max-time 5 http://127.0.0.1:5000/api/readyz)" == '{"status":"ready"}' ]] ||
@@ -1799,6 +1813,14 @@ smoke_services() {
   grep -Fq '<div id="root"></div>' <<<"$spa" || die "el frontend no sirvio la SPA esperada"
   [[ "$(curl -fsS --max-time 5 http://127.0.0.1:3000/api/readyz)" == '{"status":"ready"}' ]] ||
     die "readiness del backend a traves de Nginx fallo"
+}
+
+smoke_captured_baseline() {
+  if [[ "$BASELINE_RELEASE_ID" == "legacy-unversioned-adoption" ]]; then
+    smoke_legacy_baseline
+  else
+    smoke_services
+  fi
 }
 
 write_output() {
@@ -1833,11 +1855,11 @@ main() {
   fi
   revalidate_candidates
   capture_baseline
-  if [[ "$FIRST_DEPLOY" != "true" ]]; then
-    smoke_services
-  fi
   assert_ledger_matches_captured_baseline
   authorize_baseline_transition
+  if [[ "$FIRST_DEPLOY" != "true" ]]; then
+    smoke_captured_baseline
+  fi
   assert_fresh_main
   create_predeploy_backup
   assert_fresh_main
