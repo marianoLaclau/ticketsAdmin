@@ -1,4 +1,4 @@
-export const NEW_PASSWORD_MIN_LENGTH = 16;
+export const NEW_PASSWORD_MIN_LENGTH = 8;
 export const LOGIN_PASSWORD_MIN_LENGTH = 1;
 export const PASSWORD_MAX_LENGTH = 128;
 export const NEW_PASSWORD_MAX_LENGTH = PASSWORD_MAX_LENGTH;
@@ -14,6 +14,22 @@ export type NewPasswordViolation =
 // placeholders y patrones obvios del sistema. No pretende reemplazar un
 // servicio de contraseñas filtradas ni imponer reglas de composición.
 export const BLOCKED_NEW_PASSWORDS = [
+  // Cortas y obvias. Entraron con el mínimo de 8: la lista original asumía
+  // 16 caracteres, así que ninguna de estas llegaba a ser representable.
+  "12345678",
+  "123456789",
+  "1234567890",
+  "admin123",
+  "adminadmin",
+  "contrasena",
+  "contraseña",
+  "gsbtickets",
+  "password",
+  "password1",
+  "qwertyui",
+  "sysadmin",
+  "ticketmanager",
+  // Largas, de la política anterior.
   "1234567890123456",
   "adminadminadminadmin",
   "administradoradministrador",

@@ -22,8 +22,14 @@ describe("política compartida de contraseñas nuevas", () => {
   });
 
   it("distingue longitud y espacios exteriores", () => {
-    assert.equal(getNewPasswordViolation("a".repeat(15)), "too_short");
-    assert.equal(getNewPasswordViolation("a".repeat(129)), "too_long");
+    assert.equal(
+      getNewPasswordViolation(boundaryPassword(NEW_PASSWORD_MIN_LENGTH - 1)),
+      "too_short",
+    );
+    assert.equal(
+      getNewPasswordViolation(boundaryPassword(NEW_PASSWORD_MAX_LENGTH + 1)),
+      "too_long",
+    );
     assert.equal(
       getNewPasswordViolation(" Frase-larga-y-segura-2026"),
       "outer_whitespace",

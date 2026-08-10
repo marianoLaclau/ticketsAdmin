@@ -1620,7 +1620,7 @@ components:
 
     NewPassword:
       type: string
-      minLength: 16
+      minLength: 8
       maxLength: 128
       pattern: '^(?![\s\S]*[\x00-\x1F\x7F])\S(?:[\s\S]*\S)?$'
       writeOnly: true

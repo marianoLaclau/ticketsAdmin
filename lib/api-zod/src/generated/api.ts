@@ -157,7 +157,7 @@ export const LoginResponse = zod.object({
  */
 export const changeOwnPasswordBodyPasswordActualMax = 128;
 
-export const changeOwnPasswordBodyPasswordNuevaMin = 16;
+export const changeOwnPasswordBodyPasswordNuevaMin = 8;
 export const changeOwnPasswordBodyPasswordNuevaMax = 128;
 
 
@@ -570,7 +570,7 @@ export const createAdminUserBodyUsernameMax = 60;
 
 
 export const createAdminUserBodyUsernameRegExp = new RegExp('^\\S+$');
-export const createAdminUserBodyPasswordMin = 16;
+export const createAdminUserBodyPasswordMin = 8;
 export const createAdminUserBodyPasswordMax = 128;
 
 
@@ -667,7 +667,7 @@ export const ResetAdminUserPasswordParams = zod.object({
   "id": zod.coerce.number().min(1)
 })
 
-export const resetAdminUserPasswordBodyPasswordMin = 16;
+export const resetAdminUserPasswordBodyPasswordMin = 8;
 export const resetAdminUserPasswordBodyPasswordMax = 128;
 
 

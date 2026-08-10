@@ -180,7 +180,7 @@ export interface TicketVersionConflict {
 
 /**
  * Contraseña nueva sin caracteres de control, espacios exteriores ni claves comunes, repetitivas o de ejemplo. Se persiste únicamente como hash.
- * @minLength 16
+ * @minLength 8
  * @maxLength 128
  * @pattern ^(?![\s\S]*[\x00-\x1F\x7F])\S(?:[\s\S]*\S)?$
  */

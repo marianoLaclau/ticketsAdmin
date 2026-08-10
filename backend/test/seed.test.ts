@@ -138,7 +138,7 @@ describe("bootstrap seguro del SysAdmin", () => {
 
   it("rechaza secretos débiles, conocidos o con espacios exteriores", async () => {
     for (const password of [
-      "demasiado-corta",
+      "corta12",
       "passwordpassword",
       "a".repeat(16),
       "generar-una-clave-larga-y-aleatoria",
