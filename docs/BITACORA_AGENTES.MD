@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Detalle administrativo ligado a la elevación vigente
+
+**Agente:** Codex
+**Estado:** ducentésima décima novena remediación de la auditoría técnica, implementada localmente.
+
+- El detalle administrativo deja de depender de una clave cliente: valida la elevación antes de montar consultas, envía sólo `x-admin-intent: 1` y segmenta ticket e historial por versión de acceso. Estados pendiente o ausente no consultan datos protegidos y cada cambio de frontera remonta el contenido para retirar borradores y callbacks anteriores.
+- El modo operativo no consulta elevación ni propaga headers administrativos. El permiso de cierre reutiliza la identidad confirmada del mismo control, eliminando un segundo observer de `/auth/me`; con caché productiva vencida se realiza una sola verificación y el montaje permanece estable. El guard de operaciones invalida además cualquier token pendiente al desmontar.
+- Aprobaron 31 pruebas focalizadas de elevación, detalle y controladores, typecheck del frontend, ESLint, Prettier y `git diff --check`. La reauditoría independiente detectó el ciclo de observers, verificó su corrección con `staleTime: 0` y cerró sin P0/P1/P2. No se hizo push.
+
 ## 2026-08-09 — Credencial cruda retirada de las rutas administrativas
 
 **Agente:** Codex

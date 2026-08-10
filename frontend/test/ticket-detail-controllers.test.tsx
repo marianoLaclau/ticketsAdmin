@@ -14,6 +14,7 @@ import {
 import { TicketDataEditDialog } from "../src/components/tickets/TicketDataEditDialog.tsx";
 import { TicketManagementDialog } from "../src/features/ticket-detail/TicketManagementDialog.tsx";
 import { useTicketDetailEditing } from "../src/features/ticket-detail/useTicketDetailEditing.ts";
+import { useTicketDetailOperationGuard } from "../src/features/ticket-detail/useTicketDetailOperationGuard.ts";
 import { useTicketSeguimiento } from "../src/features/ticket-detail/useTicketSeguimiento.ts";
 import { useToast } from "../src/hooks/use-toast.ts";
 import { ticketToManagementForm } from "../src/lib/ticket-edit.ts";
@@ -133,6 +134,24 @@ function createWrapper(queryClient: QueryClient) {
   };
 }
 
+test("desmontar el detalle invalida operaciones y callbacks pendientes", () => {
+  const view = renderHook(() =>
+    useTicketDetailOperationGuard<"update">(ticket.id),
+  );
+  const guard = view.result.current;
+  const operation = guard.start("update", ticket.id);
+
+  assert.ok(operation);
+  assert.equal(guard.isCurrent(operation), true);
+  assert.equal(guard.hasPendingOperation(), true);
+
+  view.unmount();
+
+  assert.equal(guard.isCurrent(operation), false);
+  assert.equal(guard.hasPendingOperation(), false);
+  assert.equal(guard.start("update", ticket.id), null);
+});
+
 test("gestión conserva PATCH mínimo, admin request y reintento CAS recargado", async (t) => {
   const observed: ObservedRequest[] = [];
   const latestTicket: TicketDetail = {
@@ -185,7 +204,7 @@ test("gestión conserva PATCH mínimo, admin request y reintento CAS recargado",
         ticket: ticketDetail,
         ticketQueryKey,
         adminMode: true,
-        adminRequest: { headers: { "x-admin-key": "admin-test" } },
+        adminRequest: { headers: { "x-admin-intent": "1" } },
         refetchTicket,
         refetchSeguimientos,
       }),
@@ -217,7 +236,7 @@ test("gestión conserva PATCH mínimo, admin request y reintento CAS recargado",
     expected_version: 3,
   });
   assert.equal(observed[0]?.url, "/api/tickets/41?incluir_vacios=true");
-  assert.equal(observed[0]?.headers.get("x-admin-key"), "admin-test");
+  assert.equal(observed[0]?.headers.get("x-admin-intent"), "1");
   assert.equal(
     view.result.current.editing.managementDialog.form.prioridad,
     "alta",
@@ -293,7 +312,7 @@ test("datos operativos no degradan una revisión SSE más nueva", async (t) => {
         ticket: ticketDetail,
         ticketQueryKey,
         adminMode: false,
-        adminRequest: { headers: { "x-admin-key": "must-not-leak" } },
+        adminRequest: { headers: { "x-admin-intent": "must-not-leak" } },
         refetchTicket: async () => ({
           data: ticketDetail,
           error: null,
@@ -317,7 +336,7 @@ test("datos operativos no degradan una revisión SSE más nueva", async (t) => {
     expected_version: 3,
   });
   assert.equal(observed[0]?.url, "/api/tickets/41");
-  assert.equal(observed[0]?.headers.get("x-admin-key"), null);
+  assert.equal(observed[0]?.headers.get("x-admin-intent"), null);
 
   const newerTicket: TicketDetail = {
     ...ticketDetail,
@@ -369,7 +388,7 @@ test("seguimiento normaliza el draft y conserva el contrato admin", async (t) =>
       seguimiento: useTicketSeguimiento({
         ticketId: ticket.id,
         adminMode: true,
-        adminRequest: { headers: { "x-admin-key": "admin-test" } },
+        adminRequest: { headers: { "x-admin-intent": "1" } },
       }),
       toasts: useToast().toasts,
     }),
@@ -395,7 +414,7 @@ test("seguimiento normaliza el draft y conserva el contrato admin", async (t) =>
     observed[0]?.url,
     "/api/tickets/41/seguimientos?incluir_vacios=true",
   );
-  assert.equal(observed[0]?.headers.get("x-admin-key"), "admin-test");
+  assert.equal(observed[0]?.headers.get("x-admin-intent"), "1");
   assert.deepEqual(observed[0]?.body, { nota: note });
   assert.equal(invalidateQueries.mock.callCount(), 1);
   assert.ok(

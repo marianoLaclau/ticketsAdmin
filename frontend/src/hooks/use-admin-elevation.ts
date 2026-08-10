@@ -15,6 +15,7 @@ import {
   getGetMeQueryKey,
   useGetMe,
   type AdminElevationStatus,
+  type AuthUser,
 } from "@workspace/api-client-react";
 import { ROL_SYSADMIN } from "@/lib/roles";
 import { getConfirmedSessionUser } from "@/lib/session-state";
@@ -23,6 +24,7 @@ export type AdminElevationState = "missing" | "pending" | "ready";
 export type AdminElevationAction = "idle" | "elevating" | "revoking";
 
 export interface AdminElevationAccess {
+  readonly user: AuthUser | null;
   readonly state: AdminElevationState;
   readonly expiresAt: string | null;
   readonly error: unknown;
@@ -80,9 +82,9 @@ interface OperationContext {
  * React. La clave existe solamente como argumento local mientras se construye
  * el POST de elevación; las operaciones posteriores usan una intención fija.
  */
-export function useAdminElevation(
-  { enabled = true }: UseAdminElevationOptions = {},
-): AdminElevationAccess {
+export function useAdminElevation({
+  enabled = true,
+}: UseAdminElevationOptions = {}): AdminElevationAccess {
   const queryClient = useQueryClient();
   const meQuery = useGetMe({
     query: {
@@ -475,6 +477,7 @@ export function useAdminElevation(
     (elevationQuery.isError ? elevationQuery.error : null);
 
   return {
+    user: confirmedUser ?? null,
     state,
     expiresAt: state === "ready" ? expiresAt : null,
     error,

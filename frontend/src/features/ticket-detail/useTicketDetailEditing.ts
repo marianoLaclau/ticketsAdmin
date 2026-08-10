@@ -8,13 +8,13 @@ import {
   type TicketUpdate,
 } from "@workspace/api-client-react";
 import { useQueryClient, type QueryKey } from "@tanstack/react-query";
-import { adminErrorMessage } from "@/hooks/use-admin-access";
 import { useToast } from "@/hooks/use-toast";
 import {
   dateTimeLocalValueToIso,
   toDateTimeLocalValue,
 } from "@/lib/datetime-local";
 import {
+  getAdminErrorMessage,
   getUserErrorMessage,
   isTicketVersionConflict,
 } from "@/lib/error-messages";
@@ -325,7 +325,7 @@ export function useTicketDetailEditing({
             variant: "destructive",
             title: `No se pudo actualizar el ticket #${ticketId}`,
             description: adminMode
-              ? adminErrorMessage(error)
+              ? getAdminErrorMessage(error)
               : getUserErrorMessage(error, "Reintentá la operación."),
           });
         },
@@ -382,7 +382,7 @@ export function useTicketDetailEditing({
             variant: "destructive",
             title: "No se pudieron guardar los datos",
             description: adminMode
-              ? adminErrorMessage(error)
+              ? getAdminErrorMessage(error)
               : getUserErrorMessage(error, "Reintentá la operación."),
           });
         },

@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 
 export interface TicketDetailOperationToken<Operation extends string> {
   kind: Operation;
@@ -23,10 +23,21 @@ export function useTicketDetailOperationGuard<Operation extends string>(
   const generationRef = useRef(0);
   const sequencesRef = useRef(new Map<Operation, number>());
   const pendingRef = useRef<PendingOperation<Operation> | null>(null);
+  const mountedRef = useRef(false);
+
+  useLayoutEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      generationRef.current += 1;
+      pendingRef.current = null;
+    };
+  }, []);
 
   return useMemo(
     () => ({
       transitionTicket(nextTicketId: number): boolean {
+        if (!mountedRef.current) return false;
         if (ticketIdRef.current === nextTicketId) return false;
 
         ticketIdRef.current = nextTicketId;
@@ -36,11 +47,11 @@ export function useTicketDetailOperationGuard<Operation extends string>(
       },
 
       isCurrentBoundary(expectedTicketId: number): boolean {
-        return ticketIdRef.current === expectedTicketId;
+        return mountedRef.current && ticketIdRef.current === expectedTicketId;
       },
 
       hasPendingOperation(): boolean {
-        return pendingRef.current !== null;
+        return mountedRef.current && pendingRef.current !== null;
       },
 
       start(
@@ -48,6 +59,7 @@ export function useTicketDetailOperationGuard<Operation extends string>(
         expectedTicketId: number,
       ): TicketDetailOperationToken<Operation> | null {
         if (
+          !mountedRef.current ||
           ticketIdRef.current !== expectedTicketId ||
           pendingRef.current !== null
         ) {
@@ -67,6 +79,7 @@ export function useTicketDetailOperationGuard<Operation extends string>(
 
       isCurrent(token: TicketDetailOperationToken<Operation>): boolean {
         return (
+          mountedRef.current &&
           ticketIdRef.current === token.ticketId &&
           generationRef.current === token.generation &&
           sequencesRef.current.get(token.kind) === token.sequence &&
@@ -77,6 +90,7 @@ export function useTicketDetailOperationGuard<Operation extends string>(
 
       finish(token: TicketDetailOperationToken<Operation>): void {
         if (
+          !mountedRef.current ||
           ticketIdRef.current !== token.ticketId ||
           generationRef.current !== token.generation ||
           pendingRef.current?.kind !== token.kind ||

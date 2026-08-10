@@ -1,9 +1,11 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useCreateSeguimiento } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { adminErrorMessage } from "@/hooks/use-admin-access";
 import { useToast } from "@/hooks/use-toast";
-import { getUserErrorMessage } from "@/lib/error-messages";
+import {
+  getAdminErrorMessage,
+  getUserErrorMessage,
+} from "@/lib/error-messages";
 import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
 import { useTicketDetailOperationGuard } from "./useTicketDetailOperationGuard";
 
@@ -87,7 +89,7 @@ export function useTicketSeguimiento({
             variant: "destructive",
             title: "No se pudo agregar el seguimiento",
             description: adminMode
-              ? adminErrorMessage(error)
+              ? getAdminErrorMessage(error)
               : getUserErrorMessage(error, "Reintentá la operación."),
           });
         },
