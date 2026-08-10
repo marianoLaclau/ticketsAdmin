@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Link, useLocation } from "wouter";
 import {
   CheckCircle2,
@@ -11,18 +11,25 @@ import {
   UsersRound,
   XCircle,
 } from "lucide-react";
-import { useListAdminRoles } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { getAdminCredentialState } from "@/lib/admin-credential-state";
+import type { AdminElevationAccess } from "@/hooks/use-admin-elevation";
+import {
+  getApiErrorStatus,
+  getServerErrorCode,
+  getUserErrorMessage,
+} from "@/lib/error-messages";
 
-interface AdminHeaderProps {
+export interface AdminHeaderProps {
   title: string;
   description: string;
-  adminKey: string;
-  onAdminKeyChange: (value: string) => void;
+  state: AdminElevationAccess["state"];
+  expiresAt: AdminElevationAccess["expiresAt"];
+  error: AdminElevationAccess["error"];
+  action: AdminElevationAccess["action"];
+  onElevate: AdminElevationAccess["elevate"];
+  onRevoke: AdminElevationAccess["revoke"];
 }
 
 const adminLinks = [
@@ -34,134 +41,120 @@ const adminLinks = [
   },
 ];
 
-const ADMIN_KEY_PROBE_DEBOUNCE_MS = 350;
+function getElevationErrorMessage(error: unknown): string | null {
+  if (error === null || error === undefined) return null;
 
-let adminKeyProbeVersion = 0;
-
-function nextAdminKeyProbeVersion(): number {
-  adminKeyProbeVersion += 1;
-  return adminKeyProbeVersion;
+  switch (getApiErrorStatus(error)) {
+    case 401:
+      return getServerErrorCode(error) === "ADMIN_KEY_INVALID"
+        ? "La clave de administración no es válida. Revisala e intentá nuevamente."
+        : "Tu sesión venció o cambió. Volvé a iniciar sesión.";
+    case 429:
+      return "Se realizaron demasiados intentos. Esperá unos minutos antes de volver a probar.";
+    case 503:
+      return "El acceso administrativo no está disponible en este momento.";
+    default:
+      return getUserErrorMessage(
+        error,
+        "No pudimos habilitar el acceso administrativo. Intentá nuevamente.",
+      );
+  }
 }
 
-/**
- * Verifica en vivo si la llave de administración habilita el acceso,
- * haciendo una consulta mínima a la API con la llave actual.
- */
-function EstadoLlave({ adminKey }: { adminKey: string }) {
-  const effectiveAdminKey = useDebouncedValue(
-    adminKey,
-    ADMIN_KEY_PROBE_DEBOUNCE_MS,
-  );
-  const credentialState = getAdminCredentialState(adminKey, effectiveAdminKey);
-  // La clave nunca debe formar parte del query key: React Query conserva esos
-  // identificadores en memoria y puede exponerlos en herramientas de desarrollo.
-  const probeVersion = useMemo(nextAdminKeyProbeVersion, [effectiveAdminKey]);
-  const probe = useListAdminRoles(
-    { page: 1, limit: 1 },
-    {
-      query: {
-        queryKey: ["admin-key-probe", probeVersion],
-        enabled: credentialState === "ready",
-        retry: false,
-        refetchOnWindowFocus: false,
-      },
-      request: effectiveAdminKey
-        ? { headers: { "x-admin-key": effectiveAdminKey } }
-        : {},
-    },
-  );
+function formatExpiration(expiresAt: string): string {
+  const expiration = new Date(expiresAt);
+  if (Number.isNaN(expiration.getTime())) return "durante esta sesión";
 
-  if (credentialState === "pending") {
-    return (
-      <span
-        id="admin-key-status"
-        className="flex items-center gap-1 text-xs text-muted-foreground"
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-      >
-        <Loader2
-          className="h-3 w-3 animate-spin motion-reduce:animate-none"
-          aria-hidden="true"
-        />{" "}
-        Preparando verificación...
-      </span>
-    );
-  }
+  return new Intl.DateTimeFormat("es-AR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(expiration);
+}
 
-  if (credentialState === "missing") {
-    return (
-      <span
-        id="admin-key-status"
-        className="flex items-center gap-1 text-xs font-medium text-red-600"
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-      >
-        <XCircle className="h-3 w-3" aria-hidden="true" />
-        Falta la llave de administración
-      </span>
-    );
-  }
+function PendingElevationStatus({
+  action,
+}: {
+  action: AdminElevationAccess["action"];
+}) {
+  const message =
+    action === "elevating"
+      ? "Validando acceso administrativo..."
+      : action === "revoking"
+        ? "Revocando acceso administrativo..."
+        : "Verificando acceso administrativo...";
 
-  if (probe.isLoading) {
-    return (
-      <span
-        id="admin-key-status"
-        className="flex items-center gap-1 text-xs text-muted-foreground"
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-      >
-        <Loader2
-          className="h-3 w-3 animate-spin motion-reduce:animate-none"
-          aria-hidden="true"
-        />{" "}
-        Verificando llave...
-      </span>
-    );
-  }
-  if (probe.isSuccess) {
-    return (
-      <span
-        id="admin-key-status"
-        className="flex items-center gap-1 text-xs font-medium text-emerald-600"
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-      >
-        <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> Llave activa —
-        acceso habilitado
-      </span>
-    );
-  }
-  const status = (probe.error as { status?: number } | null)?.status;
   return (
-    <span
-      id="admin-key-status"
-      className="flex items-center gap-1 text-xs font-medium text-red-600"
+    <div
+      className="flex min-h-9 items-center gap-2 text-sm text-muted-foreground"
       role="status"
       aria-live="polite"
       aria-atomic="true"
     >
-      <XCircle className="h-3 w-3" aria-hidden="true" />
-      {status === 401
-        ? "Llave inválida — verificala"
-        : status === 503
-          ? "ADMIN_API_KEY no está configurada en el servidor"
-          : "Sin acceso — verificá la conexión"}
-    </span>
+      <Loader2
+        className="h-4 w-4 animate-spin motion-reduce:animate-none"
+        aria-hidden="true"
+      />
+      {message}
+    </div>
   );
 }
 
 export function AdminHeader({
   title,
   description,
-  adminKey,
-  onAdminKeyChange,
+  state,
+  expiresAt,
+  error,
+  action,
+  onElevate,
+  onRevoke,
 }: AdminHeaderProps) {
   const [location] = useLocation();
-  const [showAdminKey, setShowAdminKey] = useState(false);
+  const [secret, setSecret] = useState("");
+  const [showSecret, setShowSecret] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRevoking, setIsRevoking] = useState(false);
+  const submissionLock = useRef(false);
+  const revocationLock = useRef(false);
+  const errorMessage = getElevationErrorMessage(error);
+
+  const handleElevate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (submissionLock.current || secret.trim().length === 0) return;
+
+    submissionLock.current = true;
+    setIsSubmitting(true);
+    const submittedSecret = secret;
+    setSecret("");
+    setShowSecret(false);
+
+    // El secreto deja el DOM antes de entregárselo al controlador. El salto de
+    // microtarea permite que React confirme ese render antes de iniciar el POST.
+    await Promise.resolve();
+
+    try {
+      await onElevate(submittedSecret);
+    } finally {
+      submissionLock.current = false;
+      setIsSubmitting(false);
+    }
+  };
+
+  const elevateIsPending = isSubmitting || action === "elevating";
+  const revokeIsPending = isRevoking || action === "revoking";
+
+  const handleRevoke = async () => {
+    if (revocationLock.current) return;
+
+    revocationLock.current = true;
+    setIsRevoking(true);
+    try {
+      await onRevoke();
+    } finally {
+      revocationLock.current = false;
+      setIsRevoking(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -173,53 +166,123 @@ export function AdminHeader({
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
         </div>
-        <div className="w-full space-y-1 md:w-[300px]">
-          <Label htmlFor="admin-key" className="sr-only">
-            Llave de administración
-          </Label>
-          <div className="relative">
-            <KeyRound
-              className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <Input
-              id="admin-key"
-              type={showAdminKey ? "text" : "password"}
-              placeholder="Llave de administración"
-              className="h-9 pl-8 pr-10 text-sm"
-              value={adminKey}
-              onChange={(event) => onAdminKeyChange(event.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-              aria-describedby="admin-key-status admin-key-help"
-            />
-            <button
-              type="button"
-              onClick={() => setShowAdminKey((visible) => !visible)}
-              className="absolute right-1 top-1/2 flex h-7 w-8 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={
-                showAdminKey
-                  ? "Ocultar llave de administración"
-                  : "Mostrar llave de administración"
-              }
-              aria-pressed={showAdminKey}
-              title={showAdminKey ? "Ocultar llave" : "Mostrar llave"}
+
+        <div className="w-full space-y-2 md:w-[340px]">
+          {state === "pending" ? (
+            <PendingElevationStatus action={action} />
+          ) : state === "ready" ? (
+            <div className="flex flex-col gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
+              <div
+                className="flex items-start gap-2 text-sm font-medium"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                <CheckCircle2
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                  aria-hidden="true"
+                />
+                <span>
+                  Acceso administrativo habilitado
+                  {expiresAt !== null
+                    ? ` hasta ${formatExpiration(expiresAt)}`
+                    : null}
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="self-end border-emerald-300 bg-white text-emerald-900 hover:bg-emerald-100"
+                onClick={() => void handleRevoke()}
+                disabled={revokeIsPending}
+              >
+                Revocar acceso
+              </Button>
+            </div>
+          ) : (
+            <form
+              className="space-y-2"
+              onSubmit={(event) => void handleElevate(event)}
             >
-              {showAdminKey ? (
-                <EyeOff className="h-4 w-4" aria-hidden="true" />
-              ) : (
-                <Eye className="h-4 w-4" aria-hidden="true" />
-              )}
-            </button>
-          </div>
-          <EstadoLlave adminKey={adminKey} />
-          <p
-            id="admin-key-help"
-            className="text-[11px] leading-snug text-muted-foreground"
-          >
-            Segunda verificación para operar el panel. Se recuerda para tu
-            usuario en este navegador.
-          </p>
+              <Label htmlFor="admin-elevation-secret" className="sr-only">
+                Clave de administración
+              </Label>
+              <div className="flex gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <KeyRound
+                    className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <Input
+                    id="admin-elevation-secret"
+                    type={showSecret ? "text" : "password"}
+                    placeholder="Clave de administración"
+                    className="h-9 pl-8 pr-10 text-sm"
+                    value={secret}
+                    onChange={(event) => setSecret(event.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                    aria-describedby={`admin-elevation-help${errorMessage !== null ? " admin-elevation-error" : ""}`}
+                    aria-invalid={errorMessage !== null || undefined}
+                    disabled={elevateIsPending}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSecret((visible) => !visible)}
+                    className="absolute right-1 top-1/2 flex h-7 w-8 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label={
+                      showSecret
+                        ? "Ocultar clave de administración"
+                        : "Mostrar clave de administración"
+                    }
+                    aria-pressed={showSecret}
+                    title={showSecret ? "Ocultar clave" : "Mostrar clave"}
+                    disabled={elevateIsPending}
+                  >
+                    {showSecret ? (
+                      <EyeOff className="h-4 w-4" aria-hidden="true" />
+                    ) : (
+                      <Eye className="h-4 w-4" aria-hidden="true" />
+                    )}
+                  </button>
+                </div>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="h-9"
+                  disabled={secret.trim().length === 0 || elevateIsPending}
+                >
+                  {elevateIsPending ? (
+                    <Loader2
+                      className="h-4 w-4 animate-spin motion-reduce:animate-none"
+                      aria-hidden="true"
+                    />
+                  ) : null}
+                  Habilitar
+                </Button>
+              </div>
+              <p
+                id="admin-elevation-help"
+                className="text-[11px] leading-snug text-muted-foreground"
+              >
+                La clave se usa una sola vez y no se guarda en este navegador.
+              </p>
+              {errorMessage !== null ? (
+                <p
+                  id="admin-elevation-error"
+                  className="flex items-start gap-1.5 text-xs font-medium text-red-600"
+                  role="alert"
+                >
+                  <XCircle
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                  {errorMessage}
+                </p>
+              ) : null}
+            </form>
+          )}
         </div>
       </div>
 

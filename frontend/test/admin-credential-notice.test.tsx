@@ -3,7 +3,7 @@ import test from "node:test";
 import { cleanup, render, screen } from "@testing-library/react";
 import { AdminCredentialNotice } from "../src/components/admin/AdminCredentialNotice.tsx";
 
-test("presenta de forma diferenciada la ausencia y la transición de la llave", (t) => {
+test("presenta de forma diferenciada la ausencia y la transición del acceso", (t) => {
   t.after(cleanup);
 
   const view = render(
@@ -15,7 +15,7 @@ test("presenta de forma diferenciada la ausencia y la transición de la llave", 
   );
 
   const alert = screen.getByRole("alert");
-  assert.match(alert.textContent ?? "", /Ingresá la llave de administración/);
+  assert.match(alert.textContent ?? "", /Habilitá el acceso administrativo/);
   assert.match(alert.textContent ?? "", /Completá la llave para continuar/);
   assert.equal(alert.getAttribute("aria-live"), "assertive");
   assert.equal(alert.getAttribute("aria-atomic"), "true");
@@ -33,7 +33,7 @@ test("presenta de forma diferenciada la ausencia y la transición de la llave", 
   const status = screen.getByRole("status");
   assert.match(
     status.textContent ?? "",
-    /Verificando la llave de administración/,
+    /Verificando el acceso administrativo/,
   );
   assert.match(status.textContent ?? "", /Esperá mientras se valida/);
   assert.equal(status.getAttribute("aria-live"), "polite");

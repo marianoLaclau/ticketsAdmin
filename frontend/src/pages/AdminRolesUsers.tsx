@@ -1,54 +1,26 @@
-import { useMemo } from "react";
 import { ShieldCheck, UsersRound } from "lucide-react";
 import { AdminHeader } from "@/components/admin/AdminHeader";
 import { AdminRolesTab } from "@/features/admin-directory/AdminRolesTab";
 import { AdminUsersTab } from "@/features/admin-directory/AdminUsersTab";
 import { useAdminDirectoryUrl } from "@/features/admin-directory/useAdminDirectoryUrl";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAdminAccess } from "@/hooks/use-admin-access";
-import { useAdminAccessGeneration } from "@/hooks/use-admin-access-generation";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { getAdminCredentialState } from "@/lib/admin-credential-state";
-
-const ADMIN_DIRECTORY_CREDENTIAL_DEBOUNCE_MS = 350;
-
-let adminDirectoryQueryVersion = 0;
-
-function nextAdminDirectoryQueryVersion(): number {
-  adminDirectoryQueryVersion += 1;
-  return adminDirectoryQueryVersion;
-}
+import { useAdminElevation } from "@/hooks/use-admin-elevation";
 
 export default function AdminRolesUsers() {
-  const { adminKey, saveAdminKey, adminRequest } = useAdminAccess();
+  const adminElevation = useAdminElevation();
   const { urlState, updateUsersUrlState, updateRolesUrlState, selectTab } =
     useAdminDirectoryUrl();
-  const effectiveAdminKey = useDebouncedValue(
-    adminKey,
-    ADMIN_DIRECTORY_CREDENTIAL_DEBOUNCE_MS,
-  );
-  const directoryQueryRequest = useMemo<RequestInit>(
-    () =>
-      effectiveAdminKey
-        ? { headers: { "x-admin-key": effectiveAdminKey } }
-        : {},
-    [effectiveAdminKey],
-  );
-  // La versión invalida las consultas cuando cambia la llave sin copiar el
-  // secreto dentro del query key ni exponerlo en la caché del navegador.
-  const adminAccessVersion = useMemo(nextAdminDirectoryQueryVersion, [
-    effectiveAdminKey,
-  ]);
-  const adminAccessState = getAdminCredentialState(adminKey, effectiveAdminKey);
-  const adminAccessGeneration = useAdminAccessGeneration(adminKey);
-
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-5 p-4 sm:p-6 lg:p-8">
       <AdminHeader
         title="Roles y usuarios"
         description="Administración de perfiles operativos, permisos previstos y estado de acceso."
-        adminKey={adminKey}
-        onAdminKeyChange={saveAdminKey}
+        state={adminElevation.state}
+        expiresAt={adminElevation.expiresAt}
+        error={adminElevation.error}
+        action={adminElevation.action}
+        onElevate={adminElevation.elevate}
+        onRevoke={adminElevation.revoke}
       />
 
       <Tabs
@@ -72,20 +44,20 @@ export default function AdminRolesUsers() {
         </TabsList>
 
         <AdminUsersTab
-          request={adminRequest}
-          queryRequest={directoryQueryRequest}
-          adminAccessState={adminAccessState}
-          accessVersion={adminAccessVersion}
-          accessGeneration={adminAccessGeneration}
+          request={adminElevation.adminRequest}
+          queryRequest={adminElevation.adminRequest}
+          adminAccessState={adminElevation.state}
+          accessVersion={adminElevation.accessVersion}
+          accessGeneration={adminElevation.accessGeneration}
           urlState={urlState.users}
           updateUrlState={updateUsersUrlState}
         />
         <AdminRolesTab
-          request={adminRequest}
-          queryRequest={directoryQueryRequest}
-          adminAccessState={adminAccessState}
-          accessVersion={adminAccessVersion}
-          accessGeneration={adminAccessGeneration}
+          request={adminElevation.adminRequest}
+          queryRequest={adminElevation.adminRequest}
+          adminAccessState={adminElevation.state}
+          accessVersion={adminElevation.accessVersion}
+          accessGeneration={adminElevation.accessGeneration}
           urlState={urlState.roles}
           updateUrlState={updateRolesUrlState}
         />

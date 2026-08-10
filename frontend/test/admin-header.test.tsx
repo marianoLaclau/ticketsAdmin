@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   cleanup,
   fireEvent,
@@ -10,159 +9,231 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import type { ComponentProps } from "react";
 import { Router } from "wouter";
 import { memoryLocation } from "wouter/memory-location";
 import { AdminHeader } from "../src/components/admin/AdminHeader.tsx";
 
-interface FetchCall {
-  input: RequestInfo | URL;
-  init: RequestInit | undefined;
-}
+type AdminHeaderProps = ComponentProps<typeof AdminHeader>;
 
-function renderAdminHeader() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-        gcTime: Number.POSITIVE_INFINITY,
-      },
-    },
-  });
-  const location = memoryLocation({ path: "/admin" });
+const defaultProps: AdminHeaderProps = {
+  title: "Administración",
+  description: "Gestioná tickets, roles y usuarios.",
+  state: "missing",
+  expiresAt: null,
+  error: null,
+  action: "idle",
+  onElevate: async () => true,
+  onRevoke: async () => true,
+};
 
-  function Harness() {
-    const [adminKey, setAdminKey] = useState("");
-
-    return (
-      <AdminHeader
-        title="Administración"
-        description="Gestioná tickets, roles y usuarios."
-        adminKey={adminKey}
-        onAdminKeyChange={setAdminKey}
-      />
-    );
-  }
-
+function renderAdminHeader(
+  overrides: Partial<AdminHeaderProps> = {},
+  path = "/admin",
+) {
+  const location = memoryLocation({ path });
   render(
-    <QueryClientProvider client={queryClient}>
-      <Router hook={location.hook}>
-        <Harness />
-      </Router>
-    </QueryClientProvider>,
+    <Router hook={location.hook}>
+      <AdminHeader {...defaultProps} {...overrides} />
+    </Router>,
   );
-
-  return queryClient;
 }
 
-test("verifica la llave administrativa sin exponerla fuera del header", async (t) => {
-  const secret = "llave-super-secreta";
-  const fetchCalls: FetchCall[] = [];
-
-  const fetchMock = t.mock.method(
-    globalThis,
-    "fetch",
-    async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      fetchCalls.push({ input, init });
-      return new Response(
-        JSON.stringify({ roles: [], total: 0, page: 1, limit: 1 }),
-        {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        },
-      );
+test("muestra el formulario bloqueado hasta ingresar una clave y permite ocultarla", async (t) => {
+  t.after(cleanup);
+  let elevateCalls = 0;
+  renderAdminHeader({
+    onElevate: async () => {
+      elevateCalls += 1;
+      return true;
     },
-  );
-
-  let queryClient: QueryClient | undefined;
-  t.after(() => {
-    cleanup();
-    queryClient?.clear();
   });
-  queryClient = renderAdminHeader();
 
-  assert.match(
-    screen.getByRole("status").textContent ?? "",
-    /Falta la llave de administración/,
-  );
-  assert.equal(fetchCalls.length, 0);
-  assert.equal(fetchMock.mock.callCount(), 0);
-
-  const input = screen.getByLabelText("Llave de administración");
+  const input = screen.getByLabelText("Clave de administración");
+  const submit = screen.getByRole("button", { name: "Habilitar" });
   assert.equal(input.getAttribute("type"), "password");
+  assert.equal(input.getAttribute("aria-describedby"), "admin-elevation-help");
+  assert.equal(input.hasAttribute("aria-invalid"), false);
+  assert.equal(submit.hasAttribute("disabled"), true);
+
+  const form = input.closest("form");
+  assert.ok(form);
+  fireEvent.submit(form);
+  assert.equal(elevateCalls, 0);
 
   const user = userEvent.setup();
+  await user.type(input, "clave-de-prueba");
   await user.click(
     screen.getByRole("button", {
-      name: "Mostrar llave de administración",
+      name: "Mostrar clave de administración",
     }),
   );
   assert.equal(input.getAttribute("type"), "text");
   assert.equal(
     screen
-      .getByRole("button", { name: "Ocultar llave de administración" })
+      .getByRole("button", { name: "Ocultar clave de administración" })
       .getAttribute("aria-pressed"),
     "true",
   );
 
   await user.click(
     screen.getByRole("button", {
-      name: "Ocultar llave de administración",
+      name: "Ocultar clave de administración",
     }),
   );
   assert.equal(input.getAttribute("type"), "password");
+});
+
+test("retira el secreto del DOM antes del callback y bloquea envíos simultáneos", async (t) => {
+  t.after(cleanup);
+  const secret = "secreto-que-no-debe-persistir";
+  let elevateCalls = 0;
+  let receivedSecret: string | null = null;
+  let inputValueWhenCalled: string | null = null;
+  let inputTypeWhenCalled: string | null = null;
+  let finishElevation: ((value: boolean) => void) | undefined;
+  const elevationResult = new Promise<boolean>((resolve) => {
+    finishElevation = resolve;
+  });
+
+  renderAdminHeader({
+    onElevate: async (submittedSecret) => {
+      elevateCalls += 1;
+      receivedSecret = submittedSecret;
+      const input = screen.getByLabelText("Clave de administración");
+      inputValueWhenCalled = (input as HTMLInputElement).value;
+      inputTypeWhenCalled = input.getAttribute("type");
+      return elevationResult;
+    },
+  });
+
+  const user = userEvent.setup();
+  const input = screen.getByLabelText("Clave de administración");
+  await user.type(input, secret);
+  await user.click(
+    screen.getByRole("button", {
+      name: "Mostrar clave de administración",
+    }),
+  );
+  const form = input.closest("form");
+  assert.ok(form);
+  fireEvent.submit(form);
+  fireEvent.submit(form);
+
+  await waitFor(() => assert.equal(elevateCalls, 1));
+  assert.equal(receivedSecret, secret);
+  assert.equal(inputValueWhenCalled, "");
+  assert.equal(inputTypeWhenCalled, "password");
+  assert.equal((input as HTMLInputElement).value, "");
+  assert.equal(input.getAttribute("type"), "password");
+  assert.ok(
+    screen.getByRole("button", {
+      name: "Mostrar clave de administración",
+    }),
+  );
+
+  const submit = screen.getByRole("button", { name: "Habilitar" });
+  assert.equal(submit.hasAttribute("disabled"), true);
+  fireEvent.submit(form);
+  assert.equal(elevateCalls, 1);
+
+  assert.ok(finishElevation);
+  finishElevation(true);
+  await waitFor(() => assert.equal(submit.hasAttribute("disabled"), true));
+});
+
+test("informa el estado pendiente sin volver a solicitar la clave", (t) => {
+  t.after(cleanup);
+  renderAdminHeader({ state: "pending", action: "elevating" });
+
+  assert.match(
+    screen.getByRole("status").textContent ?? "",
+    /Validando acceso administrativo/,
+  );
+  assert.equal(screen.queryByLabelText("Clave de administración"), null);
+  assert.equal(screen.queryByRole("button", { name: "Habilitar" }), null);
+});
+
+test("muestra la elevación activa, su vencimiento y permite revocarla", async (t) => {
+  t.after(cleanup);
+  let revokeCalls = 0;
+  let finishRevocation: ((value: boolean) => void) | undefined;
+  const revocationResult = new Promise<boolean>((resolve) => {
+    finishRevocation = resolve;
+  });
+  renderAdminHeader({
+    state: "ready",
+    expiresAt: "2026-08-09T18:30:00.000Z",
+    onRevoke: async () => {
+      revokeCalls += 1;
+      return revocationResult;
+    },
+  });
+
+  assert.match(
+    screen.getByRole("status").textContent ?? "",
+    /Acceso administrativo habilitado hasta/,
+  );
+  assert.equal(screen.queryByLabelText("Clave de administración"), null);
+
+  const revokeButton = screen.getByRole("button", {
+    name: "Revocar acceso",
+  });
+  fireEvent.click(revokeButton);
+  fireEvent.click(revokeButton);
+  assert.equal(revokeCalls, 1);
+  assert.equal(revokeButton.hasAttribute("disabled"), true);
+
+  assert.ok(finishRevocation);
+  finishRevocation(true);
+  await waitFor(() =>
+    assert.equal(revokeButton.hasAttribute("disabled"), false),
+  );
+});
+
+test("presenta mensajes seguros para errores de elevación", (t) => {
+  t.after(cleanup);
+  const cases = [
+    [401, "ADMIN_KEY_INVALID", /clave de administración no es válida/i],
+    [401, "SESSION_INVALID", /sesión venció o cambió/i],
+    [429, "ADMIN_ELEVATION_RATE_LIMITED", /demasiados intentos/i],
+    [503, "ADMIN_ELEVATION_UNAVAILABLE", /no está disponible/i],
+  ] as const;
+
+  for (const [status, code, expected] of cases) {
+    renderAdminHeader({
+      error: { status, data: { code, detail: "dato técnico" } },
+    });
+    const alert = screen.getByRole("alert");
+    const input = screen.getByLabelText("Clave de administración");
+    assert.match(alert.textContent ?? "", expected);
+    assert.doesNotMatch(alert.textContent ?? "", /dato técnico/i);
+    assert.equal(input.getAttribute("aria-invalid"), "true");
+    assert.equal(
+      input.getAttribute("aria-describedby"),
+      "admin-elevation-help admin-elevation-error",
+    );
+    cleanup();
+  }
+});
+
+test("conserva la navegación y marca la sección administrativa actual", (t) => {
+  t.after(cleanup);
+  renderAdminHeader({}, "/admin/roles-usuarios");
 
   const navigation = screen.getByRole("navigation", {
     name: "Secciones de administración",
   });
   assert.equal(
     within(navigation)
-      .getByRole("link", { name: "Tickets" })
+      .getByRole("link", { name: "Roles y usuarios" })
       .getAttribute("aria-current"),
     "page",
   );
   assert.equal(
     within(navigation)
-      .getByRole("link", { name: "Roles y usuarios" })
+      .getByRole("link", { name: "Tickets" })
       .hasAttribute("aria-current"),
     false,
   );
-
-  fireEvent.change(input, { target: { value: secret } });
-  assert.match(
-    screen.getByRole("status").textContent ?? "",
-    /Preparando verificación/,
-  );
-  assert.equal(fetchCalls.length, 0);
-
-  await waitFor(
-    () => {
-      assert.match(
-        screen.getByRole("status").textContent ?? "",
-        /Llave activa.*acceso habilitado/,
-      );
-    },
-    { timeout: 2_000 },
-  );
-
-  assert.equal(fetchCalls.length, 1);
-  assert.equal(fetchMock.mock.callCount(), 1);
-  const request = fetchCalls[0];
-  assert.ok(request);
-
-  const requestUrl =
-    request.input instanceof Request
-      ? request.input.url
-      : String(request.input);
-  const requestHeaders = new Headers(request.init?.headers);
-
-  assert.equal(requestUrl, "/api/admin/roles?page=1&limit=1");
-  assert.equal(requestHeaders.get("x-admin-key"), secret);
-  assert.equal(requestUrl.includes(secret), false);
-
-  const cachedQueryKeys = queryClient
-    .getQueryCache()
-    .getAll()
-    .map((query) => query.queryKey);
-  assert.equal(JSON.stringify(cachedQueryKeys).includes(secret), false);
 });

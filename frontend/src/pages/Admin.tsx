@@ -6,56 +6,28 @@ import { AdminCsvImportTab } from "@/features/admin-tickets/AdminCsvImportTab";
 import { AdminDangerZoneTab } from "@/features/admin-tickets/AdminDangerZoneTab";
 import { AdminTicketsTab } from "@/features/admin-tickets/AdminTicketsTab";
 import { useAdminTicketsUrl } from "@/features/admin-tickets/useAdminTicketsUrl";
-import { useAdminAccess } from "@/hooks/use-admin-access";
-import { useAdminAccessGeneration } from "@/hooks/use-admin-access-generation";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { getAdminCredentialState } from "@/lib/admin-credential-state";
+import { useAdminElevation } from "@/hooks/use-admin-elevation";
 import { createAdminTicketDetailNavigationState } from "@/lib/ticket-navigation";
 
-const ADMIN_TICKETS_CREDENTIAL_DEBOUNCE_MS = 350;
-
-let adminTicketsQueryVersion = 0;
-
-function nextAdminTicketsQueryVersion(): number {
-  adminTicketsQueryVersion += 1;
-  return adminTicketsQueryVersion;
-}
-
 export default function Admin() {
-  // Segunda credencial obligatoria para las operaciones del panel SysAdmin.
-  const { adminKey, saveAdminKey, adminRequest } = useAdminAccess();
+  const adminElevation = useAdminElevation();
   const { urlState, canonicalSearch, updateUrlState, selectTab } =
     useAdminTicketsUrl();
   const detailNavigationState = useMemo(
     () => createAdminTicketDetailNavigationState(canonicalSearch),
     [canonicalSearch],
   );
-  const effectiveAdminKey = useDebouncedValue(
-    adminKey,
-    ADMIN_TICKETS_CREDENTIAL_DEBOUNCE_MS,
-  );
-  const queryRequest = useMemo<RequestInit>(
-    () =>
-      effectiveAdminKey
-        ? { headers: { "x-admin-key": effectiveAdminKey } }
-        : {},
-    [effectiveAdminKey],
-  );
-  // La versión fuerza una consulta nueva cuando cambia la llave, sin incluir
-  // el secreto en el query key ni dejarlo expuesto en la caché del navegador.
-  const adminAccessVersion = useMemo(nextAdminTicketsQueryVersion, [
-    effectiveAdminKey,
-  ]);
-  const adminAccessState = getAdminCredentialState(adminKey, effectiveAdminKey);
-  const adminAccessGeneration = useAdminAccessGeneration(adminKey);
-
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-4 p-4 md:p-8">
       <AdminHeader
         title="Administración"
         description="Gestión directa de la base de datos: registros, importación masiva y mantenimiento."
-        adminKey={adminKey}
-        onAdminKeyChange={saveAdminKey}
+        state={adminElevation.state}
+        expiresAt={adminElevation.expiresAt}
+        error={adminElevation.error}
+        action={adminElevation.action}
+        onElevate={adminElevation.elevate}
+        onRevoke={adminElevation.revoke}
       />
 
       <Tabs value={urlState.tab} onValueChange={selectTab}>
@@ -75,27 +47,27 @@ export default function Admin() {
         </TabsList>
 
         <AdminTicketsTab
-          request={adminRequest}
-          queryRequest={queryRequest}
-          adminAccessState={adminAccessState}
-          accessVersion={adminAccessVersion}
-          accessGeneration={adminAccessGeneration}
+          request={adminElevation.adminRequest}
+          queryRequest={adminElevation.adminRequest}
+          adminAccessState={adminElevation.state}
+          accessVersion={adminElevation.accessVersion}
+          accessGeneration={adminElevation.accessGeneration}
           urlState={urlState}
           updateUrlState={updateUrlState}
           detailNavigationState={detailNavigationState}
         />
         <AdminCsvImportTab
-          request={adminRequest}
-          adminAccessState={adminAccessState}
-          accessVersion={adminAccessVersion}
-          accessGeneration={adminAccessGeneration}
+          request={adminElevation.adminRequest}
+          adminAccessState={adminElevation.state}
+          accessVersion={adminElevation.accessVersion}
+          accessGeneration={adminElevation.accessGeneration}
         />
         <AdminDangerZoneTab
-          request={adminRequest}
-          queryRequest={queryRequest}
-          adminAccessState={adminAccessState}
-          accessVersion={adminAccessVersion}
-          accessGeneration={adminAccessGeneration}
+          request={adminElevation.adminRequest}
+          queryRequest={adminElevation.adminRequest}
+          adminAccessState={adminElevation.state}
+          accessVersion={adminElevation.accessVersion}
+          accessGeneration={adminElevation.accessGeneration}
         />
       </Tabs>
     </div>

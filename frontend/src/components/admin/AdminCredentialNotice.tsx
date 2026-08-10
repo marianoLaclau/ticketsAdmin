@@ -32,8 +32,8 @@ export function AdminCredentialNotice({
       )}
       <AlertTitle>
         {isPending
-          ? "Verificando la llave de administración"
-          : "Ingresá la llave de administración"}
+          ? "Verificando el acceso administrativo"
+          : "Habilitá el acceso administrativo"}
       </AlertTitle>
       <AlertDescription>
         {isPending ? pendingDescription : missingDescription}

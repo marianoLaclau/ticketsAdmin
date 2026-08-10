@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Panel administrativo conectado a elevación por sesión
+
+**Agente:** Codex
+**Estado:** ducentésima décima séptima remediación de la auditoría técnica, implementada localmente.
+
+- Administración de tickets y Roles y usuarios consumen ahora una única frontera de elevación por página. Queries y mutaciones reciben exclusivamente el request fijo con `x-admin-intent: 1`; se eliminaron de esas pantallas la API key en estado, debounces, probes y contadores derivados del secreto.
+- La cabecera presenta la clave una sola vez, la retira del DOM y vuelve a ocultarla antes de ejecutar el POST, informa verificación, expiración y revocación, y serializa de forma síncrona dobles envíos y dobles revocaciones. Los 401 distinguen clave inválida de sesión vencida y los errores no exponen detalles técnicos.
+- La semántica accesible sólo referencia mensajes existentes y marca el campo inválido cuando corresponde; los avisos internos hablan de acceso elevado, no de una llave persistida. Aprobaron siete pruebas focalizadas, ambos typechecks del frontend, ESLint, Prettier y `git diff --check`; la reauditoría independiente cerró sin P0/P1/P2. No se hizo push.
+
 ## 2026-08-09 — Temporizador de expiración tipado estrictamente
 
 **Agente:** Codex
