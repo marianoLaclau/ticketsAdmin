@@ -58,7 +58,7 @@ function useEventosEnVivo() {
       }
 
       // Los eventos funcionales sólo afectan tickets y estadísticas. Sesión,
-      // llave administrativa, usuarios y roles conservan su caché vigente.
+      // elevación administrativa, usuarios y roles conservan su caché vigente.
       void invalidateTicketDomainQueries(queryClient);
       if (data.tipo === "ticket_creado") {
         const contacto = getContactDisplayName(data);

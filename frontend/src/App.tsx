@@ -106,23 +106,21 @@ const queryClient = new QueryClient({
       }
 
       const isUnauthorized = getErrorStatus(error) === 401;
+      const serverErrorCode = getServerErrorCode(error);
       const requiresPasswordChange =
-        getServerErrorCode(error) === "PASSWORD_CHANGE_REQUIRED";
+        serverErrorCode === "PASSWORD_CHANGE_REQUIRED";
       if (!isUnauthorized && !requiresPasswordChange) return;
 
-      const apiError = error as { data?: { error?: unknown }; url?: unknown };
-      const serverMessage = apiError.data?.error;
-      const isAdminKeyError =
-        typeof serverMessage === "string" &&
-        serverMessage.toLowerCase().includes("administración");
+      const apiError = error as { url?: unknown };
+      const isAdminKeyInvalid = serverErrorCode === "ADMIN_KEY_INVALID";
       const isLoginAttempt =
         typeof apiError.url === "string" &&
         apiError.url.includes("/api/auth/login");
 
-      // Una API key incorrecta no invalida la sesión del SysAdmin, y un login
-      // fallido ya se informa dentro del formulario. El resto de los 401 en
-      // mutaciones obliga a revalidar la sesión y, si venció, vuelve a la raíz.
-      if (requiresPasswordChange || (!isAdminKeyError && !isLoginAttempt)) {
+      // Un secreto de elevación rechazado no invalida la sesión del SysAdmin.
+      // ADMIN_ELEVATION_REQUIRED ya fue reconciliado arriba y un login fallido
+      // se informa dentro del formulario. Los demás 401 revalidan la sesión.
+      if (requiresPasswordChange || (!isAdminKeyInvalid && !isLoginAttempt)) {
         void queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       }
     },

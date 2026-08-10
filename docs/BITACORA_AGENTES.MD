@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Acceso administrativo legacy retirado del frontend
+
+**Agente:** Codex
+**Estado:** ducentésima vigésima cuarta remediación de la auditoría técnica, implementada localmente.
+
+- Se eliminaron `use-admin-access`, ownership de claves, generación derivada del secreto y debounce sin consumidores, junto con sus dos suites obsoletas. La purga de `admin-key` de versiones anteriores permanece intencionalmente activa y probada para limpiar navegadores existentes sin leer el valor almacenado.
+- La política global deja de identificar errores por texto: `ADMIN_KEY_INVALID` se clasifica por código estable y el intento rechazado no invalida la sesión. Los comentarios de eventos ya hablan de elevación y la invalidación de tickets comprueba una key administrativa real segmentada por identidad.
+- Aprobaron 186 pruebas unitarias, typecheck del frontend, ESLint, Prettier y `git diff --check`. La revisión independiente confirmó cero consumidores y conservación de la migración de storage sin hallazgos bloqueantes. No se hizo push.
+
 ## 2026-08-09 — Contrato administrativo migrado a intención no secreta
 
 **Agente:** Codex

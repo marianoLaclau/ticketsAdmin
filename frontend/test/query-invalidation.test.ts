@@ -30,7 +30,8 @@ describe("invalidación del dominio de tickets", () => {
     ] as const;
     const unrelatedKeys = [
       ["/api/auth/me"],
-      ["admin-key-probe", 3],
+      // Refleja la key identity-scoped construida por useAdminElevation.
+      ["/api/auth/admin-elevation", "user", 3],
       ["/api/admin/roles"],
       ["/api/admin/users", { page: 1 }],
     ] as const;
