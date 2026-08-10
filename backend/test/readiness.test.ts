@@ -86,6 +86,25 @@ describe("sonda SQLite de readiness", () => {
     database.exec(
       "CREATE TABLE tickets_cuarentena (ticket_id INTEGER PRIMARY KEY)",
     );
+    assert.throws(() => probeSqliteReadiness(database), /no such table/i);
+    database.exec(`
+      CREATE TABLE sesiones (
+        token TEXT PRIMARY KEY NOT NULL,
+        usuario_id INTEGER NOT NULL,
+        fecha_expiracion INTEGER NOT NULL,
+        fecha_creacion INTEGER NOT NULL
+      )
+    `);
+    assert.throws(
+      () => probeSqliteReadiness(database),
+      /admin_elevacion_hasta/i,
+    );
+    database.exec("ALTER TABLE sesiones ADD admin_elevacion_hasta INTEGER");
+    assert.throws(
+      () => probeSqliteReadiness(database),
+      /admin_elevacion_clave_hash/i,
+    );
+    database.exec("ALTER TABLE sesiones ADD admin_elevacion_clave_hash TEXT");
     assert.equal(probeSqliteReadiness(database), true);
 
     database.close();

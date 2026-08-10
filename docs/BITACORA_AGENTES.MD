@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Readiness ligado al esquema de sesión vigente
+
+**Agente:** Codex
+**Estado:** ducentésima trigésima tercera remediación de la auditoría técnica, implementada localmente.
+
+- La sonda SQLite deja de considerar lista una base que solo contiene Tickets y cuarentena: también prepara una lectura sobre `sesiones` y exige token, usuario, fechas y las dos columnas de elevación incorporadas por `0016`. Una migración ausente o aplicada parcialmente impide que `/readyz` anuncie el candidato como desplegable.
+- La respuesta HTTP pública continúa cerrada y genérica (`503 { status: "unavailable" }`); el detalle del motor queda únicamente en el logger interno y liveness permanece separado.
+- Cinco pruebas cubren tabla ausente, esquema pre-0016, cada columna faltante, esquema completo, handle cerrado y sanitización del error. Aprobaron ambas suites focales, typecheck backend, ESLint, Prettier y `git diff --check`. No se hizo push.
+
 ## 2026-08-09 — Formato determinista incorporado al quality gate
 
 **Agente:** Codex

@@ -13,5 +13,13 @@ export function probeSqliteReadiness(
   if (!database.open) return false;
   database.prepare("SELECT id, version FROM tickets LIMIT 1").get();
   database.prepare("SELECT ticket_id FROM tickets_cuarentena LIMIT 1").get();
+  database
+    .prepare(
+      `SELECT token, usuario_id, fecha_expiracion, fecha_creacion,
+              admin_elevacion_hasta, admin_elevacion_clave_hash
+         FROM sesiones
+        LIMIT 1`,
+    )
+    .get();
   return true;
 }
