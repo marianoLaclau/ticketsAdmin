@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Fronteras asíncronas del detalle de ticket endurecidas
+
+**Agente:** Codex
+**Estado:** ducentésima décima segunda remediación de la auditoría técnica, implementada localmente.
+
+- La edición de gestión, la edición funcional, la recarga por conflicto y los seguimientos quedaron serializados por ticket y generación. Al navegar A→B→A se reinician formularios, borradores y mutaciones visuales; respuestas PATCH, recargas o altas tardías de una generación anterior ya no actualizan caché, cierran editores ni emiten notificaciones.
+- Todos los controles y handlers de edición se bloquean durante una escritura o recarga. Cerrar un editor sigue permitido y un error vigente continúa notificándose; si aparece un conflicto de versión, éste persiste al cerrar y al cruzar entre ambos editores, bloquea cualquier nuevo guardado y sólo se limpia al cargar correctamente la versión actual o cambiar de ticket.
+- Las regresiones cubren doble submit, texto nuevo durante un seguimiento pendiente, cambio de ticket, A→B→A, error después de cerrar, bloqueo visual y lógico, conflicto cerrar→reabrir→recargar y reintento con `expected_version` actualizado. Aprobaron las 13 pruebas focalizadas, typecheck de fuente y tests, ESLint, Prettier, build y `git diff --check`; dos revisiones independientes cerraron sin P0/P1/P2. No se hizo push.
+
 ## 2026-08-09 — Rutas administrativas habilitadas por elevación de sesión
 
 **Agente:** Codex

@@ -58,13 +58,15 @@ export function TicketManagementDialog({
   onNotesChange,
   onSave,
 }: TicketManagementDialogProps) {
+  const isEditingDisabled = isSaving || isReloadingConflict;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button
           variant="outline"
           className="bg-white"
-          disabled={isReloadingConflict}
+          disabled={isEditingDisabled}
         >
           Editar Estado
         </Button>
@@ -88,6 +90,7 @@ export function TicketManagementDialog({
               <label className="text-sm font-medium">Estado</label>
               <Select
                 value={form.estado}
+                disabled={isEditingDisabled}
                 onValueChange={(estado) =>
                   onStateChange(estado as TicketManagementForm["estado"])
                 }
@@ -119,6 +122,7 @@ export function TicketManagementDialog({
               <label className="text-sm font-medium">Prioridad</label>
               <Select
                 value={form.prioridad}
+                disabled={isEditingDisabled}
                 onValueChange={(prioridad) =>
                   onPriorityChange(
                     prioridad as TicketManagementForm["prioridad"],
@@ -146,6 +150,7 @@ export function TicketManagementDialog({
             </div>
             <Slider
               value={[form.progreso]}
+              disabled={isEditingDisabled}
               onValueChange={(value) => onProgressChange(value[0])}
               max={100}
               step={5}
@@ -158,6 +163,7 @@ export function TicketManagementDialog({
               <Input
                 type="datetime-local"
                 value={form.fecha_limite}
+                disabled={isEditingDisabled}
                 onChange={(event) => onDeadlineChange(event.target.value)}
               />
               <p className="text-[11px] text-muted-foreground">
@@ -170,6 +176,7 @@ export function TicketManagementDialog({
             <label className="text-sm font-medium">Notas Internas</label>
             <Textarea
               value={form.notas}
+              disabled={isEditingDisabled}
               onChange={(event) => onNotesChange(event.target.value)}
               placeholder="Notas visibles solo para agentes..."
               className="h-24"
@@ -180,7 +187,10 @@ export function TicketManagementDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={onSave} disabled={isSaving || hasVersionConflict}>
+          <Button
+            onClick={onSave}
+            disabled={isEditingDisabled || hasVersionConflict}
+          >
             {isSaving ? "Guardando..." : "Guardar Cambios"}
           </Button>
         </DialogFooter>

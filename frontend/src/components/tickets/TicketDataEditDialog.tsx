@@ -66,6 +66,7 @@ export function TicketDataEditDialog({
   onSave,
 }: TicketDataEditDialogProps) {
   const initialForm = ticketToFunctionalForm(ticket);
+  const isEditingDisabled = isSaving || isReloadingConflict;
   const [baseline, setBaseline] =
     useState<TicketEditBaseline<TicketFunctionalForm>>(() =>
       createTicketEditBaseline(ticket, initialForm),
@@ -103,6 +104,7 @@ export function TicketDataEditDialog({
   const hasChanges = update !== null;
 
   const submit = () => {
+    if (isEditingDisabled) return;
     if (!hasChanges) return;
     if (!form.motivo.trim()) {
       setValidationError('El motivo no puede quedar vacío.');
@@ -154,6 +156,7 @@ export function TicketDataEditDialog({
                 id={`ticket-data-${field}`}
                 type={type}
                 value={form[field]}
+                disabled={isEditingDisabled}
                 aria-invalid={field === 'email' && Boolean(validationError)}
                 onChange={(event) => setForm((current) => ({ ...current, [field]: event.target.value }))}
               />
@@ -165,6 +168,7 @@ export function TicketDataEditDialog({
             <Input
               id="ticket-data-motivo"
               value={form.motivo}
+              disabled={isEditingDisabled}
               aria-invalid={Boolean(validationError)}
               onChange={(event) => setForm((current) => ({ ...current, motivo: event.target.value }))}
             />
@@ -176,6 +180,7 @@ export function TicketDataEditDialog({
               id="ticket-data-resumen"
               className="min-h-28 resize-y"
               value={form.resumen}
+              disabled={isEditingDisabled}
               onChange={(event) => setForm((current) => ({ ...current, resumen: event.target.value }))}
             />
           </div>
@@ -189,7 +194,7 @@ export function TicketDataEditDialog({
           </Button>
           <Button
             onClick={submit}
-            disabled={!hasChanges || isSaving || hasVersionConflict}
+            disabled={!hasChanges || isEditingDisabled || hasVersionConflict}
           >
             {isSaving ? 'Guardando…' : 'Guardar datos'}
           </Button>

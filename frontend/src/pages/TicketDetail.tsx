@@ -238,7 +238,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
           <TicketContactCard
             ticket={ticket}
             onEdit={editing.openFunctionalEditor}
-            isEditDisabled={editing.isReloadingConflict}
+            isEditDisabled={editing.areEditorActionsDisabled}
           />
 
           <TicketTimingCard
