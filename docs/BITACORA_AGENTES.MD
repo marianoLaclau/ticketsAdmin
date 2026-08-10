@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Formularios de ticket con semántica completa
+
+**Agente:** Codex
+**Estado:** ducentésima vigésima octava remediación de la auditoría técnica, implementada localmente.
+
+- Alta y edición administrativa tienen formularios reales: Enter envía una sola vez, Cancelar nunca dispara submit y cada texto, select y textarea posee identificador, etiqueta y obligatoriedad programática. La ayuda explica los campos requeridos y el layout conserva una columna segura en móvil.
+- La edición funcional separa los errores de email y motivo, los enlaza con su control, los anuncia y enfoca el primer campo inválido en orden visual. Corregir un campo limpia sólo su propio error; conflictos de versión y bloqueos asíncronos mantienen el comportamiento previo.
+- Aprobaron 90 pruebas de componentes, 14 regresiones de controladores, la nueva suite de interacción, typecheck del frontend, ESLint focal y `git diff --check`. No se hizo push.
+
 ## 2026-08-09 — Detalle y administración adaptables
 
 **Agente:** Codex

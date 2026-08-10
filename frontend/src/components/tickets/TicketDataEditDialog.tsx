@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import type { Ticket, TicketUpdate } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -54,6 +54,10 @@ const CONTACT_FIELDS: Array<{
   { field: 'email', label: 'Email', type: 'email' },
 ];
 
+type TicketDataValidationErrors = Partial<
+  Record<'email' | 'motivo', string>
+>;
+
 export function TicketDataEditDialog({
   ticket,
   open,
@@ -72,7 +76,10 @@ export function TicketDataEditDialog({
       createTicketEditBaseline(ticket, initialForm),
     );
   const [form, setForm] = useState<TicketFunctionalForm>(initialForm);
-  const [validationError, setValidationError] = useState('');
+  const [validationErrors, setValidationErrors] =
+    useState<TicketDataValidationErrors>({});
+  const emailInputRef = useRef<HTMLInputElement>(null);
+  const motivoInputRef = useRef<HTMLInputElement>(null);
   const draftSessionRef = useRef<TicketDraftSession>({
     wasOpen: false,
     ticketId: null,
@@ -90,7 +97,7 @@ export function TicketDataEditDialog({
     const snapshot = ticketToFunctionalForm(ticket);
     setBaseline(createTicketEditBaseline(ticket, snapshot));
     setForm({ ...snapshot });
-    setValidationError('');
+    setValidationErrors({});
   }, [open, ticket]);
 
   const update = useMemo(
@@ -103,18 +110,37 @@ export function TicketDataEditDialog({
   );
   const hasChanges = update !== null;
 
-  const submit = () => {
+  const clearValidationError = (field: keyof TicketDataValidationErrors) => {
+    setValidationErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     if (isEditingDisabled) return;
     if (!hasChanges) return;
-    if (!form.motivo.trim()) {
-      setValidationError('El motivo no puede quedar vacío.');
-      return;
-    }
+
+    const nextErrors: TicketDataValidationErrors = {};
     if (!isValidOptionalEmail(form.email)) {
-      setValidationError('Ingresá un email válido o dejá el campo vacío.');
+      nextErrors.email = 'Ingresá un email válido o dejá el campo vacío.';
+    }
+    if (!form.motivo.trim()) {
+      nextErrors.motivo = 'El motivo no puede quedar vacío.';
+    }
+    setValidationErrors(nextErrors);
+    if (nextErrors.email) {
+      emailInputRef.current?.focus();
       return;
     }
-    setValidationError('');
+    if (nextErrors.motivo) {
+      motivoInputRef.current?.focus();
+      return;
+    }
+
     if (update) onSave(update);
   };
 
@@ -124,7 +150,7 @@ export function TicketDataEditDialog({
       const snapshot = ticketToFunctionalForm(latestTicket);
       setBaseline(createTicketEditBaseline(latestTicket, snapshot));
       setForm({ ...snapshot });
-      setValidationError('');
+      setValidationErrors({});
       onVersionConflictResolved();
     } catch {
       // El padre muestra el error y el draft se conserva para no perder trabajo.
@@ -133,7 +159,7 @@ export function TicketDataEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[680px]">
+      <DialogContent className="max-h-[90vh] overflow-y-auto p-4 sm:max-w-[680px] sm:p-6">
         <DialogHeader>
           <DialogTitle>Editar datos del ticket</DialogTitle>
           <DialogDescription>
@@ -141,64 +167,126 @@ export function TicketDataEditDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {hasVersionConflict && (
-          <TicketVersionConflictAlert
-            isReloading={isReloadingConflict}
-            onReload={() => void reloadLatest()}
-          />
-        )}
+        <form className="grid gap-4" noValidate onSubmit={submit}>
+          {hasVersionConflict && (
+            <TicketVersionConflictAlert
+              isReloading={isReloadingConflict}
+              onReload={() => void reloadLatest()}
+            />
+          )}
 
-        <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2">
-          {CONTACT_FIELDS.map(({ field, label, type }) => (
-            <div key={field} className="space-y-1.5">
-              <Label htmlFor={`ticket-data-${field}`}>{label}</Label>
+          <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2">
+            {CONTACT_FIELDS.map(({ field, label, type }) => (
+              <div key={field} className="space-y-1.5">
+                <Label htmlFor={`ticket-data-${field}`}>{label}</Label>
+                <Input
+                  id={`ticket-data-${field}`}
+                  ref={field === 'email' ? emailInputRef : undefined}
+                  type={type}
+                  value={form[field]}
+                  disabled={isEditingDisabled}
+                  aria-invalid={
+                    field === 'email' && Boolean(validationErrors.email)
+                  }
+                  aria-describedby={
+                    field === 'email' && validationErrors.email
+                      ? 'ticket-data-email-error'
+                      : undefined
+                  }
+                  onChange={(event) => {
+                    setForm((current) => ({
+                      ...current,
+                      [field]: event.target.value,
+                    }));
+                    if (field === 'email') clearValidationError('email');
+                  }}
+                />
+                {field === 'email' && validationErrors.email && (
+                  <p
+                    id="ticket-data-email-error"
+                    className="text-sm text-destructive"
+                    role="alert"
+                  >
+                    {validationErrors.email}
+                  </p>
+                )}
+              </div>
+            ))}
+
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="ticket-data-motivo">
+                Motivo
+                <span aria-hidden="true" className="text-destructive">
+                  {' '}*
+                </span>
+              </Label>
               <Input
-                id={`ticket-data-${field}`}
-                type={type}
-                value={form[field]}
+                id="ticket-data-motivo"
+                ref={motivoInputRef}
+                value={form.motivo}
                 disabled={isEditingDisabled}
-                aria-invalid={field === 'email' && Boolean(validationError)}
-                onChange={(event) => setForm((current) => ({ ...current, [field]: event.target.value }))}
+                required
+                aria-invalid={Boolean(validationErrors.motivo)}
+                aria-describedby={
+                  validationErrors.motivo
+                    ? 'ticket-data-motivo-error'
+                    : undefined
+                }
+                onChange={(event) => {
+                  setForm((current) => ({
+                    ...current,
+                    motivo: event.target.value,
+                  }));
+                  clearValidationError('motivo');
+                }}
+              />
+              {validationErrors.motivo && (
+                <p
+                  id="ticket-data-motivo-error"
+                  className="text-sm text-destructive"
+                  role="alert"
+                >
+                  {validationErrors.motivo}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="ticket-data-resumen">Resumen del llamado</Label>
+              <Textarea
+                id="ticket-data-resumen"
+                className="min-h-28 resize-y"
+                value={form.resumen}
+                disabled={isEditingDisabled}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    resumen: event.target.value,
+                  }))
+                }
               />
             </div>
-          ))}
-
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="ticket-data-motivo">Motivo</Label>
-            <Input
-              id="ticket-data-motivo"
-              value={form.motivo}
-              disabled={isEditingDisabled}
-              aria-invalid={Boolean(validationError)}
-              onChange={(event) => setForm((current) => ({ ...current, motivo: event.target.value }))}
-            />
           </div>
 
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="ticket-data-resumen">Resumen del llamado</Label>
-            <Textarea
-              id="ticket-data-resumen"
-              className="min-h-28 resize-y"
-              value={form.resumen}
-              disabled={isEditingDisabled}
-              onChange={(event) => setForm((current) => ({ ...current, resumen: event.target.value }))}
-            />
-          </div>
-        </div>
-
-        {validationError && <p className="text-sm text-destructive">{validationError}</p>}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
-            Cancelar
-          </Button>
-          <Button
-            onClick={submit}
-            disabled={!hasChanges || isEditingDisabled || hasVersionConflict}
-          >
-            {isSaving ? 'Guardando…' : 'Guardar datos'}
-          </Button>
-        </DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => onOpenChange(false)}
+              disabled={isSaving}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              className="w-full sm:w-auto"
+              disabled={!hasChanges || isEditingDisabled || hasVersionConflict}
+            >
+              {isSaving ? 'Guardando…' : 'Guardar datos'}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
