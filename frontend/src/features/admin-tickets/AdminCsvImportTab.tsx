@@ -18,10 +18,10 @@ import { Input } from "@/components/ui/input";
 import { LoadingStatus } from "@/components/ui/loading-status";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TabsContent } from "@/components/ui/tabs";
-import { adminErrorMessage } from "@/hooks/use-admin-access";
 import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { useToast } from "@/hooks/use-toast";
 import type { AdminCredentialState } from "@/lib/admin-credential-state";
+import { getAdminErrorMessage } from "@/lib/error-messages";
 import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
 
 interface AdminCsvImportTabProps {
@@ -73,7 +73,7 @@ export function AdminCsvImportTab({
       toast({
         variant: "destructive",
         title,
-        description: adminErrorMessage(err),
+        description: getAdminErrorMessage(err),
       });
     };
 

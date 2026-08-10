@@ -15,6 +15,7 @@ function apiError(
   serverError: string,
   technicalMessage = 'detalle técnico',
   retryAfterSeconds?: number,
+  code?: string,
 ) {
   return Object.assign(new Error(`HTTP ${status}: ${technicalMessage}`), {
     status,
@@ -22,6 +23,7 @@ function apiError(
       error: serverError,
       details: [{ path: ['password'], code: 'too_small' }],
       ...(retryAfterSeconds === undefined ? {} : { retry_after_seconds: retryAfterSeconds }),
+      ...(code === undefined ? {} : { code }),
     },
   });
 }
@@ -100,16 +102,42 @@ test('traduce la política de contraseñas sin exponer validaciones internas', (
   );
 });
 
-test('las acciones administrativas explican la clave inválida sin datos HTTP', () => {
+test('las acciones administrativas traducen la clave inválida por su código estable', () => {
   assert.equal(
-    getAdminErrorMessage(apiError(401, 'Clave de administración inválida')),
-    'Clave de administración inválida. Revisala arriba a la derecha.',
+    getAdminErrorMessage(
+      apiError(
+        401,
+        'detalle deliberadamente irrelevante',
+        'stack privado',
+        undefined,
+        'ADMIN_KEY_INVALID',
+      ),
+    ),
+    'La clave de administración no es válida. Revisala e intentá nuevamente.',
   );
 });
 
-test('un 401 administrativo por sesión vencida no se confunde con la clave', () => {
+test('las acciones administrativas explican una elevación ausente sin filtrar detalles', () => {
+  const result = getAdminErrorMessage(
+    apiError(
+      401,
+      'token interno 89af expirado',
+      'POST /api/admin/tickets devolvió 401',
+      undefined,
+      'ADMIN_ELEVATION_REQUIRED',
+    ),
+  );
+
   assert.equal(
-    getAdminErrorMessage(apiError(401, 'Sesión inválida o expirada')),
+    result,
+    'El acceso administrativo venció o no está habilitado. Ingresá nuevamente la clave de administración.',
+  );
+  assert.doesNotMatch(result, /token|89af|POST|401/i);
+});
+
+test('un texto parecido sin código estable no se confunde con una clave inválida', () => {
+  assert.equal(
+    getAdminErrorMessage(apiError(401, 'Clave de administración inválida')),
     'Tu sesión venció o no es válida. Volvé a iniciar sesión.',
   );
 });

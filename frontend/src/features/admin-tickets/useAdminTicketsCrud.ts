@@ -8,10 +8,10 @@ import {
   type TicketListResponse,
 } from "@workspace/api-client-react";
 import { useQueryClient, type QueryKey } from "@tanstack/react-query";
-import { adminErrorMessage } from "@/hooks/use-admin-access";
 import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { useToast } from "@/hooks/use-toast";
 import type { AdminCredentialState } from "@/lib/admin-credential-state";
+import { getAdminErrorMessage, isTicketVersionConflict } from "@/lib/error-messages";
 import {
   buildAdminTicketInput,
   buildAdminTicketUpdate,
@@ -20,7 +20,6 @@ import {
   type AdminTicketForm,
 } from "@/lib/admin-ticket-form";
 import { getContactDisplayName } from "@/lib/contacto";
-import { isTicketVersionConflict } from "@/lib/error-messages";
 import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
 import {
   buildVersionedTicketUpdate,
@@ -86,7 +85,7 @@ export function useAdminTicketsCrud({
       toast({
         variant: "destructive",
         title,
-        description: adminErrorMessage(error),
+        description: getAdminErrorMessage(error),
       });
     };
 
@@ -289,7 +288,7 @@ export function useAdminTicketsCrud({
       toast({
         variant: "destructive",
         title: "No se pudo cargar la versión actual",
-        description: adminErrorMessage(error),
+        description: getAdminErrorMessage(error),
       });
     } finally {
       if (

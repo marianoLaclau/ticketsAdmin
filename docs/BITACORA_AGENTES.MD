@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Errores administrativos desacoplados del hook legado
+
+**Agente:** Codex
+**Estado:** ducentésima vigésima remediación de la auditoría técnica, implementada localmente.
+
+- Los nueve consumidores de tickets, roles y usuarios importan ahora directamente `getAdminErrorMessage`; el hook de acceso anterior deja de funcionar como dependencia accidental de presentación y queda listo para ser retirado en el corte de código muerto.
+- Los mensajes distinguen clave inválida y elevación vencida exclusivamente mediante `ADMIN_KEY_INVALID` y `ADMIN_ELEVATION_REQUIRED`. Un texto parecido sin código estable se trata como un 401 de sesión y ningún detalle HTTP, URL, token ni texto técnico del servidor llega a la interfaz.
+- Aprobaron 13 pruebas focalizadas, typecheck del frontend, ESLint dirigido y `git diff --check`. El diff quedó limitado a imports, llamadas y tres regresiones, sin el churn de formato preexistente. No se hizo push.
+
 ## 2026-08-09 — Detalle administrativo ligado a la elevación vigente
 
 **Agente:** Codex

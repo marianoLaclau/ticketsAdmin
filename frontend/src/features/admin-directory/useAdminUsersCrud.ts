@@ -17,10 +17,10 @@ import {
   type AdminUserFormState,
 } from "@/features/admin-directory/model";
 import { useAdminUserPasswordReset } from "@/features/admin-directory/useAdminUserPasswordReset";
-import { adminErrorMessage } from "@/hooks/use-admin-access";
 import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { useToast } from "@/hooks/use-toast";
 import type { AdminCredentialState } from "@/lib/admin-credential-state";
+import { getAdminErrorMessage } from "@/lib/error-messages";
 import { getNewPasswordError } from "@/lib/password-policy";
 
 interface UseAdminUsersCrudOptions {
@@ -74,7 +74,7 @@ export function useAdminUsersCrud({
       toast({
         variant: "destructive",
         title,
-        description: adminErrorMessage(error),
+        description: getAdminErrorMessage(error),
       });
     };
 

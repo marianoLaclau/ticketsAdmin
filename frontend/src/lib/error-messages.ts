@@ -175,12 +175,15 @@ export function getUserErrorMessage(error: unknown, fallback = DEFAULT_ERROR_MES
 }
 
 export function getAdminErrorMessage(error: unknown): string {
+  switch (getServerErrorCode(error)) {
+    case 'ADMIN_KEY_INVALID':
+      return 'La clave de administración no es válida. Revisala e intentá nuevamente.';
+    case 'ADMIN_ELEVATION_REQUIRED':
+      return 'El acceso administrativo venció o no está habilitado. Ingresá nuevamente la clave de administración.';
+  }
+
   const status = getApiErrorStatus(error);
   if (status === 401) {
-    const serverMessage = normalize(getServerErrorText(error));
-    if (serverMessage.includes('clave de administracion')) {
-      return 'Clave de administración inválida. Revisala arriba a la derecha.';
-    }
     return getUserErrorMessage(error);
   }
   if (status === 503) {

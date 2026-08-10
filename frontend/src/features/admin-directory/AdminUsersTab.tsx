@@ -23,7 +23,7 @@ import { LoadingStatus } from '@/components/ui/loading-status';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TabsContent } from '@/components/ui/tabs';
-import { adminErrorMessage } from '@/hooks/use-admin-access';
+import { getAdminErrorMessage } from '@/lib/error-messages';
 import { AdminCredentialNotice } from '@/components/admin/AdminCredentialNotice';
 import type { AdminDirectoryUsersUrlState } from '@/lib/admin-directory-url';
 import type { AdminCredentialState } from '@/lib/admin-credential-state';
@@ -304,7 +304,7 @@ export function AdminUsersTab({
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" aria-hidden="true" />
               <AlertTitle>No se pudo cargar el catálogo de roles</AlertTitle>
-              <AlertDescription>{adminErrorMessage(roleCatalogQuery.error)}</AlertDescription>
+              <AlertDescription>{getAdminErrorMessage(roleCatalogQuery.error)}</AlertDescription>
             </Alert>
           )}
 
@@ -353,7 +353,7 @@ export function AdminUsersTab({
                   ) : usersQuery.isError ? (
                     <TableRow>
                       <TableCell colSpan={8} className="h-32 text-center text-sm text-destructive">
-                        <span role="alert">{adminErrorMessage(usersQuery.error)}</span>
+                        <span role="alert">{getAdminErrorMessage(usersQuery.error)}</span>
                       </TableCell>
                     </TableRow>
                   ) : users.length === 0 ? (

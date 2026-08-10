@@ -15,10 +15,10 @@ import {
   createEmptyAdminRoleForm,
   type AdminRoleFormState,
 } from "@/features/admin-directory/model";
-import { adminErrorMessage } from "@/hooks/use-admin-access";
 import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { useToast } from "@/hooks/use-toast";
 import type { AdminCredentialState } from "@/lib/admin-credential-state";
+import { getAdminErrorMessage } from "@/lib/error-messages";
 import { esRolSistema } from "@/lib/roles";
 
 interface UseAdminRolesCrudOptions {
@@ -70,7 +70,7 @@ export function useAdminRolesCrud({
       toast({
         variant: "destructive",
         title,
-        description: adminErrorMessage(error),
+        description: getAdminErrorMessage(error),
       });
     };
 

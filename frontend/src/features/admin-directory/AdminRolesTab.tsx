@@ -44,10 +44,10 @@ import type {
   AdminDirectoryRolesUrlUpdate,
   AdminDirectoryUrlNavigation,
 } from "@/features/admin-directory/useAdminDirectoryUrl";
-import { adminErrorMessage } from "@/hooks/use-admin-access";
 import { AdminCredentialNotice } from "@/components/admin/AdminCredentialNotice";
 import type { AdminCredentialState } from "@/lib/admin-credential-state";
 import type { AdminDirectoryRolesUrlState } from "@/lib/admin-directory-url";
+import { getAdminErrorMessage } from "@/lib/error-messages";
 import { esRolSistema } from "@/lib/roles";
 
 interface AdminRolesTabProps {
@@ -276,7 +276,7 @@ export function AdminRolesTab({
                       className="h-32 text-center text-sm text-destructive"
                     >
                       <span role="alert">
-                        {adminErrorMessage(rolesQuery.error)}
+                        {getAdminErrorMessage(rolesQuery.error)}
                       </span>
                     </TableCell>
                   </TableRow>

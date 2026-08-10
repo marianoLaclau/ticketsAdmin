@@ -4,7 +4,6 @@ import {
   useListTickets,
   type TicketSortBy,
 } from "@workspace/api-client-react";
-import { adminErrorMessage } from "@/hooks/use-admin-access";
 import { AdminTicketDeleteDialog } from "@/features/admin-tickets/AdminTicketDeleteDialog";
 import { AdminTicketFormDialog } from "@/features/admin-tickets/AdminTicketFormDialog";
 import { AdminTicketsListPanel } from "@/features/admin-tickets/AdminTicketsListPanel";
@@ -17,6 +16,7 @@ import type {
 
 import { TabsContent } from "@/components/ui/tabs";
 import type { AdminCredentialState } from "@/lib/admin-credential-state";
+import { getAdminErrorMessage } from "@/lib/error-messages";
 import {
   buildTicketListParams,
   createDefaultTicketSort,
@@ -159,7 +159,7 @@ export function AdminTicketsTab({
         tickets={tickets}
         isLoading={isLoading}
         errorMessage={
-          listQuery.isError ? adminErrorMessage(listQuery.error) : null
+          listQuery.isError ? getAdminErrorMessage(listQuery.error) : null
         }
         areCrudActionsDisabled={areCrudActionsDisabled}
         detailNavigationState={detailNavigationState}
