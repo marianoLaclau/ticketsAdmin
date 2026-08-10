@@ -194,16 +194,15 @@ export function requireSysAdmin(
 }
 
 /**
- * Frontera transitoria del panel administrativo.
+ * Segunda frontera del panel administrativo.
  *
  * Las sesiones elevadas usan un header fijo y no secreto para volver
- * intencionales las solicitudes de navegador. Mientras el frontend migra se
- * conserva la API key cruda como compatibilidad servidor-a-servidor; se
- * retirará cuando ningún consumidor la envíe en cada request.
+ * intencionales las solicitudes de navegador. La clave cruda solo se acepta
+ * al crear la elevación y nunca vuelve a viajar en las rutas protegidas.
  * Una configuración ausente siempre devuelve 503 porque también es necesaria
  * para validar la huella de una elevación vigente.
  */
-export function requireAdminAccess(
+export function requireAdminElevation(
   req: Request,
   res: Response,
   next: NextFunction,
@@ -213,12 +212,6 @@ export function requireAdminAccess(
     res
       .status(503)
       .json({ error: "ADMIN_API_KEY no está configurada en el servidor" });
-    return;
-  }
-
-  const providedKey = req.header("x-admin-key");
-  if (providedKey && safeEquals(providedKey, configuredKey)) {
-    next();
     return;
   }
 
@@ -237,13 +230,10 @@ export function requireAdminAccess(
       next();
       return;
     }
-
-    res.status(401).json({
-      code: "ADMIN_ELEVATION_REQUIRED",
-      error: "Elevación administrativa requerida",
-    });
-    return;
   }
 
-  res.status(401).json({ error: "Clave de administración inválida" });
+  res.status(401).json({
+    code: "ADMIN_ELEVATION_REQUIRED",
+    error: "Elevación administrativa requerida",
+  });
 }

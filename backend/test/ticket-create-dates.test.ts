@@ -4,6 +4,7 @@ import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { AddressInfo } from "node:net";
 import Database from "better-sqlite3";
+import cookieParser from "cookie-parser";
 import express from "express";
 
 const testDirectory = join(process.cwd(), "tmp", "backend-create-date-tests");
@@ -14,9 +15,39 @@ rmSync(databasePath, { force: true });
 process.env.TICKETS_DB_PATH = databasePath;
 process.env.ADMIN_API_KEY = "admin-create-test-key";
 process.env.WEBHOOK_API_KEY = "webhook-create-test-key";
+process.env.NODE_ENV = "test";
 
 const bootstrap = new Database(databasePath);
 bootstrap.exec(`
+  CREATE TABLE roles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL UNIQUE,
+    descripcion TEXT,
+    activo INTEGER NOT NULL DEFAULT 1,
+    fecha_creacion INTEGER NOT NULL DEFAULT 0,
+    fecha_actualizacion INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE usuarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,
+    apellido TEXT,
+    username TEXT UNIQUE,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT,
+    debe_cambiar_password INTEGER NOT NULL DEFAULT 1 CHECK (debe_cambiar_password IN (0, 1)),
+    role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
+    activo INTEGER NOT NULL DEFAULT 1,
+    fecha_creacion INTEGER NOT NULL DEFAULT 0,
+    fecha_actualizacion INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE sesiones (
+    token TEXT PRIMARY KEY,
+    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    fecha_expiracion INTEGER NOT NULL,
+    admin_elevacion_hasta INTEGER,
+    admin_elevacion_clave_hash TEXT,
+    fecha_creacion INTEGER NOT NULL DEFAULT 0
+  );
   CREATE TABLE tickets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
@@ -65,34 +96,66 @@ bootstrap.close();
 
 const [
   { default: webhooksRouter },
+  { default: authRouter },
   { default: adminRouter },
   { ensureTicketQuarantineProjection, sqlite },
+  { requirePasswordChangeCompleted, requireSession },
+  { hashPassword },
 ] = await Promise.all([
   import("../src/routes/webhooks.ts"),
+  import("../src/routes/auth.ts"),
   import("../src/routes/admin.ts"),
   import("@workspace/db"),
+  import("../src/lib/auth.ts"),
+  import("../src/lib/passwords.ts"),
 ]);
 ensureTicketQuarantineProjection(sqlite);
 
+const password = "Clave-Create-2026-segura";
+const passwordHash = await hashPassword(password);
+sqlite.prepare("INSERT INTO roles (id, nombre) VALUES (1, 'SysAdmin')").run();
+sqlite
+  .prepare(
+    `
+    INSERT INTO usuarios
+      (id, nombre, username, email, password_hash, debe_cambiar_password, role_id)
+    VALUES (1, 'Sistema', 'sysadmin', 'sysadmin@create.test', ?, 0, 1)
+  `,
+  )
+  .run(passwordHash);
+
 const app = express();
 app.use(express.json());
-app.use((_req, res, next) => {
-  res.locals.authUser = {
-    id: 1,
-    nombre: "Sistema",
-    apellido: "Admin",
-    email: "sys@example.test",
-    rol: "SysAdmin",
-  };
-  next();
-});
+app.use(cookieParser());
 app.use(webhooksRouter);
+app.use(authRouter);
+app.use(requireSession);
+app.use(requirePasswordChangeCompleted);
 app.use(adminRouter);
 
 const server = app.listen(0);
 await new Promise<void>((resolve) => server.once("listening", resolve));
 const { port } = server.address() as AddressInfo;
 const baseUrl = `http://127.0.0.1:${port}`;
+
+const login = await fetch(`${baseUrl}/auth/login`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ usuario: "sysadmin", password }),
+});
+assert.equal(login.status, 200);
+const setCookie = login.headers.get("set-cookie");
+assert.ok(setCookie, "el login debe devolver una cookie de sesión");
+const adminCookie = setCookie.split(";", 1)[0];
+const elevation = await fetch(`${baseUrl}/auth/admin-elevation`, {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    cookie: adminCookie,
+  },
+  body: JSON.stringify({ admin_key: "admin-create-test-key" }),
+});
+assert.equal(elevation.status, 200);
 
 function ticketBody(conversationId: string, fechaLimite: unknown) {
   return {
@@ -116,7 +179,8 @@ function createRequest(
   if (path === "/webhooks/ticket") {
     headers["x-api-key"] = "webhook-create-test-key";
   } else {
-    headers["x-admin-key"] = "admin-create-test-key";
+    headers.cookie = adminCookie;
+    headers["x-admin-intent"] = "1";
   }
 
   return fetch(`${baseUrl}${path}`, {

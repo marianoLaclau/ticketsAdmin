@@ -18,7 +18,7 @@ import {
 } from "@workspace/api-zod";
 import {
   puedeCerrarTickets,
-  requireAdminAccess,
+  requireAdminElevation,
   requireSysAdmin,
   type SessionUser,
 } from "../lib/auth";
@@ -70,11 +70,11 @@ function requireTechnicalTicketUpdate(
     return;
   }
 
-  requireSysAdmin(req, res, () => requireAdminAccess(req, res, next));
+  requireSysAdmin(req, res, () => requireAdminElevation(req, res, next));
 }
 
 // `incluir_vacios` nunca amplía alcance por sí solo. El acceso administrativo
-// requiere simultáneamente sesión SysAdmin y la segunda llave del panel.
+// requiere simultáneamente sesión SysAdmin y elevación administrativa vigente.
 function requireAdminForEmptyTickets(
   req: Request,
   res: Response,
@@ -85,7 +85,7 @@ function requireAdminForEmptyTickets(
     return;
   }
 
-  requireSysAdmin(req, res, () => requireAdminAccess(req, res, next));
+  requireSysAdmin(req, res, () => requireAdminElevation(req, res, next));
 }
 
 // Listado operativo/administrativo: los filtros y el orden se aplican antes
@@ -265,7 +265,7 @@ router.patch(
 router.delete(
   "/tickets/:id",
   requireSysAdmin,
-  requireAdminAccess,
+  requireAdminElevation,
   async (req, res) => {
     const parsed = DeleteTicketParams.safeParse({ id: req.params.id });
     if (!parsed.success || !Number.isInteger(parsed.data.id)) {

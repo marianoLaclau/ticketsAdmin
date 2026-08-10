@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Credencial cruda retirada de las rutas administrativas
+
+**Agente:** Codex
+**Estado:** ducentésima décima octava remediación de la auditoría técnica, implementada localmente.
+
+- La segunda frontera administrativa exige ahora configuración válida, sesión SysAdmin con elevación vigente y la intención fija `x-admin-intent: 1`. La API key cruda ya no autoriza ninguna ruta protegida, ni siquiera combinada con el header de intención; sólo se acepta en el POST específico que crea la elevación.
+- Los routers de administración, cuarentena, edición técnica y borrado comparten `requireAdminElevation`, siempre después de RBAC. Los fixtures masivos y de fechas dejaron los atajos por headers y prueban login, cookie y elevación reales; las regresiones cubren clave cruda, falta de grant, vencimiento, revocación, rotación y configuración ausente.
+- Aprobaron 244 pruebas del backend, ambos typechecks, ESLint, Prettier, build y `git diff --check`. Una revisión independiente confirmó que no quedan bypasses ni referencias runtime a `requireAdminAccess` o `x-admin-key`. No se hizo push.
+
 ## 2026-08-09 — Panel administrativo conectado a elevación por sesión
 
 **Agente:** Codex

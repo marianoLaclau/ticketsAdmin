@@ -166,7 +166,6 @@ const baseUrl = `http://127.0.0.1:${port}`;
 interface RequestOptions extends RequestInit {
   role?: string;
   userId?: number;
-  adminKey?: string;
   adminIntent?: string;
   elevated?: boolean;
 }
@@ -175,7 +174,6 @@ function request(path: string, options: RequestOptions = {}) {
   const {
     role,
     userId,
-    adminKey,
     adminIntent,
     elevated,
     headers,
@@ -184,7 +182,6 @@ function request(path: string, options: RequestOptions = {}) {
   const requestHeaders = new Headers(headers);
   requestHeaders.set("x-test-role", role ?? "Operador");
   requestHeaders.set("x-test-user", String(userId ?? 1));
-  if (adminKey !== undefined) requestHeaders.set("x-admin-key", adminKey);
   if (adminIntent !== undefined)
     requestHeaders.set("x-admin-intent", adminIntent);
   if (elevated) requestHeaders.set("x-test-elevated", "1");
@@ -410,7 +407,7 @@ describe("listado y exportación de tickets", () => {
 });
 
 describe("acceso a registros en cuarentena", () => {
-  it("exige SysAdmin y llave en listado, detalle, PATCH y seguimientos", async () => {
+  it("exige SysAdmin y elevación en listado, detalle, PATCH y seguimientos", async () => {
     const listAsOperator = await request("/tickets?incluir_vacios=true");
     assert.equal(listAsOperator.status, 403);
 
@@ -426,7 +423,8 @@ describe("acceso a registros en cuarentena", () => {
     );
     assert.equal(elevatedWithoutIntent.status, 401);
     assert.deepEqual(await elevatedWithoutIntent.json(), {
-      error: "Clave de administración inválida",
+      code: "ADMIN_ELEVATION_REQUIRED",
+      error: "Elevación administrativa requerida",
     });
 
     const elevatedWithWrongIntent = await request(
@@ -455,7 +453,8 @@ describe("acceso a registros en cuarentena", () => {
     const list = await request("/tickets?incluir_vacios=true", {
       role: "SysAdmin",
       userId: 2,
-      adminKey: "admin-test-key",
+      elevated: true,
+      adminIntent: "1",
     });
     assert.equal(list.status, 200);
     const listBody = (await list.json()) as {
@@ -480,7 +479,8 @@ describe("acceso a registros en cuarentena", () => {
     const detail = await request("/tickets/3?incluir_vacios=true", {
       role: "SysAdmin",
       userId: 2,
-      adminKey: "admin-test-key",
+      elevated: true,
+      adminIntent: "1",
     });
     assert.equal(detail.status, 200);
 
@@ -565,7 +565,8 @@ describe("eliminación administrativa", () => {
         method: "DELETE",
         role: "SysAdmin",
         userId: 2,
-        adminKey: "admin-test-key",
+        elevated: true,
+        adminIntent: "1",
       });
       assert.equal(alreadyMissing.status, 204);
       assert.equal(received.length, 1);
@@ -957,7 +958,7 @@ describe("edición y auditoría atómica", () => {
     ]);
   });
 
-  it("mantiene los campos técnicos detrás de SysAdmin y la llave", async () => {
+  it("mantiene los campos técnicos detrás de SysAdmin y la elevación", async () => {
     const deadline = "2026-07-30T12:00:00.000Z";
     const asOperator = await jsonRequest("/tickets/1", "PATCH", {
       fecha_limite: deadline,
@@ -976,7 +977,12 @@ describe("edición y auditoría atómica", () => {
       "/tickets/1",
       "PATCH",
       { fecha_limite: deadline },
-      { role: "SysAdmin", userId: 2, adminKey: "admin-test-key" },
+      {
+        role: "SysAdmin",
+        userId: 2,
+        elevated: true,
+        adminIntent: "1",
+      },
     );
     assert.equal(asAdmin.status, 200);
 
@@ -999,7 +1005,8 @@ describe("validacion estricta de fechas en PATCH", () => {
   const adminOptions = {
     role: "SysAdmin",
     userId: 2,
-    adminKey: "admin-test-key",
+    elevated: true,
+    adminIntent: "1",
   } as const;
 
   it("rechaza null, false, 0, formatos locales y fechas imposibles", async () => {

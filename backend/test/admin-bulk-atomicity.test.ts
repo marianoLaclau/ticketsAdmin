@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { AddressInfo } from "node:net";
 import { after, beforeEach, describe, it } from "node:test";
 import Database from "better-sqlite3";
+import cookieParser from "cookie-parser";
 import express from "express";
 
 const testDirectory = join(process.cwd(), "tmp", "backend-admin-bulk-tests");
@@ -15,10 +16,40 @@ for (const suffix of ["", "-shm", "-wal"]) {
 
 process.env.TICKETS_DB_PATH = databasePath;
 process.env.ADMIN_API_KEY = "bulk-admin-key";
+process.env.NODE_ENV = "test";
 
 const bootstrap = new Database(databasePath);
 bootstrap.pragma("foreign_keys = ON");
 bootstrap.exec(`
+  CREATE TABLE roles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL UNIQUE,
+    descripcion TEXT,
+    activo INTEGER NOT NULL DEFAULT 1,
+    fecha_creacion INTEGER NOT NULL DEFAULT 0,
+    fecha_actualizacion INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE usuarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,
+    apellido TEXT,
+    username TEXT UNIQUE,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT,
+    debe_cambiar_password INTEGER NOT NULL DEFAULT 1 CHECK (debe_cambiar_password IN (0, 1)),
+    role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
+    activo INTEGER NOT NULL DEFAULT 1,
+    fecha_creacion INTEGER NOT NULL DEFAULT 0,
+    fecha_actualizacion INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE sesiones (
+    token TEXT PRIMARY KEY,
+    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    fecha_expiracion INTEGER NOT NULL,
+    admin_elevacion_hasta INTEGER,
+    admin_elevacion_clave_hash TEXT,
+    fecha_creacion INTEGER NOT NULL DEFAULT 0
+  );
   CREATE TABLE tickets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
@@ -65,28 +96,49 @@ bootstrap.exec(`
 `);
 bootstrap.close();
 
-const [{ default: adminRouter }, { ensureTicketQuarantineProjection, sqlite }] =
-  await Promise.all([
-    import("../src/routes/admin.ts"),
-    import("@workspace/db"),
-  ]);
+const [
+  { default: authRouter },
+  { default: adminRouter },
+  { ensureTicketQuarantineProjection, sqlite },
+  { requirePasswordChangeCompleted, requireSession },
+  { hashPassword },
+] = await Promise.all([
+  import("../src/routes/auth.ts"),
+  import("../src/routes/admin.ts"),
+  import("@workspace/db"),
+  import("../src/lib/auth.ts"),
+  import("../src/lib/passwords.ts"),
+]);
 ensureTicketQuarantineProjection(sqlite);
+
+const password = "Clave-Bulk-2026-segura";
+const passwordHash = await hashPassword(password);
+sqlite
+  .prepare(
+    "INSERT INTO roles (id, nombre) VALUES (1, 'SysAdmin'), (2, 'Operador')",
+  )
+  .run();
+const insertUser = sqlite.prepare(`
+  INSERT INTO usuarios
+    (id, nombre, username, email, password_hash, debe_cambiar_password, role_id)
+  VALUES (?, ?, ?, ?, ?, 0, ?)
+`);
+insertUser.run(1, "Sistema", "sysadmin", "sysadmin@bulk.test", passwordHash, 1);
+insertUser.run(
+  2,
+  "Operador",
+  "operador",
+  "operador@bulk.test",
+  passwordHash,
+  2,
+);
 
 const app = express();
 app.use(express.json());
-app.use((req, res, next) => {
-  res.locals.authUser = {
-    id: 1,
-    nombre: "Sistema",
-    apellido: "Admin",
-    email: "sysadmin@example.test",
-    rol:
-      typeof req.headers["x-test-role"] === "string"
-        ? req.headers["x-test-role"]
-        : "SysAdmin",
-  };
-  next();
-});
+app.use(cookieParser());
+app.use(authRouter);
+app.use(requireSession);
+app.use(requirePasswordChangeCompleted);
 app.use(adminRouter);
 app.use(
   (
@@ -104,12 +156,41 @@ await new Promise<void>((resolve) => server.once("listening", resolve));
 const { port } = server.address() as AddressInfo;
 const baseUrl = `http://127.0.0.1:${port}`;
 
+function sessionCookie(response: Response): string {
+  const header = response.headers.get("set-cookie");
+  assert.ok(header, "el login debe devolver una cookie de sesión");
+  return header.split(";", 1)[0];
+}
+
+async function loginAs(username: string): Promise<string> {
+  const response = await fetch(`${baseUrl}/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ usuario: username, password }),
+  });
+  assert.equal(response.status, 200);
+  return sessionCookie(response);
+}
+
+const adminCookie = await loginAs("sysadmin");
+const elevation = await fetch(`${baseUrl}/auth/admin-elevation`, {
+  method: "POST",
+  headers: {
+    "content-type": "application/json",
+    cookie: adminCookie,
+  },
+  body: JSON.stringify({ admin_key: "bulk-admin-key" }),
+});
+assert.equal(elevation.status, 200);
+const operatorCookie = await loginAs("operador");
+
 function adminPost(path: "/admin/import" | "/admin/truncate", body: unknown) {
   return fetch(`${baseUrl}${path}`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-admin-key": "bulk-admin-key",
+      cookie: adminCookie,
+      "x-admin-intent": "1",
     },
     body: JSON.stringify(body),
   });
@@ -146,19 +227,26 @@ after(async () => {
 
 describe("operaciones administrativas masivas", () => {
   it("conserva el doble guard del router administrativo padre", async () => {
-    const withoutAdminKey = await fetch(`${baseUrl}/admin/import`, {
+    const withoutIntent = await fetch(`${baseUrl}/admin/import`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        cookie: adminCookie,
+      },
       body: JSON.stringify({}),
     });
-    assert.equal(withoutAdminKey.status, 401);
+    assert.equal(withoutIntent.status, 401);
+    assert.deepEqual(await withoutIntent.json(), {
+      code: "ADMIN_ELEVATION_REQUIRED",
+      error: "Elevación administrativa requerida",
+    });
 
     const withoutSysAdminRole = await fetch(`${baseUrl}/admin/truncate`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-admin-key": "bulk-admin-key",
-        "x-test-role": "Operador",
+        cookie: operatorCookie,
+        "x-admin-intent": "1",
       },
       body: JSON.stringify({ confirmar: true }),
     });
