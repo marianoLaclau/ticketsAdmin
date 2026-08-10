@@ -1,0 +1,97 @@
+name: Recover pending release
+
+on:
+  workflow_dispatch:
+    inputs:
+      pending_release_id:
+        description: Release ID exacto registrado en pending
+        required: true
+        type: string
+      expected_state_generation:
+        description: Generacion exacta del ledger
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-testing
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resume exact pending release
+        shell: bash
+        env:
+          WEBHOOK_API_KEY: ${{ secrets.WEBHOOK_API_KEY }}
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+          BOOTSTRAP_SYSADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_SYSADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          pending_release_id="${{ inputs.pending_release_id }}"
+          expected_generation="${{ inputs.expected_state_generation }}"
+          if [[ ! "$pending_release_id" =~ ^git-([0-9a-f]{40})-run-([1-9][0-9]*)-([1-9][0-9]*)$ ]]; then
+            echo "pending_release_id invalido" >&2
+            exit 1
+          fi
+
+          revision="${BASH_REMATCH[1]}"
+          original_run_id="${BASH_REMATCH[2]}"
+          original_run_attempt="${BASH_REMATCH[3]}"
+          [[ "$revision" == "$GITHUB_SHA" ]] || {
+            echo "El pending no pertenece al main actual" >&2
+            exit 1
+          }
+          [[ "$expected_generation" =~ ^[1-9][0-9]*$ ]] || {
+            echo "expected_state_generation invalida" >&2
+            exit 1
+          }
+
+          backend_ref="ticketsadmin-backend:$pending_release_id"
+          frontend_ref="ticketsadmin-frontend:$pending_release_id"
+          backend_id="$(docker image inspect --format '{{.Id}}' "$backend_ref")"
+          frontend_id="$(docker image inspect --format '{{.Id}}' "$frontend_ref")"
+
+          set +e
+          bash scripts/deploy/deploy-release.sh \
+            --backend-image-id "$backend_id" \
+            --frontend-image-id "$frontend_id" \
+            --backend-image-ref "$backend_ref" \
+            --frontend-image-ref "$frontend_ref" \
+            --revision "$revision" \
+            --image-source "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --run-id "$original_run_id" \
+            --run-attempt "$original_run_attempt" \
+            --repository "$GITHUB_REPOSITORY" \
+            --backup-dir /var/lib/ticketsadmin/backups \
+            --state-dir /var/lib/ticketsadmin/releases \
+            --lock-file /var/lib/ticketsadmin/locks/deploy.lock \
+            --resume-pending-attempt "$pending_release_id" \
+            --expected-state-generation "$expected_generation"
+          status=$?
+          set -e
+
+          # 75 significa que el orquestador reconcilio el pending y no debe
+          # iniciar un segundo rollout dentro de la misma ejecucion.
+          if ((status == 0 || status == 75)); then
+            exit 0
+          fi
+          exit "$status"
+
+      - name: Recovery diagnostics
+        if: failure()
+        shell: bash
+        env:
+          WEBHOOK_API_KEY: not-used-for-recovery-diagnostics
+          ADMIN_API_KEY: not-used-for-recovery-diagnostics
+        run: |
+          docker compose ps || true
+          docker compose logs --no-color --tail=100 backend frontend || true
