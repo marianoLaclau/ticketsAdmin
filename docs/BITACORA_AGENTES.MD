@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Documentación reconciliada con el sistema endurecido
+
+**Agente:** Codex
+**Estado:** ducentésima trigésima quinta remediación de la auditoría técnica, implementada localmente.
+
+- README, guías de backend/frontend, arquitectura, flujo, deploy, índice documental y `.env.example` describen el contrato vigente: elevación server-side, secreto solo en el body del POST, intención no secreta, TTL/fingerprint/rotación, rate limit y purga preventiva de storage legado.
+- El modelo incorpora credenciales, sesiones y columnas de `0016`; readiness exige ese esquema. La cadena de migraciones, la estructura modular, Prettier, Playwright, cleanup reintentable, los dos jobs bloqueantes de GitHub y sus artefactos quedan alineados con el código ejecutable.
+- La revisión buscó referencias operativas legacy, validó anchors, bloques Markdown y `git diff --check`. Las únicas menciones a `admin-key` restantes explican la eliminación segura de nombres históricos; ninguna recomienda persistir o enviar el secreto. No se hizo push.
+
 ## 2026-08-09 — Cleanup E2E completo y reintentable
 
 **Agente:** Codex

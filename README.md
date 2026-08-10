@@ -28,13 +28,14 @@ Llamada telefónica → ElevenLabs (agente de voz) → n8n → POST /api/webhook
 - **Trazabilidad desde v0.5**: cada modificación registra de forma atómica el autor y los cambios reales de estado, prioridad, asignación y campos editados. El historial nuevo no intenta inventar eventos anteriores a la incorporación de esta auditoría.
 - **Actualización en vivo**: la app mantiene una conexión de Server-Sent Events; cuando entra un llamado nuevo (o se importa un CSV), todas las pestañas abiertas se refrescan al instante y muestran una notificación — sin recargar la página.
 - **Login obligatorio con roles**: nadie ve ninguna pantalla ni puede pegarle a la API sin sesión iniciada. Tres roles con permisos distintos (ver sección Autenticación).
+- **Elevación administrativa efímera**: un SysAdmin presenta `ADMIN_API_KEY` una sola vez en el body de `POST /api/auth/admin-elevation`. El servidor liga el permiso a esa sesión por hasta 15 minutos; las operaciones posteriores envían solo la intención fija y no secreta `x-admin-intent: 1`. La clave no queda en headers, caché ni almacenamiento del navegador.
 - **Panel de administración** (solo rol SysAdmin): tabla ampliada, ordenable y paginada, acceso al detalle incluso para registros en cuarentena, CRUD manual de tickets, importador de CSV con simulación previa, "zona peligrosa" para vaciar la base, y gestión de roles/usuarios con reset de contraseña.
 - **Importador del histórico**: script CLI que carga de una vez un Excel/CSV viejo con el mismo motor de parseo que usa el panel web.
 - **Backup online de SQLite**: copia consistente con el WAL, verificada con `integrity_check`, sin sobrescribir destinos.
 
 ## Autenticación y roles
 
-Todo el sistema funcional exige sesión iniciada. Las rutas que no la requieren son `GET /api/healthz` (el proceso está vivo), `GET /api/readyz` (el proceso ya puede recibir tráfico), `POST /api/webhooks/ticket` (autenticado con su propia API key, para n8n), `POST /api/auth/login` y `POST /api/auth/logout`; este último es público para poder limpiar de forma idempotente una cookie ausente, inválida o ya revocada. Cualquier URL privada del frontend, sin sesión, muestra el login. Ambos probes HTTP deshabilitan caché: `healthz` es estático, mientras `readyz` exige que el servidor haya abierto el puerto, no esté drenando y pueda consultar el schema mínimo de tickets en SQLite.
+Todo el sistema funcional exige sesión iniciada. Las rutas que no la requieren son `GET /api/healthz` (el proceso está vivo), `GET /api/readyz` (el proceso ya puede recibir tráfico), `POST /api/webhooks/ticket` (autenticado con su propia API key, para n8n), `POST /api/auth/login` y `POST /api/auth/logout`; este último es público para poder limpiar de forma idempotente una cookie ausente, inválida o ya revocada. Cualquier URL privada del frontend, sin sesión, muestra el login. Ambos probes HTTP deshabilitan caché: `healthz` es estático, mientras `readyz` exige que el servidor haya abierto el puerto, no esté drenando y pueda consultar el schema mínimo de tickets, cuarentena y sesiones —incluida la elevación de `0016`— en SQLite.
 
 | Rol               | Puede                                                                                                                    |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -48,13 +49,16 @@ Toda contraseña **nueva** —alta de usuario, reset o bootstrap— debe tener e
 
 El login admite diez credenciales rechazadas por nombre de usuario normalizado dentro de 15 minutos; la siguiente solicitud responde `429` con `Retry-After` y bloquea esa identidad durante 15 minutos. Las reservas paralelas, los rechazos por capacidad y los errores internos no cuentan como contraseña incorrecta. La cuenta se libera después de un acceso correcto o de una creación, renombre o reset administrativo. Además, un token bucket admite una ráfaga inicial de 30 trabajos scrypt públicos y repone capacidad a razón de 30 por minuto, con solo cuatro ejecuciones simultáneas y ocho en cola, de modo que rotar usernames tampoco permita un consumo sostenido sin límite. Los contadores usan claves hasheadas, memoria acotada y corresponden a la única instancia backend actual; un reinicio los limpia y una futura réplica requerirá un store compartido.
 
-Detalle completo (sesiones, hash de contraseñas, seed inicial, doble verificación del panel admin) en [backend/README_BACKEND.md](backend/README_BACKEND.md#autenticación-y-autorización).
+Para entrar a una pantalla administrativa, la UI consulta primero `GET /api/auth/admin-elevation`. Si la sesión todavía no está elevada, solicita la clave y la descarta del DOM antes de iniciar el `POST`; el backend persiste solamente el vencimiento y una huella versionada de la clave configurada. El grant expira a los 15 minutos o junto con la sesión, lo que ocurra primero, se puede revocar con `DELETE /api/auth/admin-elevation` y queda invalidado inmediatamente si se rota `ADMIN_API_KEY`.
+
+Detalle completo (sesiones, hash de contraseñas, seed inicial y elevación del panel admin) en [backend/README_BACKEND.md](backend/README_BACKEND.md#autenticación-y-autorización).
 
 ## Estructura del repo
 
 ```
 backend/    → API Express 5 (puerto 5000) — ver backend/README_BACKEND.md
 frontend/   → React + Vite (puerto 3000, proxea /api al backend) — ver frontend/README_FRONTEND.md
+e2e/        → Playwright: flujos críticos con backend, Vite y SQLite efímeros
 lib/
   db/               → schemas Drizzle (tickets, seguimientos, roles, usuarios, sesiones) + cliente SQLite + migraciones (drizzle/) + backup
   ingesta/          → lógica compartida de parseo CSV, clasificación de motivo y SLA (la usan el CLI y /admin)
@@ -69,7 +73,7 @@ Dockerfile.backend, Dockerfile.frontend, docker-compose.yml → despliegue en co
 .github/workflows/deploy.yml → CI/CD: build + redeploy en cada push a main (self-hosted runner)
 ```
 
-Las carpetas `data/`, `backups/`, `tmp/`, `node_modules/`, `dist/` y `.pnpm-store/` son locales o generadas y están ignoradas por Git. El código versionado se concentra en `backend/`, `frontend/`, `lib/`, `scripts/`, `docs/` y la configuración de la raíz.
+Las carpetas `data/`, `backups/`, `tmp/`, `e2e/artifacts/`, `node_modules/`, `dist/` y `.pnpm-store/` son locales o generadas y están ignoradas por Git. El código versionado se concentra en `backend/`, `frontend/`, `e2e/`, `lib/`, `scripts/`, `docs/` y la configuración de la raíz.
 
 ## Quickstart (desarrollo local)
 
@@ -88,13 +92,17 @@ Abrir http://localhost:3000. En una base nueva, el primer arranque crea el usuar
 
 - `pnpm --filter @workspace/backend run dev` — API (puerto 5000, configurable con `PORT` en `.env`)
 - `pnpm --filter @workspace/frontend run dev` — frontend (puerto 3000)
-- `pnpm run lint` — ESLint tipado sobre fuentes y lint estructural sobre tests/configuración; no admite errores ni aumentar el baseline temporal de `any`
+- `pnpm run lint` — ESLint tipado sobre fuentes y lint estructural sobre tests/configuración, incluido `e2e/`; `no-explicit-any` y las reglas de accesibilidad del frontend son errores y no se admiten warnings
 - `pnpm run typecheck` — typecheck completo del workspace
-- `pnpm test` — ejecuta las pruebas de todos los paquetes que tienen suite
+- `pnpm test` — ejecuta las suites unitarias, de integración y de componentes de los paquetes que exponen un script `test`; no abre un navegador
+- `pnpm --filter @workspace/e2e exec playwright install chromium` — instala el Chromium requerido por Playwright en la máquina local
+- `pnpm run test:e2e` — ejecuta en Chromium los flujos críticos contra backend, Vite y una base temporal aislada
+- `pnpm run test:e2e:headed` — misma suite E2E con el navegador visible
 - `pnpm run build` — typecheck + build de todos los paquetes
 - `pnpm run codegen` — regenera hooks y schemas Zod desde el spec OpenAPI
 - `pnpm run codegen:check` — regenera y falla si falta commitear cualquier artefacto OpenAPI, incluso archivos nuevos
-- `pnpm run quality` — quality gate completo: lint, codegen sin drift, migraciones, pruebas, typecheck y builds
+- `pnpm run format` / `pnpm run format:check` — normaliza o verifica código y configuración con Prettier
+- `pnpm run quality` — reproduce el primer job del gate: lint, formato sin drift, codegen, schema Drizzle, pruebas no-browser, typecheck y builds; GitHub ejecuta después `pnpm run test:e2e` en un segundo job bloqueante
 - `pnpm --filter @workspace/db run push` — aplica el schema en una base local sin ledger y reconcilia sus invariantes SQL (dev only)
 - `pnpm --filter @workspace/scripts run import-excel -- <archivo.xlsx|csv> [--dry-run] [--sheet <nombre>]` — importa el histórico de llamadas (idempotente por conversation_id)
 - `pnpm run backup:db -- --output ./backups/tickets-AAAA-MM-DD.db` — backup SQLite consistente con WAL; valida integridad, claves foráneas y esquema mínimo, usa permisos restrictivos y nunca sobrescribe archivos
@@ -102,6 +110,8 @@ Abrir http://localhost:3000. En una base nueva, el primer arranque crea el usuar
 - `pnpm run restore:db -- --source ./backups/origen.db --recovery-output ./backups/pre-restore.db --confirm-stopped` — restaura offline con recovery previa obligatoria; detener antes todos los procesos que puedan escribir SQLite
 - `pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts` — genera el SQL de migración tras cambiar el schema (commitear el resultado)
 - `WEBHOOK_API_KEY=... ADMIN_API_KEY=... BOOTSTRAP_SYSADMIN_PASSWORD=... docker compose up -d --build` — levanta una instalación nueva en contenedores (ver [docs/DEPLOY.md](docs/DEPLOY.md)); el tercer valor deja de ser necesario después del bootstrap
+
+El workflow reutilizable de GitHub exige dos jobs en orden: `quality` y luego `e2e`. El segundo instala Chromium, ejecuta los cuatro flujos Playwright sobre un stack efímero y, si falla, publica `playwright-diagnostics` durante 7 días. Ambos bloquean pull requests y el deploy desde `main`.
 
 ## Configuración
 
@@ -112,7 +122,7 @@ Copiar `.env.example` a `.env` en la raíz:
 | `PORT`                             | Puerto del backend (default 5000)                                                                                                                         |
 | `HOST_IP`                          | IP de esta máquina en la red interna — la usa n8n para llegar al webhook (solo referencia, no la lee el código)                                           |
 | `WEBHOOK_API_KEY`                  | Clave que n8n manda en `x-api-key` al crear tickets (requerida para el webhook)                                                                           |
-| `ADMIN_API_KEY`                    | Segunda credencial obligatoria de las operaciones administrativas del SysAdmin; si falta, esas operaciones responden `503`                                |
+| `ADMIN_API_KEY`                    | Credencial obligatoria que se acepta solo en el body de `POST /auth/admin-elevation`; crea un grant efímero ligado a la sesión y, si falta, la elevación responde `503` |
 | `BOOTSTRAP_SYSADMIN_PASSWORD`      | Secreto exclusivo del bootstrap: crea `sysadmin` en una base sin hashes o rota la credencial semilla heredada; nunca modifica una contraseña ya asegurada |
 | `TICKETS_DB_PATH`                  | Ruta del archivo SQLite (opcional, default `data/tickets.db`)                                                                                             |
 | `TICKET_CSV_EXPORT_TIMEOUT_MS`     | Duración máxima absoluta de una exportación CSV (default 300000 = 5 minutos; rango 1000–2147483647)                                                       |
@@ -133,13 +143,13 @@ Copiar `.env.example` a `.env` en la raíz:
 - **Contract-first**: todo el contrato vive en `lib/api-spec/openapi.yaml`. Se edita el yaml, se corre `codegen`, y los dos lados (frontend y backend) quedan sincronizados por construcción.
 - **SQLite en lugar de Postgres** (migrado 2026-07): better-sqlite3 con WAL alcanza para el volumen de llamadas, sin servidor de base de datos que administrar.
 - **Login real con roles**, no solo una API key: sesiones en cookie host-only `httpOnly`, `SameSite=Lax` y token hexadecimal estricto; SQLite conserva únicamente un hash `sha256:` versionado del token, nunca el bearer reutilizable. Las cookies inválidas, vencidas o revocadas se eliminan y las respuestas de autenticación no se cachean. Las contraseñas usan scrypt asíncrono y formato versionado, el login combina límite por identidad con admisión criptográfica acotada, y un candado global (`requireSession`) protege toda la API funcional. Solo liveness/readiness, el webhook con clave propia, login y el logout idempotente quedan fuera del candado.
-- **`ADMIN_API_KEY` es una segunda verificación obligatoria, no la única**: las rutas `/admin/*`, el borrado y la edición administrativa de tickets exigen sesión + rol SysAdmin + esta clave. Si la variable falta, el backend falla cerrado con `503`.
+- **`ADMIN_API_KEY` eleva la sesión; no acompaña cada operación**: la clave cruda se acepta exclusivamente como `admin_key` en el body de `POST /auth/admin-elevation`. Las rutas `/admin/*`, el borrado, la cuarentena y la edición técnica exigen sesión + rol SysAdmin + elevación vigente + `x-admin-intent: 1`. Un grant ausente o vencido devuelve `401`; configuración ausente devuelve `503`.
 - **Los secretos de servicio se validan antes de abrir el puerto**: `WEBHOOK_API_KEY` y `ADMIN_API_KEY` deben existir, ser diferentes, tener al menos 32 caracteres y no usar placeholders, controles ni espacios exteriores. `.env.example` los deja vacíos deliberadamente; un backend mal configurado no llega a anunciarse listo.
 - **Transporte web same-origin**: React llama a `/api` mediante Vite/Nginx y el webhook de n8n es servidor-a-servidor. El backend no publica CORS para orígenes arbitrarios ni expone `X-Powered-By`; Nginx oculta su versión y agrega `nosniff`, protección anti-iframe, política de referrer y permisos mínimos.
 - **Texto recibido preservado frente a procesos automáticos, categoría derivada**: el clasificador y los backfills nunca reescriben `ticket.motivo` ni `ticket.resumen`; solo calculan `ticket.motivo_categoria`. Un usuario autenticado sí puede corregir explícitamente esos datos desde el detalle, y esa edición queda auditada; al cambiar motivo o resumen se recalcula la categoría.
-- **Cuarentena derivada y materializada, sin borrar ni reescribir**: un ticket queda fuera de la operación únicamente cuando, por una condición AND, no contiene nombre/apellido, teléfono, DNI, empresa, email, motivo, resumen ni notas, no tiene seguimientos y conserva todos sus valores operativos iniciales. IDs, fechas, hora, categoría derivada y `audio_url` no se consideran contenido porque son datos técnicos o automáticos. La pertenencia se mantiene transaccionalmente en una proyección interna para no recalcular la regla en cada consulta. Administración puede incluir estos registros con `incluir_vacios=true`, protegido por sesión SysAdmin y `ADMIN_API_KEY`; al completar o gestionar el ticket deja de cumplir la regla y reaparece automáticamente. La definición exacta está en [docs/FLUJO.md](docs/FLUJO.md#cuarentena-administrativa-de-registros-vacíos).
+- **Cuarentena derivada y materializada, sin borrar ni reescribir**: un ticket queda fuera de la operación únicamente cuando, por una condición AND, no contiene nombre/apellido, teléfono, DNI, empresa, email, motivo, resumen ni notas, no tiene seguimientos y conserva todos sus valores operativos iniciales. IDs, fechas, hora, categoría derivada y `audio_url` no se consideran contenido porque son datos técnicos o automáticos. La pertenencia se mantiene transaccionalmente en una proyección interna para no recalcular la regla en cada consulta. Administración puede incluir estos registros con `incluir_vacios=true`, protegido por sesión SysAdmin elevada e intención administrativa; al completar o gestionar el ticket deja de cumplir la regla y reaparece automáticamente. La definición exacta está en [docs/FLUJO.md](docs/FLUJO.md#cuarentena-administrativa-de-registros-vacíos).
 - Los tickets **no se crean a mano** en el flujo normal: la vía de alta es el webhook (o el importador). El alta manual existe solo dentro del panel `/admin` (`POST /api/admin/tickets`), pensado para corrección de datos.
-- **Migraciones en Docker, `push` protegido en desarrollo local**: el comando local aplica `drizzle-kit push` contra `data/tickets.db` y después instala/verifica los invariantes que Drizzle no representa, como los triggers de cuarentena. El backend repite esa verificación antes de servir: solo repara bases legacy sin ledger y falla cerrado si una base versionada está incompleta. En Docker, `dist/migrate.mjs` aplica la cadena hasta `0014` antes de levantar la API.
+- **Migraciones en Docker, `push` protegido en desarrollo local**: el comando local aplica `drizzle-kit push` contra `data/tickets.db` y después instala/verifica los invariantes que Drizzle no representa, como los triggers de cuarentena. El backend repite esa verificación antes de servir: solo repara bases legacy sin ledger y falla cerrado si una base versionada está incompleta. En Docker, `dist/migrate.mjs` aplica la cadena lineal hasta `0016_admin_session_elevation.sql` antes de levantar la API.
 
 ## Gotchas
 

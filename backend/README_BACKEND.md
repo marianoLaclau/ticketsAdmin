@@ -49,7 +49,9 @@ backend/
     index.ts               → entrypoint del servidor: carga .env, corre el seed, abre el puerto
     migrate.ts              → entrypoint separado: aplica migraciones y termina (usado en Docker)
     lib/
-      auth.ts                → sesiones y guards de autenticación, cambio pendiente, roles y API keys
+      auth.ts                → sesiones y guards de autenticación, cambio pendiente, roles y elevación
+      admin-elevation.ts     → grants efímeros y fingerprint de ADMIN_API_KEY
+      admin-elevation-rate-limit.ts → límite por sesión para crear elevaciones
       login-rate-limit.ts    → ventana deslizante por identidad y admisión acotada de scrypt
       new-password-policy.ts → adaptación HTTP de la política compartida de contraseñas nuevas
       passwords.ts            → hash y verificación con scrypt
@@ -67,7 +69,8 @@ backend/
       sqlite-readiness.ts                → sonda barata del handle y schema mínimo de SQLite
       server-lifecycle.ts                  → drenaje idempotente de HTTP, tareas y SSE
     routes/
-      auth.ts     → login, sesión actual, logout y cambio de contraseña propia
+      auth.ts     → login, sesión actual, logout, contraseña y elevación administrativa
+      auth-admin-elevation-handler.ts → estado, alta y revocación del grant SysAdmin
       tickets.ts  → CRUD de tickets + seguimientos
       dashboard.ts→ estadísticas agregadas
       webhooks.ts → ingesta desde n8n
@@ -93,23 +96,23 @@ Dentro de `routes/index.ts`, el orden importa:
 ```ts
 router.use(healthRouter); // liveness/readiness públicos
 router.use(webhooksRouter); // público (clave propia x-api-key)
-router.use(authRouter); // login/logout públicos; password/me validan sesión dentro
+router.use(authRouter); // login/logout públicos; password/me/elevación validan dentro
 
 router.use(requireSession); // 🔒 todo lo que sigue exige sesión
 router.use(requirePasswordChangeCompleted); // 🔒 bloquea credenciales temporales
 router.use(ticketsRouter);
 router.use(dashboardRouter);
-router.use(adminRouter); // dentro, además: requireSysAdmin + requireAdminKey
+router.use(adminRouter); // dentro, además: requireSysAdmin + requireAdminElevation
 router.use(eventsRouter); // SSE — también detrás del candado
 ```
 
 Cada handler individual sigue el mismo patrón: `safeParse` con el schema Zod generado → si falla, 400 → lógica → `res.json(...)`.
 
-El proceso nace en `starting`. Recién en el evento `listening` pasa a `ready`; en cada consulta valida que SQLite esté abierto y que pueda preparar/ejecutar una lectura acotada sobre `tickets.id` y `tickets.version`. Al recibir una señal cambia primero a `draining`, de forma irreversible, antes de logs, timers o cierres. Por eso un balanceador deja de enviar tráfico nuevo mientras las solicitudes existentes terminan. La sonda no ejecuta conteos, escrituras ni `integrity_check`, y nunca devuelve el error interno de SQLite.
+El proceso nace en `starting`. Recién en el evento `listening` pasa a `ready`; en cada consulta valida que SQLite esté abierto y que pueda preparar/ejecutar lecturas acotadas sobre Tickets, la proyección de cuarentena y todas las columnas runtime de `sesiones`, incluidas las dos agregadas por `0016`. Al recibir una señal cambia primero a `draining`, de forma irreversible, antes de logs, timers o cierres. Por eso un balanceador deja de enviar tráfico nuevo mientras las solicitudes existentes terminan. La sonda no ejecuta conteos, escrituras ni `integrity_check`, y nunca devuelve el error interno de SQLite.
 
 ## Rutas de la API
 
-Todas bajo el prefijo `/api`. ✅ = requiere sesión (candado global). 🔑 = además, rol SysAdmin. 🗝️ = además, `x-admin-key`.
+Todas bajo el prefijo `/api`. ✅ = requiere sesión. 🔑 = además, rol SysAdmin y contraseña definitiva. 🗝️ = además, elevación vigente y `x-admin-intent: 1`.
 
 | Método y ruta                       | Qué hace                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Acceso                           |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
@@ -120,10 +123,13 @@ Todas bajo el prefijo `/api`. ✅ = requiere sesión (candado global). 🔑 = ad
 | `POST /auth/logout`                 | Revoca la sesión actual si existe y limpia la cookie de forma idempotente. `204`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | público                          |
 | `GET /auth/me`                      | Devuelve el `AuthUser` de la sesión activa, o `401`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | ✅                               |
 | `POST /auth/password`               | Cambia la contraseña propia con `{ password_actual, password_nueva }`. La actual conserva el contrato histórico de 1–128; la nueva aplica la política compartida y debe ser distinta. En una transacción limpia `debe_cambiar_password`, revoca todas las sesiones y crea una nueva para el navegador actual.                                                                                                                                                                                                                                                                                                                      | ✅, incluso con cambio pendiente |
+| `GET /auth/admin-elevation`         | Devuelve solo `{ active, expires_at }` para la sesión SysAdmin actual. Nunca expone la clave ni su huella persistida.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | ✅🔑                              |
+| `POST /auth/admin-elevation`        | Presenta `ADMIN_API_KEY` una sola vez como body estricto `{ admin_key }`. Si coincide, liga a la sesión un grant de hasta 15 minutos; cinco fallos confirmados dentro de 15 minutos hacen que la solicitud siguiente reciba `429` y quede bloqueada por 15 minutos.                                                                                                                                                                                                                                                                                                                                                                  | ✅🔑                              |
+| `DELETE /auth/admin-elevation`      | Revoca idempotentemente la elevación de la sesión actual y devuelve el estado inactivo. No vuelve a pedir la clave.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | ✅🔑                              |
 | `GET /tickets`                      | Listado con filtros: `estado`, `prioridad`, `fecha_desde`/`fecha_hasta` (día calendario **local**, según `TZ`), `hora_desde`/`hora_hasta`, `empresa`, `motivo`, `motivo_categoria`, `search`, `vencidos`; orden server-side con `sort_by` sobre una lista cerrada de columnas y `order`; paginación `page`/`limit` (1–100). `incluir_vacios=true` agrega la cuarentena únicamente con acceso administrativo.                                                                                                                                                                                                                       | ✅ / ✅🔑🗝️                      |
 | `GET /tickets/export.csv`           | Exporta **todos** los tickets operativos que coinciden con los mismos filtros y orden del listado, sin limitarse a la página visible. CSV UTF-8 con BOM, separador `;` y protección ante fórmulas.                                                                                                                                                                                                                                                                                                                                                                                                                                 | ✅                               |
 | `GET /tickets/:id`                  | Detalle + array de `seguimientos`. Admite `incluir_vacios=true` con acceso administrativo para abrir un registro en cuarentena.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | ✅ / ✅🔑🗝️                      |
-| `PATCH /tickets/:id`                | Requiere `expected_version` y al menos un campo editable. Estado, prioridad, notas, progreso y datos funcionales requieren sesión; los campos técnicos (`hora`, `notificado`, `audio_url`, `fecha_resolucion`, `fecha_limite`) exigen SysAdmin + `x-admin-key`. Un cambio real incrementa `version` junto con la auditoría; una versión vieja devuelve `409 TICKET_VERSION_CONFLICT` sin escribir. Motivo/resumen reclasifican y una transición real autoasigna.                                                                                                                                                                   | ✅ / ✅🔑🗝️                      |
+| `PATCH /tickets/:id`                | Requiere `expected_version` y al menos un campo editable. Estado, prioridad, notas, progreso y datos funcionales requieren sesión; los campos técnicos (`hora`, `notificado`, `audio_url`, `fecha_resolucion`, `fecha_limite`) exigen SysAdmin con elevación vigente e intención administrativa. Un cambio real incrementa `version` junto con la auditoría; una versión vieja devuelve `409 TICKET_VERSION_CONFLICT` sin escribir. Motivo/resumen reclasifican y una transición real autoasigna.                                                                                                                                                | ✅ / ✅🔑🗝️                      |
 | `DELETE /tickets/:id`               | Borra el ticket (cascada sobre sus seguimientos). `204`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | ✅🔑🗝️                           |
 | `GET /tickets/:id/seguimientos`     | Historial ordenado por fecha; admite el acceso administrativo a cuarentena mediante `incluir_vacios=true`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | ✅ / ✅🔑🗝️                      |
 | `POST /tickets/:id/seguimientos`    | Crea una nota; admite el acceso administrativo a cuarentena. **El campo `autor` y el contexto se derivan en el backend desde la sesión y el ticket**, así el historial no es falsificable.                                                                                                                                                                                                                                                                                                                                                                                                                                         | ✅ / ✅🔑🗝️                      |
@@ -159,6 +165,7 @@ La política de roles vive en `src/lib/rbac.ts`; sesiones y middlewares, en [`sr
 - **Alta, reset y bootstrap emiten credenciales temporales**: guardan `usuarios.debe_cambiar_password = true`. Mientras siga pendiente, `/auth/me`, `/auth/logout` y `/auth/password` continúan disponibles, pero tickets, dashboard, administración y SSE responden `403` con `code: "PASSWORD_CHANGE_REQUIRED"`.
 - **Reset de contraseña revoca todas las sesiones del usuario** (`DELETE FROM sesiones WHERE usuario_id = ...`): si estaba logueado en otro navegador, queda afuera al instante y el próximo login exige reemplazar la clave temporal.
 - **Cambio propio rota la sesión**: verifica la contraseña actual, genera el hash fuera de la transacción y luego compara el hash observado antes de actualizarlo. En una sola transacción limpia el flag, elimina todos los tokens y crea uno nuevo; por eso dos cambios concurrentes no pueden confirmar ambos ni dejar un estado parcial.
+- **La elevación administrativa pertenece a una sesión concreta**: `POST /auth/admin-elevation` acepta la clave cruda solo en el body, calcula una huella `v1:sha256:` con separación de dominio y persiste esa huella junto con el vencimiento. El grant dura como máximo 15 minutos, nunca supera la expiración de la sesión y queda inválido si se rota `ADMIN_API_KEY`. Logout, cambio/reset de contraseña y cualquier otra revocación de la fila eliminan también el grant.
 
 ### Protección del login
 
@@ -190,13 +197,15 @@ Los tres nombres quedan reservados sin distinguir mayúsculas: esos roles no se 
 
 > La autorización todavía se resuelve **por nombre protegido**. Un futuro catálogo de capacidades podrá reemplazar esta decisión sin depender de IDs locales.
 
-### Doble verificación en `/admin/*`
+### Elevación administrativa en `/admin/*`
 
 ```
-router.use("/admin", requireSysAdmin, requireAdminKey);
+router.use("/admin", requireSysAdmin, requireAdminElevation);
 ```
 
-Dos capas encima de la sesión: primero el rol (`403` si no es SysAdmin), después la clave `ADMIN_API_KEY` vía header `x-admin-key` (`401` si no coincide). Si `ADMIN_API_KEY` no está configurada o está vacía, el backend responde `503`: la protección falla cerrada y nunca abre el panel accidentalmente.
+La segunda frontera se crea antes, en `POST /auth/admin-elevation`: exige sesión vigente, contraseña definitiva y rol SysAdmin, y acepta `ADMIN_API_KEY` exclusivamente como `admin_key` dentro del body JSON. La credencial cruda no se acepta en headers, querystrings ni rutas protegidas. Un valor incorrecto devuelve `401 ADMIN_KEY_INVALID`; configuración ausente devuelve `503 ADMIN_ELEVATION_UNAVAILABLE`.
+
+Después de elevarse, cada operación sensible envía solamente `x-admin-intent: 1`, un indicador fijo y no secreto. `requireAdminElevation` comprueba la intención, el vencimiento del grant, que no supere el de la sesión y que la huella siga correspondiendo a la clave configurada. Ausencia, expiración, rotación o una intención distinta devuelven `401 ADMIN_ELEVATION_REQUIRED`; una variable ausente sigue fallando cerrada con `503`. El rol se evalúa primero, por lo que una sesión no SysAdmin recibe `403` aunque conozca la clave.
 
 ### El webhook es independiente
 
@@ -304,10 +313,12 @@ No se puede borrar un rol con usuarios asignados (`409`), aunque esté inactivo.
 
 | Columna            | Tipo                    | Notas                                                                                                |
 | ------------------ | ----------------------- | ---------------------------------------------------------------------------------------------------- |
-| `token`            | text PK                 | Nombre físico histórico; contiene solo `sha256:<64 hex>` del bearer, nunca el valor de `gsb_session` |
-| `usuario_id`       | integer → `usuarios.id` | `onDelete: cascade`                                                                                  |
-| `fecha_expiracion` | integer (timestamp ms)  | 7 días desde el login                                                                                |
-| `fecha_creacion`   | integer (timestamp ms)  |                                                                                                      |
+| `token`                         | text PK                 | Nombre físico histórico; contiene solo `sha256:<64 hex>` del bearer, nunca el valor de `gsb_session` |
+| `usuario_id`                    | integer → `usuarios.id` | `onDelete: cascade`                                                                                  |
+| `fecha_expiracion`              | integer (timestamp ms)  | 7 días desde el login                                                                                |
+| `admin_elevacion_hasta`         | integer, nullable       | Vencimiento del grant SysAdmin; nunca puede autorizar más allá de la sesión                          |
+| `admin_elevacion_clave_hash`    | text, nullable          | Fingerprint versionado de la clave configurada, no una credencial reutilizable                         |
+| `fecha_creacion`                | integer (timestamp ms)  |                                                                                                      |
 
 ### Migraciones
 
@@ -315,7 +326,7 @@ No se puede borrar un rol con usuarios asignados (`409`), aunque esté inactivo.
 - **Cambiar el schema para que llegue a Docker/producción**: después de editar `lib/db/src/schema/*.ts`, correr `pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts` y **commitear** el SQL generado en `lib/db/drizzle/`. El contenedor corre `backend/dist/migrate.mjs` (compilado desde `src/migrate.ts`) al arrancar, que aplica cualquier migración pendiente vía el migrator de drizzle-orm — idempotente, no rompe si ya estaban aplicadas.
 - Si se olvida generar la migración, el deploy en Docker arranca con el schema viejo (el volumen persiste entre deploys) y las columnas/tablas nuevas no existen ahí.
 - El backend valida la proyección antes de seed, reclasificación y prioridad. Una instalación completa es un no-op; una base local sin ledger puede repararse transaccionalmente desde `0014`, pero una base con ledger incompleto se rechaza para no encubrir una migración omitida. No se debe ejecutar `push` con otro escritor activo.
-- **v0.5 y hardening posterior**: después de `0007_add_estado_empleado.sql`, `0008_v05_auditoria_ticket.sql` agrega auditoría, `0009_add_embargos_category.sql` ejecuta el backfill de Embargos, `0010` incorpora credenciales temporales, `0011` revoca bearer históricos, `0012` agrega control optimista, `0013` indexa seguimientos y `0014` materializa la cuarentena.
+- **v0.5 y hardening posterior**: después de `0007_add_estado_empleado.sql`, `0008_v05_auditoria_ticket.sql` agrega auditoría, `0009_add_embargos_category.sql` ejecuta el backfill de Embargos, `0010` incorpora credenciales temporales, `0011` revoca bearer históricos, `0012` agrega control optimista, `0013` indexa seguimientos, `0014` materializa la cuarentena, `0015` agrega índices medidos para lecturas operativas y `0016` agrega las dos columnas nullable de elevación por sesión.
 
 ## Categorización de motivos
 
@@ -388,7 +399,7 @@ Ver también la tabla en el [README raíz](../README.md#configuración). Las que
 | ---------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `PORT`                             | `index.ts`                       | Default `5000`                                                                                                                         |
 | `WEBHOOK_API_KEY`                  | `requireWebhookKey`              | El webhook responde `503` (cerrado)                                                                                                    |
-| `ADMIN_API_KEY`                    | `requireAdminKey`                | Las operaciones administrativas responden `503` (cerradas)                                                                             |
+| `ADMIN_API_KEY`                    | alta y validación de elevaciones | El arranque normal falla si falta; la frontera administrativa responde `503 ADMIN_ELEVATION_UNAVAILABLE` si no está disponible      |
 | `BOOTSTRAP_SYSADMIN_PASSWORD`      | `ensureAdminSeed`                | En una base sin hashes o con el seed heredado, el arranque falla antes de escuchar tráfico; una cuenta ya asegurada no depende de ella |
 | `TICKETS_DB_PATH`                  | `lib/db/src/db-path.ts`          | Default `<repo>/data/tickets.db` (busca la raíz del monorepo por `pnpm-workspace.yaml`)                                                |
 | `PRIORIDAD_AUTOMATICA_INTERVAL_MS` | `prioridad-automatica-runner.ts` | Default `300000` (5 min); acepta enteros desde `10000` ms                                                                              |
@@ -400,6 +411,8 @@ Ver también la tabla en el [README raíz](../README.md#configuración). Las que
 `build.mjs` bundlea API, migrador y utilidades operativas con esbuild a `dist/index.mjs`, `dist/migrate.mjs`, `dist/backup-db.mjs`, `dist/verify-db.mjs` y `dist/restore-db.mjs` (ESM). Solo la raíz exacta de `better-sqlite3` queda **fuera** del bundle como dependencia obligatoria porque carga un addon nativo; por eso es una dependencia productiva directa de `@workspace/backend`. El peer opcional `supports-color`, que `debug@4` intenta cargar bajo `try/catch`, puede permanecer como `require` opcional exclusivamente desde ese módulo. El build inspecciona el metafile de esbuild y falla ante cualquier otro external no builtin. ESLint prohíbe además referencias a `require`, cualquier forma de `createRequire` e imports dinámicos calculados en las fuentes bundleables de backend, scripts y librerías, de modo que las cargas propias permanezcan analizables por el gate.
 
 En Docker (`Dockerfile.backend`): se buildea, se arma un `node_modules` de producción sin symlinks vía `pnpm --filter @workspace/backend deploy --prod --legacy` (necesario en pnpm 11 para este workspace), y el `CMD` corre `dist/migrate.mjs` antes que `dist/index.mjs` — las migraciones se aplican siempre antes de aceptar tráfico. Detalle completo de la infraestructura en [docs/DEPLOY.md](../docs/DEPLOY.md).
+
+En GitHub, `pnpm run quality` constituye el primer job del gate y exige lint, formato Prettier sin drift, codegen, schema, pruebas, typecheck y builds. El segundo job, `e2e`, depende de ese resultado, instala Chromium y ejecuta `pnpm run test:e2e` contra backend, Vite y SQLite aislados. Ambos jobs bloquean pull requests y el deploy; si Playwright falla, el workflow publica `e2e/artifacts/` como `playwright-diagnostics` durante 7 días.
 
 ## Backup y recuperación
 
@@ -413,7 +426,7 @@ En Docker (`Dockerfile.backend`): se buildea, se arma un `node_modules` de produ
 
 CLI: `scripts/src/backup-db.ts`, expuesto para uso humano como `pnpm run backup:db -- --output <archivo> [--source <db>]`. Carga el `.env` del workspace y resuelve `TICKETS_DB_PATH` igual que el resto del sistema. Para automatización se ejecuta directamente `node dist/backup-db.mjs ... --json`, sin atravesar el wrapper de pnpm: reabre el pathname ya publicado y emite una sola evidencia versionada con SHA-256, bytes, páginas y los checks aplicados; un error usa stderr sin stack y un código estable.
 
-`pnpm run verify:db -- --source <copia> --expect-evidence <evidencia.json>` ofrece la salida humana. El contrato automatizable usa directamente `node dist/verify-db.mjs ... --json`, porque pnpm agrega su propio output de lifecycle. La ruta puede cambiar, pero almacenamiento, hash, bytes y páginas deben coincidir exactamente; también vuelve a ejecutar integridad, FK y esquema mínimo en readonly. Esta es la barrera que usará el backup predeploy antes de habilitar un rollout; la integración al workflow se mantiene en un commit operativo separado.
+`pnpm run verify:db -- --source <copia> --expect-evidence <evidencia.json>` ofrece la salida humana. El contrato automatizable usa directamente `node dist/verify-db.mjs ... --json`, porque pnpm agrega su propio output de lifecycle. La ruta puede cambiar, pero almacenamiento, hash, bytes y páginas deben coincidir exactamente; también vuelve a ejecutar integridad, FK y esquema mínimo en readonly. Esta es la barrera que el checkpoint predeploy usa antes de habilitar un rollout.
 
 Los backups contienen PII, hashes de contraseña y hashes de sesión. En Windows el `chmod` de Node no reemplaza ACL correctas sobre la carpeta de destino; esa carpeta debe quedar accesible solo para el operador autorizado.
 
@@ -424,8 +437,9 @@ CLI: `pnpm run restore:db -- --source <backup> --recovery-output <recovery> --co
 ## Convenciones de error
 
 - Body/query inválido (falla `safeParse`) → `400`.
-- Falta autenticación → `401` (sesión, webhook key, admin key).
+- Falta autenticación → `401` (sesión, webhook key o elevación administrativa ausente/vencida).
 - Autenticado pero sin permiso → `403` (rol SysAdmin en admin, rol Administrador para cerrar tickets).
+- Demasiados intentos de login o de elevar una sesión → `429` con `Retry-After` y un código estable.
 - Recurso no encontrado → `404`.
 - Conflicto (unique constraint, rol con usuarios asignados) → `409`.
 - `GET /readyz` fuera de fase `ready` o sin el schema mínimo de SQLite → `503` intencional y genérico; no convierte `healthz` en un fallo ni expone la excepción interna.

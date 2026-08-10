@@ -22,6 +22,8 @@ Este directorio reúne la documentación operativa y técnica de GSB Tickets.
 - **Modelo de datos:** `lib/db/src/schema/`.
 - **Migraciones de producción:** `lib/db/drizzle/`. Cada cambio de schema que llegue a Docker debe incluir su migración y su prueba correspondiente.
 - **Lógica compartida de ingesta:** `lib/ingesta/src/`.
+- **Flujos críticos de navegador:** `e2e/tests/critical-flows.spec.ts`, con el entorno aislado implementado en `e2e/scripts/runtime.ts` y activado por `e2e/scripts/global-setup.ts`.
+- **Gate de PR y deploy:** `.github/workflows/quality.yml`; el job `quality` debe aprobar antes de ejecutar el job bloqueante `e2e`.
 
 ## Flujo mínimo para trabajar
 
@@ -33,10 +35,12 @@ pnpm run typecheck
 pnpm test
 pnpm run build
 pnpm run quality
+pnpm --filter @workspace/e2e exec playwright install chromium  # primera vez
+pnpm run test:e2e
 ```
 
-`pnpm run quality` reproduce el gate de GitHub: regenera OpenAPI, detecta archivos generados modificados o nuevos sin commitear, verifica la cadena Drizzle y ejecuta todas las pruebas, typecheck y builds. Si cambia el schema, generar la migración, revisar el SQL y validar una instalación nueva y una actualización desde la última migración de producción.
+`pnpm run quality` reproduce el primer job del gate: lint, formato Prettier sin drift, regeneración OpenAPI, verificación de la cadena Drizzle, suites unitarias/integración/componentes, typecheck y builds. El segundo job instala Chromium con sus dependencias y ejecuta `pnpm run test:e2e` solo si el primero aprobó; ambos son bloqueantes para pull requests y para el deploy desde `main`. Ante un fallo de navegador, GitHub conserva `e2e/artifacts/` como `playwright-diagnostics` durante 7 días. Si cambia el schema, generar la migración, revisar el SQL y validar una instalación nueva y una actualización desde la última migración de producción.
 
 ## Estado local que no se versiona
 
-`.env`, `data/`, `backups/`, `tmp/`, `node_modules/`, `dist/` y `.pnpm-store/` son artefactos locales o generados y están ignorados por Git. No deben agregarse para “ordenar” el repositorio: el código fuente y la configuración reproducible viven fuera de esas carpetas.
+`.env`, `data/`, `backups/`, `tmp/`, `e2e/artifacts/`, `node_modules/`, `dist/` y `.pnpm-store/` son artefactos locales o generados y están ignorados por Git. No deben agregarse para “ordenar” el repositorio: el código fuente y la configuración reproducible viven fuera de esas carpetas.

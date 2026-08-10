@@ -12,7 +12,10 @@
 GitHub (PR o push a main)
         │
         ▼
-Quality gate (codegen + schema + tests + typecheck + build)
+Quality job (lint + codegen + schema + tests + typecheck + build)
+        │
+        ▼
+Playwright E2E (Chromium + stack aislado)
         │
         ▼  solo push de main con gate aprobado
 Self-hosted runner (corriendo EN el servidor de testing)
@@ -43,7 +46,7 @@ Self-hosted runner (corriendo EN el servidor de testing)
 - El volumen nombrado `tickets_data` persiste el archivo SQLite entre reconstrucciones/reinicios de contenedores — **no se pierde al redeployar**.
 - Las migraciones de la base (`lib/db/drizzle/*.sql`) se aplican solas al arrancar el contenedor del backend (ver `backend/src/migrate.ts`), antes de levantar la API. Es idempotente: en cada arranque solo aplica lo que falte.
 - Una vez terminadas las migraciones, Node reemplaza al shell y recibe directamente `SIGTERM`. El backend deja de aceptar tráfico, bloquea altas SSE tardías y espera sockets/prioridad automática; SQLite se cierra recién en `beforeExit`, cubriendo handlers async de clientes abortados. El watchdog es de 20 segundos y Compose concede 30 antes de `SIGKILL`. Durante el migrador y el bootstrap inicial todavía no está instalado todo este ciclo; separarlos en fases cancelables queda como hardening posterior y las migraciones actuales siguen siendo transaccionales.
-- Los pull requests ejecutan `.github/workflows/quality.yml` sin desplegar. El workflow de deploy reutiliza exactamente ese gate y el job self-hosted depende de su resultado; no construye ni reinicia contenedores si hay drift de codegen/schema, una prueba falla, TypeScript no compila o un build falla. Consulta `origin/main` antes de construir y el orquestador lo vuelve a verificar dentro del lock antes del checkpoint y del rollout, por lo que un SHA que quedó obsoleto no toca los servicios.
+- Los pull requests ejecutan `.github/workflows/quality.yml` sin desplegar. El workflow tiene dos jobs bloqueantes: `quality` corre lint, formato Prettier sin drift, codegen, schema, suites no-browser, typecheck y builds; `e2e` depende de ese resultado, instala Chromium con sus dependencias, levanta backend/Vite/SQLite aislados y ejecuta Playwright. Si E2E falla, publica `e2e/artifacts/` como `playwright-diagnostics` durante 7 días. El workflow de deploy reutiliza el gate completo y el job self-hosted depende de su resultado; no construye ni reinicia contenedores si cualquiera de los dos jobs falla. Consulta `origin/main` antes de construir y el orquestador lo vuelve a verificar dentro del lock antes del checkpoint y del rollout, por lo que un SHA que quedó obsoleto no toca los servicios.
 - Antes de construir, el runner exige Docker Compose `>= 2.17.0`, comprueba las opciones de espera, las utilidades operativas, los directorios privados de backup/estado/lock y valida Compose con placeholders no sensibles. Una instalación incompatible falla antes de tocar servicios.
 - El healthcheck del backend consulta `/api/readyz` y valida su JSON exacto. El frontend solo queda healthy si Nginx sirve la SPA real y también puede alcanzar ese JSON a través del proxy `/api`; por eso una fallback HTML no puede enmascarar una API rota. Hay 60 segundos de gracia para migraciones/bootstrap, pero cualquier éxito anticipado habilita el servicio de inmediato.
 - Cada ejecución construye un par backend/frontend con referencias distintas y un tag irrepetible `git-<SHA>-run-<run_id>-<attempt>`. Ambas imágenes llevan la misma revisión, origen OCI, `release-id`, runtime epoch, identidad Git del árbol de migraciones y hash del contrato Compose sin secretos. El runner inspecciona esos labels y los IDs, ejecuta los CLIs empaquetados y `nginx -t`, y recién entonces permite el orquestador. Un rerun no mueve la referencia de una ejecución anterior.
@@ -167,7 +170,7 @@ El workflow recibe las credenciales desde GitHub Actions, **nunca** desde el rep
    ```
 2. En GitHub: **Settings → Secrets and variables → Actions → New repository secret**. Crear:
    - `WEBHOOK_API_KEY`: autentica la ingesta de n8n.
-   - `ADMIN_API_KEY`: segunda verificación de operaciones SysAdmin.
+   - `ADMIN_API_KEY`: credencial para crear grants efímeros de una sesión SysAdmin; se acepta solo en el body de `POST /auth/admin-elevation`.
    - `BOOTSTRAP_SYSADMIN_PASSWORD`: obligatoria si el volumen contiene una base sin hashes o la credencial pública del seed histórico.
 
 El bootstrap crea o asegura `sysadmin`, persiste solamente el hash scrypt y luego se vuelve un no-op. La clave debe tener 16–128 caracteres, no contener controles C0/DEL, no comenzar ni terminar con espacios y no ser un placeholder público conocido ni un único carácter repetido; el comando aleatorio anterior cumple la política. La credencial queda marcada como temporal: el primer login solo permite reemplazarla o cerrar sesión. Si detecta el seed histórico también activa ese cambio obligatorio y revoca sus sesiones anteriores. Después de verificar el login y completar el cambio, retirar `BOOTSTRAP_SYSADMIN_PASSWORD` de GitHub Actions y ejecutar otro deploy para recrear el backend sin el secreto en su entorno. Dejarlo configurado no resetea una cuenta ya asegurada, pero retirarlo reduce exposición innecesaria.
@@ -188,9 +191,13 @@ La migración `0011_invalidate_plaintext_sessions.sql` revoca una sola vez todas
 
 `0012_add_ticket_version.sql` es aditiva: asigna versión 1 a históricos y el código anterior ignora la columna si se hace rollback. Sin embargo, el contrato HTTP nuevo exige `expected_version` en cada PATCH. Backend y frontend deben desplegarse como una misma versión, sin réplicas mixtas; las pestañas que conservaron JavaScript anterior recibirán 400 al intentar guardar y deberán recargar una vez. n8n no se ve afectado porque su integración crea tickets por POST y no usa PATCH.
 
+`0015_add_ticket_read_indexes.sql` agrega índices medidos para actividad reciente, vencimientos, resoluciones y cronología de seguimientos. No cambia el contrato HTTP ni reescribe los datos funcionales.
+
+`0016_admin_session_elevation.sql` agrega `admin_elevacion_hasta` y `admin_elevacion_clave_hash` como columnas nullable de `sesiones`. Las sesiones existentes siguen autenticadas, pero comienzan sin elevación. El SysAdmin presenta `ADMIN_API_KEY` una sola vez como `{ admin_key }` en el body del POST de elevación; SQLite guarda solo vencimiento y fingerprint por sesión, y las operaciones posteriores envían el indicador no secreto `x-admin-intent: 1`. Rotar el secreto invalida inmediatamente los grants anteriores por mismatch de fingerprint. Como cualquier cambio del árbol de migraciones, el primer rollout de esta transición debe seguir la autorización fix-forward descrita arriba.
+
 El backend limita el login por identidad: diez credenciales rechazadas dentro de 15 minutos hacen que la siguiente solicitud active un bloqueo de 15 minutos (`429` más `Retry-After`). Un login válido o un alta, cambio de username o reset de contraseña desde SysAdmin libera esa identidad; errores internos y rechazos por capacidad no suman fallos. Los contadores no están en SQLite: viven hasheados y acotados en la memoria de la única instancia, por lo que un redeploy los reinicia. Esto es esperado en la topología actual; no levantar una segunda réplica sin migrar el rate limit a un store compartido. La protección de scrypt admite una ráfaga inicial de 30 trabajos públicos y repone 30 por minuto, con cuatro activos y ocho en espera, para conservar capacidad durante ráfagas y ataques sostenidos.
 
-GitHub inyecta esos secretos solo en el step que recrea los servicios; checkout, quality y build no los reciben. Para ejecutar manualmente comandos que crean o recrean servicios (`up`, `create`, un `run` normal), guardar las variables en un archivo fuera del repo y con permisos restringidos, por ejemplo `/etc/ticketsadmin/compose.env`, y usar:
+GitHub inyecta esos secretos solo en el step que recrea los servicios; checkout, quality, E2E y build no los reciben. Playwright genera credenciales efímeras exclusivas de su base temporal y nunca alcanza datos locales ni del servidor. Para ejecutar manualmente comandos que crean o recrean servicios (`up`, `create`, un `run` normal), guardar las variables en un archivo fuera del repo y con permisos restringidos, por ejemplo `/etc/ticketsadmin/compose.env`, y usar:
 
 ```bash
 docker compose --env-file /etc/ticketsadmin/compose.env up -d --wait --wait-timeout 180
@@ -238,7 +245,7 @@ con el mismo header `x-api-key` (el valor cargado como secreto `WEBHOOK_API_KEY`
 
 ## Operación del día a día
 
-- **Cada push a `main` redeploya solo si pasa `pnpm run quality`, Compose llega a healthy y los tres smoke tests publicados responden el contenido esperado.** Los pull requests ejecutan el mismo gate pero nunca modifican el servidor.
+- **Cada push a `main` redeploya solo si aprueban los dos jobs del workflow reutilizable (`quality` y, después, `e2e`), Compose llega a healthy y los tres smoke tests publicados responden el contenido esperado.** Los pull requests ejecutan el mismo gate, incluido Playwright en Chromium, pero nunca modifican el servidor. Un fallo E2E conserva diagnósticos durante 7 días.
 - **Cada comando Compose** se ejecuta desde un checkout actual del repo (el workspace del runner o `/opt/ticketsAdmin` actualizado). El proyecto se llama siempre `ticketsadmin`.
 - **Ver logs**: `WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose logs -f backend` (o `frontend`).
 - **Ver estado**: `WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose ps`
@@ -290,7 +297,7 @@ con el mismo header `x-api-key` (el valor cargado como secreto `WEBHOOK_API_KEY`
 
   El archivo SQLite se crea `0600` en Linux porque contiene PII, hashes de contraseña y hashes de sesión; `umask 077` protege también la evidencia. El `cp` extrae la copia ya verificada y el último comando elimina el temporal del contenedor. El directorio externo debe ser privado (`0700`, o ACL equivalente) y tener una política explícita de retención. El workflow automatizado ya aplica exclusión mutua, verificación independiente y publicación atómica antes del rollout.
 
-- **Cambios de schema**: si se modifica `lib/db/src/schema/tickets.ts`, hay que generar la migración ANTES de mergear a main:
+- **Cambios de schema**: si se modifica cualquier archivo de `lib/db/src/schema/*.ts`, hay que generar la migración ANTES de mergear a main:
   ```bash
   pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts
   ```
