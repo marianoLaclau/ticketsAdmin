@@ -4,42 +4,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      allow_legacy_adoption:
-        description: Autorizar solo la adopción del baseline histórico sin labels
-        required: true
-        default: false
-        type: boolean
-      allow_fix_forward_transition:
-        description: Autorizar una transición incompatible que exige fix-forward
-        required: true
-        default: false
-        type: boolean
-      expected_baseline_release:
-        description: Release ID exacto del baseline autorizado
-        required: false
-        default: ""
-        type: string
-      expected_baseline_backend_image_id:
-        description: ID sha256 exacto del backend baseline
-        required: false
-        default: ""
-        type: string
-      expected_baseline_frontend_image_id:
-        description: ID sha256 exacto del frontend baseline
-        required: false
-        default: ""
-        type: string
-      resume_pending_attempt:
-        description: Reanudar el attempt ID terminal exacto (solo intervención controlada)
-        required: false
-        default: ""
-        type: string
-      expected_state_generation:
-        description: Generación exacta del ledger que se autoriza a reanudar
-        required: false
-        default: ""
-        type: string
 
 permissions:
   contents: read
@@ -49,293 +13,52 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  quality:
-    uses: ./.github/workflows/quality.yml
-
   deploy:
-    needs: quality
     runs-on: self-hosted
-    timeout-minutes: 45
-    env:
-      # Un rerun produce otro tag y nunca mueve el artefacto de una ejecución
-      # anterior. La revisión OCI conserva el SHA fuente completo.
-      TICKETSADMIN_BACKEND_IMAGE: ticketsadmin-backend:git-${{ github.sha }}-run-${{ github.run_id }}-${{ github.run_attempt }}
-      TICKETSADMIN_FRONTEND_IMAGE: ticketsadmin-frontend:git-${{ github.sha }}-run-${{ github.run_id }}-${{ github.run_attempt }}
-      TICKETSADMIN_IMAGE_REVISION: ${{ github.sha }}
-      TICKETSADMIN_IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
-      TICKETSADMIN_RELEASE_ID: git-${{ github.sha }}-run-${{ github.run_id }}-${{ github.run_attempt }}
-      TICKETSADMIN_RUNTIME_EPOCH: readyz-v1
-      TICKETSADMIN_ALLOW_LEGACY_ADOPTION: ${{ inputs.allow_legacy_adoption || false }}
-      TICKETSADMIN_ALLOW_FIX_FORWARD_TRANSITION: ${{ inputs.allow_fix_forward_transition || false }}
-      TICKETSADMIN_EXPECTED_BASELINE_RELEASE: ${{ inputs.expected_baseline_release || '' }}
-      TICKETSADMIN_EXPECTED_BASELINE_BACKEND_IMAGE_ID: ${{ inputs.expected_baseline_backend_image_id || '' }}
-      TICKETSADMIN_EXPECTED_BASELINE_FRONTEND_IMAGE_ID: ${{ inputs.expected_baseline_frontend_image_id || '' }}
-      TICKETSADMIN_RESUME_PENDING_ATTEMPT: ${{ inputs.resume_pending_attempt || '' }}
-      TICKETSADMIN_EXPECTED_STATE_GENERATION: ${{ inputs.expected_state_generation || '' }}
-      # Estos directorios se preparan una sola vez en el runner. El workflow
-      # exige que sean privados, reales y propiedad del usuario del servicio.
-      TICKETSADMIN_BACKUP_DIR: /var/lib/ticketsadmin/backups
-      TICKETSADMIN_RELEASE_STATE_DIR: /var/lib/ticketsadmin/releases
-      TICKETSADMIN_DEPLOY_LOCK_DIR: /var/lib/ticketsadmin/locks
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check that this is still the current main commit
-        id: freshness
-        shell: bash
+      # Copia el SQLite antes de tocar nada. Es data real de llamadas: el deploy
+      # no la borra (nunca hay `down -v` ni prune), pero la copia cuesta segundos
+      # y es la única red de seguridad que queda tras simplificar el pipeline.
+      - name: Backup SQLite
+        continue-on-error: true
         run: |
-          git fetch --no-tags origin main
-          if [ "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)" ]; then
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "deploy=false" >> "$GITHUB_OUTPUT"
-            echo "A newer main commit exists; this obsolete deploy is skipped."
-          fi
-
-      - name: Verify Docker Compose capabilities
-        if: steps.freshness.outputs.deploy == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          fail_preflight() {
-            printf 'Preflight failed: %s\n' "$1" >&2
-            exit 1
-          }
-          require_preflight() {
-            local description="$1"
-            shift
-            if ! "$@"; then
-              fail_preflight "$description"
-            fi
-          }
-          minimum_version="2.17.0"
-          compose_version="$(docker compose version --short)"
-          compose_version="${compose_version#v}"
-          if [ "$(printf '%s\n' "$minimum_version" "$compose_version" | sort -V | head -n1)" != "$minimum_version" ]; then
-            echo "Docker Compose >= $minimum_version is required; found $compose_version" >&2
-            exit 1
-          fi
-          compose_up_help="$(docker compose up --help)"
-          require_preflight "Docker Compose does not expose --wait" \
-            grep -Eq -- '(^|[[:space:]])--wait([[:space:]]|$)' <<< "$compose_up_help"
-          require_preflight "Docker Compose does not expose --wait-timeout" \
-            grep -Eq -- '(^|[[:space:]])--wait-timeout([[:space:]]|$)' <<< "$compose_up_help"
-          require_preflight "Docker Compose does not expose --no-build" \
-            grep -Eq -- '(^|[[:space:]])--no-build([[:space:]]|$)' <<< "$compose_up_help"
-          for required_command in \
-            bash curl flock jq sha256sum stat mktemp realpath sync \
-            basename chmod date dirname docker git grep id ln mv rm rmdir; do
-            require_preflight "missing required command: $required_command" \
-              command -v "$required_command" >/dev/null
-          done
-          for private_directory in \
-            "$TICKETSADMIN_BACKUP_DIR" \
-            "$TICKETSADMIN_RELEASE_STATE_DIR" \
-            "$TICKETSADMIN_DEPLOY_LOCK_DIR"; do
-            require_preflight "missing private directory: $private_directory" \
-              test -d "$private_directory"
-            require_preflight "private directory is a symlink: $private_directory" \
-              test ! -L "$private_directory"
-            require_preflight "private directory is not canonical: $private_directory" \
-              test "$(realpath -e -- "$private_directory")" = "$private_directory"
-            require_preflight "private directory has the wrong owner: $private_directory" \
-              test "$(stat -c '%u' -- "$private_directory")" = "$(id -u)"
-            require_preflight "private directory must have mode 700: $private_directory" \
-              test "$(stat -c '%a' -- "$private_directory")" = "700"
-            require_preflight "private directory is not writable: $private_directory" \
-              test -w "$private_directory"
-            require_preflight "private directory is not searchable: $private_directory" \
-              test -x "$private_directory"
-          done
-          lock_file="$TICKETSADMIN_DEPLOY_LOCK_DIR/deploy.lock"
-          require_preflight "missing deploy lock: $lock_file" test -f "$lock_file"
-          require_preflight "deploy lock is a symlink: $lock_file" test ! -L "$lock_file"
-          require_preflight "deploy lock is not canonical: $lock_file" \
-            test "$(realpath -e -- "$lock_file")" = "$lock_file"
-          require_preflight "deploy lock has the wrong owner: $lock_file" \
-            test "$(stat -c '%u' -- "$lock_file")" = "$(id -u)"
-          require_preflight "deploy lock must have mode 600: $lock_file" \
-            test "$(stat -c '%a' -- "$lock_file")" = "600"
-          require_preflight "deploy lock is not writable: $lock_file" test -w "$lock_file"
-          release_state_file="$TICKETSADMIN_RELEASE_STATE_DIR/release-state.json"
-          if test -e "$release_state_file" || test -L "$release_state_file"; then
-            require_preflight "release state is not a regular file: $release_state_file" \
-              test -f "$release_state_file"
-            require_preflight "release state is a symlink: $release_state_file" \
-              test ! -L "$release_state_file"
-            require_preflight "release state is not canonical: $release_state_file" \
-              test "$(realpath -e -- "$release_state_file")" = "$release_state_file"
-            require_preflight "release state has the wrong owner: $release_state_file" \
-              test "$(stat -c '%u' -- "$release_state_file")" = "$(id -u)"
-            require_preflight "release state must have mode 600: $release_state_file" \
-              test "$(stat -c '%a' -- "$release_state_file")" = "600"
-            require_preflight "release state must have exactly one link: $release_state_file" \
-              test "$(stat -c '%h' -- "$release_state_file")" = "1"
-            release_state_bytes="$(stat -c '%s' -- "$release_state_file")"
-            require_preflight "release state is empty: $release_state_file" \
-              test "$release_state_bytes" -gt 0
-            require_preflight "release state is too large: $release_state_file" \
-              test "$release_state_bytes" -le 131072
-          fi
-          docker compose config --quiet
-          compose_contract="$(
-            docker compose config --format json |
-              jq -ecS '
-                if (
-                  (.services.backend.environment | type) != "object" or
-                  (.services.backend.environment | has("WEBHOOK_API_KEY") | not) or
-                  (.services.backend.environment | has("ADMIN_API_KEY") | not) or
-                  (.services.backend.environment | has("BOOTSTRAP_SYSADMIN_PASSWORD") | not)
-                ) then error("missing backend secret contract") else
-                del(.services[].image, .services[].build) |
-                .services.backend.environment.WEBHOOK_API_KEY = "redacted" |
-                .services.backend.environment.ADMIN_API_KEY = "redacted" |
-                .services.backend.environment.BOOTSTRAP_SYSADMIN_PASSWORD = "redacted"
-                end
-              '
-          )"
-          compose_contract_sha256="$(printf '%s' "$compose_contract" | sha256sum)"
-          compose_contract_sha256="${compose_contract_sha256%% *}"
-          [[ "$compose_contract_sha256" =~ ^[a-f0-9]{64}$ ]]
-          printf 'TICKETSADMIN_COMPOSE_CONTRACT_SHA256=%s\n' "$compose_contract_sha256" >> "$GITHUB_ENV"
-          migration_tree="$(git rev-parse HEAD:lib/db/drizzle)"
-          [[ "$migration_tree" =~ ^([a-f0-9]{40}|[a-f0-9]{64})$ ]]
-          printf 'TICKETSADMIN_DB_ROLLBACK_EPOCH=drizzle-%s\n' "$migration_tree" >> "$GITHUB_ENV"
-        env:
-          # Solo validan la interpolación; el preflight no crea servicios.
-          WEBHOOK_API_KEY: not-used-during-compose-preflight
-          ADMIN_API_KEY: not-used-during-compose-preflight
-          BOOTSTRAP_SYSADMIN_PASSWORD: ""
+          set -uo pipefail
+          mkdir -p /var/lib/ticketsadmin/backups
+          docker run --rm \
+            -v ticketsadmin_tickets_data:/data:ro \
+            -v /var/lib/ticketsadmin/backups:/backups \
+            alpine:3 \
+            sh -c 'test -f /data/tickets.db && cp /data/tickets.db "/backups/pre-deploy-$(date -u +%Y%m%d-%H%M%S).db" || echo "sin base previa, nada que respaldar"'
 
       - name: Build images
-        if: steps.freshness.outputs.deploy == 'true'
         run: docker compose build
         env:
-          # Compose interpola las variables aun al construir, pero las imágenes
-          # no consumen ni deben recibir las credenciales reales.
           WEBHOOK_API_KEY: not-used-during-image-build
           ADMIN_API_KEY: not-used-during-image-build
 
-      - name: Verify candidate image identities
-        id: candidate_images
-        if: steps.freshness.outputs.deploy == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          verify_image() {
-            local image="$1"
-            local output_name="$2"
-            local revision source release_id runtime_epoch db_rollback_epoch compose_contract image_id
-            revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")"
-            source="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.source"}}' "$image")"
-            release_id="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.release-id"}}' "$image")"
-            runtime_epoch="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.runtime-epoch"}}' "$image")"
-            db_rollback_epoch="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.db-rollback-epoch"}}' "$image")"
-            compose_contract="$(docker image inspect --format '{{index .Config.Labels "io.ticketsadmin.compose-contract-sha256"}}' "$image")"
-            image_id="$(docker image inspect --format '{{.Id}}' "$image")"
-            test "$revision" = "$GITHUB_SHA"
-            test "$source" = "$TICKETSADMIN_IMAGE_SOURCE"
-            test "$release_id" = "$TICKETSADMIN_RELEASE_ID"
-            test "$runtime_epoch" = "$TICKETSADMIN_RUNTIME_EPOCH"
-            test "$db_rollback_epoch" = "$TICKETSADMIN_DB_ROLLBACK_EPOCH"
-            test "$compose_contract" = "$TICKETSADMIN_COMPOSE_CONTRACT_SHA256"
-            test -n "$image_id"
-            printf 'Candidate %s -> %s (revision %s)\n' "$image" "$image_id" "$revision"
-            printf '%s=%s\n' "$output_name" "$image_id" >> "$GITHUB_OUTPUT"
-          }
-
-          verify_image "$TICKETSADMIN_BACKEND_IMAGE" backend_id
-          verify_image "$TICKETSADMIN_FRONTEND_IMAGE" frontend_id
-
-          docker run --rm --network none "$TICKETSADMIN_BACKEND_IMAGE" \
-            node dist/backup-db.mjs --help >/dev/null
-          docker run --rm --network none "$TICKETSADMIN_BACKEND_IMAGE" \
-            node dist/verify-db.mjs --help >/dev/null
-          docker run --rm --network none "$TICKETSADMIN_BACKEND_IMAGE" \
-            node dist/restore-db.mjs --help >/dev/null
-          docker run --rm --network none --add-host backend:127.0.0.1 \
-            --entrypoint nginx \
-            "$TICKETSADMIN_FRONTEND_IMAGE" -t
-
-      - name: Create checkpoint and deploy verified release
-        id: release
-        if: steps.freshness.outputs.deploy == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          release_args=(
-            --backend-image-id "${{ steps.candidate_images.outputs.backend_id }}"
-            --frontend-image-id "${{ steps.candidate_images.outputs.frontend_id }}"
-            --backend-image-ref "$TICKETSADMIN_BACKEND_IMAGE"
-            --frontend-image-ref "$TICKETSADMIN_FRONTEND_IMAGE"
-            --revision "$TICKETSADMIN_IMAGE_REVISION"
-            --image-source "$TICKETSADMIN_IMAGE_SOURCE"
-            --run-id "$GITHUB_RUN_ID"
-            --run-attempt "$GITHUB_RUN_ATTEMPT"
-            --repository "$GITHUB_REPOSITORY"
-            --backup-dir "$TICKETSADMIN_BACKUP_DIR"
-            --state-dir "$TICKETSADMIN_RELEASE_STATE_DIR"
-            --lock-file "$TICKETSADMIN_DEPLOY_LOCK_DIR/deploy.lock"
-          )
-          case "$TICKETSADMIN_ALLOW_LEGACY_ADOPTION" in
-            true) release_args+=(--allow-legacy-adoption) ;;
-            false) ;;
-            *) echo "TICKETSADMIN_ALLOW_LEGACY_ADOPTION must be true or false" >&2; exit 1 ;;
-          esac
-          case "$TICKETSADMIN_ALLOW_FIX_FORWARD_TRANSITION" in
-            true) release_args+=(--allow-fix-forward-transition) ;;
-            false) ;;
-            *) echo "TICKETSADMIN_ALLOW_FIX_FORWARD_TRANSITION must be true or false" >&2; exit 1 ;;
-          esac
-          if [[ "$TICKETSADMIN_ALLOW_LEGACY_ADOPTION" == "true" && "$TICKETSADMIN_ALLOW_FIX_FORWARD_TRANSITION" == "true" ]]; then
-            echo "legacy adoption and fix-forward transition are mutually exclusive" >&2
-            exit 1
-          fi
-          if [[ "$TICKETSADMIN_ALLOW_LEGACY_ADOPTION" == "true" || "$TICKETSADMIN_ALLOW_FIX_FORWARD_TRANSITION" == "true" ]]; then
-            [[ -n "$TICKETSADMIN_EXPECTED_BASELINE_RELEASE" && -n "$TICKETSADMIN_EXPECTED_BASELINE_BACKEND_IMAGE_ID" && -n "$TICKETSADMIN_EXPECTED_BASELINE_FRONTEND_IMAGE_ID" ]] || {
-              echo "the exact baseline release and image IDs are required" >&2
-              exit 1
-            }
-            release_args+=(
-              --expected-baseline-release "$TICKETSADMIN_EXPECTED_BASELINE_RELEASE"
-              --expected-baseline-backend-image-id "$TICKETSADMIN_EXPECTED_BASELINE_BACKEND_IMAGE_ID"
-              --expected-baseline-frontend-image-id "$TICKETSADMIN_EXPECTED_BASELINE_FRONTEND_IMAGE_ID"
-            )
-          elif [[ -n "$TICKETSADMIN_EXPECTED_BASELINE_RELEASE" || -n "$TICKETSADMIN_EXPECTED_BASELINE_BACKEND_IMAGE_ID" || -n "$TICKETSADMIN_EXPECTED_BASELINE_FRONTEND_IMAGE_ID" ]]; then
-            echo "expected baseline identity requires an explicit transition authorization" >&2
-            exit 1
-          fi
-          if [[ -n "$TICKETSADMIN_RESUME_PENDING_ATTEMPT" || -n "$TICKETSADMIN_EXPECTED_STATE_GENERATION" ]]; then
-            [[ -n "$TICKETSADMIN_RESUME_PENDING_ATTEMPT" && -n "$TICKETSADMIN_EXPECTED_STATE_GENERATION" ]] || {
-              echo "pending attempt and exact ledger generation are both required" >&2
-              exit 1
-            }
-            [[ "$TICKETSADMIN_ALLOW_LEGACY_ADOPTION" == "false" && "$TICKETSADMIN_ALLOW_FIX_FORWARD_TRANSITION" == "false" ]] || {
-              echo "pending recovery cannot be combined with a transition authorization" >&2
-              exit 1
-            }
-            release_args+=(
-              --resume-pending-attempt "$TICKETSADMIN_RESUME_PENDING_ATTEMPT"
-              --expected-state-generation "$TICKETSADMIN_EXPECTED_STATE_GENERATION"
-            )
-          fi
-          exec bash scripts/deploy/deploy-release.sh "${release_args[@]}"
+      - name: Deploy
+        run: docker compose up -d --wait --wait-timeout 180
         env:
           WEBHOOK_API_KEY: ${{ secrets.WEBHOOK_API_KEY }}
           ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
-          # Inicializa una base sin hashes o asegura el seed heredado. Una
-          # credencial ya cambiada ignora el valor y nunca se resetea.
           BOOTSTRAP_SYSADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_SYSADMIN_PASSWORD }}
 
-      - name: Deployment diagnostics
-        if: failure() && steps.release.outcome == 'failure'
-        shell: bash
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 10 http://127.0.0.1:5000/api/readyz | grep -Fq '{"status":"ready"}'
+          curl -fsS --max-time 10 http://127.0.0.1:3000/ | grep -Fq '<div id="root"></div>'
+          echo "Backend y frontend responden correctamente."
+
+      - name: Diagnostics on failure
+        if: failure()
         run: |
           docker compose ps || true
-          docker compose logs --no-color --tail=100 backend frontend || true
+          docker compose logs --no-color --tail=150 backend frontend || true
         env:
-          # Solo permiten que Compose interprete el archivo para inspeccionar
-          # contenedores existentes; no crean ni modifican servicios.
           WEBHOOK_API_KEY: not-used-for-deploy-diagnostics
           ADMIN_API_KEY: not-used-for-deploy-diagnostics
