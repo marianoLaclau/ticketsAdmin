@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Flujos críticos de navegador aislados y bloqueantes
+
+**Agente:** Codex
+**Estado:** ducentésima trigésima primera remediación de la auditoría técnica, implementada localmente.
+
+- Playwright cubre cuatro recorridos reales: primer ingreso y guardas; ingesta con actualización SSE, clasificación Serin y auditoría; elevación administrativa, CRUD RBAC y revocación remota; cuarentena, conflicto optimista desde la UI y exportación CSV. Los datos son únicos por intento y los streams esperan el handshake HTTP real, por lo que los casos admiten ejecución aislada, reintentos y repetición sin depender del orden.
+- Un global setup controla backend y Vite sobre loopback, crea una SQLite efímera, aplica dos veces la cadena real de migraciones, genera secretos distintos por corrida y elimina el directorio aun después de fallos normales. El backend acepta un host explícito para esta frontera sin cambiar su escucha productiva predeterminada.
+- GitHub Actions instala Chromium y ejecuta la suite después del quality gate; ante un fallo conserva trazas, capturas, video y reporte durante siete días. Aprobaron typecheck y ESLint de E2E, la suite 4/4 y una repetición completa 8/8 en 44,8 segundos; al terminar no quedaron puertos ni temporales. No se hizo push.
+
 ## 2026-08-09 — Flujos operativos accesibles de extremo a extremo
 
 **Agente:** Codex

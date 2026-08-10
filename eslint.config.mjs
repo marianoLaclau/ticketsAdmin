@@ -6,6 +6,8 @@ import tseslint from "typescript-eslint";
 
 const typedSourceFiles = [
   "backend/src/**/*.ts",
+  "e2e/scripts/**/*.ts",
+  "e2e/support/**/*.ts",
   "frontend/src/**/*.{ts,tsx}",
   "scripts/src/**/*.ts",
   "lib/*/src/**/*.{ts,tsx}",
@@ -13,6 +15,7 @@ const typedSourceFiles = [
 
 const typedTestFiles = [
   "backend/test/**/*.ts",
+  "e2e/tests/**/*.ts",
   "frontend/test/**/*.{ts,tsx}",
   "scripts/test/**/*.ts",
   "lib/*/test/**/*.{ts,tsx}",
@@ -93,6 +96,7 @@ export default defineConfig(
       parserOptions: {
         project: [
           "./backend/tsconfig.test.json",
+          "./e2e/tsconfig.json",
           "./frontend/tsconfig.test.json",
           "./scripts/tsconfig.test.json",
           "./lib/db/tsconfig.test.json",
@@ -119,6 +123,8 @@ export default defineConfig(
   {
     files: [
       "backend/src/**/*.ts",
+      "e2e/scripts/**/*.ts",
+      "e2e/support/**/*.ts",
       "scripts/src/**/*.ts",
       "lib/*/src/**/*.{ts,tsx}",
     ],

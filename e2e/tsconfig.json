@@ -1,0 +1,16 @@
+{
+  "extends": "../tsconfig.base.json",
+  "include": [
+    "playwright.config.ts",
+    "scripts/**/*.ts",
+    "support/**/*.ts",
+    "tests/**/*.ts"
+  ],
+  "compilerOptions": {
+    "noEmit": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "lib": ["es2022", "dom"],
+    "types": ["node", "@playwright/test"]
+  }
+}

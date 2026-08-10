@@ -16,6 +16,7 @@ import {
 } from "./lib/server-lifecycle";
 
 const port = Number(process.env["PORT"] ?? 5000);
+const listenHost = process.env["LISTEN_HOST"]?.trim() || undefined;
 
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${process.env["PORT"]}"`);
@@ -65,7 +66,7 @@ const runnerPrioridadAutomatica = crearRunnerPrioridadAutomatica();
 await runnerPrioridadAutomatica.ejecutarAhora("arranque");
 runnerPrioridadAutomatica.iniciar();
 
-const server = app.listen(port);
+const server = listenHost ? app.listen(port, listenHost) : app.listen(port);
 const apagar = crearApagadoControlado({
   server,
   iniciarDrenaje: () => readinessControl.beginDrain(),
@@ -81,7 +82,10 @@ registrarSenalesApagado(apagar);
 
 server.once("listening", () => {
   readinessControl.markReady();
-  logger.info({ port }, "Server listening");
+  logger.info(
+    { port, ...(listenHost ? { host: listenHost } : {}) },
+    "Server listening",
+  );
 });
 
 server.once("error", (err) => {

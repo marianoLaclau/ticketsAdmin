@@ -29,3 +29,37 @@ jobs:
 
       - name: Verify generated code, schema, tests and builds
         run: pnpm run quality
+
+  e2e:
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Enable pinned pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter @workspace/e2e exec playwright install --with-deps chromium
+
+      - name: Run critical browser flows
+        run: pnpm run test:e2e
+
+      - name: Upload Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-diagnostics
+          path: e2e/artifacts/
+          if-no-files-found: ignore
+          retention-days: 7

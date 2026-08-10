@@ -1,0 +1,18 @@
+{
+  "name": "@workspace/e2e",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "serve:test": "tsx ./scripts/serve.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "typecheck:test": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "vite": "catalog:"
+  }
+}
