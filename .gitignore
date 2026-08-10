@@ -54,5 +54,10 @@ Thumbs.db
 /data/
 /backups/
 .env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
 *.db-shm
 *.db-wal
