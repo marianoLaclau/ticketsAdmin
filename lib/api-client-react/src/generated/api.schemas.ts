@@ -6,17 +6,18 @@
  * OpenAPI spec version: 0.5.0
  */
 /**
- * Código estable presente cuando una contraseña temporal bloquea la operación.
+ * Código estable que identifica la frontera funcional que bloqueó la operación.
  */
 export type FunctionalAccessErrorCode = typeof FunctionalAccessErrorCode[keyof typeof FunctionalAccessErrorCode];
 
 
 export const FunctionalAccessErrorCode = {
   PASSWORD_CHANGE_REQUIRED: 'PASSWORD_CHANGE_REQUIRED',
+  SYSADMIN_REQUIRED: 'SYSADMIN_REQUIRED',
 } as const;
 
 export interface FunctionalAccessError {
-  /** Código estable presente cuando una contraseña temporal bloquea la operación. */
+  /** Código estable que identifica la frontera funcional que bloqueó la operación. */
   code?: FunctionalAccessErrorCode;
   error: string;
 }
@@ -106,6 +107,20 @@ export interface AdminElevationSessionUnauthorizedError {
   code: AdminElevationSessionUnauthorizedErrorCode;
   error: string;
 }
+
+export type AdminElevationRequiredErrorCode = typeof AdminElevationRequiredErrorCode[keyof typeof AdminElevationRequiredErrorCode];
+
+
+export const AdminElevationRequiredErrorCode = {
+  ADMIN_ELEVATION_REQUIRED: 'ADMIN_ELEVATION_REQUIRED',
+} as const;
+
+export interface AdminElevationRequiredError {
+  code: AdminElevationRequiredErrorCode;
+  error: string;
+}
+
+export type AdminAccessUnauthorized = AdminElevationSessionUnauthorizedError | AdminElevationRequiredError;
 
 export type AdminElevationForbiddenErrorCode = typeof AdminElevationForbiddenErrorCode[keyof typeof AdminElevationForbiddenErrorCode];
 
@@ -791,7 +806,7 @@ motivo_categoria?: MotivoCategoria;
 search?: string;
 vencidos?: boolean;
 /**
- * Incluye registros en cuarentena sin datos útiles. Requiere sesión SysAdmin y el header x-admin-key; el listado operativo los excluye.
+ * Incluye registros en cuarentena sin datos útiles. Requiere sesión SysAdmin, elevacion administrativa vigente y el header de intencion x-admin-intent con valor literal 1; el listado operativo los excluye.
  */
 incluir_vacios?: boolean;
 /**
@@ -930,28 +945,28 @@ limit?: number;
 
 export type GetTicketParams = {
 /**
- * Permite abrir registros en cuarentena; requiere SysAdmin y x-admin-key
+ * Permite abrir registros en cuarentena; requiere SysAdmin, elevacion administrativa vigente y x-admin-intent con valor literal 1.
  */
 incluir_vacios?: boolean;
 };
 
 export type UpdateTicketParams = {
 /**
- * Permite modificar registros en cuarentena; requiere SysAdmin y x-admin-key
+ * Permite modificar registros en cuarentena; requiere SysAdmin, elevacion administrativa vigente y x-admin-intent con valor literal 1.
  */
 incluir_vacios?: boolean;
 };
 
 export type ListSeguimientosParams = {
 /**
- * Permite consultar un registro en cuarentena desde Admin
+ * Permite consultar un registro en cuarentena; requiere SysAdmin, elevacion administrativa vigente y x-admin-intent con valor literal 1.
  */
 incluir_vacios?: boolean;
 };
 
 export type CreateSeguimientoParams = {
 /**
- * Permite agregar seguimiento a un registro en cuarentena desde Admin
+ * Permite agregar seguimiento a un registro en cuarentena; requiere SysAdmin, elevacion administrativa vigente y x-admin-intent con valor literal 1.
  */
 incluir_vacios?: boolean;
 };

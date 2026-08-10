@@ -21,6 +21,7 @@ import type {
 
 import type {
   ActividadItem,
+  AdminAccessUnauthorized,
   AdminElevationBadRequestError,
   AdminElevationForbiddenError,
   AdminElevationInput,
@@ -300,7 +301,7 @@ export const getListTicketsQueryKey = (params?: ListTicketsParams,) => {
     }
 
 
-export const getListTicketsQueryOptions = <TData = Awaited<ReturnType<typeof listTickets>>, TError = ErrorType<FunctionalAccessForbiddenResponse>>(params?: ListTicketsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTickets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListTicketsQueryOptions = <TData = Awaited<ReturnType<typeof listTickets>>, TError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>>(params?: ListTicketsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTickets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -319,14 +320,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListTicketsQueryResult = NonNullable<Awaited<ReturnType<typeof listTickets>>>
-export type ListTicketsQueryError = ErrorType<FunctionalAccessForbiddenResponse>
+export type ListTicketsQueryError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>
 
 
 /**
  * @summary List all tickets with optional filters
  */
 
-export function useListTickets<TData = Awaited<ReturnType<typeof listTickets>>, TError = ErrorType<FunctionalAccessForbiddenResponse>>(
+export function useListTickets<TData = Awaited<ReturnType<typeof listTickets>>, TError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>>(
  params?: ListTicketsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTickets>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -1042,7 +1043,7 @@ export const createAdminTicket = async (ticketInput: TicketInput, options?: Requ
 
 
 
-export const getCreateAdminTicketMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const getCreateAdminTicketMutationOptions = <TError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | void | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminTicket>>, TError,{data: BodyType<TicketInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createAdminTicket>>, TError,{data: BodyType<TicketInput>}, TContext> => {
 
@@ -1071,12 +1072,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateAdminTicketMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminTicket>>>
     export type CreateAdminTicketMutationBody = BodyType<TicketInput>
-    export type CreateAdminTicketMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
+    export type CreateAdminTicketMutationError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | void | AdminElevationUnavailableError>
 
     /**
  * @summary Crear un registro manualmente (solo administración)
  */
-export const useCreateAdminTicket = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const useCreateAdminTicket = <TError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | void | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminTicket>>, TError,{data: BodyType<TicketInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createAdminTicket>>,
@@ -1114,7 +1115,7 @@ export const importCsv = async (adminImportInput: AdminImportInput, options?: Re
 
 
 
-export const getImportCsvMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const getImportCsvMutationOptions = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importCsv>>, TError,{data: BodyType<AdminImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof importCsv>>, TError,{data: BodyType<AdminImportInput>}, TContext> => {
 
@@ -1143,12 +1144,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type ImportCsvMutationResult = NonNullable<Awaited<ReturnType<typeof importCsv>>>
     export type ImportCsvMutationBody = BodyType<AdminImportInput>
-    export type ImportCsvMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
+    export type ImportCsvMutationError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>
 
     /**
  * @summary Importación masiva desde CSV
  */
-export const useImportCsv = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const useImportCsv = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importCsv>>, TError,{data: BodyType<AdminImportInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof importCsv>>,
@@ -1186,7 +1187,7 @@ export const truncateTickets = async (adminTruncateInput: AdminTruncateInput, op
 
 
 
-export const getTruncateTicketsMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const getTruncateTicketsMutationOptions = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof truncateTickets>>, TError,{data: BodyType<AdminTruncateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof truncateTickets>>, TError,{data: BodyType<AdminTruncateInput>}, TContext> => {
 
@@ -1215,12 +1216,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type TruncateTicketsMutationResult = NonNullable<Awaited<ReturnType<typeof truncateTickets>>>
     export type TruncateTicketsMutationBody = BodyType<AdminTruncateInput>
-    export type TruncateTicketsMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
+    export type TruncateTicketsMutationError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>
 
     /**
  * @summary Borrar todos los registros (truncate)
  */
-export const useTruncateTickets = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const useTruncateTickets = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof truncateTickets>>, TError,{data: BodyType<AdminTruncateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof truncateTickets>>,
@@ -1271,7 +1272,7 @@ export const getListAdminRolesQueryKey = (params?: ListAdminRolesParams,) => {
     }
 
 
-export const getListAdminRolesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminRoles>>, TError = ErrorType<void | FunctionalAccessForbiddenResponse>>(params?: ListAdminRolesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminRoles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListAdminRolesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminRoles>>, TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>>(params?: ListAdminRolesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminRoles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -1290,14 +1291,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListAdminRolesQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminRoles>>>
-export type ListAdminRolesQueryError = ErrorType<void | FunctionalAccessForbiddenResponse>
+export type ListAdminRolesQueryError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>
 
 
 /**
  * @summary Listar roles
  */
 
-export function useListAdminRoles<TData = Awaited<ReturnType<typeof listAdminRoles>>, TError = ErrorType<void | FunctionalAccessForbiddenResponse>>(
+export function useListAdminRoles<TData = Awaited<ReturnType<typeof listAdminRoles>>, TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>>(
  params?: ListAdminRolesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminRoles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -1341,7 +1342,7 @@ export const createAdminRole = async (adminRoleInput: AdminRoleInput, options?: 
 
 
 
-export const getCreateAdminRoleMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const getCreateAdminRoleMutationOptions = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminRole>>, TError,{data: BodyType<AdminRoleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createAdminRole>>, TError,{data: BodyType<AdminRoleInput>}, TContext> => {
 
@@ -1370,12 +1371,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateAdminRoleMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminRole>>>
     export type CreateAdminRoleMutationBody = BodyType<AdminRoleInput>
-    export type CreateAdminRoleMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
+    export type CreateAdminRoleMutationError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>
 
     /**
  * @summary Crear un rol
  */
-export const useCreateAdminRole = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const useCreateAdminRole = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminRole>>, TError,{data: BodyType<AdminRoleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createAdminRole>>,
@@ -1413,7 +1414,7 @@ export const updateAdminRole = async (id: number,
 
 
 
-export const getUpdateAdminRoleMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const getUpdateAdminRoleMutationOptions = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminRole>>, TError,{id: number;data: BodyType<AdminRoleUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateAdminRole>>, TError,{id: number;data: BodyType<AdminRoleUpdate>}, TContext> => {
 
@@ -1442,12 +1443,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateAdminRoleMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminRole>>>
     export type UpdateAdminRoleMutationBody = BodyType<AdminRoleUpdate>
-    export type UpdateAdminRoleMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
+    export type UpdateAdminRoleMutationError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>
 
     /**
  * @summary Actualizar un rol
  */
-export const useUpdateAdminRole = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const useUpdateAdminRole = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminRole>>, TError,{id: number;data: BodyType<AdminRoleUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateAdminRole>>,
@@ -1484,7 +1485,7 @@ export const deleteAdminRole = async (id: number, options?: RequestInit): Promis
 
 
 
-export const getDeleteAdminRoleMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const getDeleteAdminRoleMutationOptions = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminRole>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminRole>>, TError,{id: number}, TContext> => {
 
@@ -1513,12 +1514,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeleteAdminRoleMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminRole>>>
 
-    export type DeleteAdminRoleMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
+    export type DeleteAdminRoleMutationError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>
 
     /**
  * @summary Eliminar un rol sin usuarios asignados
  */
-export const useDeleteAdminRole = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const useDeleteAdminRole = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminRole>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof deleteAdminRole>>,
@@ -1569,7 +1570,7 @@ export const getListAdminUsersQueryKey = (params?: ListAdminUsersParams,) => {
     }
 
 
-export const getListAdminUsersQueryOptions = <TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = ErrorType<void | FunctionalAccessForbiddenResponse>>(params?: ListAdminUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListAdminUsersQueryOptions = <TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>>(params?: ListAdminUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -1588,14 +1589,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListAdminUsersQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminUsers>>>
-export type ListAdminUsersQueryError = ErrorType<void | FunctionalAccessForbiddenResponse>
+export type ListAdminUsersQueryError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>
 
 
 /**
  * @summary Listar usuarios
  */
 
-export function useListAdminUsers<TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = ErrorType<void | FunctionalAccessForbiddenResponse>>(
+export function useListAdminUsers<TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>>(
  params?: ListAdminUsersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -1639,7 +1640,7 @@ export const createAdminUser = async (adminUserInput: AdminUserInput, options?: 
 
 
 
-export const getCreateAdminUserMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const getCreateAdminUserMutationOptions = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminUser>>, TError,{data: BodyType<AdminUserInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createAdminUser>>, TError,{data: BodyType<AdminUserInput>}, TContext> => {
 
@@ -1668,12 +1669,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateAdminUserMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminUser>>>
     export type CreateAdminUserMutationBody = BodyType<AdminUserInput>
-    export type CreateAdminUserMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
+    export type CreateAdminUserMutationError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>
 
     /**
  * @summary Crear un usuario
  */
-export const useCreateAdminUser = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const useCreateAdminUser = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminUser>>, TError,{data: BodyType<AdminUserInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createAdminUser>>,
@@ -1712,7 +1713,7 @@ export const updateAdminUser = async (id: number,
 
 
 
-export const getUpdateAdminUserMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const getUpdateAdminUserMutationOptions = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminUser>>, TError,{id: number;data: BodyType<AdminUserUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateAdminUser>>, TError,{id: number;data: BodyType<AdminUserUpdate>}, TContext> => {
 
@@ -1741,12 +1742,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateAdminUserMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminUser>>>
     export type UpdateAdminUserMutationBody = BodyType<AdminUserUpdate>
-    export type UpdateAdminUserMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
+    export type UpdateAdminUserMutationError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>
 
     /**
  * @summary Actualizar o desactivar un usuario
  */
-export const useUpdateAdminUser = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const useUpdateAdminUser = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminUser>>, TError,{id: number;data: BodyType<AdminUserUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateAdminUser>>,
@@ -1785,7 +1786,7 @@ export const resetAdminUserPassword = async (id: number,
 
 
 
-export const getResetAdminUserPasswordMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const getResetAdminUserPasswordMutationOptions = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetAdminUserPassword>>, TError,{id: number;data: BodyType<AdminUserPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof resetAdminUserPassword>>, TError,{id: number;data: BodyType<AdminUserPasswordInput>}, TContext> => {
 
@@ -1814,12 +1815,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type ResetAdminUserPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof resetAdminUserPassword>>>
     export type ResetAdminUserPasswordMutationBody = BodyType<AdminUserPasswordInput>
-    export type ResetAdminUserPasswordMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
+    export type ResetAdminUserPasswordMutationError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>
 
     /**
  * @summary Establecer o reestablecer la contraseña de un usuario
  */
-export const useResetAdminUserPassword = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const useResetAdminUserPassword = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetAdminUserPassword>>, TError,{id: number;data: BodyType<AdminUserPasswordInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof resetAdminUserPassword>>,
@@ -1873,7 +1874,7 @@ export const getGetTicketQueryKey = (id: number,
     }
 
 
-export const getGetTicketQueryOptions = <TData = Awaited<ReturnType<typeof getTicket>>, TError = ErrorType<FunctionalAccessForbiddenResponse | void>>(id: number,
+export const getGetTicketQueryOptions = <TData = Awaited<ReturnType<typeof getTicket>>, TError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | void | AdminElevationUnavailableError>>(id: number,
     params?: GetTicketParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicket>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -1893,14 +1894,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetTicketQueryResult = NonNullable<Awaited<ReturnType<typeof getTicket>>>
-export type GetTicketQueryError = ErrorType<FunctionalAccessForbiddenResponse | void>
+export type GetTicketQueryError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | void | AdminElevationUnavailableError>
 
 
 /**
  * @summary Get ticket details
  */
 
-export function useGetTicket<TData = Awaited<ReturnType<typeof getTicket>>, TError = ErrorType<FunctionalAccessForbiddenResponse | void>>(
+export function useGetTicket<TData = Awaited<ReturnType<typeof getTicket>>, TError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | void | AdminElevationUnavailableError>>(
  id: number,
     params?: GetTicketParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTicket>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
@@ -1938,8 +1939,9 @@ export const getUpdateTicketUrl = (id: number,
 /**
  * Las actualizaciones operativas y el enriquecimiento de contacto,
  * motivo o resumen requieren una sesión válida. Los campos técnicos y
- * el acceso a registros en cuarentena requieren además rol SysAdmin y
- * el header x-admin-key. El body debe incluir expected_version junto a
+ * el acceso a registros en cuarentena requieren además rol SysAdmin,
+ * elevacion administrativa vigente y el header x-admin-intent con valor
+ * literal 1. El body debe incluir expected_version junto a
  * por lo menos un campo editable; una versión desactualizada devuelve
  * TICKET_VERSION_CONFLICT sin persistir ni auditar el intento.
  * @summary Update a ticket
@@ -1961,7 +1963,7 @@ export const updateTicket = async (id: number,
 
 
 
-export const getUpdateTicketMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse | TicketVersionConflict>,
+export const getUpdateTicketMutationOptions = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | TicketVersionConflict | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>;params?: UpdateTicketParams}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>;params?: UpdateTicketParams}, TContext> => {
 
@@ -1990,12 +1992,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateTicketMutationResult = NonNullable<Awaited<ReturnType<typeof updateTicket>>>
     export type UpdateTicketMutationBody = BodyType<TicketUpdate>
-    export type UpdateTicketMutationError = ErrorType<void | FunctionalAccessForbiddenResponse | TicketVersionConflict>
+    export type UpdateTicketMutationError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | TicketVersionConflict | AdminElevationUnavailableError>
 
     /**
  * @summary Update a ticket
  */
-export const useUpdateTicket = <TError = ErrorType<void | FunctionalAccessForbiddenResponse | TicketVersionConflict>,
+export const useUpdateTicket = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | TicketVersionConflict | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTicket>>, TError,{id: number;data: BodyType<TicketUpdate>;params?: UpdateTicketParams}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateTicket>>,
@@ -2015,8 +2017,8 @@ export const getDeleteTicketUrl = (id: number,) => {
 }
 
 /**
- * Requiere sesion con rol SysAdmin y el header x-admin-key.
- * @summary Delete a ticket (solo SysAdmin con clave administrativa)
+ * Requiere sesion con rol SysAdmin, elevacion administrativa vigente y el header x-admin-intent con valor literal 1.
+ * @summary Delete a ticket (solo SysAdmin con elevacion administrativa)
  */
 export const deleteTicket = async (id: number, options?: RequestInit): Promise<void> => {
 
@@ -2033,7 +2035,7 @@ export const deleteTicket = async (id: number, options?: RequestInit): Promise<v
 
 
 
-export const getDeleteTicketMutationOptions = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const getDeleteTicketMutationOptions = <TError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTicket>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteTicket>>, TError,{id: number}, TContext> => {
 
@@ -2062,12 +2064,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeleteTicketMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTicket>>>
 
-    export type DeleteTicketMutationError = ErrorType<void | FunctionalAccessForbiddenResponse>
+    export type DeleteTicketMutationError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>
 
     /**
- * @summary Delete a ticket (solo SysAdmin con clave administrativa)
+ * @summary Delete a ticket (solo SysAdmin con elevacion administrativa)
  */
-export const useDeleteTicket = <TError = ErrorType<void | FunctionalAccessForbiddenResponse>,
+export const useDeleteTicket = <TError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTicket>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof deleteTicket>>,
@@ -2121,7 +2123,7 @@ export const getListSeguimientosQueryKey = (id: number,
     }
 
 
-export const getListSeguimientosQueryOptions = <TData = Awaited<ReturnType<typeof listSeguimientos>>, TError = ErrorType<FunctionalAccessForbiddenResponse>>(id: number,
+export const getListSeguimientosQueryOptions = <TData = Awaited<ReturnType<typeof listSeguimientos>>, TError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>>(id: number,
     params?: ListSeguimientosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSeguimientos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
@@ -2141,14 +2143,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListSeguimientosQueryResult = NonNullable<Awaited<ReturnType<typeof listSeguimientos>>>
-export type ListSeguimientosQueryError = ErrorType<FunctionalAccessForbiddenResponse>
+export type ListSeguimientosQueryError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>
 
 
 /**
  * @summary List follow-ups for a ticket
  */
 
-export function useListSeguimientos<TData = Awaited<ReturnType<typeof listSeguimientos>>, TError = ErrorType<FunctionalAccessForbiddenResponse>>(
+export function useListSeguimientos<TData = Awaited<ReturnType<typeof listSeguimientos>>, TError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>>(
  id: number,
     params?: ListSeguimientosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSeguimientos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
@@ -2203,7 +2205,7 @@ export const createSeguimiento = async (id: number,
 
 
 
-export const getCreateSeguimientoMutationOptions = <TError = ErrorType<FunctionalAccessForbiddenResponse>,
+export const getCreateSeguimientoMutationOptions = <TError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSeguimiento>>, TError,{id: number;data: BodyType<SeguimientoInput>;params?: CreateSeguimientoParams}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createSeguimiento>>, TError,{id: number;data: BodyType<SeguimientoInput>;params?: CreateSeguimientoParams}, TContext> => {
 
@@ -2232,12 +2234,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateSeguimientoMutationResult = NonNullable<Awaited<ReturnType<typeof createSeguimiento>>>
     export type CreateSeguimientoMutationBody = BodyType<SeguimientoInput>
-    export type CreateSeguimientoMutationError = ErrorType<FunctionalAccessForbiddenResponse>
+    export type CreateSeguimientoMutationError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>
 
     /**
  * @summary Add a follow-up to a ticket
  */
-export const useCreateSeguimiento = <TError = ErrorType<FunctionalAccessForbiddenResponse>,
+export const useCreateSeguimiento = <TError = ErrorType<AdminAccessUnauthorized | FunctionalAccessForbiddenResponse | AdminElevationUnavailableError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSeguimiento>>, TError,{id: number;data: BodyType<SeguimientoInput>;params?: CreateSeguimientoParams}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createSeguimiento>>,

@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Contrato administrativo migrado a intención no secreta
+
+**Agente:** Codex
+**Estado:** ducentésima vigésima tercera remediación de la auditoría técnica, implementada localmente.
+
+- OpenAPI reemplaza `adminApiKey`/`x-admin-key` por `adminIntent`/`x-admin-intent`: las doce operaciones administrativas incondicionales exigen cookie e intención en un mismo requisito AND, mientras las cinco fronteras condicionales conservan acceso operativo normal y documentan que `incluir_vacios` requiere SysAdmin, elevación vigente y valor literal `1`.
+- El contrato tipa `ADMIN_ELEVATION_REQUIRED`, reutiliza `ADMIN_ELEVATION_UNAVAILABLE`, amplía la frontera funcional con `SYSADMIN_REQUIRED` y declara 401, 403 y 503 en las diecisiete operaciones. Los endpoints GET/POST/DELETE de elevación continúan protegidos sólo por cookie y el secreto permanece exclusivamente en el body del POST.
+- Un test parsea el YAML y fija seguridad, operaciones condicionales, parámetros, descripciones, errores y ausencia total del mecanismo legacy. Codegen actualizó los tres artefactos previstos; el lockfile sumó sólo tres líneas para declarar `yaml` directamente.
+- Aprobaron 7 pruebas contractuales, dos regeneraciones deterministas, typecheck de librerías, schema check, Prettier y `git diff --check`. La reauditoría independiente cerró sin P0/P1/P2. No se hizo push.
+
 ## 2026-08-09 — Elevación y transiciones de identidad reconciliadas globalmente
 
 **Agente:** Codex

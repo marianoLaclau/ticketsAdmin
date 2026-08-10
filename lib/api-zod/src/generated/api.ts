@@ -52,7 +52,7 @@ export const ListTicketsQueryParams = zod.object({
   "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'sin_clasificar']).optional().describe('Categoría normalizada derivada del motivo original'),
   "search": zod.coerce.string().optional(),
   "vencidos": zod.boolean().optional(),
-  "incluir_vacios": zod.boolean().default(listTicketsQueryIncluirVaciosDefault).describe('Incluye registros en cuarentena sin datos útiles. Requiere sesión SysAdmin y el header x-admin-key; el listado operativo los excluye.\n'),
+  "incluir_vacios": zod.boolean().default(listTicketsQueryIncluirVaciosDefault).describe('Incluye registros en cuarentena sin datos útiles. Requiere sesión SysAdmin, elevacion administrativa vigente y el header de intencion x-admin-intent con valor literal 1; el listado operativo los excluye.\n'),
   "sort_by": zod.enum(['id', 'fecha_creacion', 'conversation_id', 'contacto', 'empresa', 'motivo_categoria', 'motivo', 'estado', 'prioridad', 'asignado_a', 'progreso', 'fecha_limite']).optional().describe('Columna de ordenamiento aplicada sobre el conjunto completo antes de paginar'),
   "order": zod.enum(['asc', 'desc']).default(listTicketsQueryOrderDefault).describe('Orden compuesto por día de creación y, dentro de cada día, por hora del llamado'),
   "sort": zod.coerce.string().max(listTicketsQuerySortMax).optional().describe('Ordenamiento múltiple priorizado, separado por comas y expresado como columna:dirección. Ejemplo: fecha_creacion:desc,contacto:asc. Cuando se informa, reemplaza a sort_by y order.\n'),
@@ -691,7 +691,7 @@ export const GetTicketParams = zod.object({
 export const getTicketQueryIncluirVaciosDefault = false;
 
 export const GetTicketQueryParams = zod.object({
-  "incluir_vacios": zod.boolean().default(getTicketQueryIncluirVaciosDefault).describe('Permite abrir registros en cuarentena; requiere SysAdmin y x-admin-key')
+  "incluir_vacios": zod.boolean().default(getTicketQueryIncluirVaciosDefault).describe('Permite abrir registros en cuarentena; requiere SysAdmin, elevacion administrativa vigente y x-admin-intent con valor literal 1.\n')
 })
 
 
@@ -749,8 +749,9 @@ export const GetTicketResponse = zod.object({
 /**
  * Las actualizaciones operativas y el enriquecimiento de contacto,
  * motivo o resumen requieren una sesión válida. Los campos técnicos y
- * el acceso a registros en cuarentena requieren además rol SysAdmin y
- * el header x-admin-key. El body debe incluir expected_version junto a
+ * el acceso a registros en cuarentena requieren además rol SysAdmin,
+ * elevacion administrativa vigente y el header x-admin-intent con valor
+ * literal 1. El body debe incluir expected_version junto a
  * por lo menos un campo editable; una versión desactualizada devuelve
  * TICKET_VERSION_CONFLICT sin persistir ni auditar el intento.
  * @summary Update a ticket
@@ -762,7 +763,7 @@ export const UpdateTicketParams = zod.object({
 export const updateTicketQueryIncluirVaciosDefault = false;
 
 export const UpdateTicketQueryParams = zod.object({
-  "incluir_vacios": zod.boolean().default(updateTicketQueryIncluirVaciosDefault).describe('Permite modificar registros en cuarentena; requiere SysAdmin y x-admin-key')
+  "incluir_vacios": zod.boolean().default(updateTicketQueryIncluirVaciosDefault).describe('Permite modificar registros en cuarentena; requiere SysAdmin, elevacion administrativa vigente y x-admin-intent con valor literal 1.\n')
 })
 
 
@@ -828,8 +829,8 @@ export const UpdateTicketResponse = zod.object({
 
 
 /**
- * Requiere sesion con rol SysAdmin y el header x-admin-key.
- * @summary Delete a ticket (solo SysAdmin con clave administrativa)
+ * Requiere sesion con rol SysAdmin, elevacion administrativa vigente y el header x-admin-intent con valor literal 1.
+ * @summary Delete a ticket (solo SysAdmin con elevacion administrativa)
  */
 export const DeleteTicketParams = zod.object({
   "id": zod.coerce.number()
@@ -848,7 +849,7 @@ export const ListSeguimientosParams = zod.object({
 export const listSeguimientosQueryIncluirVaciosDefault = false;
 
 export const ListSeguimientosQueryParams = zod.object({
-  "incluir_vacios": zod.boolean().default(listSeguimientosQueryIncluirVaciosDefault).describe('Permite consultar un registro en cuarentena desde Admin')
+  "incluir_vacios": zod.boolean().default(listSeguimientosQueryIncluirVaciosDefault).describe('Permite consultar un registro en cuarentena; requiere SysAdmin, elevacion administrativa vigente y x-admin-intent con valor literal 1.\n')
 })
 
 export const ListSeguimientosResponseItem = zod.object({
@@ -880,7 +881,7 @@ export const CreateSeguimientoParams = zod.object({
 export const createSeguimientoQueryIncluirVaciosDefault = false;
 
 export const CreateSeguimientoQueryParams = zod.object({
-  "incluir_vacios": zod.boolean().default(createSeguimientoQueryIncluirVaciosDefault).describe('Permite agregar seguimiento a un registro en cuarentena desde Admin')
+  "incluir_vacios": zod.boolean().default(createSeguimientoQueryIncluirVaciosDefault).describe('Permite agregar seguimiento a un registro en cuarentena; requiere SysAdmin, elevacion administrativa vigente y x-admin-intent con valor literal 1.\n')
 })
 
 export const CreateSeguimientoBody = zod.object({
