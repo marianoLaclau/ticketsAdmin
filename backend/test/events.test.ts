@@ -13,9 +13,12 @@ import {
 function fakeResponse(write: (payload: string) => void): Response {
   let closeListener: (() => void) | undefined;
   const response = {
+    closed: false,
     destroyed: false,
     writableEnded: false,
     headersSent: false,
+    req: { aborted: false },
+    socket: { destroyed: false },
     statusCode: 200,
     on(event: string, listener: () => void) {
       if (event === "close") closeListener = listener;
@@ -42,6 +45,45 @@ function fakeResponse(write: (payload: string) => void): Response {
   };
   return response as unknown as Response;
 }
+
+test("rechaza cualquier respuesta cuyo cierre ya observo el servidor", () => {
+  const terminalSignals: Array<{
+    name: string;
+    set: (response: Response) => void;
+  }> = [
+    {
+      name: "response closed",
+      set: (response) => Object.assign(response, { closed: true }),
+    },
+    {
+      name: "response destroyed",
+      set: (response) => Object.assign(response, { destroyed: true }),
+    },
+    {
+      name: "response ended",
+      set: (response) => Object.assign(response, { writableEnded: true }),
+    },
+    {
+      name: "request aborted",
+      set: (response) => Object.assign(response.req, { aborted: true }),
+    },
+    {
+      name: "socket destroyed",
+      set: (response) =>
+        Object.assign(response.socket as NonNullable<Response["socket"]>, {
+          destroyed: true,
+        }),
+    },
+  ];
+
+  for (const signal of terminalSignals) {
+    const response = fakeResponse(() =>
+      assert.fail(`no debe escribir despues de ${signal.name}`),
+    );
+    signal.set(response);
+    assert.equal(addEventClient(response), false, signal.name);
+  }
+});
 
 test("un cliente SSE desconectado no interrumpe la notificación de los demás", () => {
   let failedWrites = 0;

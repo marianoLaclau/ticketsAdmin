@@ -315,11 +315,13 @@ it("no cierra SQLite mientras continua un handler cuyo cliente aborto", async ()
 it("no registra SSE si el cliente aborto durante middleware asincrono", async () => {
   const middlewareIniciado = diferida<void>();
   const continuarMiddleware = diferida<void>();
+  const respuestaCerradaEnServidor = diferida<void>();
   const rutaEjecutada = diferida<boolean>();
   const app = express();
   app.get(
     "/events-aborted",
-    async (_req, _res, next) => {
+    async (_req, res, next) => {
+      res.once("close", () => respuestaCerradaEnServidor.resolver());
       middlewareIniciado.resolver();
       await continuarMiddleware.promesa;
       next();
@@ -351,6 +353,10 @@ it("no registra SSE si el cliente aborto durante middleware asincrono", async ()
     );
     client.destroy();
     await conFusible(clientClosed, "el cliente SSE abortado no cerro");
+    await conFusible(
+      respuestaCerradaEnServidor.promesa,
+      "el servidor no observo el cierre del cliente SSE",
+    );
     continuarMiddleware.resolver();
     assert.equal(
       await conFusible(rutaEjecutada.promesa, "la ruta SSE no continuo"),

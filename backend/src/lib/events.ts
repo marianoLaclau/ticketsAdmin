@@ -26,7 +26,17 @@ export function addEventClient(
 ): boolean {
   // La autenticacion previa es asincrona: el navegador puede abortar antes de
   // que la ruta llegue hasta aqui y el evento close ya no volvera a emitirse.
-  if (res.destroyed || res.writableEnded) return false;
+  // Node puede reflejar ese cierre primero en ServerResponse, IncomingMessage
+  // o el socket segun la plataforma, por eso se aceptan todas sus senales
+  // terminales una vez que el servidor observo la desconexion.
+  if (
+    res.destroyed ||
+    res.closed ||
+    res.writableEnded ||
+    res.req?.aborted ||
+    res.socket?.destroyed
+  )
+    return false;
 
   if (!acceptingClients) {
     try {
