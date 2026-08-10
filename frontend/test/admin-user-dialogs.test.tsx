@@ -10,7 +10,10 @@ import {
   createAdminUserForm,
   createNewAdminUserForm,
 } from "../src/features/admin-directory/model.ts";
+import { NEW_PASSWORD_MIN_LENGTH } from "../src/lib/password-policy.ts";
 import { installDomEventRealm } from "./dom-event-realm.ts";
+
+const AL_MENOS_MINIMO = new RegExp(`al menos ${NEW_PASSWORD_MIN_LENGTH}`, "i");
 
 // Node expone su propia implementación de Event. Radix debe despachar eventos
 // creados por el mismo realm de JSDOM que recibe el portal del diálogo.
@@ -137,7 +140,7 @@ test("mantiene controlado el formulario de alta y presenta sus validaciones", as
   });
   assert.match(
     screen.getAllByRole("alert")[0]?.textContent ?? "",
-    /al menos 16/i,
+    AL_MENOS_MINIMO,
   );
   assert.equal(
     screen.getByLabelText("Contraseña temporal *").getAttribute("aria-invalid"),
@@ -326,7 +329,7 @@ test("valida y delega el reset de contraseña temporal", async (t) => {
   fireEvent.change(screen.getByLabelText("Nueva contraseña temporal"), {
     target: { value: "corta" },
   });
-  assert.match(screen.getByRole("alert").textContent ?? "", /al menos 16/i);
+  assert.match(screen.getByRole("alert").textContent ?? "", AL_MENOS_MINIMO);
 
   const validPassword = "Frase interna muy segura 2026";
   fireEvent.change(screen.getByLabelText("Nueva contraseña temporal"), {

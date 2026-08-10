@@ -9,6 +9,7 @@ import {
   getPasswordChangeFormError,
   getRepeatedPasswordError,
 } from "../src/lib/password-change.ts";
+import { NEW_PASSWORD_MIN_LENGTH } from "../src/lib/password-policy.ts";
 
 describe("flujo de cambio obligatorio de contraseña", () => {
   it("elige el destino autenticado sin permitir escapar del cambio", () => {
@@ -39,7 +40,7 @@ describe("flujo de cambio obligatorio de contraseña", () => {
 
     assert.match(
       getChangedPasswordError(currentPassword, "corta") ?? "",
-      /16/i,
+      new RegExp(String(NEW_PASSWORD_MIN_LENGTH)),
     );
     assert.match(
       getChangedPasswordError(currentPassword, currentPassword) ?? "",

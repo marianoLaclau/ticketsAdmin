@@ -2,11 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   NEW_PASSWORD_HELP,
+  NEW_PASSWORD_MAX_LENGTH,
+  NEW_PASSWORD_MIN_LENGTH,
   getNewPasswordError,
 } from "../src/lib/password-policy.ts";
 
 test("presenta cada incumplimiento de la política sin datos técnicos", () => {
-  assert.match(getNewPasswordError("corta") ?? "", /al menos 16/i);
+  assert.match(
+    getNewPasswordError("corta") ?? "",
+    new RegExp(`al menos ${NEW_PASSWORD_MIN_LENGTH}`, "i"),
+  );
   assert.match(getNewPasswordError("x".repeat(129)) ?? "", /máximo 128/i);
   assert.match(
     getNewPasswordError(" Frase-larga-y-segura-2026") ?? "",
@@ -22,5 +27,11 @@ test("presenta cada incumplimiento de la política sin datos técnicos", () => {
     /caracteres de control/i,
   );
   assert.equal(getNewPasswordError("Frase interna muy segura 2026"), null);
-  assert.match(NEW_PASSWORD_HELP, /entre 16 y 128/i);
+  assert.match(
+    NEW_PASSWORD_HELP,
+    new RegExp(
+      `entre ${NEW_PASSWORD_MIN_LENGTH} y ${NEW_PASSWORD_MAX_LENGTH}`,
+      "i",
+    ),
+  );
 });
