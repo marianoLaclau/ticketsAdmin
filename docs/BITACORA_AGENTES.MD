@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Roadmap de hardening cerrado localmente
+
+**Agente:** Codex
+**Estado:** ducentésima trigésima octava remediación de la auditoría técnica, completada localmente.
+
+- Quedaron cubiertos los seis frentes acordados: seguridad/deploy, integridad transaccional, base/rendimiento, Clean Code, frontend profesional y cobertura/operación. La reauditoría final del código no encontró P0, P1 ni P2 pendientes; readiness `0016` y lifecycle E2E recibieron dos rondas adicionales de revisión hasta cerrar sus hallazgos.
+- El quality completo aprobó lint, Prettier, codegen determinista, schema Drizzle, suites del workspace, TypeScript y builds en 408,6 segundos. Tras el último ajuste exclusivo de E2E volvieron a aprobar lint, formato y typecheck, y Playwright cerró 8/8: cuatro recorridos funcionales más cuatro carreras de cleanup.
+- El árbol terminó limpio en `refactor/roadmap-hardening`, sin listeners ni SQLite temporales. Los commits permanecen únicamente en local, por delante de `origin/main`; no se hizo push ni se modificó `main`, respetando la condición del usuario.
+
 ## 2026-08-09 — Teardown E2E acotado dentro de una sola invocación
 
 **Agente:** Codex
