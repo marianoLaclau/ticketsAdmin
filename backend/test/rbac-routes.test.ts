@@ -1768,7 +1768,8 @@ describe("autorización administrativa elevada", () => {
       const unavailable = await elevatedAdminRequest("/admin/roles", cookie);
       assert.equal(unavailable.status, 503);
       assert.deepEqual(await unavailable.json(), {
-        error: "ADMIN_API_KEY no está configurada en el servidor",
+        code: "ADMIN_ELEVATION_UNAVAILABLE",
+        error: "La elevación administrativa no está disponible",
       });
     } finally {
       process.env.ADMIN_API_KEY = "rbac-admin-key";

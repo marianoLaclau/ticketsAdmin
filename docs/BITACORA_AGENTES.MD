@@ -2,6 +2,14 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Indisponibilidad de elevación estabilizada
+
+**Agente:** Codex
+**Estado:** ducentésima vigésima primera remediación de la auditoría técnica, implementada localmente.
+
+- Cuando `ADMIN_API_KEY` no está configurada, la frontera de rutas administrativas responde ahora `503` con el código estable `ADMIN_ELEVATION_UNAVAILABLE` y un mensaje funcional. Se retiró del payload el nombre de la variable de entorno y se alineó el comportamiento con el endpoint de elevación y su contrato.
+- La regresión RBAC exige el cuerpo exacto y conserva por separado las coberturas de rotación, vencimiento y ausencia de grant. Aprobaron 62 pruebas focalizadas, typecheck del backend, ESLint y `git diff --check`. No se hizo push.
+
 ## 2026-08-09 — Errores administrativos desacoplados del hook legado
 
 **Agente:** Codex

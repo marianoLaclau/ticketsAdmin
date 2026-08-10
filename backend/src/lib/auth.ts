@@ -209,9 +209,10 @@ export function requireAdminElevation(
 ) {
   const configuredKey = process.env.ADMIN_API_KEY;
   if (!configuredKey?.trim()) {
-    res
-      .status(503)
-      .json({ error: "ADMIN_API_KEY no está configurada en el servidor" });
+    res.status(503).json({
+      code: "ADMIN_ELEVATION_UNAVAILABLE",
+      error: "La elevación administrativa no está disponible",
+    });
     return;
   }
 
