@@ -17,7 +17,7 @@ export function TicketCallSummaryCard({
     <Card className="shadow-sm">
       <CardHeader className="pb-3 border-b border-slate-100">
         <CardTitle className="text-lg flex items-center gap-2">
-          <FileText className="h-5 w-5 text-primary" />
+          <FileText className="h-5 w-5 text-primary" aria-hidden="true" />
           Resumen del Llamado
         </CardTitle>
       </CardHeader>
@@ -26,7 +26,10 @@ export function TicketCallSummaryCard({
           <h4 className="text-sm font-medium text-slate-500 mb-1">
             Descripción
           </h4>
-          <p className="text-slate-900 whitespace-pre-wrap leading-relaxed">
+          <p
+            id="ticket-call-summary"
+            className="text-slate-900 whitespace-pre-wrap leading-relaxed"
+          >
             {summary || "Sin descripción detallada."}
           </p>
         </div>
@@ -34,16 +37,25 @@ export function TicketCallSummaryCard({
         {/* Audio Player */}
         <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
           <h4 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
-            <Headphones className="h-4 w-4 text-slate-500" />
+            <Headphones className="h-4 w-4 text-slate-500" aria-hidden="true" />
             Grabación de la Llamada
           </h4>
           {audioUrl ? (
-            <audio controls className="w-full h-10" src={audioUrl}>
+            /* El contrato de ingesta no entrega una pista VTT. Asociamos el
+               resumen textual disponible y mantenemos visible esta deuda. */
+            /* eslint-disable-next-line jsx-a11y/media-has-caption */
+            <audio
+              controls
+              className="w-full h-10"
+              src={audioUrl}
+              aria-label="Grabación de la llamada"
+              aria-describedby="ticket-call-summary"
+            >
               Tu navegador no soporta el elemento de audio.
             </audio>
           ) : (
             <div className="flex items-center gap-2 text-sm text-slate-500 bg-white border border-slate-200 border-dashed rounded p-3">
-              <PlayCircle className="h-4 w-4 opacity-50" />
+              <PlayCircle className="h-4 w-4 opacity-50" aria-hidden="true" />
               Sin grabación disponible para este caso.
             </div>
           )}

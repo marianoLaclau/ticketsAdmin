@@ -111,10 +111,17 @@ export function ErrorPage({
   const Icon = copy.icon;
   const titleId = React.useId();
   const messageId = React.useId();
+  const containerRef = React.useRef<HTMLElement | null>(null);
   const Container = embedded ? "section" : "main";
+
+  React.useEffect(() => {
+    containerRef.current?.focus();
+  }, []);
 
   return (
     <Container
+      ref={containerRef}
+      tabIndex={-1}
       aria-labelledby={titleId}
       aria-describedby={messageId}
       className={cn(
@@ -125,7 +132,7 @@ export function ErrorPage({
       <Card className="w-full max-w-lg border-border/80 shadow-lg">
         <CardContent className="px-6 py-10 text-center sm:px-10">
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
-            <Icon className="h-8 w-8 text-destructive" />
+            <Icon className="h-8 w-8 text-destructive" aria-hidden="true" />
           </div>
 
           {status ? (
@@ -150,7 +157,7 @@ export function ErrorPage({
           <div className="mt-8 flex flex-col-reverse justify-center gap-3 sm:flex-row">
             <Button asChild variant="outline">
               <a href={homeHref}>
-                <House />
+                <House aria-hidden="true" />
                 Volver al inicio
               </a>
             </Button>
@@ -163,6 +170,7 @@ export function ErrorPage({
               >
                 <RefreshCw
                   className={isRetrying ? "animate-spin" : undefined}
+                  aria-hidden="true"
                 />
                 {isRetrying ? "Reintentando…" : "Reintentar"}
               </Button>

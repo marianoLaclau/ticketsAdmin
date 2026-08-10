@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Accesibilidad incorporada al quality gate
+
+**Agente:** Codex
+**Estado:** ducentésima vigésima novena remediación de la auditoría técnica, implementada localmente.
+
+- ESLint ejecuta el preset recomendado de `jsx-a11y` sobre todo el frontend y axe analiza DOM renderizado en JSDOM. El helper desactiva únicamente contraste, que JSDOM no puede calcular; idioma, landmarks, nombres, relaciones ARIA y estructura siguen siendo bloqueantes.
+- Login pasa a ser un `main`, anuncia errores, retira autofocus e iconos decorativos; la pantalla de error toma foco al montarse. Alertas exponen título real y la grabación vincula el resumen textual disponible, dejando documentada la ausencia de una pista VTT en el contrato de ingesta.
+- La compatibilidad comprobada de `jsx-a11y@6.10.2` con ESLint 10 queda permitida sólo para ese paquete y versión; el workspace activa peers estrictos para que cualquier otra incompatibilidad falle. Aprobaron `pnpm peers check`, ESLint completo, 278 pruebas del frontend, typecheck, build, dos smokes axe, Prettier focal y `git diff --check`. No se hizo push.
+
 ## 2026-08-09 — Formularios de ticket con semántica completa
 
 **Agente:** Codex

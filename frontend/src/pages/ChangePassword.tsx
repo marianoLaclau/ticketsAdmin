@@ -1,47 +1,47 @@
-import { useState, type FormEvent } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   getGetMeQueryKey,
   useChangeOwnPassword,
   useLogout,
-} from '@workspace/api-client-react';
-import { PASSWORD_MAX_LENGTH } from '@workspace/password-policy';
+} from "@workspace/api-client-react";
+import { PASSWORD_MAX_LENGTH } from "@workspace/password-policy";
 import {
   AlertCircle,
   KeyRound,
   Loader2,
   LogOut,
   ShieldCheck,
-} from 'lucide-react';
-import { useLocation } from 'wouter';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { PasswordInput } from '@/components/ui/password-input';
-import { useToast } from '@/hooks/use-toast';
+} from "lucide-react";
+import { useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
+import { useToast } from "@/hooks/use-toast";
 import {
   getPasswordChangeErrorMessage,
   getUserErrorMessage,
-} from '@/lib/error-messages';
+} from "@/lib/error-messages";
 import {
   AUTHENTICATED_HOME_PATH,
   getChangedPasswordError,
   getCurrentPasswordError,
   getPasswordChangeFormError,
   getRepeatedPasswordError,
-} from '@/lib/password-change';
+} from "@/lib/password-change";
 import {
   NEW_PASSWORD_HELP,
   NEW_PASSWORD_MAX_LENGTH,
   NEW_PASSWORD_MIN_LENGTH,
-} from '@/lib/password-policy';
+} from "@/lib/password-policy";
 import {
   clearIdentityScopedCache,
   clearRevokedSessionState,
-} from '@/lib/session-state';
-import { publishSessionTransition } from '@/lib/session-sync';
+} from "@/lib/session-state";
+import { publishSessionTransition } from "@/lib/session-sync";
 
-import gsbLogo from '@/assets/gsb-logo.jpg';
+const gsbLogo = new URL("../assets/gsb-logo.jpg", import.meta.url).href;
 
 export default function ChangePassword() {
   const queryClient = useQueryClient();
@@ -49,9 +49,9 @@ export default function ChangePassword() {
   const { toast } = useToast();
   const changePassword = useChangeOwnPassword();
   const logout = useLogout();
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [repeatedPassword, setRepeatedPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [repeatedPassword, setRepeatedPassword] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
 
   const currentError = currentPassword
@@ -87,9 +87,9 @@ export default function ChangePassword() {
           queryClient.setQueryData(getGetMeQueryKey(), user);
           publishSessionTransition(import.meta.env.BASE_URL);
           toast({
-            variant: 'success',
-            title: 'Contraseña definitiva creada',
-            description: 'Tu cuenta ya está protegida y podés usar el sistema.',
+            variant: "success",
+            title: "Contraseña definitiva creada",
+            description: "Tu cuenta ya está protegida y podés usar el sistema.",
           });
           navigate(AUTHENTICATED_HOME_PATH, { replace: true });
         },
@@ -111,7 +111,7 @@ export default function ChangePassword() {
         setServerError(
           getUserErrorMessage(
             error,
-            'No pudimos cerrar la sesión. Intentá nuevamente.',
+            "No pudimos cerrar la sesión. Intentá nuevamente.",
           ),
         );
       },
@@ -153,11 +153,10 @@ export default function ChangePassword() {
                 }}
                 maxLength={PASSWORD_MAX_LENGTH}
                 autoComplete="current-password"
-                autoFocus
                 required
                 aria-invalid={Boolean(currentError)}
                 aria-describedby={
-                  currentError ? 'current-password-error' : undefined
+                  currentError ? "current-password-error" : undefined
                 }
               />
               {currentError && (
@@ -186,7 +185,7 @@ export default function ChangePassword() {
                 required
                 aria-invalid={Boolean(newError)}
                 aria-describedby={
-                  newError ? 'new-password-error' : 'new-password-help'
+                  newError ? "new-password-error" : "new-password-help"
                 }
               />
               {newError ? (
@@ -224,7 +223,7 @@ export default function ChangePassword() {
                 required
                 aria-invalid={Boolean(repeatedError)}
                 aria-describedby={
-                  repeatedError ? 'repeated-password-error' : undefined
+                  repeatedError ? "repeated-password-error" : undefined
                 }
               />
               {repeatedError && (
@@ -265,8 +264,8 @@ export default function ChangePassword() {
                 <KeyRound className="mr-2 h-4 w-4" aria-hidden="true" />
               )}
               {changePassword.isPending
-                ? 'Guardando...'
-                : 'Guardar y continuar'}
+                ? "Guardando..."
+                : "Guardar y continuar"}
             </Button>
             <Button
               type="button"
@@ -276,7 +275,7 @@ export default function ChangePassword() {
               disabled={logout.isPending || changePassword.isPending}
             >
               <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
-              {logout.isPending ? 'Cerrando sesión...' : 'Cerrar sesión'}
+              {logout.isPending ? "Cerrando sesión..." : "Cerrar sesión"}
             </Button>
           </form>
         </CardContent>

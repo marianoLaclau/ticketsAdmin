@@ -34,12 +34,12 @@ packages:
   - scripts
 
 catalog:
-  '@tailwindcss/vite': ^4.1.14
-  '@tanstack/react-query': ^5.90.21
-  '@types/node': ^25.3.3
-  '@types/react': ^19.2.0
-  '@types/react-dom': ^19.2.0
-  '@vitejs/plugin-react': ^5.0.4
+  "@tailwindcss/vite": ^4.1.14
+  "@tanstack/react-query": ^5.90.21
+  "@types/node": ^25.3.3
+  "@types/react": ^19.2.0
+  "@types/react-dom": ^19.2.0
+  "@vitejs/plugin-react": ^5.0.4
   class-variance-authority: ^0.7.1
   clsx: ^2.1.1
   drizzle-orm: ^0.45.2
@@ -54,6 +54,14 @@ catalog:
   zod: ^3.25.76
 
 autoInstallPeers: false
+
+# jsx-a11y 6.10.2 predates ESLint 10's peer range, but its flat rules are
+# exercised by the complete lint gate on ESLint 10. Keep this exception exact
+# and make every other missing or incompatible peer fail installation.
+strictPeerDependencies: true
+peerDependencyRules:
+  allowedVersions:
+    "eslint-plugin-jsx-a11y@6.10.2>eslint": "^10.0.0"
 
 overrides:
   # drizzle-kit uses esbuild internally on an older version that's vulnerable, this overrides it

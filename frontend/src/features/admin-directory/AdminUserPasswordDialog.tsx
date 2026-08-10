@@ -71,7 +71,6 @@ export function AdminUserPasswordDialog({
               minLength={NEW_PASSWORD_MIN_LENGTH}
               maxLength={NEW_PASSWORD_MAX_LENGTH}
               autoComplete="new-password"
-              autoFocus
               required
               aria-invalid={Boolean(visiblePasswordError)}
               aria-describedby={
