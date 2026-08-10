@@ -46,8 +46,8 @@ jobs:
           revision="${BASH_REMATCH[1]}"
           original_run_id="${BASH_REMATCH[2]}"
           original_run_attempt="${BASH_REMATCH[3]}"
-          [[ "$revision" == "$GITHUB_SHA" ]] || {
-            echo "El pending no pertenece al main actual" >&2
+          git merge-base --is-ancestor "$revision" "$GITHUB_SHA" || {
+            echo "El pending no pertenece a la historia del main actual" >&2
             exit 1
           }
           [[ "$expected_generation" =~ ^[1-9][0-9]*$ ]] || {
