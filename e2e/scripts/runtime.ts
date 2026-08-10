@@ -30,6 +30,62 @@ export interface E2eRuntime {
   stop(): Promise<void>;
 }
 
+export interface CleanupStep {
+  readonly label: string;
+  readonly run: () => Promise<void>;
+}
+
+/**
+ * Ejecuta todos los pasos pendientes en orden. Los que terminan correctamente
+ * no se repiten; los que fallan quedan pendientes para una llamada posterior.
+ */
+export function createCleanupCoordinator(
+  steps: readonly CleanupStep[],
+): () => Promise<void> {
+  const completed = new Set<number>();
+  let inFlight: Promise<void> | null = null;
+
+  const runAttempt = async (): Promise<void> => {
+    const errors: unknown[] = [];
+    const failedLabels: string[] = [];
+
+    for (const [index, step] of steps.entries()) {
+      if (completed.has(index)) continue;
+      try {
+        await step.run();
+        completed.add(index);
+      } catch (error) {
+        errors.push(error);
+        failedLabels.push(step.label);
+      }
+    }
+
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) {
+      throw new AggregateError(
+        errors,
+        `Fallaron pasos del cleanup E2E: ${failedLabels.join(", ")}`,
+      );
+    }
+  };
+
+  return () => {
+    if (inFlight) return inFlight;
+
+    const attempt = Promise.resolve().then(runAttempt);
+    inFlight = attempt;
+    const clearAttempt = () => {
+      if (inFlight === attempt) inFlight = null;
+    };
+    void attempt.then(clearAttempt, clearAttempt);
+    return attempt;
+  };
+}
+
+function unpackCleanupErrors(error: unknown): unknown[] {
+  return error instanceof AggregateError ? [...error.errors] : [error];
+}
+
 function createRuntimeEnvironment(databasePath: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
@@ -165,7 +221,9 @@ async function stopBackend(child: ChildProcess | null): Promise<void> {
   child.kill("SIGTERM");
   if (await waitForExit(child, 5_000)) return;
   child.kill("SIGKILL");
-  await waitForExit(child, 2_000);
+  if (!(await waitForExit(child, 2_000))) {
+    throw new Error("El backend E2E siguió activo después de SIGKILL");
+  }
 }
 
 function assertDisposableDirectory(directory: string): void {
@@ -216,17 +274,38 @@ export async function startE2eRuntime(): Promise<E2eRuntime> {
   const environment = createRuntimeEnvironment(databasePath);
   let backend: ChildProcess | null = null;
   let vite: ViteDevServer | null = null;
-  let stopping = false;
+  let stopRequested = false;
 
-  const stop = async (): Promise<void> => {
-    if (stopping) return;
-    stopping = true;
-    await vite?.close();
-    vite = null;
-    await stopBackend(backend);
-    backend = null;
-    assertDisposableDirectory(temporaryDirectory);
-    await rm(temporaryDirectory, { recursive: true, force: true });
+  const coordinateCleanup = createCleanupCoordinator([
+    {
+      label: "Vite",
+      run: async () => {
+        const current = vite;
+        if (!current) return;
+        await current.close();
+        if (vite === current) vite = null;
+      },
+    },
+    {
+      label: "backend",
+      run: async () => {
+        const current = backend;
+        if (!current) return;
+        await stopBackend(current);
+        if (backend === current) backend = null;
+      },
+    },
+    {
+      label: "directorio temporal",
+      run: async () => {
+        assertDisposableDirectory(temporaryDirectory);
+        await rm(temporaryDirectory, { recursive: true, force: true });
+      },
+    },
+  ]);
+  const stop = (): Promise<void> => {
+    stopRequested = true;
+    return coordinateCleanup();
   };
 
   try {
@@ -251,14 +330,14 @@ export async function startE2eRuntime(): Promise<E2eRuntime> {
       windowsHide: true,
     });
     backend.once("error", (error) => {
-      if (!stopping) {
+      if (!stopRequested) {
         process.stderr.write(
           `Error del backend E2E: ${error instanceof Error ? error.message : String(error)}\n`,
         );
       }
     });
     backend.once("exit", (code, signal) => {
-      if (!stopping) {
+      if (!stopRequested) {
         process.stderr.write(
           `El backend E2E terminó antes del teardown (${signal ?? code ?? "desconocido"}).\n`,
         );
@@ -275,7 +354,15 @@ export async function startE2eRuntime(): Promise<E2eRuntime> {
 
     return { stop };
   } catch (error) {
-    await stop();
+    try {
+      await stop();
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, ...unpackCleanupErrors(cleanupError)],
+        "Falló el arranque E2E y su cleanup quedó incompleto",
+        { cause: cleanupError },
+      );
+    }
     throw error;
   }
 }

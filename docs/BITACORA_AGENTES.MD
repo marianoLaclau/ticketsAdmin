@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Cleanup E2E completo y reintentable
+
+**Agente:** Codex
+**Estado:** ducentésima trigésima cuarta remediación de la auditoría técnica, implementada localmente.
+
+- El teardown de Playwright intenta siempre cerrar Vite, terminar el backend y retirar la SQLite temporal, aunque un paso anterior falle. Las llamadas concurrentes comparten el intento; cada recurso limpiado queda marcado y un intento posterior repite únicamente los pasos pendientes.
+- Un fallo único conserva su objeto original y varios se propagan como `AggregateError` ordenado. Si el arranque y la limpieza fallan juntos, ambos contextos sobreviven; un proceso backend que continúe vivo después de `SIGKILL` ya no se informa falsamente como cerrado.
+- Dos regresiones simulan fallos simultáneos, concurrencia, reintento selectivo e idempotencia. Aprobaron esas 2/2 pruebas, un recorrido Playwright real, typecheck E2E, ESLint, Prettier y las comprobaciones de cero puertos y temporales residuales. No se hizo push.
+
 ## 2026-08-09 — Readiness ligado al esquema de sesión vigente
 
 **Agente:** Codex
