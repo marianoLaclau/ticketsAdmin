@@ -6,6 +6,7 @@ import { type Ticket, type TicketDetail } from "@workspace/api-client-react";
 import {
   act,
   cleanup,
+  fireEvent,
   render,
   renderHook,
   screen,
@@ -499,6 +500,62 @@ test("la UI de gestión bloquea todos sus campos durante PATCH y recarga", (t) =
     }
     cleanup();
   }
+});
+
+test("la gestión usa un formulario nativo y vincula sus ayudas", (t) => {
+  t.after(cleanup);
+  const onSave = t.mock.fn();
+  const onOpenChange = t.mock.fn();
+
+  render(
+    <TicketManagementDialog
+      open
+      form={ticketToManagementForm(ticket, "2026-08-11T10:25")}
+      canCloseTickets={false}
+      showTechnicalDeadline
+      isReloadingConflict={false}
+      hasVersionConflict={false}
+      isSaving={false}
+      onOpenChange={onOpenChange}
+      onReloadLatest={() => undefined}
+      onStateChange={() => undefined}
+      onPriorityChange={() => undefined}
+      onProgressChange={() => undefined}
+      onDeadlineChange={() => undefined}
+      onNotesChange={() => undefined}
+      onSave={onSave}
+    />,
+  );
+
+  const dialog = screen.getByRole("dialog");
+  const form = dialog.querySelector("form");
+  assert.ok(form);
+
+  const stateSelect = screen.getAllByRole("combobox")[0];
+  const stateHelp = screen.getByText(
+    "Solo puede ser cerrado por un administrador",
+  );
+  assert.equal(stateSelect?.getAttribute("aria-describedby"), stateHelp.id);
+
+  const deadline = screen.getByLabelText("Fecha Límite");
+  const deadlineHelp = screen.getByText(
+    "Campo técnico protegido por la llave de administración.",
+  );
+  assert.equal(deadline.getAttribute("aria-describedby"), deadlineHelp.id);
+  assert.equal(
+    screen.getByRole("slider").getAttribute("aria-valuetext"),
+    "50 por ciento",
+  );
+
+  const cancelButton = screen.getByRole("button", { name: "Cancelar" });
+  const saveButton = screen.getByRole("button", { name: "Guardar Cambios" });
+  assert.equal(cancelButton.getAttribute("type"), "button");
+  assert.equal(saveButton.getAttribute("type"), "submit");
+
+  fireEvent.submit(form);
+  assert.equal(onSave.mock.callCount(), 1);
+  fireEvent.click(cancelButton);
+  assert.deepEqual(onOpenChange.mock.calls[0]?.arguments, [false]);
 });
 
 test("la UI funcional bloquea todos sus campos durante PATCH y recarga", (t) => {

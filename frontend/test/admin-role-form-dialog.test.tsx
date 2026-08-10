@@ -46,6 +46,7 @@ test("mantiene controlado el formulario de alta y delega sus acciones", async (t
   });
 
   assert.equal(nameInput.maxLength, 100);
+  assert.equal(nameInput.required, true);
   assert.equal(descriptionInput.maxLength, 500);
   assert.equal(descriptionInput.rows, 4);
   assert.equal(activeSwitch.getAttribute("aria-checked"), "true");
@@ -53,6 +54,21 @@ test("mantiene controlado el formulario de alta y delega sus acciones", async (t
     screen.getByRole("dialog").textContent ?? "",
     /Los roles inactivos no permiten iniciar ni conservar una sesión/,
   );
+
+  const user = userEvent.setup();
+  const saveButton = screen.getByRole("button", { name: "Guardar rol" });
+  assert.equal(saveButton.getAttribute("type"), "submit");
+  assert.equal(
+    screen.getByRole("button", { name: "Cancelar" }).getAttribute("type"),
+    "button",
+  );
+  await user.click(saveButton);
+  assert.match(
+    screen.getByRole("alert").textContent ?? "",
+    /Ingresá un nombre/,
+  );
+  assert.equal(document.activeElement, nameInput);
+  assert.equal(onSave.mock.callCount(), 0);
 
   fireEvent.change(nameInput, { target: { value: "Auditor" } });
   fireEvent.change(descriptionInput, {
@@ -64,9 +80,9 @@ test("mantiene controlado el formulario de alta y delega sus acciones", async (t
   assert.equal(descriptionInput.value, "Acceso de auditoría");
   assert.equal(activeSwitch.getAttribute("aria-checked"), "false");
 
-  const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Cancelar" }));
-  await user.click(screen.getByRole("button", { name: "Guardar rol" }));
+  await user.click(nameInput);
+  await user.keyboard("{Enter}");
 
   assert.equal(onOpenChange.mock.callCount(), 1);
   assert.equal(onOpenChange.mock.calls[0]?.arguments[0], false);

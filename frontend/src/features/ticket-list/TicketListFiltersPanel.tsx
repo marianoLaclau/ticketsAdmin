@@ -78,7 +78,7 @@ export function TicketListFiltersPanel({
           <Input
             aria-label="Buscar tickets"
             placeholder="Buscar contacto, empresa o motivo..."
-            className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-sm shadow-none focus-visible:ring-0"
+            className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-sm shadow-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             value={values.search}
             onChange={(event) => onChange.search(event.target.value)}
           />
@@ -167,7 +167,7 @@ export function TicketListFiltersPanel({
           <input
             type="date"
             aria-label="Fecha desde"
-            className="h-full min-w-0 flex-1 border-none bg-transparent px-1.5 text-xs text-slate-700 outline-none"
+            className="h-full min-w-0 flex-1 rounded-sm border-none bg-transparent px-1.5 text-xs text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             value={values.fechaDesde}
             onChange={(event) => onChange.fechaDesde(event.target.value)}
             title="Fecha Desde"
@@ -176,7 +176,7 @@ export function TicketListFiltersPanel({
           <input
             type="date"
             aria-label="Fecha hasta"
-            className="h-full min-w-0 flex-1 border-none bg-transparent px-1.5 text-xs text-slate-700 outline-none"
+            className="h-full min-w-0 flex-1 rounded-sm border-none bg-transparent px-1.5 text-xs text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             value={values.fechaHasta}
             onChange={(event) => onChange.fechaHasta(event.target.value)}
             title="Fecha Hasta"
@@ -191,7 +191,7 @@ export function TicketListFiltersPanel({
           <input
             type="time"
             aria-label="Hora desde"
-            className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-xs text-slate-700 outline-none"
+            className="h-full min-w-0 flex-1 rounded-sm border-none bg-transparent px-2 text-xs text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             value={values.horaDesde}
             onChange={(event) => onChange.horaDesde(event.target.value)}
             title="Hora Desde"
@@ -200,7 +200,7 @@ export function TicketListFiltersPanel({
           <input
             type="time"
             aria-label="Hora hasta"
-            className="h-full min-w-0 flex-1 border-none bg-transparent px-2 text-xs text-slate-700 outline-none"
+            className="h-full min-w-0 flex-1 rounded-sm border-none bg-transparent px-2 text-xs text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             value={values.horaHasta}
             onChange={(event) => onChange.horaHasta(event.target.value)}
             title="Hora Hasta"

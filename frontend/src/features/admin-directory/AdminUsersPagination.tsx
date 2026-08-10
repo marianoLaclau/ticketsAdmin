@@ -38,7 +38,11 @@ export function AdminUsersPagination({
   onNextPage,
 }: AdminUsersPaginationProps) {
   return (
-    <div className="flex flex-col items-center justify-between gap-2 border-t border-border bg-slate-50/60 px-4 py-2.5 sm:flex-row">
+    <section
+      className="flex flex-col items-center justify-between gap-2 border-t border-border bg-slate-50/60 px-4 py-2.5 sm:flex-row"
+      aria-label="Controles de paginación de usuarios"
+      aria-busy={isLoading}
+    >
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span>Mostrar</span>
         <Select
@@ -67,6 +71,7 @@ export function AdminUsersPagination({
         <span>por página</span>
       </div>
       <span
+        id="admin-users-pagination-status"
         className="text-xs text-muted-foreground"
         role={hasResults ? "status" : undefined}
         aria-live={hasResults ? "polite" : undefined}
@@ -81,8 +86,10 @@ export function AdminUsersPagination({
       <nav
         className="flex items-center gap-1"
         aria-label="Paginación de usuarios"
+        aria-describedby="admin-users-pagination-status"
       >
         <Button
+          type="button"
           variant="outline"
           size="sm"
           className="h-7 bg-white px-2 text-xs"
@@ -93,6 +100,7 @@ export function AdminUsersPagination({
           Anterior
         </Button>
         <Button
+          type="button"
           variant="outline"
           size="sm"
           className="h-7 bg-white px-2 text-xs"
@@ -103,6 +111,6 @@ export function AdminUsersPagination({
           <ChevronRight className="ml-0.5 h-3.5 w-3.5" aria-hidden="true" />
         </Button>
       </nav>
-    </div>
+    </section>
   );
 }

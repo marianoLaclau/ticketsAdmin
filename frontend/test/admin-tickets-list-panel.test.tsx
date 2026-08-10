@@ -87,9 +87,11 @@ function renderPanel(props: ComponentProps<typeof AdminTicketsListPanel>) {
     nextProps: ComponentProps<typeof AdminTicketsListPanel>,
   ) => (
     <Router hook={location.hook}>
-      <Tabs value="registros">
-        <AdminTicketsListPanel {...nextProps} />
-      </Tabs>
+      <main>
+        <Tabs value="registros">
+          <AdminTicketsListPanel {...nextProps} />
+        </Tabs>
+      </main>
     </Router>
   );
   const view = render(renderTree(props));
@@ -136,6 +138,20 @@ test("presenta los registros y delega filtros, orden, acciones y paginación", a
     name: "Registros administrativos",
   });
   assert.ok(recordsRegion.classList.contains("overflow-x-auto"));
+  assert.equal(recordsRegion.getAttribute("aria-busy"), "false");
+  assert.ok(
+    screen.getByRole("table", {
+      name: /Registros administrativos, incluidos los tickets en cuarentena/,
+    }),
+  );
+  assert.ok(
+    screen.getByRole("navigation", {
+      name: "Paginación de registros administrativos",
+    }),
+  );
+  const paginationSummary = screen.getByText("37 registros — página 2 de 4");
+  assert.equal(paginationSummary.getAttribute("role"), "status");
+  assert.equal(paginationSummary.getAttribute("aria-live"), "polite");
   fireEvent.change(searchInput, { target: { value: "liquidación" } });
   fireEvent.click(
     screen.getByRole("button", { name: "Ordenar por Fecha y hora" }),
@@ -185,7 +201,18 @@ test("conserva la precedencia de carga, error y estado vacío", (t) => {
     errorMessage: "Error que no debe mostrarse durante la carga",
   });
 
-  assert.equal(screen.getAllByRole("row").length, 9);
+  assert.equal(view.container.querySelectorAll("tr").length, 9);
+  assert.equal(screen.getAllByRole("row").length, 1);
+  assert.equal(
+    screen
+      .getByRole("region", { name: "Registros administrativos" })
+      .getAttribute("aria-busy"),
+    "true",
+  );
+  assert.equal(
+    screen.getByText("Cargando registros administrativos").getAttribute("role"),
+    "status",
+  );
   assert.equal(screen.queryByText(/Error que no debe mostrarse/), null);
 
   view.rerenderPanel({
@@ -194,7 +221,10 @@ test("conserva la precedencia de carga, error y estado vacío", (t) => {
     isLoading: false,
     errorMessage: "No se pudo consultar el directorio",
   });
-  assert.ok(screen.getByText("No se pudo consultar el directorio"));
+  assert.equal(
+    screen.getByRole("alert").textContent,
+    "No se pudo consultar el directorio",
+  );
 
   view.rerenderPanel({
     ...defaultProps,
@@ -206,6 +236,10 @@ test("conserva la precedencia de carga, error y estado vacío", (t) => {
   assert.equal(
     screen.getByText(/No hay registros/).textContent,
     "No hay registros que coincidan con la búsqueda.",
+  );
+  assert.equal(
+    screen.getByText(/No hay registros/).getAttribute("role"),
+    "status",
   );
 });
 

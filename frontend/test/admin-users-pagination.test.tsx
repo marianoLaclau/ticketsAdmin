@@ -51,9 +51,23 @@ test("presenta el resumen listo y delega tamaño y navegación", async (t) => {
   );
 
   const summary = screen.getByRole("status");
+  const controls = screen.getByRole("region", {
+    name: "Controles de paginación de usuarios",
+  });
+  assert.equal(controls.getAttribute("aria-busy"), "false");
   assert.equal(summary.textContent, "37 registros — página 2 de 4");
   assert.equal(summary.getAttribute("aria-live"), "polite");
   assert.equal(summary.getAttribute("aria-atomic"), "true");
+  assert.equal(
+    screen
+      .getByRole("navigation", { name: "Paginación de usuarios" })
+      .getAttribute("aria-describedby"),
+    "admin-users-pagination-status",
+  );
+  assert.equal(
+    screen.getByRole("button", { name: "Anterior" }).getAttribute("type"),
+    "button",
+  );
 
   const browser = userEvent.setup();
   await browser.click(
@@ -98,6 +112,14 @@ test("conserva los mensajes transitorios fuera de la región viva", (t) => {
   );
 
   const loading = screen.getByText("Cargando registros...");
+  assert.equal(
+    screen
+      .getByRole("region", {
+        name: "Controles de paginación de usuarios",
+      })
+      .getAttribute("aria-busy"),
+    "true",
+  );
   assert.equal(loading.getAttribute("role"), null);
   assert.equal(loading.getAttribute("aria-live"), null);
   assert.equal(loading.getAttribute("aria-atomic"), null);

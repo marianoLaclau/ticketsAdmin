@@ -15,7 +15,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { LoadingStatus } from "@/components/ui/loading-status";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TabsContent } from "@/components/ui/tabs";
 import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
@@ -29,6 +28,18 @@ interface AdminCsvImportTabProps {
   adminAccessState: AdminAccessState;
   accessVersion: number;
   accessGeneration: number;
+}
+
+function getImportAnnouncement(result: AdminImportResult): string {
+  const stage = result.dry_run
+    ? "Simulación completada"
+    : "Importación completada";
+  const rowsLabel = result.filas === 1 ? "fila leída" : "filas leídas";
+  const existingLabel =
+    result.ya_existentes === 1 ? "ya existente" : "ya existentes";
+  const invalidLabel = result.invalidos === 1 ? "inválida" : "inválidas";
+
+  return `${stage}. ${result.filas} ${rowsLabel}: ${result.insertados} ${result.dry_run ? "a insertar" : "insertadas"}, ${result.ya_existentes} ${existingLabel} y ${result.invalidos} ${invalidLabel}.`;
 }
 
 export function AdminCsvImportTab({
@@ -50,6 +61,7 @@ export function AdminCsvImportTab({
   const [isReadingFile, setIsReadingFile] = useState(false);
   const [csvNombre, setCsvNombre] = useState("");
   const [csvTexto, setCsvTexto] = useState("");
+  const [csvAnnouncement, setCsvAnnouncement] = useState("");
   const [resultadoImport, setResultadoImport] =
     useState<AdminImportResult | null>(null);
   const resetAccessBoundaryRef = useRef(accessBoundary);
@@ -61,6 +73,7 @@ export function AdminCsvImportTab({
     setIsReadingFile(false);
     setCsvNombre("");
     setCsvTexto("");
+    setCsvAnnouncement("");
     setResultadoImport(null);
     resetImportCsv();
   }, [accessBoundary, resetImportCsv]);
@@ -70,10 +83,14 @@ export function AdminCsvImportTab({
   const errorToast =
     (title: string, operationAccessGeneration: number) => (err: unknown) => {
       if (!isCurrentOperation(operationAccessGeneration)) return;
+      const description = getAdminErrorMessage(err);
+      // El toast de error ya aporta el live region assertive. Se limpia el
+      // estado polite para evitar que el lector anuncie el mismo error dos veces.
+      setCsvAnnouncement("");
       toast({
         variant: "destructive",
         title,
-        description: getAdminErrorMessage(err),
+        description,
       });
     };
 
@@ -95,6 +112,7 @@ export function AdminCsvImportTab({
     setIsReadingFile(true);
     setCsvNombre(file.name);
     setCsvTexto("");
+    setCsvAnnouncement("Leyendo archivo CSV.");
     setResultadoImport(null);
     resetImportCsv();
 
@@ -109,6 +127,7 @@ export function AdminCsvImportTab({
         return;
       setIsReadingFile(false);
       setCsvNombre("");
+      setCsvAnnouncement("");
       toast({
         variant: "destructive",
         title: "No se pudo leer el archivo",
@@ -124,6 +143,7 @@ export function AdminCsvImportTab({
       return;
     setCsvTexto(texto);
     setIsReadingFile(false);
+    setCsvAnnouncement("Analizando archivo CSV.");
     // Simulación automática al elegir el archivo
     importCsv.mutate(
       { data: { csv: texto, dry_run: true } },
@@ -135,6 +155,7 @@ export function AdminCsvImportTab({
           )
             return;
           setResultadoImport(result);
+          setCsvAnnouncement(getImportAnnouncement(result));
         },
         onError: (error) => {
           if (
@@ -161,12 +182,14 @@ export function AdminCsvImportTab({
     )
       return;
     const operationAccessGeneration = operationGeneration;
+    setCsvAnnouncement("Importando archivo CSV.");
     importCsv.mutate(
       { data: { csv: csvTexto, dry_run: false } },
       {
         onSuccess: (r) => {
           if (!isCurrentOperation(operationAccessGeneration)) return;
           setResultadoImport(r);
+          setCsvAnnouncement(getImportAnnouncement(r));
           void refrescarTickets();
           toast({
             dedupeKey: `tickets-imported:${r.insertados}`,
@@ -216,6 +239,15 @@ export function AdminCsvImportTab({
           className="space-y-4"
           aria-busy={isReadingFile || importCsv.isPending}
         >
+          <p
+            id="csv-import-status"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            className="sr-only"
+          >
+            {csvAnnouncement}
+          </p>
           <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
             <Input
               type="file"
@@ -233,16 +265,7 @@ export function AdminCsvImportTab({
           </div>
 
           {(isReadingFile || importCsv.isPending) && (
-            <>
-              <LoadingStatus>
-                {isReadingFile
-                  ? "Leyendo archivo CSV"
-                  : resultadoImport?.dry_run
-                    ? "Importando archivo CSV"
-                    : "Analizando archivo CSV"}
-              </LoadingStatus>
-              <Skeleton className="h-24 w-full" />
-            </>
+            <Skeleton className="h-24 w-full" aria-hidden="true" />
           )}
 
           {resultadoImport && (

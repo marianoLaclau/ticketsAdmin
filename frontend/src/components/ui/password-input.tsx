@@ -5,12 +5,22 @@ import { cn } from '@/lib/utils';
 
 type PasswordInputProps = Omit<React.ComponentProps<typeof Input>, 'type'> & {
   containerClassName?: string;
+  visibilityLabel?: string;
 };
 
 const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
-  ({ className, containerClassName, disabled, ...props }, ref) => {
+  (
+    {
+      className,
+      containerClassName,
+      disabled,
+      visibilityLabel = 'contraseña',
+      ...props
+    },
+    ref,
+  ) => {
     const [isVisible, setIsVisible] = React.useState(false);
-    const actionLabel = isVisible ? 'Ocultar contraseña' : 'Mostrar contraseña';
+    const actionLabel = `${isVisible ? 'Ocultar' : 'Mostrar'} ${visibilityLabel}`;
 
     return (
       <div className={cn('relative', containerClassName)}>
@@ -26,6 +36,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
           className="absolute right-1 top-1/2 flex h-7 w-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
           onClick={() => setIsVisible((visible) => !visible)}
           aria-label={actionLabel}
+          aria-controls={props.id}
           aria-pressed={isVisible}
           title={actionLabel}
           disabled={disabled}

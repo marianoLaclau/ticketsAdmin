@@ -129,7 +129,7 @@ export function TicketListTableRow({
       </TableCell>
       <TableCell className="py-2.5">
         <span
-          className={`block truncate text-sm ${tieneAsignado ? "font-medium text-slate-700" : "text-slate-400"}`}
+          className={`block truncate text-sm ${tieneAsignado ? "font-medium text-slate-700" : "text-slate-600"}`}
           title={asignadoLabel}
         >
           {asignadoLabel}
@@ -138,7 +138,9 @@ export function TicketListTableRow({
       <TableCell className="py-2.5">
         <div className="flex items-center gap-2">
           <Progress
-            value={ticket.progreso || 0}
+            value={ticket.progreso ?? 0}
+            max={100}
+            aria-label={`Progreso del ticket #${ticket.id}`}
             className="h-1.5 flex-1 bg-slate-100"
           />
           <span className="text-[10px] font-bold text-slate-500 w-8 text-right">

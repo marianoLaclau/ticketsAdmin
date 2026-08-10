@@ -82,12 +82,50 @@ test("mantiene controlado el formulario de alta y presenta sus validaciones", as
     "password",
   );
   assert.equal(
+    (screen.getByLabelText("Nombre *") as HTMLInputElement).required,
+    true,
+  );
+  assert.equal(
+    (screen.getByLabelText("Nombre de usuario *") as HTMLInputElement).required,
+    true,
+  );
+  assert.equal(
+    (screen.getByLabelText("Email *") as HTMLInputElement).required,
+    true,
+  );
+  assert.equal(
     screen.getByRole("combobox", { name: "Rol *" }).textContent,
     "Operador",
   );
 
+  const browser = userEvent.setup();
+  const saveButton = screen.getByRole("button", { name: "Guardar usuario" });
+  assert.equal(saveButton.getAttribute("type"), "submit");
+  assert.equal(
+    screen.getByRole("button", { name: "Cancelar" }).getAttribute("type"),
+    "button",
+  );
+  assert.ok(
+    screen.getByRole("button", { name: "Mostrar contraseña temporal" }),
+  );
+  assert.ok(
+    screen.getByRole("button", {
+      name: "Mostrar repetición de la contraseña temporal",
+    }),
+  );
+  await browser.click(saveButton);
+  assert.equal(document.activeElement, screen.getByLabelText("Nombre *"));
+  assert.match(screen.getAllByRole("alert")[0]?.textContent ?? "", /nombre/i);
+  assert.equal(onSave.mock.callCount(), 0);
+
   fireEvent.change(screen.getByLabelText("Nombre *"), {
     target: { value: "María" },
+  });
+  fireEvent.change(screen.getByLabelText("Nombre de usuario *"), {
+    target: { value: "maria.operadora" },
+  });
+  fireEvent.change(screen.getByLabelText("Email *"), {
+    target: { value: "maria@example.test" },
   });
   assert.equal(
     (screen.getByLabelText("Nombre *") as HTMLInputElement).value,
@@ -97,7 +135,10 @@ test("mantiene controlado el formulario de alta y presenta sus validaciones", as
   fireEvent.change(screen.getByLabelText("Contraseña temporal *"), {
     target: { value: "corta" },
   });
-  assert.match(screen.getByRole("alert").textContent ?? "", /al menos 16/i);
+  assert.match(
+    screen.getAllByRole("alert")[0]?.textContent ?? "",
+    /al menos 16/i,
+  );
   assert.equal(
     screen.getByLabelText("Contraseña temporal *").getAttribute("aria-invalid"),
     "true",
@@ -111,16 +152,80 @@ test("mantiene controlado el formulario de alta y presenta sus validaciones", as
     /no coinciden/i,
   );
 
-  await userEvent
-    .setup()
-    .click(screen.getByRole("button", { name: "Cancelar" }));
+  const validPassword = "Frase interna muy segura 2026";
+  fireEvent.change(screen.getByLabelText("Contraseña temporal *"), {
+    target: { value: validPassword },
+  });
+  fireEvent.change(screen.getByLabelText("Repetir contraseña temporal *"), {
+    target: { value: validPassword },
+  });
+
+  fireEvent.change(screen.getByLabelText("Email *"), {
+    target: { value: "email-invalido" },
+  });
+  await browser.click(saveButton);
+  assert.match(screen.getByRole("alert").textContent ?? "", /email válido/i);
+  assert.equal(document.activeElement, screen.getByLabelText("Email *"));
+  assert.equal(onSave.mock.callCount(), 0);
+  fireEvent.change(screen.getByLabelText("Email *"), {
+    target: { value: "maria@example.test" },
+  });
+
+  await browser.click(screen.getByRole("button", { name: "Cancelar" }));
   assert.equal(onOpenChange.mock.callCount(), 1);
   assert.equal(onOpenChange.mock.calls[0]?.arguments[0], false);
 
+  await browser.click(screen.getByLabelText("Email *"));
+  await browser.keyboard("{Enter}");
+  assert.equal(onSave.mock.callCount(), 1);
+});
+
+test("enfoca el selector y explica cuando falta un rol", async (t) => {
+  t.after(cleanup);
+  const onSave = t.mock.fn();
+  const validPassword = "Frase interna muy segura 2026";
+
+  function Harness() {
+    const [form, setForm] = useState(() => ({
+      ...createNewAdminUserForm([]),
+      nombre: "María",
+      username: "maria.operadora",
+      email: "maria@example.test",
+      password: validPassword,
+      passwordRepetida: validPassword,
+    }));
+
+    return (
+      <AdminUserFormDialog
+        open
+        isEditing={false}
+        roles={[]}
+        form={form}
+        isSaving={false}
+        onOpenChange={() => undefined}
+        onFormChange={setForm}
+        onSave={onSave}
+      />
+    );
+  }
+
+  render(<Harness />);
+  const roleSelector = screen.getByRole("combobox", { name: "Rol *" });
   await userEvent
     .setup()
     .click(screen.getByRole("button", { name: "Guardar usuario" }));
-  assert.equal(onSave.mock.callCount(), 1);
+
+  assert.equal(document.activeElement, roleSelector);
+  assert.equal(roleSelector.getAttribute("aria-invalid"), "true");
+  assert.equal(
+    roleSelector.getAttribute("aria-describedby"),
+    "user-role-error",
+  );
+  assert.match(
+    screen.getByRole("alert").textContent ?? "",
+    /Seleccioná un rol/,
+  );
+  assert.equal(onSave.mock.callCount(), 0);
 });
 
 test("el modo edición conserva el rol inactivo y no expone contraseñas", (t) => {
@@ -192,7 +297,31 @@ test("valida y delega el reset de contraseña temporal", async (t) => {
   const saveButton = screen.getByRole("button", {
     name: "Asignar contraseña",
   });
-  assert.equal(saveButton.hasAttribute("disabled"), true);
+  assert.equal(saveButton.hasAttribute("disabled"), false);
+  assert.equal(saveButton.getAttribute("type"), "submit");
+  assert.equal(
+    screen.getByRole("button", { name: "Cancelar" }).getAttribute("type"),
+    "button",
+  );
+  assert.ok(
+    screen.getByRole("button", {
+      name: "Mostrar contraseña temporal nueva",
+    }),
+  );
+  assert.ok(
+    screen.getByRole("button", {
+      name: "Mostrar repetición de la contraseña temporal",
+    }),
+  );
+
+  const browser = userEvent.setup();
+  await browser.click(saveButton);
+  assert.equal(
+    document.activeElement,
+    screen.getByLabelText("Nueva contraseña temporal"),
+  );
+  assert.equal(screen.getAllByRole("alert").length, 2);
+  assert.equal(onSave.mock.callCount(), 0);
 
   fireEvent.change(screen.getByLabelText("Nueva contraseña temporal"), {
     target: { value: "corta" },
@@ -207,21 +336,20 @@ test("valida y delega el reset de contraseña temporal", async (t) => {
     target: { value: "Frase diferente muy segura 2026" },
   });
   assert.match(screen.getByRole("alert").textContent ?? "", /no coinciden/i);
-  assert.equal(saveButton.hasAttribute("disabled"), true);
+  assert.equal(saveButton.hasAttribute("disabled"), false);
 
   fireEvent.change(screen.getByLabelText("Repetir contraseña temporal"), {
     target: { value: validPassword },
   });
   assert.equal(saveButton.hasAttribute("disabled"), false);
 
-  await userEvent.setup().click(saveButton);
+  await browser.click(screen.getByLabelText("Repetir contraseña temporal"));
+  await browser.keyboard("{Enter}");
   assert.equal(onSave.mock.callCount(), 1);
 
   view.rerender(<Harness isSaving />);
   assert.equal(saveButton.hasAttribute("disabled"), true);
 
-  await userEvent
-    .setup()
-    .click(screen.getByRole("button", { name: "Cancelar" }));
+  await browser.click(screen.getByRole("button", { name: "Cancelar" }));
   assert.equal(onClose.mock.callCount(), 1);
 });

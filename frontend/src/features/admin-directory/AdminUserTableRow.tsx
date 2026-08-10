@@ -75,6 +75,7 @@ export function AdminUserTableRow({
             title={user.activo ? "Desactivar usuario" : "Activar usuario"}
           />
           <Button
+            type="button"
             variant="ghost"
             size="icon"
             className="h-8 w-8"
@@ -86,6 +87,7 @@ export function AdminUserTableRow({
             <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
           </Button>
           <Button
+            type="button"
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-amber-600 hover:text-amber-700"

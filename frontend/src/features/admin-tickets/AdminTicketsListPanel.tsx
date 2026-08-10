@@ -3,10 +3,12 @@ import { Plus, RotateCcw, Search } from "lucide-react";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LoadingStatus } from "@/components/ui/loading-status";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -87,7 +89,7 @@ export function AdminTicketsListPanel({
           disabled={areCrudActionsDisabled}
           className="h-9 w-full sm:w-auto"
         >
-          <Plus className="mr-1.5 h-4 w-4" /> Nuevo registro
+          <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> Nuevo registro
         </Button>
       </div>
 
@@ -121,8 +123,15 @@ export function AdminTicketsListPanel({
           className="max-w-full overflow-x-auto overscroll-x-contain"
           role="region"
           aria-label="Registros administrativos"
+          aria-busy={isLoading}
         >
+          {isLoading ? (
+            <LoadingStatus>Cargando registros administrativos</LoadingStatus>
+          ) : null}
           <Table className="min-w-[1900px]">
+            <TableCaption className="sr-only">
+              Registros administrativos, incluidos los tickets en cuarentena
+            </TableCaption>
             <TableHeader className="bg-slate-50/80">
               <TableRow>
                 <SortableTableHead
@@ -203,7 +212,7 @@ export function AdminTicketsListPanel({
             <TableBody>
               {isLoading ? (
                 Array.from({ length: 8 }).map((_, row) => (
-                  <TableRow key={row}>
+                  <TableRow key={row} aria-hidden="true">
                     {Array.from({ length: 11 }).map((__, cell) => (
                       <TableCell key={cell}>
                         <Skeleton className="h-4 w-full" />
@@ -217,7 +226,7 @@ export function AdminTicketsListPanel({
                     colSpan={11}
                     className="h-40 text-center text-sm text-destructive"
                   >
-                    {errorMessage}
+                    <div role="alert">{errorMessage}</div>
                   </TableCell>
                 </TableRow>
               ) : tickets.length === 0 ? (
@@ -226,8 +235,10 @@ export function AdminTicketsListPanel({
                     colSpan={11}
                     className="h-40 text-center text-sm text-muted-foreground"
                   >
-                    No hay registros
-                    {search ? " que coincidan con la búsqueda" : ""}.
+                    <div role="status" aria-live="polite">
+                      No hay registros
+                      {search ? " que coincidan con la búsqueda" : ""}.
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -250,6 +261,8 @@ export function AdminTicketsListPanel({
           pageSize={pageSize}
           total={total}
           totalPages={totalPages}
+          isLoading={isLoading}
+          isError={errorMessage !== null}
           onPageSizeChange={onPageSizeChange}
           onPreviousPage={onPreviousPage}
           onNextPage={onNextPage}

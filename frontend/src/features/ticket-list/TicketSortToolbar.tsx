@@ -26,7 +26,7 @@ export function TicketSortToolbar({
         className="h-7 shrink-0 gap-1.5 px-2 text-[11px] font-medium"
         title="Volver a Fecha de llegada, más recientes primero"
       >
-        <RotateCcw className="h-3.5 w-3.5" />
+        <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
         Restablecer orden
       </Button>
     </div>

@@ -198,6 +198,7 @@ export function AdminRolesTab({
             </Select>
           </div>
           <Button
+            type="button"
             onClick={openCreateRole}
             disabled={roleMutationPending}
             className="w-full sm:w-auto sm:self-start lg:self-auto"
@@ -356,7 +357,10 @@ export function AdminRolesTab({
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {isDeleteRolePending && (
-                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                <Loader2
+                  className="mr-1.5 h-4 w-4 animate-spin"
+                  aria-hidden="true"
+                />
               )}
               Eliminar rol
             </AlertDialogAction>

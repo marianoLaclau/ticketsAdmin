@@ -282,6 +282,7 @@ export function AdminUsersTab({
               </Select>
             </div>
             <Button
+              type="button"
               onClick={openCreateUser}
               disabled={
                 userMutationPending || !roles.some((role) => role.activo)

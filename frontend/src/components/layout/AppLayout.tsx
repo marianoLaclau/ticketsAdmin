@@ -68,6 +68,7 @@ function useEventosEnVivo() {
           ...(data.ticket_id
             ? { dedupeKey: `ticket-created:${data.ticket_id}` }
             : {}),
+          type: "background",
           variant: "info",
           title: "Nuevo llamado recibido",
           description: [contacto, data.motivo || null]
@@ -78,6 +79,7 @@ function useEventosEnVivo() {
         const cantidad = data.cantidad ?? 0;
         showToast({
           dedupeKey: `tickets-imported:${data.cantidad_total ?? cantidad}`,
+          type: "background",
           variant: "info",
           title: "Importación disponible",
           description: `${cantidad} ${cantidad === 1 ? "llamado nuevo" : "llamados nuevos"} en el listado.`,

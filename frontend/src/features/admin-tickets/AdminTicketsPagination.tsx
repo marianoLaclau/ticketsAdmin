@@ -17,6 +17,8 @@ interface AdminTicketsPaginationProps {
   pageSize: TicketListLimit;
   total: number;
   totalPages: number;
+  isLoading: boolean;
+  isError: boolean;
   onPageSizeChange: (pageSize: TicketListLimit) => void;
   onPreviousPage: () => void;
   onNextPage: () => void;
@@ -27,12 +29,17 @@ export function AdminTicketsPagination({
   pageSize,
   total,
   totalPages,
+  isLoading,
+  isError,
   onPageSizeChange,
   onPreviousPage,
   onNextPage,
 }: AdminTicketsPaginationProps) {
   return (
-    <div className="flex flex-col items-center justify-between gap-3 border-t bg-slate-50/50 px-4 py-3 text-sm sm:flex-row sm:gap-2 sm:py-2.5">
+    <nav
+      className="flex flex-col items-center justify-between gap-3 border-t bg-slate-50/50 px-4 py-3 text-sm sm:flex-row sm:gap-2 sm:py-2.5"
+      aria-label="Paginación de registros administrativos"
+    >
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span>Mostrar</span>
         <Select
@@ -60,8 +67,17 @@ export function AdminTicketsPagination({
         </Select>
         <span>por página</span>
       </div>
-      <span className="text-center text-xs text-muted-foreground">
-        {total} registros — página {page} de {totalPages}
+      <span
+        className="text-center text-xs text-muted-foreground"
+        role={!isLoading && !isError ? "status" : undefined}
+        aria-live={!isLoading && !isError ? "polite" : undefined}
+        aria-atomic={!isLoading && !isError ? "true" : undefined}
+      >
+        {isLoading
+          ? "Cargando registros..."
+          : isError
+            ? "No se pudieron cargar los registros."
+            : `${total} registros — página ${page} de ${totalPages}`}
       </span>
       <div className="flex w-full items-center justify-center gap-2 sm:w-auto sm:gap-1">
         <Button
@@ -85,6 +101,6 @@ export function AdminTicketsPagination({
           <ChevronRight className="ml-0.5 h-3.5 w-3.5" aria-hidden="true" />
         </Button>
       </div>
-    </div>
+    </nav>
   );
 }

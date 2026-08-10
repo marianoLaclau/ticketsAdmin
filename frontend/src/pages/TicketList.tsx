@@ -8,6 +8,7 @@ import { useLocation, useSearchParams } from "wouter";
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHeader,
   TableRow,
@@ -259,6 +260,8 @@ export default function TicketList() {
       {/* Table Area */}
       <div
         className="flex-1 bg-card border border-border rounded-md shadow-sm overflow-hidden flex flex-col"
+        role="region"
+        aria-label="Listado de tickets"
         aria-busy={isLoading}
       >
         <TicketSortToolbar
@@ -267,6 +270,9 @@ export default function TicketList() {
         />
         <div className="overflow-x-auto overflow-y-auto flex-1 bg-white">
           <Table>
+            <TableCaption className="sr-only">
+              Tickets disponibles según los filtros y el orden actuales
+            </TableCaption>
             <TableHeader className="bg-slate-50/80 sticky top-0 z-10 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
               <TableRow className="hover:bg-transparent border-b border-border">
                 <SortableTableHead
@@ -375,9 +381,16 @@ export default function TicketList() {
                     colSpan={9}
                     className="h-64 text-center border-b-0"
                   >
-                    <div className="flex flex-col items-center justify-center text-slate-500 space-y-3">
+                    <div
+                      className="flex flex-col items-center justify-center text-slate-500 space-y-3"
+                      role="status"
+                      aria-live="polite"
+                    >
                       <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100">
-                        <Filter className="h-5 w-5 text-slate-400" />
+                        <Filter
+                          className="h-5 w-5 text-slate-400"
+                          aria-hidden="true"
+                        />
                       </div>
                       <p className="text-sm font-medium text-slate-900">
                         No se encontraron llamados
@@ -407,7 +420,10 @@ export default function TicketList() {
         </div>
 
         {/* Paginación */}
-        <div className="shrink-0 flex flex-col sm:flex-row items-center justify-between gap-2 px-4 py-2.5 border-t border-border bg-slate-50/60">
+        <nav
+          className="shrink-0 flex flex-col sm:flex-row items-center justify-between gap-2 px-4 py-2.5 border-t border-border bg-slate-50/60"
+          aria-label="Paginación de tickets"
+        >
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Mostrar</span>
             <Select
@@ -420,7 +436,10 @@ export default function TicketList() {
                 }))
               }
             >
-              <SelectTrigger className="h-7 w-[70px] text-xs bg-white">
+              <SelectTrigger
+                className="h-7 w-[70px] text-xs bg-white"
+                aria-label="Tickets por página"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -433,8 +452,15 @@ export default function TicketList() {
             </Select>
             <span>por página</span>
           </div>
-          <span className="text-xs text-muted-foreground">
-            {total} registros — página {page} de {totalPages}
+          <span
+            className="text-xs text-muted-foreground"
+            role={isLoading ? undefined : "status"}
+            aria-live={isLoading ? undefined : "polite"}
+            aria-atomic={isLoading ? undefined : "true"}
+          >
+            {isLoading
+              ? "Cargando registros..."
+              : `${total} registros — página ${page} de ${totalPages}`}
           </span>
           <div className="flex items-center gap-1">
             <Button
@@ -452,7 +478,8 @@ export default function TicketList() {
                 )
               }
             >
-              <ChevronLeft className="h-3.5 w-3.5 mr-0.5" /> Anterior
+              <ChevronLeft className="h-3.5 w-3.5 mr-0.5" aria-hidden="true" />{" "}
+              Anterior
             </Button>
             <Button
               variant="outline"
@@ -469,10 +496,11 @@ export default function TicketList() {
                 )
               }
             >
-              Siguiente <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
+              Siguiente{" "}
+              <ChevronRight className="h-3.5 w-3.5 ml-0.5" aria-hidden="true" />
             </Button>
           </div>
-        </div>
+        </nav>
       </div>
     </div>
   );

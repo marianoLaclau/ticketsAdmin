@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Flujos operativos accesibles de extremo a extremo
+
+**Agente:** Codex
+**Estado:** ducentésima trigésima remediación de la auditoría técnica, implementada localmente.
+
+- Roles, usuarios y gestión de tickets usan formularios nativos: Enter confirma una sola vez, los errores se anuncian, se relacionan con el campo correspondiente y el foco vuelve al primer dato inválido. Los controles de contraseña reciben nombres contextuales y las tablas, estados, paginaciones y conteos exponen semántica estable sin duplicar anuncios.
+- Importación CSV separa el estado informativo de los errores urgentes; los eventos SSE informativos no interrumpen al lector de pantalla. Progreso y slider publican sus valores reales, y Tickets/Admin agregan captions, regiones ocupadas y acciones repetidas con nombres específicos sin alterar filtros, mutaciones ni contratos HTTP.
+- Aprobaron 188 pruebas unitarias y 99 pruebas de componentes del frontend, typecheck, ESLint sin warnings y build Vite de 2554 módulos. No se hizo push.
+
 ## 2026-08-09 — Accesibilidad incorporada al quality gate
 
 **Agente:** Codex
