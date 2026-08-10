@@ -70,9 +70,13 @@ export function AdminTicketsListPanel({
     <TabsContent value="registros" className="space-y-3 mt-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full flex-1 sm:max-w-lg">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Search
+            className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
           <Input
             placeholder="Buscar en todos los campos..."
+            aria-label="Buscar registros administrativos"
             className="pl-8 h-9"
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
@@ -109,11 +113,15 @@ export function AdminTicketsListPanel({
             className="h-7 shrink-0 gap-1.5 px-2 text-[11px] font-medium"
             title="Volver a Fecha de llegada, más recientes primero"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
             Restablecer orden
           </Button>
         </div>
-        <div className="max-w-full overflow-x-auto">
+        <div
+          className="max-w-full overflow-x-auto overscroll-x-contain"
+          role="region"
+          aria-label="Registros administrativos"
+        >
           <Table className="min-w-[1900px]">
             <TableHeader className="bg-slate-50/80">
               <TableRow>

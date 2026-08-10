@@ -31,18 +31,22 @@ export default function Admin() {
       />
 
       <Tabs value={urlState.tab} onValueChange={selectTab}>
-        <TabsList>
-          <TabsTrigger value="registros" className="gap-1.5">
-            <Database className="h-3.5 w-3.5" /> Registros
+        <TabsList
+          className="grid h-auto w-full grid-cols-1 gap-1 sm:grid-cols-3 md:inline-grid md:w-auto"
+          aria-label="Herramientas de administración de tickets"
+        >
+          <TabsTrigger value="registros" className="min-h-10 gap-1.5">
+            <Database className="h-3.5 w-3.5" aria-hidden="true" /> Registros
           </TabsTrigger>
-          <TabsTrigger value="importar" className="gap-1.5">
-            <Upload className="h-3.5 w-3.5" /> Importar CSV
+          <TabsTrigger value="importar" className="min-h-10 gap-1.5">
+            <Upload className="h-3.5 w-3.5" aria-hidden="true" /> Importar CSV
           </TabsTrigger>
           <TabsTrigger
             value="peligro"
-            className="gap-1.5 data-[state=active]:text-red-600"
+            className="min-h-10 gap-1.5 data-[state=active]:text-red-600"
           >
-            <AlertTriangle className="h-3.5 w-3.5" /> Zona peligrosa
+            <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" /> Zona
+            peligrosa
           </TabsTrigger>
         </TabsList>
 

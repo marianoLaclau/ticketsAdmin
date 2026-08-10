@@ -71,7 +71,7 @@ export function TicketManagementDialog({
           Editar Estado
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="p-4 sm:max-w-[500px] sm:p-6">
         <DialogHeader>
           <DialogTitle>Actualizar Ticket</DialogTitle>
           <DialogDescription>
@@ -85,9 +85,14 @@ export function TicketManagementDialog({
           />
         )}
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Estado</label>
+              <label
+                htmlFor="ticket-management-state"
+                className="text-sm font-medium"
+              >
+                Estado
+              </label>
               <Select
                 value={form.estado}
                 disabled={isEditingDisabled}
@@ -95,7 +100,7 @@ export function TicketManagementDialog({
                   onStateChange(estado as TicketManagementForm["estado"])
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id="ticket-management-state">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -119,7 +124,12 @@ export function TicketManagementDialog({
               )}
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Prioridad</label>
+              <label
+                htmlFor="ticket-management-priority"
+                className="text-sm font-medium"
+              >
+                Prioridad
+              </label>
               <Select
                 value={form.prioridad}
                 disabled={isEditingDisabled}
@@ -129,7 +139,7 @@ export function TicketManagementDialog({
                   )
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id="ticket-management-priority">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -145,12 +155,18 @@ export function TicketManagementDialog({
 
           <div className="space-y-3 pt-2">
             <div className="flex justify-between">
-              <label className="text-sm font-medium">Progreso</label>
+              <span
+                id="ticket-management-progress-label"
+                className="text-sm font-medium"
+              >
+                Progreso
+              </span>
               <span className="text-sm text-slate-500">{form.progreso}%</span>
             </div>
             <Slider
               value={[form.progreso]}
               disabled={isEditingDisabled}
+              aria-labelledby="ticket-management-progress-label"
               onValueChange={(value) => onProgressChange(value[0])}
               max={100}
               step={5}
@@ -159,8 +175,14 @@ export function TicketManagementDialog({
 
           {showTechnicalDeadline && (
             <div className="space-y-2">
-              <label className="text-sm font-medium">Fecha Límite</label>
+              <label
+                htmlFor="ticket-management-deadline"
+                className="text-sm font-medium"
+              >
+                Fecha Límite
+              </label>
               <Input
+                id="ticket-management-deadline"
                 type="datetime-local"
                 value={form.fecha_limite}
                 disabled={isEditingDisabled}
@@ -173,8 +195,14 @@ export function TicketManagementDialog({
           )}
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Notas Internas</label>
+            <label
+              htmlFor="ticket-management-notes"
+              className="text-sm font-medium"
+            >
+              Notas Internas
+            </label>
             <Textarea
+              id="ticket-management-notes"
               value={form.notas}
               disabled={isEditingDisabled}
               onChange={(event) => onNotesChange(event.target.value)}
@@ -183,11 +211,16 @@ export function TicketManagementDialog({
             />
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto"
+            onClick={() => onOpenChange(false)}
+          >
             Cancelar
           </Button>
           <Button
+            className="w-full sm:w-auto"
             onClick={onSave}
             disabled={isEditingDisabled || hasVersionConflict}
           >

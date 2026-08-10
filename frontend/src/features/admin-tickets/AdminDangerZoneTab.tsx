@@ -130,7 +130,7 @@ export function AdminDangerZoneTab({
       <Card className="border-red-200">
         <CardHeader className="pb-3 bg-red-50/50 border-b border-red-100 rounded-t-xl">
           <CardTitle className="text-base flex items-center gap-2 text-red-700">
-            <AlertTriangle className="h-4 w-4" />
+            <AlertTriangle className="h-4 w-4" aria-hidden="true" />
             Vaciar la base de datos
           </CardTitle>
           <CardDescription>
@@ -162,7 +162,7 @@ export function AdminDangerZoneTab({
             disabled={confirmTexto !== "BORRAR" || truncate.isPending}
             onClick={ejecutarTruncate}
           >
-            <Trash2 className="mr-2 h-4 w-4" />
+            <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
             {truncate.isPending ? "Borrando..." : "Borrar todos los registros"}
           </Button>
         </CardContent>

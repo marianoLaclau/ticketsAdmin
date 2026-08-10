@@ -129,10 +129,14 @@ test("presenta los registros y delega filtros, orden, acciones y paginación", a
     screen.getByText(/registros en cuarentena/i).textContent ?? "",
     /ocultos en Tickets y Dashboard/,
   );
-  fireEvent.change(
-    screen.getByPlaceholderText("Buscar en todos los campos..."),
-    { target: { value: "liquidación" } },
-  );
+  const searchInput = screen.getByRole("textbox", {
+    name: "Buscar registros administrativos",
+  });
+  const recordsRegion = screen.getByRole("region", {
+    name: "Registros administrativos",
+  });
+  assert.ok(recordsRegion.classList.contains("overflow-x-auto"));
+  fireEvent.change(searchInput, { target: { value: "liquidación" } });
   fireEvent.click(
     screen.getByRole("button", { name: "Ordenar por Fecha y hora" }),
     { shiftKey: true },
@@ -151,7 +155,9 @@ test("presenta los registros y delega filtros, orden, acciones y paginación", a
   );
   await browser.click(screen.getByRole("button", { name: "Anterior" }));
   await browser.click(screen.getByRole("button", { name: "Siguiente" }));
-  await browser.click(screen.getByRole("combobox"));
+  await browser.click(
+    screen.getByRole("combobox", { name: "Registros por página" }),
+  );
   await browser.click(screen.getByRole("option", { name: "25" }));
 
   assert.equal(onSearchChange.mock.calls[0]?.arguments[0], "liquidación");

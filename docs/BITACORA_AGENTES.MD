@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Detalle y administración adaptables
+
+**Agente:** Codex
+**Estado:** ducentésima vigésima séptima remediación de la auditoría técnica, implementada localmente.
+
+- El detalle de ticket adapta padding, grillas, encabezado, acciones, historial y datos de contacto desde móvil hasta escritorio; textos extensos, nombres de empresa, fechas y controles dejan de desbordar. Los targets de edición crecen y los iconos puramente visuales salen del árbol accesible.
+- Administración presenta tabs apilables, tabla horizontal contenida y nombrada, búsqueda con nombre programático, paginación táctil y paneles CSV que redistribuyen archivos, métricas y resultados. El diálogo de gestión etiqueta estado, prioridad, progreso, fecha y notas sin cambiar su contrato.
+- Aprobaron ESLint focal, 17 pruebas dirigidas de listado y detalle, typecheck del frontend, build de producción y `git diff --check`. No se hizo push.
+
 ## 2026-08-09 — Base accesible y zoom preservado
 
 **Agente:** Codex

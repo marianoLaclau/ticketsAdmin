@@ -60,7 +60,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
 
   if (adminElevation.state === "pending") {
     return (
-      <div className="mx-auto w-full max-w-6xl space-y-6 p-8">
+      <div className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6 lg:p-8">
         <LoadingStatus>Validando acceso administrativo</LoadingStatus>
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-[400px] w-full" />
@@ -218,10 +218,10 @@ function TicketDetailContent({
 
   if (loadingTicket) {
     return (
-      <div className="p-8 max-w-6xl mx-auto w-full space-y-6">
+      <div className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6 lg:p-8">
         <LoadingStatus>Cargando detalle del ticket</LoadingStatus>
         <Skeleton className="h-8 w-64 mb-8" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             <Skeleton className="h-[400px] w-full" />
             <Skeleton className="h-[300px] w-full" />
@@ -249,9 +249,9 @@ function TicketDetailContent({
   const vencido = isVencido(ticket.fecha_limite, ticket.estado);
 
   return (
-    <div className="p-8 max-w-6xl mx-auto w-full space-y-6 pb-24">
+    <div className="mx-auto w-full max-w-6xl space-y-6 p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8 lg:pb-24">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <TicketHeaderSummary
           reason={ticket.motivo}
           createdAt={ticket.fecha_creacion}
@@ -261,7 +261,7 @@ function TicketDetailContent({
           onBack={handleBack}
         />
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:gap-3 md:w-auto md:shrink-0 md:justify-end">
           <EstadoBadge estado={ticket.estado} className="text-sm px-3 py-1" />
           <PrioridadBadge
             prioridad={ticket.prioridad}
@@ -280,7 +280,7 @@ function TicketDetailContent({
 
       <TicketProgressCard estado={ticket.estado} progreso={ticket.progreso} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
         {/* Left Column */}
         <div className="lg:col-span-2 space-y-6">
           <TicketCallSummaryCard

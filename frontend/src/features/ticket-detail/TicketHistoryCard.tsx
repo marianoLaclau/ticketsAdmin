@@ -29,7 +29,7 @@ export function TicketHistoryCard({
     <Card className="shadow-sm">
       <CardHeader className="pb-3 border-b border-slate-100 flex flex-row items-center justify-between">
         <CardTitle className="text-lg flex items-center gap-2">
-          <History className="h-5 w-5 text-primary" />
+          <History className="h-5 w-5 text-primary" aria-hidden="true" />
           Historial y Seguimiento
         </CardTitle>
       </CardHeader>
@@ -39,6 +39,7 @@ export function TicketHistoryCard({
           <div className="flex gap-3">
             <Textarea
               placeholder="Agregar una nota de seguimiento o actualización..."
+              aria-label="Nueva nota de seguimiento"
               className="min-h-[80px] bg-white resize-y"
               value={draft}
               onChange={(event) => onDraftChange(event.target.value)}
@@ -56,7 +57,7 @@ export function TicketHistoryCard({
         </div>
 
         {/* Timeline list */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {isLoading ? (
             <div className="space-y-4">
               <Skeleton className="h-16 w-full" />
@@ -74,11 +75,14 @@ export function TicketHistoryCard({
                     <div className="absolute left-[11px] top-6 bottom-[-24px] w-[2px] bg-slate-100" />
                   )}
                   <div className="absolute left-0 top-1 h-6 w-6 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center">
-                    <MessageSquare className="h-3 w-3 text-slate-500" />
+                    <MessageSquare
+                      className="h-3 w-3 text-slate-500"
+                      aria-hidden="true"
+                    />
                   </div>
 
                   <div className="bg-white border border-slate-100 rounded-lg p-4 shadow-sm">
-                    <div className="flex justify-between items-start mb-2">
+                    <div className="mb-2 flex flex-col items-start justify-between gap-1 sm:flex-row">
                       <span className="font-medium text-sm text-slate-900">
                         {seg.autor || "Sistema"}
                       </span>

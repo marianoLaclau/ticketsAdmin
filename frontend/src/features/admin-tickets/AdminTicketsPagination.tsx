@@ -32,7 +32,7 @@ export function AdminTicketsPagination({
   onNextPage,
 }: AdminTicketsPaginationProps) {
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-4 py-2.5 border-t bg-slate-50/50 text-sm">
+    <div className="flex flex-col items-center justify-between gap-3 border-t bg-slate-50/50 px-4 py-3 text-sm sm:flex-row sm:gap-2 sm:py-2.5">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span>Mostrar</span>
         <Select
@@ -44,7 +44,10 @@ export function AdminTicketsPagination({
             if (nextPageSize) onPageSizeChange(nextPageSize);
           }}
         >
-          <SelectTrigger className="h-7 w-[70px] text-xs bg-white">
+          <SelectTrigger
+            className="h-9 w-[76px] bg-white text-xs sm:h-8"
+            aria-label="Registros por página"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -57,27 +60,29 @@ export function AdminTicketsPagination({
         </Select>
         <span>por página</span>
       </div>
-      <span className="text-muted-foreground text-xs">
+      <span className="text-center text-xs text-muted-foreground">
         {total} registros — página {page} de {totalPages}
       </span>
-      <div className="flex items-center gap-1">
+      <div className="flex w-full items-center justify-center gap-2 sm:w-auto sm:gap-1">
         <Button
           variant="outline"
           size="sm"
-          className="h-7 px-2 text-xs bg-white"
+          className="h-9 flex-1 bg-white px-3 text-xs sm:h-8 sm:flex-none sm:px-2"
           disabled={page <= 1}
           onClick={onPreviousPage}
         >
-          <ChevronLeft className="h-3.5 w-3.5 mr-0.5" /> Anterior
+          <ChevronLeft className="mr-0.5 h-3.5 w-3.5" aria-hidden="true" />
+          Anterior
         </Button>
         <Button
           variant="outline"
           size="sm"
-          className="h-7 px-2 text-xs bg-white"
+          className="h-9 flex-1 bg-white px-3 text-xs sm:h-8 sm:flex-none sm:px-2"
           disabled={page >= totalPages}
           onClick={onNextPage}
         >
-          Siguiente <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
+          Siguiente
+          <ChevronRight className="ml-0.5 h-3.5 w-3.5" aria-hidden="true" />
         </Button>
       </div>
     </div>

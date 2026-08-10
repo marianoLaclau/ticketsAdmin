@@ -43,20 +43,20 @@ export function TicketContactCard({
   return (
     <Card className="shadow-sm">
       <CardHeader className="pb-3 border-b border-slate-100">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <User className="h-5 w-5 text-primary" />
-          Datos del Contacto
+        <CardTitle className="flex min-w-0 items-center gap-2 text-lg">
+          <User className="h-5 w-5 text-primary" aria-hidden="true" />
+          <span className="min-w-0 flex-1">Datos del Contacto</span>
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="ml-1 h-7 w-7 shrink-0 text-slate-500"
+            className="ml-auto h-9 w-9 shrink-0 text-slate-500"
             onClick={onEdit}
             disabled={isEditDisabled}
             aria-label="Editar datos del contacto"
             title="Editar datos del contacto"
           >
-            <Pencil className="h-4 w-4" />
+            <Pencil className="h-4 w-4" aria-hidden="true" />
           </Button>
         </CardTitle>
       </CardHeader>
@@ -74,8 +74,8 @@ export function TicketContactCard({
               Empresa
             </h4>
             <p className="text-slate-900 flex items-center gap-2">
-              <Building className="h-4 w-4 text-slate-400" />
-              {empresaLabel}
+              <Building className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+              <span className="min-w-0 break-words">{empresaLabel}</span>
             </p>
             {estadoEmpleado && (
               <p
@@ -103,7 +103,7 @@ export function TicketContactCard({
         <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">
           <div className="flex min-h-10 items-center gap-3 py-1 text-sm">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-slate-50">
-              <Phone className="h-4 w-4 text-slate-500" />
+              <Phone className="h-4 w-4 text-slate-500" aria-hidden="true" />
             </div>
             {telefonoLabel ? (
               <span className="break-all text-slate-700">{telefonoLabel}</span>
@@ -116,7 +116,7 @@ export function TicketContactCard({
 
           <div className="flex min-h-10 items-center gap-3 py-1 text-sm">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-slate-50">
-              <Mail className="h-4 w-4 text-slate-500" />
+              <Mail className="h-4 w-4 text-slate-500" aria-hidden="true" />
             </div>
             {emailLabel ? (
               <span className="break-all text-slate-700">{emailLabel}</span>

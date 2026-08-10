@@ -200,7 +200,7 @@ export function AdminCsvImportTab({
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <FileText className="h-4 w-4 text-primary" />
+            <FileText className="h-4 w-4 text-primary" aria-hidden="true" />
             Importar registros desde CSV
           </CardTitle>
           <CardDescription>
@@ -216,17 +216,19 @@ export function AdminCsvImportTab({
           className="space-y-4"
           aria-busy={isReadingFile || importCsv.isPending}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
             <Input
               type="file"
               accept=".csv,text/csv"
               onChange={(event) => void onArchivoSeleccionado(event)}
               disabled={isReadingFile || importCsv.isPending}
-              className="max-w-sm cursor-pointer"
+              className="w-full max-w-sm cursor-pointer"
               aria-label="Seleccionar archivo CSV para importar"
             />
             {csvNombre && (
-              <span className="text-sm text-muted-foreground">{csvNombre}</span>
+              <span className="max-w-full break-all text-sm text-muted-foreground">
+                {csvNombre}
+              </span>
             )}
           </div>
 
@@ -247,13 +249,16 @@ export function AdminCsvImportTab({
             <div
               className={`rounded-lg border p-4 space-y-3 ${resultadoImport.dry_run ? "bg-blue-50/50 border-blue-200" : "bg-emerald-50/50 border-emerald-200"}`}
             >
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold flex items-center gap-2">
+              <div className="flex flex-col items-start justify-between gap-1 sm:flex-row sm:items-center">
+                <h4 className="flex items-center gap-2 text-sm font-semibold">
                   {resultadoImport.dry_run ? (
                     <>Simulación — así quedaría la importación</>
                   ) : (
                     <>
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />{" "}
+                      <CheckCircle2
+                        className="h-4 w-4 text-emerald-600"
+                        aria-hidden="true"
+                      />{" "}
                       Importación aplicada
                     </>
                   )}
@@ -263,7 +268,7 @@ export function AdminCsvImportTab({
                 </span>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="grid grid-cols-1 gap-2 text-center sm:grid-cols-3 sm:gap-3">
                 <div className="bg-white rounded-md border p-2">
                   <p className="text-2xl font-bold text-emerald-700">
                     {resultadoImport.insertados}
@@ -329,7 +334,7 @@ export function AdminCsvImportTab({
                   }
                   className="w-full"
                 >
-                  <Upload className="mr-2 h-4 w-4" />
+                  <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
                   {resultadoImport.insertados === 0
                     ? "Nada nuevo para importar"
                     : `Importar ${resultadoImport.insertados} registros`}
