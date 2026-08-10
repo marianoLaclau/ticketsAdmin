@@ -76,7 +76,7 @@ jobs:
       # exige que sean privados, reales y propiedad del usuario del servicio.
       TICKETSADMIN_BACKUP_DIR: /var/lib/ticketsadmin/backups
       TICKETSADMIN_RELEASE_STATE_DIR: /var/lib/ticketsadmin/releases
-      TICKETSADMIN_DEPLOY_LOCK_DIR: /var/lock/ticketsadmin
+      TICKETSADMIN_DEPLOY_LOCK_DIR: /var/lib/ticketsadmin/locks
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -98,6 +98,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          fail_preflight() {
+            printf 'Preflight failed: %s\n' "$1" >&2
+            exit 1
+          }
+          require_preflight() {
+            local description="$1"
+            shift
+            if ! "$@"; then
+              fail_preflight "$description"
+            fi
+          }
           minimum_version="2.17.0"
           compose_version="$(docker compose version --short)"
           compose_version="${compose_version#v}"
@@ -106,44 +117,66 @@ jobs:
             exit 1
           fi
           compose_up_help="$(docker compose up --help)"
-          grep -Eq -- '(^|[[:space:]])--wait([[:space:]]|$)' <<< "$compose_up_help"
-          grep -Eq -- '(^|[[:space:]])--wait-timeout([[:space:]]|$)' <<< "$compose_up_help"
-          grep -Eq -- '(^|[[:space:]])--no-build([[:space:]]|$)' <<< "$compose_up_help"
+          require_preflight "Docker Compose does not expose --wait" \
+            grep -Eq -- '(^|[[:space:]])--wait([[:space:]]|$)' <<< "$compose_up_help"
+          require_preflight "Docker Compose does not expose --wait-timeout" \
+            grep -Eq -- '(^|[[:space:]])--wait-timeout([[:space:]]|$)' <<< "$compose_up_help"
+          require_preflight "Docker Compose does not expose --no-build" \
+            grep -Eq -- '(^|[[:space:]])--no-build([[:space:]]|$)' <<< "$compose_up_help"
           for required_command in \
             bash curl flock jq sha256sum stat mktemp realpath sync \
             basename chmod date dirname docker git grep id ln mv rm rmdir; do
-            command -v "$required_command" >/dev/null
+            require_preflight "missing required command: $required_command" \
+              command -v "$required_command" >/dev/null
           done
           for private_directory in \
             "$TICKETSADMIN_BACKUP_DIR" \
             "$TICKETSADMIN_RELEASE_STATE_DIR" \
             "$TICKETSADMIN_DEPLOY_LOCK_DIR"; do
-            test -d "$private_directory"
-            test ! -L "$private_directory"
-            test "$(realpath -e -- "$private_directory")" = "$private_directory"
-            test "$(stat -c '%u' -- "$private_directory")" = "$(id -u)"
-            test "$(stat -c '%a' -- "$private_directory")" = "700"
-            test -w "$private_directory"
-            test -x "$private_directory"
+            require_preflight "missing private directory: $private_directory" \
+              test -d "$private_directory"
+            require_preflight "private directory is a symlink: $private_directory" \
+              test ! -L "$private_directory"
+            require_preflight "private directory is not canonical: $private_directory" \
+              test "$(realpath -e -- "$private_directory")" = "$private_directory"
+            require_preflight "private directory has the wrong owner: $private_directory" \
+              test "$(stat -c '%u' -- "$private_directory")" = "$(id -u)"
+            require_preflight "private directory must have mode 700: $private_directory" \
+              test "$(stat -c '%a' -- "$private_directory")" = "700"
+            require_preflight "private directory is not writable: $private_directory" \
+              test -w "$private_directory"
+            require_preflight "private directory is not searchable: $private_directory" \
+              test -x "$private_directory"
           done
           lock_file="$TICKETSADMIN_DEPLOY_LOCK_DIR/deploy.lock"
-          test -f "$lock_file"
-          test ! -L "$lock_file"
-          test "$(realpath -e -- "$lock_file")" = "$lock_file"
-          test "$(stat -c '%u' -- "$lock_file")" = "$(id -u)"
-          test "$(stat -c '%a' -- "$lock_file")" = "600"
-          test -w "$lock_file"
+          require_preflight "missing deploy lock: $lock_file" test -f "$lock_file"
+          require_preflight "deploy lock is a symlink: $lock_file" test ! -L "$lock_file"
+          require_preflight "deploy lock is not canonical: $lock_file" \
+            test "$(realpath -e -- "$lock_file")" = "$lock_file"
+          require_preflight "deploy lock has the wrong owner: $lock_file" \
+            test "$(stat -c '%u' -- "$lock_file")" = "$(id -u)"
+          require_preflight "deploy lock must have mode 600: $lock_file" \
+            test "$(stat -c '%a' -- "$lock_file")" = "600"
+          require_preflight "deploy lock is not writable: $lock_file" test -w "$lock_file"
           release_state_file="$TICKETSADMIN_RELEASE_STATE_DIR/release-state.json"
           if test -e "$release_state_file" || test -L "$release_state_file"; then
-            test -f "$release_state_file"
-            test ! -L "$release_state_file"
-            test "$(realpath -e -- "$release_state_file")" = "$release_state_file"
-            test "$(stat -c '%u' -- "$release_state_file")" = "$(id -u)"
-            test "$(stat -c '%a' -- "$release_state_file")" = "600"
-            test "$(stat -c '%h' -- "$release_state_file")" = "1"
+            require_preflight "release state is not a regular file: $release_state_file" \
+              test -f "$release_state_file"
+            require_preflight "release state is a symlink: $release_state_file" \
+              test ! -L "$release_state_file"
+            require_preflight "release state is not canonical: $release_state_file" \
+              test "$(realpath -e -- "$release_state_file")" = "$release_state_file"
+            require_preflight "release state has the wrong owner: $release_state_file" \
+              test "$(stat -c '%u' -- "$release_state_file")" = "$(id -u)"
+            require_preflight "release state must have mode 600: $release_state_file" \
+              test "$(stat -c '%a' -- "$release_state_file")" = "600"
+            require_preflight "release state must have exactly one link: $release_state_file" \
+              test "$(stat -c '%h' -- "$release_state_file")" = "1"
             release_state_bytes="$(stat -c '%s' -- "$release_state_file")"
-            test "$release_state_bytes" -gt 0
-            test "$release_state_bytes" -le 131072
+            require_preflight "release state is empty: $release_state_file" \
+              test "$release_state_bytes" -gt 0
+            require_preflight "release state is too large: $release_state_file" \
+              test "$release_state_bytes" -le 131072
           fi
           docker compose config --quiet
           compose_contract="$(

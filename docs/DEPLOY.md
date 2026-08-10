@@ -110,11 +110,15 @@ RUNNER_GROUP="$(id -gn)"
 sudo install -d -m 0700 -o "$RUNNER_USER" -g "$RUNNER_GROUP" \
   /var/lib/ticketsadmin/backups \
   /var/lib/ticketsadmin/releases \
-  /var/lock/ticketsadmin
-sudo touch /var/lock/ticketsadmin/deploy.lock
-sudo chown "$RUNNER_USER:$RUNNER_GROUP" /var/lock/ticketsadmin/deploy.lock
-sudo chmod 0600 /var/lock/ticketsadmin/deploy.lock
+  /var/lib/ticketsadmin/locks
+sudo touch /var/lib/ticketsadmin/locks/deploy.lock
+sudo chown "$RUNNER_USER:$RUNNER_GROUP" /var/lib/ticketsadmin/locks/deploy.lock
+sudo chmod 0600 /var/lib/ticketsadmin/locks/deploy.lock
 ```
+
+El lock vive bajo `/var/lib` para conservar una ruta canónica y persistente.
+No usar `/var/lock`: en Ubuntu es un enlace de compatibilidad a `/run/lock`, y
+el preflight rechaza deliberadamente rutas que atraviesan enlaces simbólicos.
 
 No crear un `release-state.json` vacío. El orquestador publica el primer documento válido mediante un temporal privado, sincronización y reemplazo atómico; el archivo final queda en `/var/lib/ticketsadmin/releases/release-state.json` con modo exacto `0600`. Si el archivo ya existe al migrar el mecanismo, comprobar sus permisos sin editar su contenido:
 

@@ -122,6 +122,14 @@ test("el runner valida capacidades de Compose antes de construir", () => {
   assert.match(preflight, /TICKETSADMIN_BACKUP_DIR/);
   assert.match(preflight, /TICKETSADMIN_RELEASE_STATE_DIR/);
   assert.match(preflight, /TICKETSADMIN_DEPLOY_LOCK_DIR/);
+  assert.match(
+    workflow,
+    /TICKETSADMIN_DEPLOY_LOCK_DIR: \/var\/lib\/ticketsadmin\/locks/,
+  );
+  assert.doesNotMatch(workflow, /\/var\/lock\/ticketsadmin/);
+  assert.match(preflight, /Preflight failed: %s/);
+  assert.match(preflight, /missing private directory:/);
+  assert.match(preflight, /private directory is not canonical:/);
   assert.match(preflight, /test ! -L "\$private_directory"/);
   assert.match(preflight, /realpath -e -- "\$private_directory"/);
   assert.match(preflight, /stat -c '%u'/);
