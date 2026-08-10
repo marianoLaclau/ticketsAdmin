@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "@playwright/test";
-import { createCleanupCoordinator, type CleanupStep } from "../scripts/runtime";
+import {
+  createCleanupCoordinator,
+  type CleanupStep,
+  CleanupStepTimeoutError,
+} from "../scripts/runtime";
 
 function failingStep(
   label: string,
@@ -16,7 +20,7 @@ function failingStep(
   };
 }
 
-test("intenta todos los pasos y agrega sus errores en orden", async () => {
+test("agota tres intentos y agrega los errores finales en orden", async () => {
   const calls: string[] = [];
   const viteError = new Error("falló Vite");
   const backendError = new Error("falló backend");
@@ -33,62 +37,148 @@ test("intenta todos los pasos y agrega sus errores en orden", async () => {
     assert.match(error.message, /Vite, backend, directorio temporal/);
     return true;
   });
-  assert.deepEqual(calls, ["Vite", "backend", "directorio temporal"]);
+  assert.deepEqual(calls, [
+    "Vite",
+    "backend",
+    "directorio temporal",
+    "Vite",
+    "backend",
+    "directorio temporal",
+    "Vite",
+    "backend",
+    "directorio temporal",
+  ]);
 });
 
-test("comparte el intento concurrente y reintenta sólo los pasos fallidos", async () => {
-  const calls: string[] = [];
-  const primaryError = new Error("cierre transitorio de Vite");
+test("resuelve un rechazo tardío transitorio dentro de una sola llamada", async () => {
+  const transientError = new Error("cierre transitorio de Vite");
+  let rejectFirstAttempt: ((error: Error) => void) | null = null;
   let viteAttempts = 0;
-  const stop = createCleanupCoordinator([
-    {
-      label: "Vite",
-      run: () => {
-        viteAttempts += 1;
-        calls.push(`Vite-${viteAttempts}`);
-        return viteAttempts === 1
-          ? Promise.reject(primaryError)
-          : Promise.resolve();
+  let backendAttempts = 0;
+  let directoryAttempts = 0;
+  const stop = createCleanupCoordinator(
+    [
+      {
+        label: "Vite",
+        run: () => {
+          viteAttempts += 1;
+          if (viteAttempts > 1) return Promise.resolve();
+          return new Promise<void>((_resolve, reject) => {
+            rejectFirstAttempt = reject;
+          });
+        },
       },
-    },
-    {
-      label: "backend",
-      run: () => {
-        calls.push("backend");
-        return Promise.resolve();
+      {
+        label: "backend",
+        run: () => {
+          backendAttempts += 1;
+          rejectFirstAttempt?.(transientError);
+          rejectFirstAttempt = null;
+          return Promise.resolve();
+        },
       },
-    },
-    {
-      label: "directorio temporal",
-      run: () => {
-        calls.push("directorio temporal");
-        return Promise.resolve();
+      {
+        label: "directorio temporal",
+        run: () => {
+          directoryAttempts += 1;
+          return Promise.resolve();
+        },
       },
-    },
-  ]);
-
-  const firstAttempt = stop();
-  const concurrentAttempt = stop();
-  assert.equal(concurrentAttempt, firstAttempt);
-  await assert.rejects(
-    firstAttempt,
-    (error: unknown) => error === primaryError,
+    ],
+    { stepTimeoutMs: 5 },
   );
-  assert.deepEqual(calls, ["Vite-1", "backend", "directorio temporal"]);
+
+  const firstCaller = stop();
+  const concurrentCaller = stop();
+  assert.equal(concurrentCaller, firstCaller);
+  await firstCaller;
+
+  assert.equal(viteAttempts, 2);
+  assert.equal(backendAttempts, 1);
+  assert.equal(directoryAttempts, 1);
 
   await stop();
-  assert.deepEqual(calls, [
-    "Vite-1",
-    "backend",
-    "directorio temporal",
-    "Vite-2",
-  ]);
+  assert.equal(viteAttempts, 2);
+  assert.equal(backendAttempts, 1);
+  assert.equal(directoryAttempts, 1);
+});
+
+test("una resolución tardía completa el paso sin lanzar un duplicado", async () => {
+  let resolveVite: (() => void) | null = null;
+  let viteAttempts = 0;
+  const stop = createCleanupCoordinator(
+    [
+      {
+        label: "Vite",
+        run: () => {
+          viteAttempts += 1;
+          return new Promise<void>((resolve) => {
+            resolveVite = resolve;
+          });
+        },
+      },
+      {
+        label: "backend",
+        run: () => {
+          resolveVite?.();
+          resolveVite = null;
+          return Promise.resolve();
+        },
+      },
+      { label: "directorio temporal", run: () => Promise.resolve() },
+    ],
+    { stepTimeoutMs: 5 },
+  );
 
   await stop();
-  assert.deepEqual(calls, [
-    "Vite-1",
-    "backend",
-    "directorio temporal",
-    "Vite-2",
-  ]);
+  assert.equal(viteAttempts, 1);
+});
+
+test("acota una promesa pendiente sin bloquear los otros pasos ni duplicarla", async () => {
+  const never = new Promise<void>(() => undefined);
+  let viteAttempts = 0;
+  let backendAttempts = 0;
+  let directoryAttempts = 0;
+  const stop = createCleanupCoordinator(
+    [
+      {
+        label: "Vite",
+        run: () => {
+          viteAttempts += 1;
+          return never;
+        },
+      },
+      {
+        label: "backend",
+        run: () => {
+          backendAttempts += 1;
+          return Promise.resolve();
+        },
+      },
+      {
+        label: "directorio temporal",
+        run: () => {
+          directoryAttempts += 1;
+          return Promise.resolve();
+        },
+      },
+    ],
+    { maxAttempts: 3, stepTimeoutMs: 5 },
+  );
+
+  const startedAt = Date.now();
+  const firstCaller = stop();
+  const concurrentCaller = stop();
+  assert.equal(concurrentCaller, firstCaller);
+  await assert.rejects(firstCaller, (error: unknown) => {
+    assert.ok(error instanceof CleanupStepTimeoutError);
+    assert.equal(error.stepLabel, "Vite");
+    assert.equal(error.timeoutMs, 5);
+    return true;
+  });
+
+  assert.ok(Date.now() - startedAt < 1_000);
+  assert.equal(viteAttempts, 1);
+  assert.equal(backendAttempts, 1);
+  assert.equal(directoryAttempts, 1);
 });

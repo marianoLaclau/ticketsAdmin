@@ -16,6 +16,8 @@ import {
 } from "../support/environment";
 
 const TEMP_DIRECTORY_PREFIX = "ticket-manager-e2e-";
+const DEFAULT_CLEANUP_MAX_ATTEMPTS = 3;
+const DEFAULT_CLEANUP_STEP_TIMEOUT_MS = 10_000;
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
@@ -33,52 +35,166 @@ export interface E2eRuntime {
 export interface CleanupStep {
   readonly label: string;
   readonly run: () => Promise<void>;
+  readonly timeoutMs?: number;
 }
 
-/**
- * Ejecuta todos los pasos pendientes en orden. Los que terminan correctamente
- * no se repiten; los que fallan quedan pendientes para una llamada posterior.
- */
+export interface CleanupCoordinatorOptions {
+  readonly maxAttempts?: number;
+  readonly stepTimeoutMs?: number;
+}
+
+export class CleanupStepTimeoutError extends Error {
+  readonly stepLabel: string;
+  readonly timeoutMs: number;
+
+  constructor(stepLabel: string, timeoutMs: number) {
+    super(
+      `El paso de cleanup E2E "${stepLabel}" no terminó en ${timeoutMs} ms`,
+    );
+    this.name = "CleanupStepTimeoutError";
+    this.stepLabel = stepLabel;
+    this.timeoutMs = timeoutMs;
+  }
+}
+
+interface CleanupStepState {
+  readonly step: CleanupStep;
+  completed: boolean;
+  active: Promise<void> | null;
+  lastFailure: { readonly error: unknown } | null;
+}
+
+function assertPositiveInteger(value: number, label: string): void {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new RangeError(`${label} debe ser un entero positivo`);
+  }
+}
+
+function waitForCleanupStep(
+  operation: Promise<void>,
+  label: string,
+  timeoutMs: number,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new CleanupStepTimeoutError(label, timeoutMs));
+    }, timeoutMs);
+
+    void operation.then(
+      () => {
+        clearTimeout(timeout);
+        resolve();
+      },
+      (error: unknown) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
+}
+
 export function createCleanupCoordinator(
   steps: readonly CleanupStep[],
+  options: CleanupCoordinatorOptions = {},
 ): () => Promise<void> {
-  const completed = new Set<number>();
-  let inFlight: Promise<void> | null = null;
+  const maxAttempts = options.maxAttempts ?? DEFAULT_CLEANUP_MAX_ATTEMPTS;
+  const defaultTimeoutMs =
+    options.stepTimeoutMs ?? DEFAULT_CLEANUP_STEP_TIMEOUT_MS;
+  assertPositiveInteger(maxAttempts, "maxAttempts");
+  assertPositiveInteger(defaultTimeoutMs, "stepTimeoutMs");
 
-  const runAttempt = async (): Promise<void> => {
-    const errors: unknown[] = [];
-    const failedLabels: string[] = [];
+  const states: CleanupStepState[] = steps.map((step) => {
+    if (step.timeoutMs !== undefined) {
+      assertPositiveInteger(step.timeoutMs, `timeoutMs de ${step.label}`);
+    }
+    return {
+      step,
+      completed: false,
+      active: null,
+      lastFailure: null,
+    };
+  });
+  let cycleInFlight: Promise<void> | null = null;
 
-    for (const [index, step] of steps.entries()) {
-      if (completed.has(index)) continue;
-      try {
-        await step.run();
-        completed.add(index);
-      } catch (error) {
-        errors.push(error);
-        failedLabels.push(step.label);
+  const getOrStartOperation = (state: CleanupStepState): Promise<void> => {
+    if (state.active) return state.active;
+
+    const operation = Promise.resolve().then(state.step.run);
+    state.active = operation;
+    state.lastFailure = null;
+    void operation.then(
+      () => {
+        if (state.active !== operation) return;
+        state.completed = true;
+        state.active = null;
+        state.lastFailure = null;
+      },
+      (error: unknown) => {
+        if (state.active !== operation) return;
+        state.active = null;
+        state.lastFailure = { error };
+      },
+    );
+    return operation;
+  };
+
+  const runCycle = async (): Promise<void> => {
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      for (const state of states) {
+        if (state.completed) continue;
+
+        try {
+          const operation = getOrStartOperation(state);
+          await waitForCleanupStep(
+            operation,
+            state.step.label,
+            state.step.timeoutMs ?? defaultTimeoutMs,
+          );
+        } catch (error) {
+          if (!state.completed) state.lastFailure = { error };
+        }
       }
+
+      if (states.every((state) => state.completed)) return;
     }
 
-    if (errors.length === 1) throw errors[0];
-    if (errors.length > 1) {
+    const failures = states.flatMap((state) =>
+      state.completed
+        ? []
+        : [
+            {
+              label: state.step.label,
+              error:
+                state.lastFailure?.error ??
+                new Error(
+                  `El paso de cleanup E2E "${state.step.label}" quedó pendiente`,
+                ),
+            },
+          ],
+    );
+
+    const [primaryFailure] = failures;
+    if (failures.length === 1 && primaryFailure) throw primaryFailure.error;
+    if (failures.length > 1) {
       throw new AggregateError(
-        errors,
-        `Fallaron pasos del cleanup E2E: ${failedLabels.join(", ")}`,
+        failures.map(({ error }) => error),
+        `Fallaron pasos del cleanup E2E: ${failures
+          .map(({ label }) => label)
+          .join(", ")}`,
       );
     }
   };
 
   return () => {
-    if (inFlight) return inFlight;
+    if (cycleInFlight) return cycleInFlight;
 
-    const attempt = Promise.resolve().then(runAttempt);
-    inFlight = attempt;
-    const clearAttempt = () => {
-      if (inFlight === attempt) inFlight = null;
+    const cycle = Promise.resolve().then(runCycle);
+    cycleInFlight = cycle;
+    const clearCycle = () => {
+      if (cycleInFlight === cycle) cycleInFlight = null;
     };
-    void attempt.then(clearAttempt, clearAttempt);
-    return attempt;
+    void cycle.then(clearCycle, clearCycle);
+    return cycle;
   };
 }
 

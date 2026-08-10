@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Teardown E2E acotado dentro de una sola invocación
+
+**Agente:** Codex
+**Estado:** ducentésima trigésima séptima remediación de la auditoría técnica, implementada localmente.
+
+- El `stop()` que Playwright llama una sola vez ejecuta ahora hasta tres rondas internas. Cada recurso tiene un deadline configurable y un cierre colgado deja de bloquear backend y SQLite temporal; al agotar rondas se conserva el error único o un `AggregateError` determinista.
+- Cada paso modela operación pendiente, activa o completada. Un timeout vuelve a observar la misma promesa en lugar de duplicar cierres; una resolución tardía completa el recurso y un rechazo tardío habilita el siguiente intento. Las llamadas concurrentes comparten el ciclo entero y los pasos exitosos nunca se repiten.
+- Cuatro regresiones cubren fallos persistentes, recuperación transitoria dentro de una única llamada, resolución tardía y una promesa que nunca termina. Aprobaron 4/4, un recorrido Playwright real, typecheck E2E, ESLint, Prettier, `git diff --check` y las comprobaciones de cero puertos/temporales. No se hizo push.
+
 ## 2026-08-09 — Fixture HTTP alineada con readiness 0016
 
 **Agente:** Codex
