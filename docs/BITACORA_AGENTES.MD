@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Base accesible y zoom preservado
+
+**Agente:** Codex
+**Estado:** ducentésima vigésima sexta remediación de la auditoría técnica, implementada localmente.
+
+- El documento declara español de Argentina y deja de bloquear el zoom del navegador. El layout incorpora un enlace de salto visible al foco que transfiere el foco al `main` estable, sin alterar la navegación ni el montaje de las rutas.
+- La paleta eleva el contraste de primario y texto secundario, todos los controles reciben una indicación de foco perceptible y las animaciones respetan `prefers-reduced-motion`. El logo del layout usa una URL analizable tanto por Vite como por el runner de componentes.
+- Dos regresiones fijan idioma, metadatos, viewport, destino y transferencia real de foco. Aprobaron 274 pruebas del frontend, typecheck, ESLint focal, build de producción y `git diff --check`. No se hizo push.
+
 ## 2026-08-09 — Estado administrativo nombrado por acceso
 
 **Agente:** Codex

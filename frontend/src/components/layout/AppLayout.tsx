@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Menu } from "lucide-react";
@@ -20,7 +20,9 @@ import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
 import { clearRevokedSessionState } from "@/lib/session-state";
 import { publishSessionTransition } from "@/lib/session-sync";
 import { Sidebar } from "@/components/layout/Sidebar";
-import gsbLogo from "@/assets/gsb-logo.jpg";
+
+const MAIN_CONTENT_ID = "contenido-principal";
+const gsbLogo = new URL("../../assets/gsb-logo.jpg", import.meta.url).href;
 
 /**
  * Escucha los eventos del backend (SSE) y refresca los datos en el momento
@@ -90,6 +92,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   useEventosEnVivo();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const mainContentRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -107,6 +110,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-background font-sans">
+      <a
+        href={`#${MAIN_CONTENT_ID}`}
+        className="fixed left-4 top-0 z-[100] -translate-y-full rounded-b-md bg-foreground px-4 py-3 text-sm font-semibold text-background shadow-lg transition-transform focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        onClick={() => mainContentRef.current?.focus()}
+      >
+        Ir al contenido principal
+      </a>
+
       <div className="hidden h-full lg:flex">
         <Sidebar />
       </div>
@@ -163,7 +174,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </Dialog>
         </header>
 
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-background">
+        <main
+          ref={mainContentRef}
+          id={MAIN_CONTENT_ID}
+          tabIndex={-1}
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        >
           {children}
         </main>
       </div>
