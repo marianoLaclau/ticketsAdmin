@@ -20,19 +20,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Copia el SQLite antes de tocar nada. Es data real de llamadas: el deploy
-      # no la borra (nunca hay `down -v` ni prune), pero la copia cuesta segundos
-      # y es la única red de seguridad que queda tras simplificar el pipeline.
+      # Copia el SQLite antes de tocar nada. Es data real de llamadas y las
+      # migraciones se aplican solas al arrancar el backend, así que este es el
+      # único punto de retorno. Si el backup falla, el deploy NO sigue.
+      # Usa la API de backup de SQLite (no `cp`) para ser consistente aun con
+      # el WAL activo si el backend todavía está corriendo.
       - name: Backup SQLite
-        continue-on-error: true
         run: |
-          set -uo pipefail
+          set -euo pipefail
           mkdir -p /var/lib/ticketsadmin/backups
-          docker run --rm \
-            -v ticketsadmin_tickets_data:/data:ro \
-            -v /var/lib/ticketsadmin/backups:/backups \
-            alpine:3 \
-            sh -c 'test -f /data/tickets.db && cp /data/tickets.db "/backups/pre-deploy-$(date -u +%Y%m%d-%H%M%S).db" || echo "sin base previa, nada que respaldar"'
+          stamp="$(date -u +%Y%m%d-%H%M%S)"
+          if docker volume inspect ticketsadmin_tickets_data >/dev/null 2>&1; then
+            docker run --rm \
+              -v ticketsadmin_tickets_data:/data:ro \
+              -v /var/lib/ticketsadmin/backups:/backups \
+              alpine:3 \
+              sh -c "set -e
+                     if [ ! -f /data/tickets.db ]; then
+                       echo 'No hay base previa: instalación nueva, nada que respaldar.'
+                       exit 0
+                     fi
+                     apk add --no-cache sqlite >/dev/null
+                     sqlite3 /data/tickets.db \".backup '/backups/pre-deploy-$stamp.db'\"
+                     sqlite3 /backups/pre-deploy-$stamp.db 'PRAGMA integrity_check;' | grep -Fxq ok
+                     echo \"Backup verificado: pre-deploy-$stamp.db\""
+          else
+            echo "El volumen todavía no existe: instalación nueva, nada que respaldar."
+          fi
 
       - name: Build images
         run: docker compose build
