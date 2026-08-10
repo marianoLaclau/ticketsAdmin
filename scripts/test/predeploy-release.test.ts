@@ -550,6 +550,14 @@ test("transporta y verifica evidencia antes de publicar el artefacto", () => {
     backup,
     /docker (?:run|create)[\s\S]{0,800}\$\{?[A-Za-z_]*backend[A-Za-z_]*image[A-Za-z_]*id\}?[\s\S]{0,800}verify-db\.mjs/i,
   );
+  assert.match(backup, /verifier_uid="\$\(id -u\)"/);
+  assert.match(backup, /verifier_gid="\$\(id -g\)"/);
+  assert.match(
+    backup,
+    /docker run[^\n]*--user "\$verifier_uid:\$verifier_gid"[^\n]*--cap-drop ALL/,
+  );
+  assert.match(backup, /--tmpfs "[^\n]*uid=\$verifier_uid,gid=\$verifier_gid/);
+  assert.doesNotMatch(backup, /chmod (?:444|711)/);
 
   assertPatternsInOrder(
     backup,
@@ -557,6 +565,7 @@ test("transporta y verifica evidencia antes de publicar el artefacto", () => {
       /backup-db\.mjs/,
       /docker exec[^\n]*\bcat\b/,
       /sha256sum/,
+      /verifier_uid="\$\(id -u\)"/,
       /verify-db\.mjs/,
       /(?:manifest|metadata)/i,
     ],

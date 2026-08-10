@@ -457,6 +457,14 @@ if (args[0] === "run") {
     fs.writeFileSync(cidFile, helperId);
     output(helperId);
   } else {
+    const expectedUser = process.getuid() + ":" + process.getgid();
+    const tmpfs = option("--tmpfs");
+    if (option("--user") !== expectedUser) {
+      fail("EACCES: verifier identity cannot read /evidence/snapshot.db");
+    }
+    if (!tmpfs.includes("uid=" + process.getuid()) || !tmpfs.includes("gid=" + process.getgid())) {
+      fail("verifier tmpfs does not belong to its runtime identity");
+    }
     fs.writeFileSync(cidFile, verifierId);
     output(JSON.stringify({
       contract: "ticketsadmin.sqlite-evidence",
@@ -760,6 +768,11 @@ function assertNoDataRollbackOrBroadTeardown(events: CommandEvent[]): void {
           "900",
         ]);
       } else {
+        const verifierUid = process.getuid?.();
+        const verifierGid = process.getgid?.();
+        assert.notEqual(verifierUid, undefined);
+        assert.notEqual(verifierGid, undefined);
+        const verifierUser = `${verifierUid}:${verifierGid}`;
         assert.deepEqual(normalized, [
           "run",
           "--rm",
@@ -768,6 +781,8 @@ function assertNoDataRollbackOrBroadTeardown(events: CommandEvent[]): void {
           "--network",
           "none",
           "--read-only",
+          "--user",
+          verifierUser,
           "--cap-drop",
           "ALL",
           "--security-opt",
@@ -775,7 +790,7 @@ function assertNoDataRollbackOrBroadTeardown(events: CommandEvent[]): void {
           "--pids-limit",
           "64",
           "--tmpfs",
-          "/tmp:rw,nosuid,nodev,noexec,mode=0700,size=128m",
+          `/tmp:rw,nosuid,nodev,noexec,mode=0700,uid=${verifierUid},gid=${verifierGid},size=128m`,
           "--mount",
           "<mount>",
           "--entrypoint",

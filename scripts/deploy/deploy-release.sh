@@ -1496,7 +1496,7 @@ create_predeploy_backup() {
   local helper_created_id evidence_sha evidence_bytes evidence_pages
   local host_sha host_bytes verify_sha verify_bytes verify_pages post_verify_sha post_verify_bytes
   local snapshot_identity published_identity published_sha published_bytes
-  local created_at compact_timestamp checkpoint_name
+  local created_at compact_timestamp checkpoint_name verifier_uid verifier_gid
 
   if [[ "$FIRST_DEPLOY" == "true" ]]; then
     return
@@ -1548,7 +1548,11 @@ create_predeploy_backup() {
   [[ "$host_sha" == "$evidence_sha" ]] || die "el SHA-256 transportado no coincide"
   [[ "$host_bytes" == "$evidence_bytes" ]] || die "los bytes transportados no coinciden"
 
-  docker run --rm --cidfile "$VERIFY_CID_FILE" --network none --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --tmpfs '/tmp:rw,nosuid,nodev,noexec,mode=0700,size=128m' --mount "type=bind,src=$STAGING_DIR,dst=/evidence,readonly" --entrypoint timeout "$BACKEND_IMAGE_ID" 120 node /app/dist/verify-db.mjs --source /evidence/snapshot.db --expect-evidence /evidence/evidence.json --json >"$VERIFY_FILE"
+  # Conserva staging 0700 y evidencia 0600: con todas las capabilities
+  # descartadas, el verificador debe usar la misma identidad que creo la copia.
+  verifier_uid="$(id -u)"
+  verifier_gid="$(id -g)"
+  docker run --rm --cidfile "$VERIFY_CID_FILE" --network none --read-only --user "$verifier_uid:$verifier_gid" --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --tmpfs "/tmp:rw,nosuid,nodev,noexec,mode=0700,uid=$verifier_uid,gid=$verifier_gid,size=128m" --mount "type=bind,src=$STAGING_DIR,dst=/evidence,readonly" --entrypoint timeout "$BACKEND_IMAGE_ID" 120 node /app/dist/verify-db.mjs --source /evidence/snapshot.db --expect-evidence /evidence/evidence.json --json >"$VERIFY_FILE"
   jq --exit-status '
     .contract == "ticketsadmin.sqlite-evidence" and
     .contractVersion == 1 and
