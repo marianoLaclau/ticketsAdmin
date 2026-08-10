@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Fixture HTTP alineada con readiness 0016
+
+**Agente:** Codex
+**Estado:** ducentésima trigésima sexta remediación de la auditoría técnica, implementada localmente.
+
+- La integración HTTP ya no modela como completa una SQLite sin columnas de elevación. Construye primero el schema de sesiones anterior a `0016`, confirma que `/api/readyz` responde 503 sin filtrar el error y aplica luego ambas columnas antes de esperar 200.
+- Así el test cubre el mismo fallo que bloquearía un rollout con migración incompleta, además de conservar liveness, drenaje, `no-store`, política same-origin y ocultamiento de la firma de Express.
+- Aprobaron siete pruebas focales de app/health/readiness, ESLint y Prettier. El quality completo fue el que detectó originalmente la fixture desactualizada; no se hizo push.
+
 ## 2026-08-09 — Documentación reconciliada con el sistema endurecido
 
 **Agente:** Codex

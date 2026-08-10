@@ -36,6 +36,12 @@ sqlite.exec(
   `
   CREATE TABLE tickets (id INTEGER PRIMARY KEY, version INTEGER NOT NULL);
   CREATE TABLE tickets_cuarentena (ticket_id INTEGER PRIMARY KEY);
+  CREATE TABLE sesiones (
+    token TEXT PRIMARY KEY NOT NULL,
+    usuario_id INTEGER NOT NULL,
+    fecha_expiracion INTEGER NOT NULL,
+    fecha_creacion INTEGER NOT NULL
+  );
   `,
 );
 server = app.listen(0);
@@ -84,6 +90,16 @@ test("separa liveness de readiness durante el ciclo de vida", async () => {
   assert.equal(starting.headers.get("cache-control"), "no-store");
 
   readinessControl.markReady();
+  const beforeSessionElevationMigration = await fetch(`${baseUrl}/api/readyz`);
+  assert.equal(beforeSessionElevationMigration.status, 503);
+  assert.deepEqual(await beforeSessionElevationMigration.json(), {
+    status: "unavailable",
+  });
+
+  sqlite.exec(`
+    ALTER TABLE sesiones ADD admin_elevacion_hasta INTEGER;
+    ALTER TABLE sesiones ADD admin_elevacion_clave_hash TEXT;
+  `);
   const ready = await fetch(`${baseUrl}/api/readyz`);
   assert.equal(ready.status, 200);
   assert.deepEqual(await ready.json(), { status: "ready" });
