@@ -10,7 +10,11 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
-import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
+import {
+  getGetAdminElevationQueryKey,
+  getGetMeQueryKey,
+  useGetMe,
+} from "@workspace/api-client-react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Loader2 } from "lucide-react";
@@ -20,7 +24,7 @@ import {
   PausedSession,
   type SessionIdentityProps,
 } from "@/features/auth/AuthGate";
-import { ROL_SYSADMIN } from "@/lib/roles";
+import { SysAdminRouteGuard } from "@/features/auth/SysAdminRouteGuard";
 import {
   AppErrorBoundary,
   ErrorPage,
@@ -34,12 +38,15 @@ import {
   getConfirmedSessionUser,
   getSessionIdentityStatus,
   getSessionVerificationState,
+  isExactQueryKey,
   PUBLIC_SESSION_QUERY_POLICY,
+  transitionConfirmedIdentity,
 } from "@/lib/session-state";
 import {
   publishSessionTransition,
   subscribeToSessionTransitions,
 } from "@/lib/session-sync";
+import { handleAdminElevationRequired } from "@/lib/admin-elevation-error-policy";
 
 const Dashboard = React.lazy(() => import("@/pages/Dashboard"));
 const TicketList = React.lazy(() => import("@/pages/TicketList"));
@@ -56,10 +63,23 @@ const queryClient = new QueryClient({
   },
   queryCache: new QueryCache({
     onError: (error, query) => {
+      const elevationReconciliation = handleAdminElevationRequired(
+        queryClient,
+        error,
+        getGetAdminElevationQueryKey(),
+      );
+      if (elevationReconciliation) {
+        void elevationReconciliation;
+        return;
+      }
+
       // Un 401 funcional obliga a revalidar /auth/me. Si falla la propia query
       // de sesión, se purga el estado de la identidad anterior sin invalidarla:
       // hacerlo aquí la refetchearía en loop antes de volver al login.
-      const esQueryDeSesion = query.queryKey[0] === getGetMeQueryKey()[0];
+      const esQueryDeSesion = isExactQueryKey(
+        query.queryKey,
+        getGetMeQueryKey(),
+      );
       const isUnauthorized = (error as { status?: number })?.status === 401;
       const requiresPasswordChange =
         getServerErrorCode(error) === "PASSWORD_CHANGE_REQUIRED";
@@ -75,6 +95,16 @@ const queryClient = new QueryClient({
   }),
   mutationCache: new MutationCache({
     onError: (error) => {
+      const elevationReconciliation = handleAdminElevationRequired(
+        queryClient,
+        error,
+        getGetAdminElevationQueryKey(),
+      );
+      if (elevationReconciliation) {
+        void elevationReconciliation;
+        return;
+      }
+
       const isUnauthorized = getErrorStatus(error) === 401;
       const requiresPasswordChange =
         getServerErrorCode(error) === "PASSWORD_CHANGE_REQUIRED";
@@ -98,16 +128,6 @@ const queryClient = new QueryClient({
     },
   }),
 });
-
-/**
- * Las pantallas de administración existen únicamente para el rol SysAdmin.
- * El backend valida lo mismo (403); esto evita renderizar la UI siquiera.
- */
-function SoloSysAdmin({ children }: { children: React.ReactNode }) {
-  const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
-  if (me?.rol !== ROL_SYSADMIN) return <ErrorPage status={403} embedded />;
-  return <>{children}</>;
-}
 
 function LoadingProtectedRoute() {
   return (
@@ -215,19 +235,19 @@ function ProtectedRouter() {
         <Switch>
           <Route path="/dashboard" component={Dashboard} />
           <Route path="/admin/roles-usuarios">
-            <SoloSysAdmin>
+            <SysAdminRouteGuard>
               <AdminRolesUsers />
-            </SoloSysAdmin>
+            </SysAdminRouteGuard>
           </Route>
           <Route path="/admin/tickets/:id">
-            <SoloSysAdmin>
+            <SysAdminRouteGuard>
               <TicketDetail adminMode />
-            </SoloSysAdmin>
+            </SysAdminRouteGuard>
           </Route>
           <Route path="/admin">
-            <SoloSysAdmin>
+            <SysAdminRouteGuard>
               <Admin />
-            </SoloSysAdmin>
+            </SysAdminRouteGuard>
           </Route>
           <Route path="/tickets/:id">
             <TicketDetail />
@@ -245,13 +265,28 @@ function App() {
     null,
   );
   const acceptedUserIdRef = React.useRef<number | null>(null);
+  const terminalIdentityTransitionRef = React.useRef(false);
   const acceptUserId = React.useCallback((userId: number) => {
-    if (acceptedUserIdRef.current !== userId) {
-      clearIdentityScopedCache(queryClient, getGetMeQueryKey());
-      acceptedUserIdRef.current = userId;
-    }
-    setAcceptedUserId((currentUserId) =>
-      currentUserId === userId ? currentUserId : userId,
+    transitionConfirmedIdentity(
+      queryClient,
+      getGetMeQueryKey(),
+      acceptedUserIdRef.current,
+      userId,
+      terminalIdentityTransitionRef.current,
+      {
+        acceptIdentity: (acceptedId) => {
+          acceptedUserIdRef.current = acceptedId;
+          setAcceptedUserId(acceptedId);
+        },
+        resetAcceptedIdentity: () => {
+          terminalIdentityTransitionRef.current = true;
+          acceptedUserIdRef.current = null;
+          setAcceptedUserId(null);
+        },
+        reloadFromPublicEntry: () => {
+          window.location.replace(import.meta.env.BASE_URL);
+        },
+      },
     );
   }, []);
   const reportConfirmedSessionLoss = React.useCallback(() => {
@@ -261,6 +296,7 @@ function App() {
   React.useEffect(() => {
     const handleTransition = createRemoteSessionTransitionHandler(queryClient, {
       resetAcceptedIdentity: () => {
+        terminalIdentityTransitionRef.current = true;
         acceptedUserIdRef.current = null;
         setAcceptedUserId(null);
       },

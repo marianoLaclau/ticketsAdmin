@@ -9,7 +9,10 @@ import {
   getConfirmedSessionUser,
   getSessionIdentityStatus,
   getSessionVerificationState,
+  isExactQueryKey,
+  PROTECTED_SESSION_QUERY_POLICY,
   PUBLIC_SESSION_QUERY_POLICY,
+  transitionConfirmedIdentity,
 } from "../src/lib/session-state.ts";
 
 describe("estado cliente de la sesión", () => {
@@ -20,6 +23,12 @@ describe("estado cliente de la sesión", () => {
       retry: false,
     });
     assert.equal(Object.isFrozen(PUBLIC_SESSION_QUERY_POLICY), true);
+    assert.deepEqual(PROTECTED_SESSION_QUERY_POLICY, {
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      retry: false,
+    });
+    assert.equal(Object.isFrozen(PROTECTED_SESSION_QUERY_POLICY), true);
   });
 
   it("no confía en datos stale cuando la revalidación falla o sigue pendiente", () => {
@@ -99,6 +108,11 @@ describe("estado cliente de la sesión", () => {
     assert.equal(getSessionIdentityStatus(1, 2), "changed");
     assert.equal(getSessionIdentityStatus(2, 2), "accepted");
     assert.equal(getSessionIdentityStatus(null, 2), "changed");
+    assert.equal(isExactQueryKey(["/api/auth/me"], ["/api/auth/me"]), true);
+    assert.equal(
+      isExactQueryKey(["/api/auth/me", "near-miss"], ["/api/auth/me"]),
+      false,
+    );
   });
 
   it("al aceptar B conserva su sesión y descarta las queries funcionales de A", () => {
@@ -107,6 +121,10 @@ describe("estado cliente de la sesión", () => {
     const confirmedUserB = { id: 2 };
 
     queryClient.setQueryData(sessionKey, confirmedUserB);
+    queryClient.setQueryData([...sessionKey, "near-miss"], {
+      id: 1,
+      stale: true,
+    });
     queryClient.setQueryData(["tickets"], [{ id: 99, ownerUserId: 1 }]);
     queryClient.setQueryData(["dashboard", "stats"], {
       ownerUserId: 1,
@@ -116,6 +134,10 @@ describe("estado cliente de la sesión", () => {
     clearAuthenticatedQueries(queryClient, sessionKey);
 
     assert.deepEqual(queryClient.getQueryData(sessionKey), confirmedUserB);
+    assert.equal(
+      queryClient.getQueryData([...sessionKey, "near-miss"]),
+      undefined,
+    );
     assert.equal(queryClient.getQueryData(["tickets"]), undefined);
     assert.equal(queryClient.getQueryData(["dashboard", "stats"]), undefined);
   });
@@ -159,23 +181,159 @@ describe("estado cliente de la sesión", () => {
 
   it("una transición remota purga y recarga una sola vez", () => {
     const queryClient = new QueryClient();
+    const sessionKey = ["/api/auth/me"] as const;
     const actions: string[] = [];
-    queryClient.setQueryData(["/api/auth/me"], { id: 1 });
+    const callbacksDuringClear: string[] = [];
+    let acceptedUserId: number | null = 1;
+    let terminalTransitionStarted = false;
+    queryClient.setQueryData(sessionKey, { id: 1 });
     queryClient.setQueryData(["tickets"], [{ id: 99, ownerUserId: 1 }]);
     queryClient.getMutationCache().build(queryClient, {
       mutationKey: ["update-ticket", 99],
       mutationFn: async () => undefined,
     });
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+      if (event.type !== "removed") return;
+      callbacksDuringClear.push(
+        transitionConfirmedIdentity(
+          queryClient,
+          sessionKey,
+          acceptedUserId,
+          2,
+          terminalTransitionStarted,
+          {
+            acceptIdentity: (userId) => {
+              acceptedUserId = userId;
+              actions.push(`accept:${userId}`);
+            },
+            resetAcceptedIdentity: () => actions.push("late-reset"),
+            reloadFromPublicEntry: () => actions.push("late-reload"),
+          },
+        ),
+      );
+    });
     const handleTransition = createRemoteSessionTransitionHandler(queryClient, {
-      resetAcceptedIdentity: () => actions.push("reset"),
+      resetAcceptedIdentity: () => {
+        terminalTransitionStarted = true;
+        acceptedUserId = null;
+        actions.push("reset");
+      },
       reloadFromPublicEntry: () => actions.push("reload"),
     });
 
     handleTransition();
     handleTransition();
+    unsubscribe();
 
     assert.equal(queryClient.getQueryCache().getAll().length, 0);
     assert.equal(queryClient.getMutationCache().getAll().length, 0);
+    assert.equal(acceptedUserId, null);
+    assert.ok(callbacksDuringClear.length >= 1);
+    assert.equal(
+      callbacksDuringClear.every((result) => result === "terminal"),
+      true,
+    );
+    assert.deepEqual(actions, ["reset", "reload"]);
+  });
+
+  it("un cambio A→B es terminal aunque una mutación vieja resuelva después", async () => {
+    const queryClient = new QueryClient();
+    const sessionKey = ["/api/auth/me"] as const;
+    let acceptedUserId: number | null = 1;
+    let terminalTransitionStarted = false;
+    let oldMutationResolved = false;
+    let resolveOldMutation!: () => void;
+    const oldMutationResult = new Promise<void>((resolve) => {
+      resolveOldMutation = resolve;
+    });
+    queryClient.setQueryData(sessionKey, { id: 2 });
+    queryClient.setQueryData(["tickets"], [{ id: 99, ownerUserId: 1 }]);
+    const actions: string[] = [];
+    const transitionActions = {
+      acceptIdentity: (userId: number) => {
+        acceptedUserId = userId;
+        actions.push(`accept:${userId}`);
+      },
+      resetAcceptedIdentity: () => {
+        terminalTransitionStarted = true;
+        acceptedUserId = null;
+        actions.push("reset");
+      },
+      reloadFromPublicEntry: () => actions.push("reload"),
+    };
+    const callbacksDuringClear: string[] = [];
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+      if (event.type !== "removed") return;
+      callbacksDuringClear.push(
+        transitionConfirmedIdentity(
+          queryClient,
+          sessionKey,
+          acceptedUserId,
+          2,
+          terminalTransitionStarted,
+          transitionActions,
+        ),
+      );
+    });
+    const oldMutation = queryClient.getMutationCache().build(queryClient, {
+      mutationKey: ["update-ticket", 99],
+      mutationFn: async () => {
+        await oldMutationResult;
+        oldMutationResolved = true;
+      },
+      onSuccess: () => {
+        queryClient.setQueryData(["late-mutation-callback"], true);
+        transitionConfirmedIdentity(
+          queryClient,
+          sessionKey,
+          acceptedUserId,
+          2,
+          terminalTransitionStarted,
+          transitionActions,
+        );
+      },
+    });
+    const mutationExecution = oldMutation.execute(undefined);
+
+    const transition = transitionConfirmedIdentity(
+      queryClient,
+      sessionKey,
+      acceptedUserId,
+      2,
+      terminalTransitionStarted,
+      transitionActions,
+    );
+
+    assert.equal(transition, "terminal");
+    assert.equal(acceptedUserId, null);
+    assert.deepEqual(actions, ["reset", "reload"]);
+    assert.equal(queryClient.getQueryCache().getAll().length, 0);
+    assert.equal(queryClient.getMutationCache().getAll().length, 0);
+    unsubscribe();
+    assert.ok(callbacksDuringClear.length >= 1);
+    assert.equal(
+      callbacksDuringClear.every((result) => result === "terminal"),
+      true,
+    );
+    assert.equal(
+      transitionConfirmedIdentity(
+        queryClient,
+        sessionKey,
+        acceptedUserId,
+        2,
+        terminalTransitionStarted,
+        transitionActions,
+      ),
+      "terminal",
+    );
+    assert.deepEqual(actions, ["reset", "reload"]);
+
+    resolveOldMutation();
+    await mutationExecution;
+
+    assert.equal(oldMutationResolved, true);
+    assert.equal(queryClient.getQueryData(["late-mutation-callback"]), true);
+    assert.equal(acceptedUserId, null);
     assert.deepEqual(actions, ["reset", "reload"]);
   });
 

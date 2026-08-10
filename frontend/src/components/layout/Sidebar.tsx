@@ -10,8 +10,6 @@ import {
 import {
   useGetDashboardStats,
   getGetDashboardStatsQueryKey,
-  useGetMe,
-  getGetMeQueryKey,
   useLogout,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -22,7 +20,9 @@ import { getUserErrorMessage } from "@/lib/error-messages";
 import { cn } from "@/lib/utils";
 import { clearRevokedSessionState } from "@/lib/session-state";
 import { publishSessionTransition } from "@/lib/session-sync";
-import gsbLogo from "@/assets/gsb-logo.jpg";
+import { useProtectedSessionUser } from "@/features/auth/useProtectedSessionUser";
+
+const gsbLogo = new URL("../../assets/gsb-logo.jpg", import.meta.url).href;
 
 interface SidebarProps {
   className?: string;
@@ -45,9 +45,7 @@ export function Sidebar({
       refetchInterval: 30_000,
     },
   });
-  const { data: me } = useGetMe({
-    query: { queryKey: getGetMeQueryKey() },
-  });
+  const me = useProtectedSessionUser();
   const logout = useLogout();
 
   const handleLogout = () => {
@@ -55,9 +53,8 @@ export function Sidebar({
 
     logout.mutate(undefined as never, {
       onSuccess: () => {
-        // La caché de datos sí es propia de la sesión. La llave administrativa
-        // persiste en el navegador, separada por usuario, para no pedirla en
-        // cada ingreso al panel.
+        // Descarta datos y elevación administrativa locales antes de volver a
+        // la entrada pública. El secreto nunca se persiste en el navegador.
         clearRevokedSessionState(queryClient);
         publishSessionTransition(import.meta.env.BASE_URL);
         onNavigate?.();

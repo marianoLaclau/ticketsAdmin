@@ -1,4 +1,8 @@
-import type { FetchStatus, QueryClient } from "@tanstack/react-query";
+import {
+  hashKey,
+  type FetchStatus,
+  type QueryClient,
+} from "@tanstack/react-query";
 
 /**
  * La entrada pública verifica la cookie al montar, pero no mientras el usuario
@@ -6,6 +10,17 @@ import type { FetchStatus, QueryClient } from "@tanstack/react-query";
  */
 export const PUBLIC_SESSION_QUERY_POLICY = Object.freeze({
   refetchOnMount: true,
+  refetchOnWindowFocus: false,
+  retry: false,
+});
+
+/**
+ * Los consumidores anidados bajo AuthGate leen la identidad ya confirmada.
+ * Volver a consultar /auth/me durante su montaje convertiría cada cambio de
+ * pantalla en una nueva transición global de sesión.
+ */
+export const PROTECTED_SESSION_QUERY_POLICY = Object.freeze({
+  refetchOnMount: false,
   refetchOnWindowFocus: false,
   retry: false,
 });
@@ -49,6 +64,13 @@ export function getSessionIdentityStatus(
   return confirmedUserId === acceptedUserId ? "accepted" : "changed";
 }
 
+export function isExactQueryKey(
+  queryKey: readonly unknown[],
+  expectedQueryKey: readonly unknown[],
+): boolean {
+  return hashKey(queryKey) === hashKey(expectedQueryKey);
+}
+
 /**
  * Elimina datos funcionales del usuario anterior sin remover la query activa
  * de /auth/me. Preservarla evita que un 401 recree/refetchee la misma query en
@@ -58,9 +80,8 @@ export function clearAuthenticatedQueries(
   queryClient: QueryClient,
   sessionQueryKey: readonly unknown[],
 ): void {
-  const sessionQueryRoot = sessionQueryKey[0];
   queryClient.removeQueries({
-    predicate: (query) => query.queryKey[0] !== sessionQueryRoot,
+    predicate: (query) => !isExactQueryKey(query.queryKey, sessionQueryKey),
   });
 }
 
@@ -93,14 +114,52 @@ export function clearRevokedSessionState(queryClient: QueryClient): void {
   queryClient.clear();
 }
 
+interface ConfirmedIdentityTransitionActions {
+  acceptIdentity: (userId: number) => void;
+  resetAcceptedIdentity: () => void;
+  reloadFromPublicEntry: () => void;
+}
+
+type ConfirmedIdentityTransition = "accepted" | "unchanged" | "terminal";
+
+/**
+ * Una identidad distinta de la ya aceptada es una transición terminal. No se
+ * adopta dentro del mismo SPA: se purga todo y la entrada pública reconstruye
+ * el árbol desde cero. La primera identidad confirmada sí puede aceptarse.
+ */
+export function transitionConfirmedIdentity(
+  queryClient: QueryClient,
+  sessionQueryKey: readonly unknown[],
+  acceptedUserId: number | null,
+  confirmedUserId: number,
+  terminalTransitionStarted: boolean,
+  actions: ConfirmedIdentityTransitionActions,
+): ConfirmedIdentityTransition {
+  if (terminalTransitionStarted) return "terminal";
+
+  if (acceptedUserId !== null && acceptedUserId !== confirmedUserId) {
+    actions.resetAcceptedIdentity();
+    clearRevokedSessionState(queryClient);
+    actions.reloadFromPublicEntry();
+    return "terminal";
+  }
+
+  if (acceptedUserId === confirmedUserId) return "unchanged";
+
+  clearIdentityScopedCache(queryClient, sessionQueryKey);
+  actions.acceptIdentity(confirmedUserId);
+  return "accepted";
+}
+
 interface RemoteSessionTransitionActions {
   resetAcceptedIdentity: () => void;
   reloadFromPublicEntry: () => void;
 }
 
 /**
- * Consume una sola vez una transición remota. La limpieza ocurre antes de
- * cambiar estado o URL para que ningún render intermedio reutilice datos.
+ * Consume una sola vez una transición remota. Primero activa el candado
+ * terminal de identidad; luego purga y recarga para que una notificación de
+ * la propia limpieza no pueda reabrir el árbol autenticado.
  */
 export function createRemoteSessionTransitionHandler(
   queryClient: QueryClient,
@@ -111,8 +170,8 @@ export function createRemoteSessionTransitionHandler(
   return () => {
     if (handled) return;
     handled = true;
-    clearRevokedSessionState(queryClient);
     actions.resetAcceptedIdentity();
+    clearRevokedSessionState(queryClient);
     actions.reloadFromPublicEntry();
   };
 }

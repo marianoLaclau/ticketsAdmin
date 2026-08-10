@@ -2,6 +2,16 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Elevación y transiciones de identidad reconciliadas globalmente
+
+**Agente:** Codex
+**Estado:** ducentésima vigésima segunda remediación de la auditoría técnica, implementada localmente.
+
+- Los errores `ADMIN_ELEVATION_REQUIRED` de queries o mutaciones cierran inmediatamente la elevación local y reconcilian su estado autoritativo sin invalidar `/auth/me`. Observers activos, temporalmente deshabilitados y ráfagas tardías quedan serializados con una reconciliación trailing, por lo que un 401 viejo no puede pisar una elevación más reciente ni producir bucles.
+- `AuthGate`, Sidebar y el guard SysAdmin comparten una política de sesión protegida que no refetchea al montar; el usuario anidado sólo se expone cuando `/me` está confirmado. La limpieza preserva exclusivamente la key exacta de sesión, no variantes parecidas, y el Sidebar ya no documenta persistencia de secretos.
+- Un cambio de identidad A→B o una transición remota activa primero un latch terminal, purga caché y mutaciones y recarga desde la entrada pública. Reentradas síncronas durante `clear()` y callbacks de mutaciones antiguas pueden finalizar, pero no readoptar B, reabrir el árbol ni duplicar reset o recarga.
+- Aprobaron 23 pruebas focalizadas, typecheck, ESLint, Prettier, build Vite y `git diff --check`. La reauditoría independiente verificó carreras, Strict Mode, SysAdmin, Operador, sesión stale, logo versionado y cierre fail-closed sin P0/P1/P2. No se hizo push.
+
 ## 2026-08-09 — Indisponibilidad de elevación estabilizada
 
 **Agente:** Codex

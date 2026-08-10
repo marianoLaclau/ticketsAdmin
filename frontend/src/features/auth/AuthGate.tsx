@@ -12,6 +12,7 @@ import {
   getConfirmedSessionUser,
   getSessionIdentityStatus,
   getSessionVerificationState,
+  PROTECTED_SESSION_QUERY_POLICY,
 } from "@/lib/session-state";
 
 export interface SessionIdentityProps {
@@ -71,9 +72,7 @@ export function AuthGate({
   } = useGetMe({
     query: {
       queryKey: getGetMeQueryKey(),
-      retry: false,
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
+      ...PROTECTED_SESSION_QUERY_POLICY,
     },
   });
   const errorStatus = getErrorStatus(error);
