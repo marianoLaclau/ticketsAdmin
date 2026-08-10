@@ -1,438 +1,328 @@
-# Despliegue en el servidor de testing (Docker + CI/CD)
+# Despliegue con Docker y GitHub Actions
 
-> Server de testing: Linux con acceso SSH. CI/CD vía GitHub Actions con un
-> **self-hosted runner** instalado en el propio servidor. Cada push a `main`
-> pasa primero por un quality gate hospedado por GitHub y, solo si lo aprueba,
-> reconstruye las imágenes y reinicia los contenedores en el servidor, sin
-> exponer SSH ni usar un registro de imágenes externo.
+Este documento describe el flujo que está activo en
+[`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml). Si el
+workflow cambia, este runbook debe actualizarse en el mismo cambio.
 
-## Arquitectura del despliegue
+## Flujo vigente
 
-```
-GitHub (PR o push a main)
-        │
-        ▼
-Quality job (lint + codegen + schema + tests + typecheck + build)
-        │
-        ▼
-Playwright E2E (Chromium + stack aislado)
-        │
-        ▼  solo push de main con gate aprobado
-Self-hosted runner (corriendo EN el servidor de testing)
-        │  build versionado → IDs → lock + recovery → checkpoint → pending
-        │  → up → smoke → promote/rollback
-        ▼
-┌─────────────────────────────────────────────┐
-│  Servidor de testing (IP fija interna)       │
-│                                               │
-│  ┌────────────┐        ┌──────────────────┐  │
-│  │  frontend  │  /api  │     backend      │  │
-│  │  (nginx)   │───────▶│    (Express)     │  │
-│  │  :3000→80  │        │      :5000       │  │
-│  └────────────┘        └────────┬─────────┘  │
-│                                  │ volumen    │
-│                          ┌───────▼────────┐   │
-│                          │ tickets_data   │   │
-│                          │ (SQLite)       │   │
-│                          └────────────────┘   │
-└─────────────────────────────────────────────┘
-        ▲
-        │ POST /api/webhooks/ticket (x-api-key)
-       n8n (misma red interna)
+```mermaid
+flowchart TD
+    trigger[Push a main o ejecución manual]
+    checkout[Checkout en runner self-hosted]
+    backup[Backup SQLite online<br/>más integrity_check]
+    build[docker compose build]
+    deploy[docker compose up -d<br/>--wait --wait-timeout 180]
+    migrate[Migraciones al iniciar backend]
+    health[Healthchecks de backend y frontend]
+    smoke[Smoke: readyz directo y SPA]
+    diagnostics[Si falla: compose ps y logs]
+    volume[(ticketsadmin_tickets_data)]
+
+    trigger --> checkout --> backup --> build --> deploy
+    volume --> backup
+    deploy --> migrate --> volume
+    deploy --> health --> smoke
+    backup -. fallo .-> diagnostics
+    build -. fallo .-> diagnostics
+    deploy -. fallo .-> diagnostics
+    smoke -. fallo .-> diagnostics
 ```
 
-- **`:5000`** — la API. Es donde apunta el nodo HTTP Request de n8n.
-- **`:3000`** — el frontend, para que los operadores gestionen los tickets.
-- El volumen nombrado `tickets_data` persiste el archivo SQLite entre reconstrucciones/reinicios de contenedores — **no se pierde al redeployar**.
-- Las migraciones de la base (`lib/db/drizzle/*.sql`) se aplican solas al arrancar el contenedor del backend (ver `backend/src/migrate.ts`), antes de levantar la API. Es idempotente: en cada arranque solo aplica lo que falte.
-- Una vez terminadas las migraciones, Node reemplaza al shell y recibe directamente `SIGTERM`. El backend deja de aceptar tráfico, bloquea altas SSE tardías y espera sockets/prioridad automática; SQLite se cierra recién en `beforeExit`, cubriendo handlers async de clientes abortados. El watchdog es de 20 segundos y Compose concede 30 antes de `SIGKILL`. Durante el migrador y el bootstrap inicial todavía no está instalado todo este ciclo; separarlos en fases cancelables queda como hardening posterior y las migraciones actuales siguen siendo transaccionales.
-- Los pull requests ejecutan `.github/workflows/quality.yml` sin desplegar. El workflow tiene dos jobs bloqueantes: `quality` corre lint, formato Prettier sin drift, codegen, schema, suites no-browser, typecheck y builds; `e2e` depende de ese resultado, instala Chromium con sus dependencias, levanta backend/Vite/SQLite aislados y ejecuta Playwright. Si E2E falla, publica `e2e/artifacts/` como `playwright-diagnostics` durante 7 días. El workflow de deploy reutiliza el gate completo y el job self-hosted depende de su resultado; no construye ni reinicia contenedores si cualquiera de los dos jobs falla. Consulta `origin/main` antes de construir y el orquestador lo vuelve a verificar dentro del lock antes del checkpoint y del rollout, por lo que un SHA que quedó obsoleto no toca los servicios.
-- Antes de construir, el runner exige Docker Compose `>= 2.17.0`, comprueba las opciones de espera, las utilidades operativas, los directorios privados de backup/estado/lock y valida Compose con placeholders no sensibles. Una instalación incompatible falla antes de tocar servicios.
-- El healthcheck del backend consulta `/api/readyz` y valida su JSON exacto. El frontend solo queda healthy si Nginx sirve la SPA real y también puede alcanzar ese JSON a través del proxy `/api`; por eso una fallback HTML no puede enmascarar una API rota. Hay 60 segundos de gracia para migraciones/bootstrap, pero cualquier éxito anticipado habilita el servicio de inmediato.
-- Cada ejecución construye un par backend/frontend con referencias distintas y un tag irrepetible `git-<SHA>-run-<run_id>-<attempt>`. Ambas imágenes llevan la misma revisión, origen OCI, `release-id`, runtime epoch, identidad Git del árbol de migraciones y hash del contrato Compose sin secretos. El runner inspecciona esos labels y los IDs, ejecuta los CLIs empaquetados y `nginx -t`, y recién entonces permite el orquestador. Un rerun no mueve la referencia de una ejecución anterior.
-- Un único `flock` cubre reconciliación del ledger, baseline, checkpoint, write-ahead, revalidación, `docker compose up --no-build --wait --wait-timeout 180`, los tres smoke tests y, cuando corresponde, el rollback de aplicación. Compose recibe IDs exactos, nunca reconstruye ni resuelve otro tag. Si falla `up`, la verificación o un smoke, el orquestador vuelve al par baseline solo cuando runtime, migraciones y contrato Compose demuestran compatibilidad; lo vuelve a verificar y mantiene igualmente el job en error. Nunca restaura SQLite, elimina el volumen ni ejecuta `down`/`prune`.
-- `/var/lib/ticketsadmin/releases/release-state.json` es el ledger durable del despliegue. Distingue la release confirmada (`current`), la anterior (`previous`) y un intento escrito antes de invocar Compose (`pending`). Solo promociona la candidata después de verificar topología, health, mount `/data`, exclusividad del volumen y los tres recorridos HTTP. El archivo no contiene secretos y se publica atómicamente en modo `0600` dentro de un directorio `0700`.
-- No se ejecuta un `docker image prune` global: el host es compartido con otros proyectos y esa operación podría eliminar artefactos ajenos o los IDs exactos que necesita la recuperación. El ledger aporta identidad para una futura retención dirigida, pero todavía no autoriza eliminaciones automáticas; hasta definir esa política, el espacio se supervisa y cualquier falta de capacidad hace fallar el build antes del rollout.
-- `depends_on.backend.restart: true` hace que una actualización explícita mediante Compose reinicie Nginx y renueve la resolución del nombre `backend`. No reacciona a degradaciones ni reemplazos externos: Compose no es un orquestador con autohealing continuo. La espera y el rollback solo comprueban el instante del release.
-- `docker-compose.yml` fija el nombre de proyecto `ticketsadmin`, de modo que contenedores, red y volumen conservan el mismo namespace aunque el workflow y un operador ejecuten Compose desde checkouts distintos.
-- El backend corre con `TZ=America/Argentina/Buenos_Aires` por defecto (configurable con `TZ`). Los filtros por día calendario usan el timezone local del proceso, igual que en desarrollo.
-- Nginx aplica a SPA, API, SSE y errores `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` y una `Permissions-Policy` mínima; además no publica su versión. Esto no reemplaza TLS. CSP se evaluará por separado después de inventariar fuentes, estilos dinámicos, audio y descargas `blob:`; HSTS y la cookie `Secure` sí se habilitarán cuando exista un borde HTTPS real.
+El workflow:
+
+1. serializa los despliegues con el grupo `deploy-testing` y no cancela uno ya
+   iniciado;
+2. crea un backup consistente mediante la API `.backup` de SQLite y exige
+   `PRAGMA integrity_check = ok` antes de continuar;
+3. construye las imágenes con valores no sensibles, sin exponer secretos al
+   build;
+4. inyecta los secretos solamente en `docker compose up`;
+5. espera hasta 180 segundos a que Compose declare saludables ambos servicios;
+6. comprueba `/api/readyz` directamente en el backend y que Nginx sirva la SPA;
+7. si algo falla, muestra estado y las últimas líneas de logs sin modificar los
+   datos.
+
+El volumen nombrado `ticketsadmin_tickets_data` conserva `/data/tickets.db`
+entre recreaciones. El workflow no ejecuta `docker compose down -v`, no elimina
+volúmenes, no hace `prune` y no restaura un backup automáticamente.
+
+### Límites deliberados
+
+- El deploy no tiene ledger de releases, estado `pending`, reconciliador ni
+  workflow `recover-pending`.
+- No hay rollback automático de la aplicación. Un fallo deja el job en rojo y
+  exige inspección antes de decidir entre corregir hacia adelante o revertir
+  código.
+- [Quality](../.github/workflows/quality.yml) ejecuta lint, tests, typecheck,
+  builds y Playwright en pull requests o por invocación explícita. El workflow
+  Deploy es independiente; la protección de `main` debe exigir Quality si se
+  quiere impedir que llegue código no validado.
+- Si no existe el volumen o no existe `/data/tickets.db`, el workflow lo trata
+  como una instalación nueva y continúa sin backup. En un servidor que ya
+  debería tener datos, ese mensaje requiere detenerse y verificar el volumen.
+- Compose administra una sola réplica. No ofrece cero downtime, autohealing
+  continuo ni coordinación distribuida.
+
+El antiguo ledger externo bajo `/var/lib/ticketsadmin/releases` ya no es leído
+por el repositorio. Si todavía existe en el servidor, conservarlo solo como
+evidencia del incidente hasta que el responsable decida archivarlo; nunca usarlo
+para destrabar o dirigir un deploy actual.
 
 ## 1. Preparar el servidor
 
-Docker y otros runners de self-hosted ya están instalados en el servidor (se usan para otros proyectos) — no hace falta tocar eso. Este repo requiere Docker Compose `2.17.0` o posterior; el workflow lo verifica antes de construir. Lo que sigue es específico de **este** repo.
+El runner necesita:
 
-El orquestador también requiere Bash, `jq`, `flock` (util-linux), Git, curl y las utilidades GNU de coreutils (`sha256sum`, `stat`, `mktemp`, `realpath`, `sync`, `ln`). En Ubuntu/Debian se pueden asegurar con `sudo apt-get install jq util-linux coreutils`; el preflight comprueba cada binario y falla antes del build si falta alguno.
+- Linux, Git y `curl`;
+- Docker Engine y Docker Compose con soporte para `up --wait` y
+  `--wait-timeout`;
+- acceso del usuario del runner al daemon de Docker;
+- salida de red para descargar imágenes y para que el contenedor Alpine instale
+  el CLI de SQLite durante el backup;
+- puertos TCP `3000` y `5000` disponibles.
 
-### 1.1. Verificar que los puertos 5000 y 3000 estén libres y abrir el firewall
-
-Como el servidor ya corre otros proyectos, confirmar antes que ninguno esté usando esos puertos:
-
-```bash
-sudo ss -tlnp | grep -E ':(5000|3000)\b'
-```
-
-Si aparece algo, avisar antes de continuar (hay que cambiar el mapeo de puertos en `docker-compose.yml` de este repo). Si están libres, abrir el firewall:
+Verificar los puertos antes del primer despliegue:
 
 ```bash
-sudo ufw allow 5000/tcp   # API — la usa n8n
-sudo ufw allow 3000/tcp   # Frontend — lo usan los operadores
-sudo ufw status
+sudo ss -tlnp | grep -E ':(3000|5000)\b' || true
+docker version
+docker compose version
+docker compose up --help | grep -E -- '--wait|--wait-timeout'
 ```
 
-(Si el servidor no usa `ufw` sino `iptables`/`firewalld`/reglas del proveedor cloud, adaptar según corresponda.)
+### 1.1. Directorio privado de backups
 
-### 1.2. Checkout del runner y checkout operativo
-
-El deploy **no corre desde `/opt/ticketsAdmin`**: `actions/checkout` crea y actualiza automáticamente `GITHUB_WORKSPACE`, normalmente en una ruta similar a:
-
-```
-~/actions-runner-ticketsAdmin/_work/ticketsAdmin/ticketsAdmin
-```
-
-No hace falta clonar el repositorio para que funcione CI/CD. Si se quiere una ruta estable para tareas manuales, se puede mantener además un checkout operativo:
+El workflow escribe fuera del checkout para que una actualización del repo no
+borre los respaldos:
 
 ```bash
-sudo mkdir -p /opt/ticketsAdmin
-sudo chown $USER:$USER /opt/ticketsAdmin
-git clone https://github.com/marianoLaclau/ticketsAdmin.git /opt/ticketsAdmin
-```
-
-Ese checkout es solo para operación manual y debe actualizarse antes de usar código o configuración nuevos. El nombre fijo `ticketsadmin` de Compose hace que ambos checkouts apunten al mismo proyecto desplegado.
-
-### 1.3. Preparar almacenamiento privado, ledger y lock del deploy
-
-El usuario que ejecuta el runner debe ser dueño de tres directorios reales, no symlinks, con modo exacto `0700`. Se crean una sola vez en el servidor usando esa identidad:
-
-```bash
-RUNNER_USER="$(id -un)"
-RUNNER_GROUP="$(id -gn)"
+RUNNER_USER="<usuario-del-runner>"
+RUNNER_GROUP="$(id -gn "$RUNNER_USER")"
 sudo install -d -m 0700 -o "$RUNNER_USER" -g "$RUNNER_GROUP" \
-  /var/lib/ticketsadmin/backups \
-  /var/lib/ticketsadmin/releases \
-  /var/lib/ticketsadmin/locks
-sudo touch /var/lib/ticketsadmin/locks/deploy.lock
-sudo chown "$RUNNER_USER:$RUNNER_GROUP" /var/lib/ticketsadmin/locks/deploy.lock
-sudo chmod 0600 /var/lib/ticketsadmin/locks/deploy.lock
+  /var/lib/ticketsadmin/backups
 ```
 
-El lock vive bajo `/var/lib` para conservar una ruta canónica y persistente.
-No usar `/var/lock`: en Ubuntu es un enlace de compatibilidad a `/run/lock`, y
-el preflight rechaza deliberadamente rutas que atraviesan enlaces simbólicos.
+Los `.db` contienen datos personales y hashes de autenticación. Definir
+retención, copia externa y acceso restringido; no moverlos al checkout ni
+commitearlos.
 
-No crear un `release-state.json` vacío. El orquestador publica el primer documento válido mediante un temporal privado, sincronización y reemplazo atómico; el archivo final queda en `/var/lib/ticketsadmin/releases/release-state.json` con modo exacto `0600`. Si el archivo ya existe al migrar el mecanismo, comprobar sus permisos sin editar su contenido:
+### 1.2. Runner self-hosted
 
-```bash
-if sudo test -e /var/lib/ticketsadmin/releases/release-state.json; then
-  sudo test -f /var/lib/ticketsadmin/releases/release-state.json
-  sudo test ! -L /var/lib/ticketsadmin/releases/release-state.json
-  sudo chown "$RUNNER_USER:$RUNNER_GROUP" /var/lib/ticketsadmin/releases/release-state.json
-  sudo chmod 0600 /var/lib/ticketsadmin/releases/release-state.json
-fi
-```
-
-El workflow no intenta crear ni corregir estas rutas con privilegios: si faltan, son enlaces, pertenecen a otra identidad o tienen permisos más amplios, falla antes del build. Backups y ledger permanecen fuera de `GITHUB_WORKSPACE`, por lo que un checkout limpio no los elimina. Un ledger ausente es válido únicamente antes de la primera adopción administrada; uno existente vacío, corrupto, con contrato desconocido o permisos incorrectos hace fallar cerrado antes de invocar Compose.
-
-## 2. Registrar un runner para este repo
-
-Los runners de GitHub Actions se registran **por repositorio** (salvo que uses un runner group a nivel organización). Como ya tenés runners corriendo para otros proyectos en este mismo servidor, hace falta uno más, dedicado a `ticketsAdmin` — es perfectamente normal tener varias instancias de runner en la misma máquina, cada una en su propia carpeta.
-
-Este paso requiere un token temporal que **solo GitHub genera** — no se puede automatizar desde acá.
-
-1. En GitHub, en el repo `ticketsAdmin`: **Settings → Actions → Runners → New self-hosted runner**, elegir **Linux x64**.
-2. GitHub va a mostrar comandos como estos (con un token único, distinto cada vez que se genera la página — copiarlos de ahí, no de acá). Usar una carpeta con nombre distintivo para no pisar los runners de los otros proyectos:
+Registrar un runner dedicado al repositorio siguiendo la instrucción que GitHub
+muestra en **Settings → Actions → Runners → New self-hosted runner**. Instalarlo
+como servicio con el usuario que posee el directorio de backups y comprobarlo:
 
 ```bash
-mkdir -p ~/actions-runner-ticketsAdmin && cd ~/actions-runner-ticketsAdmin
-curl -o actions-runner-linux-x64.tar.gz -L https://github.com/actions/runner/releases/download/<version>/actions-runner-linux-x64-<version>.tar.gz
-tar xzf actions-runner-linux-x64.tar.gz
-
-./config.sh --url https://github.com/marianoLaclau/ticketsAdmin --token <TOKEN-QUE-DA-GITHUB> --name ticketsAdmin-runner
-```
-
-3. Instalarlo como servicio para que sobreviva a reinicios del servidor:
-
-```bash
+cd "$HOME/actions-runner-ticketsAdmin"
 sudo ./svc.sh install
 sudo ./svc.sh start
 sudo ./svc.sh status
 ```
 
-4. **Importante**: el runner corre como el usuario que lo instaló. Ese usuario necesita poder ejecutar `docker` (grupo `docker`) — si los otros runners ya corren ahí y ya construyen/levantan contenedores, seguramente ya está resuelto; si no, `sudo usermod -aG docker $USER` y reiniciar el servicio del runner.
+No compartir este runner con repositorios no confiables: un job self-hosted con
+acceso a Docker puede controlar contenedores y volúmenes del host.
 
-5. Verificar en GitHub (**Settings → Actions → Runners**) que el nuevo runner aparece como **Idle** (verde), junto a los de los otros proyectos.
+## 2. Configurar secretos
 
-## 3. Configurar los secretos
+En **Settings → Secrets and variables → Actions** definir:
 
-El workflow recibe las credenciales desde GitHub Actions, **nunca** desde el repositorio:
+| Secreto                       | Uso                                                  |
+| ----------------------------- | ---------------------------------------------------- |
+| `WEBHOOK_API_KEY`             | Autentica el webhook de n8n.                         |
+| `ADMIN_API_KEY`               | Eleva temporalmente una sesión SysAdmin.             |
+| `BOOTSTRAP_SYSADMIN_PASSWORD` | Inicialización o compatibilidad del usuario semilla. |
 
-1. Generar valores largos e independientes:
-   ```bash
-   openssl rand -hex 32  # WEBHOOK_API_KEY
-   openssl rand -hex 32  # ADMIN_API_KEY
-   openssl rand -hex 24  # BOOTSTRAP_SYSADMIN_PASSWORD
-   ```
-2. En GitHub: **Settings → Secrets and variables → Actions → New repository secret**. Crear:
-   - `WEBHOOK_API_KEY`: autentica la ingesta de n8n.
-   - `ADMIN_API_KEY`: credencial para crear grants efímeros de una sesión SysAdmin; se acepta solo en el body de `POST /auth/admin-elevation`.
-   - `BOOTSTRAP_SYSADMIN_PASSWORD`: obligatoria si el volumen contiene una base sin hashes o la credencial pública del seed histórico.
+Las dos API keys deben ser diferentes, tener al menos 32 caracteres y respetar
+la validación del backend. El valor de bootstrap puede quedar vacío solamente si
+la base ya contiene credenciales válidas y el arranque no lo requiere.
 
-El bootstrap crea o asegura `sysadmin`, persiste solamente el hash scrypt y luego se vuelve un no-op. La clave debe tener 16–128 caracteres, no contener controles C0/DEL, no comenzar ni terminar con espacios y no ser un placeholder público conocido ni un único carácter repetido; el comando aleatorio anterior cumple la política. La credencial queda marcada como temporal: el primer login solo permite reemplazarla o cerrar sesión. Si detecta el seed histórico también activa ese cambio obligatorio y revoca sus sesiones anteriores. Después de verificar el login y completar el cambio, retirar `BOOTSTRAP_SYSADMIN_PASSWORD` de GitHub Actions y ejecutar otro deploy para recrear el backend sin el secreto en su entorno. Dejarlo configurado no resetea una cuenta ya asegurada, pero retirarlo reduce exposición innecesaria.
-
-Los `push` automáticos nunca reciben autorizaciones de transición. Cuando haga falta una adopción excepcional, abrir **Actions → Deploy → Run workflow** y completar los inputs de esa ejecución:
-
-- `allow_legacy_adoption=true` autoriza exclusivamente la primera transición desde el par histórico sin labels y con referencias exactas `ticketsadmin-backend[:latest]`/`ticketsadmin-frontend[:latest]`. En `expected_baseline_release` se debe escribir exactamente `legacy-unversioned-adoption`.
-- `allow_fix_forward_transition=true` autoriza una release incompatible o una release identificada anterior a estos labels. En `expected_baseline_release` se debe copiar el `io.ticketsadmin.release-id` exacto de las imágenes activas después de una inspección de solo lectura. Si ambas imágenes pertenecen al formato anterior que todavía no tenía ese label, usar el identificador común derivado de sus referencias `git-<SHA>-run-<run_id>-<attempt>`. Esta decisión significa que un fallo deberá corregirse hacia adelante.
-- Con cualquiera de las dos autorizaciones, `expected_baseline_backend_image_id` y `expected_baseline_frontend_image_id` deben contener los dos `sha256:...` devueltos por `docker inspect --format '{{.Image}}' <contenedor>`. No usar tags: el orquestador compara los IDs inmutables con el par realmente capturado bajo el lock.
-
-Los dos booleanos son mutuamente excluyentes y cada nuevo disparo manual comienza en `false`; un rerun conserva deliberadamente los inputs de su ejecución original. La autorización solo es válida si release y ambos IDs del baseline capturado bajo el lock coinciden con los tres valores esperados; sin esa coincidencia el workflow falla antes del checkpoint y antes de mutar contenedores. No convierte un baseline ambiguo en elegible ni habilita rollback automático.
-
-Las dos API keys deben existir, ser diferentes y tener al menos 32 caracteres; se rechazan placeholders públicos, un único carácter repetido, controles y espacios exteriores. Esta validación ocurre antes del seed y antes de escuchar HTTP, sin imprimir los valores. Si alguna falta o no cumple la política, el contenedor reinicia y nunca llega a estado healthy. Los campos correspondientes de `.env.example` están vacíos deliberadamente para que copiar el archivo no produzca un despliegue con credenciales conocidas.
-
-La migración `0010_require_password_change.sql` se aplica automáticamente antes de arrancar la API. Mantiene habilitados a los usuarios existentes (`debe_cambiar_password=false`), mientras que toda alta o rotación posterior queda en estado temporal hasta que la propia persona defina su nueva contraseña.
-
-La migración `0011_invalidate_plaintext_sessions.sql` revoca una sola vez todas las sesiones anteriores: es intencional y cada usuario deberá volver a ingresar. Desde entonces SQLite persiste solo un hash versionado del bearer. El backend vuelve a sanear el formato al arrancar para cubrir rollback → roll-forward; nunca registra tokens ni hashes. No ejecutar simultáneamente réplicas con código anterior y posterior a `0011`. Un rollback conserva la estructura física de la tabla, pero invalida las sesiones de la otra versión. El mínimo seguro para rollback es `06db746` (`Sanea el ciclo de la cookie de sesion`), que ya exige cookies raw de 64 hex; versiones más antiguas no deben arrancarse sobre una base posterior a `0011`. Los backups creados antes de `0011` o mientras corre un binario anterior pueden contener bearer y deben conservar la misma protección y retención que un secreto; los generados bajo el binario nuevo contienen hashes.
-
-`0012_add_ticket_version.sql` es aditiva: asigna versión 1 a históricos y el código anterior ignora la columna si se hace rollback. Sin embargo, el contrato HTTP nuevo exige `expected_version` en cada PATCH. Backend y frontend deben desplegarse como una misma versión, sin réplicas mixtas; las pestañas que conservaron JavaScript anterior recibirán 400 al intentar guardar y deberán recargar una vez. n8n no se ve afectado porque su integración crea tickets por POST y no usa PATCH.
-
-`0015_add_ticket_read_indexes.sql` agrega índices medidos para actividad reciente, vencimientos, resoluciones y cronología de seguimientos. No cambia el contrato HTTP ni reescribe los datos funcionales.
-
-`0016_admin_session_elevation.sql` agrega `admin_elevacion_hasta` y `admin_elevacion_clave_hash` como columnas nullable de `sesiones`. Las sesiones existentes siguen autenticadas, pero comienzan sin elevación. El SysAdmin presenta `ADMIN_API_KEY` una sola vez como `{ admin_key }` en el body del POST de elevación; SQLite guarda solo vencimiento y fingerprint por sesión, y las operaciones posteriores envían el indicador no secreto `x-admin-intent: 1`. Rotar el secreto invalida inmediatamente los grants anteriores por mismatch de fingerprint. Como cualquier cambio del árbol de migraciones, el primer rollout de esta transición debe seguir la autorización fix-forward descrita arriba.
-
-El backend limita el login por identidad: diez credenciales rechazadas dentro de 15 minutos hacen que la siguiente solicitud active un bloqueo de 15 minutos (`429` más `Retry-After`). Un login válido o un alta, cambio de username o reset de contraseña desde SysAdmin libera esa identidad; errores internos y rechazos por capacidad no suman fallos. Los contadores no están en SQLite: viven hasheados y acotados en la memoria de la única instancia, por lo que un redeploy los reinicia. Esto es esperado en la topología actual; no levantar una segunda réplica sin migrar el rate limit a un store compartido. La protección de scrypt admite una ráfaga inicial de 30 trabajos públicos y repone 30 por minuto, con cuatro activos y ocho en espera, para conservar capacidad durante ráfagas y ataques sostenidos.
-
-GitHub inyecta esos secretos solo en el step que recrea los servicios; checkout, quality, E2E y build no los reciben. Playwright genera credenciales efímeras exclusivas de su base temporal y nunca alcanza datos locales ni del servidor. Para ejecutar manualmente comandos que crean o recrean servicios (`up`, `create`, un `run` normal), guardar las variables en un archivo fuera del repo y con permisos restringidos, por ejemplo `/etc/ticketsadmin/compose.env`, y usar:
+Para operaciones manuales que crean o recrean contenedores, guardar los valores
+en un archivo privado fuera del repo:
 
 ```bash
-docker compose --env-file /etc/ticketsadmin/compose.env up -d --wait --wait-timeout 180
+sudo install -m 0600 /dev/null /etc/ticketsadmin/compose.env
+sudoedit /etc/ticketsadmin/compose.env
 ```
 
-El archivo debe definir `WEBHOOK_API_KEY` y `ADMIN_API_KEY`; para una base sin hashes o con el seed histórico también debe definir `BOOTSTRAP_SYSADMIN_PASSWORD`. Puede definir `TZ` y no se commitea. Las dos API keys fallan cerradas si faltan o no cumplen la política. Para comandos que solo inspeccionan o actúan sobre contenedores existentes (`ps`, `logs`, `exec`, `cp`), Compose igualmente exige interpolar las API keys, pero se puede usar un placeholder porque no cambia el entorno del contenedor ya creado:
+Contenido esperado:
+
+```dotenv
+WEBHOOK_API_KEY=<valor-real>
+ADMIN_API_KEY=<valor-real>
+BOOTSTRAP_SYSADMIN_PASSWORD=<valor-si-corresponde>
+TZ=America/Argentina/Buenos_Aires
+```
+
+No usar placeholders con `up`, `create` o cualquier comando que pueda iniciar el
+backend.
+
+## 3. Ejecutar y verificar un deploy
+
+Un push a `main` dispara Deploy directamente. También puede iniciarse desde
+**Actions → Deploy → Run workflow**.
+
+Al finalizar, comprobar desde el servidor:
 
 ```bash
-WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose ps
+COMPOSE_ENV=/etc/ticketsadmin/compose.env
+docker compose --env-file "$COMPOSE_ENV" ps
+test "$(curl -fsS --max-time 10 http://127.0.0.1:5000/api/readyz)" = \
+  '{"status":"ready"}'
+curl -fsS --max-time 10 http://127.0.0.1:3000/ | \
+  grep -Fq '<div id="root"></div>'
+test "$(curl -fsS --max-time 10 http://127.0.0.1:3000/api/readyz)" = \
+  '{"status":"ready"}'
 ```
 
-No usar ese placeholder con `up`, `create` ni para iniciar la API.
+Los dos primeros checks reproducen el smoke automático. El tercero agrega una
+verificación manual del proxy Nginx → backend.
 
-## 4. Primer despliegue
-
-Con el runner instalado y los secretos configurados, cualquier push a `main` dispara primero Quality y luego el deploy. Para forzar el primero sin esperar un push:
-
-- En GitHub: **Actions → Deploy → Run workflow** (el trigger `workflow_dispatch` está habilitado para esto), o
-- Hacer un push cualquiera a `main`.
-
-Seguir el progreso en la pestaña **Actions** del repo. Al terminar:
+Las migraciones de `lib/db/drizzle/*.sql` se ejecutan en orden antes de que la
+API escuche. Si cambia `lib/db/src/schema`, generar y revisar la migración antes
+de integrar el cambio:
 
 ```bash
-# desde el servidor, para confirmar que quedó arriba
-test "$(curl -fsS --max-time 5 http://127.0.0.1:5000/api/readyz)" = '{"status":"ready"}'
-SPA="$(curl -fsS --max-time 5 http://127.0.0.1:3000/)"
-grep -Fq '<div id="root"></div>' <<< "$SPA"
-test "$(curl -fsS --max-time 5 http://127.0.0.1:3000/api/readyz)" = '{"status":"ready"}'
-curl -I http://localhost:3000/
-curl -I http://localhost:3000/api/readyz
-WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose ps
+pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts
 ```
 
-Los tres primeros comandos deben terminar sin salida de error. Los dos `curl -I` deben mostrar las cuatro cabeceras de seguridad configuradas por Nginx y no deben revelar una versión en `Server`. La API directa en `:5000` no pasa por Nginx; su exposición de red sigue siendo un frente operativo separado. `healthz` continúa disponible como liveness, pero no demuestra que SQLite ni el schema requerido estén listos.
+## 4. Operación cotidiana
 
-## 5. Actualizar la configuración de n8n
-
-Una vez que el servidor tiene su IP fija definitiva, actualizar en n8n el nodo HTTP Request (ver `docs/FLUJO.md`, sección "Configuración del nodo HTTP Request en n8n") para que apunte a:
-
+```bash
+COMPOSE_ENV=/etc/ticketsadmin/compose.env
+docker compose --env-file "$COMPOSE_ENV" ps
+docker compose --env-file "$COMPOSE_ENV" logs --tail=150 backend frontend
+docker volume inspect ticketsadmin_tickets_data
 ```
-http://<IP-FIJA-DEL-SERVIDOR-DE-TESTING>:5000/api/webhooks/ticket
-```
 
-con el mismo header `x-api-key` (el valor cargado como secreto `WEBHOOK_API_KEY`).
+El backup automático queda en
+`/var/lib/ticketsadmin/backups/pre-deploy-<UTC>.db`. Se crea antes del build y
+se valida físicamente, pero no representa por sí solo una política de retención
+ni prueba compatibilidad semántica con cualquier versión futura del código.
 
-## Operación del día a día
+### Backup manual verificado
 
-- **Cada push a `main` redeploya solo si aprueban los dos jobs del workflow reutilizable (`quality` y, después, `e2e`), Compose llega a healthy y los tres smoke tests publicados responden el contenido esperado.** Los pull requests ejecutan el mismo gate, incluido Playwright en Chromium, pero nunca modifican el servidor. Un fallo E2E conserva diagnósticos durante 7 días.
-- **Cada comando Compose** se ejecuta desde un checkout actual del repo (el workspace del runner o `/opt/ticketsAdmin` actualizado). El proyecto se llama siempre `ticketsadmin`.
-- **Ver logs**: `WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose logs -f backend` (o `frontend`).
-- **Ver estado**: `WEBHOOK_API_KEY=not-used-for-readonly-command ADMIN_API_KEY=not-used-for-readonly-command docker compose ps`
-- **Checkpoint automático predeploy**: salvo en una instalación realmente vacía, cada rollout publica en `/var/lib/ticketsadmin/backups` un `.db` privado y un `.manifest.json` versionado. El manifiesto se publica último y es el marcador de un checkpoint completo; registra release/run, baseline, IDs candidatos, volumen, SHA-256, bytes, páginas y verificaciones, nunca variables de entorno ni secretos. La imagen candidata del backend crea el snapshot desde el volumen solo lectura, sin red, y otra ejecución aislada reabre la copia transportada antes de publicarla. También se rechaza cualquier contenedor externo, detenido o activo, que conserve montado `ticketsadmin_tickets_data`.
-
-  El mismo lock abarca esta captura, la comprobación final de `main`, el rollout, la inspección de los IDs efectivamente desplegados y los smoke tests. El helper tiene un límite de 900 segundos y 1 GiB de `/tmp`; el verificador independiente, 120 segundos y 128 MiB. Un `.db` sin manifiesto o un staging privado puede quedar tras un `SIGKILL` o un corte del host: se conserva para inspección, no cuenta como checkpoint utilizable y nunca se elimina con una limpieza amplia. La primera ejecución sobre el `origin/main` histórico solo admite la adopción descrita arriba y con su opt-in explícito. Cualquier mezcla, referencia manual o incompatibilidad no autorizada falla antes de mutar; tras un rollout exitoso los labels vuelven inaplicable esa excepción.
-
-- **Ledger durable de releases**: bajo el mismo lock, el orquestador lee `/var/lib/ticketsadmin/releases/release-state.json` antes de aceptar un baseline nuevo. `current` identifica el par backend/frontend confirmado, `previous` conserva la última release desplazada y `pending` describe el intento en curso, incluidos sus IDs de imagen exactos, contratos de compatibilidad, baseline y checkpoint. `previous` es evidencia histórica, no permiso suficiente para arrancar una imagen ni restaurar datos.
-
-  Después de crear y fijar el checkpoint, y antes del primer `docker compose up`, el orquestador publica `pending` de forma durable. Una candidata pasa a `current` y la anterior a `previous` únicamente después de demostrar el par exacto, la topología completa, ambos healthchecks, el mount `/data`, la exclusividad de `ticketsadmin_tickets_data` y los tres smokes HTTP. El rollback compatible se cierra con las mismas comprobaciones antes de limpiar `pending`; un estado parcialmente escrito nunca se interpreta como éxito.
-
-- **Rollback de aplicación**: si una release compatible falla después de comenzar el `up`, el mismo proceso y lock recrean backend/frontend con los IDs baseline capturados, sin `--remove-orphans`, y exigen topología, health, mount, exclusividad del volumen y los tres smokes. El job conserva el error original aunque la recuperación funcione. El hash Compose se revalida inmediatamente antes de ambos `up`; un escritor externo que eluda el lock sigue fuera de la garantía cooperativa. El epoch de base deriva automáticamente del árbol Git completo de `lib/db/drizzle`, por lo que cualquier migración nueva deshabilita el rollback hasta una transición fix-forward explícita. En un primer deploy fallido no existe baseline: solo se detienen contenedores cuyo servicio e imagen coinciden exactamente con las candidatas y se preserva el volumen.
-
-- **Recuperación después de `SIGKILL`, reinicio o caída del runner**: el siguiente intento adquiere el lock y reconcilia cualquier `pending` antes de crear otro checkpoint. Si el par candidato exacto ya está completo y supera todas las verificaciones, lo promociona. Si el baseline compatible exacto ya está sano, registra el rollback. Si hay una topología parcial y el ledger demuestra rollback compatible, recrea únicamente ese baseline por sus dos IDs inmutables y lo vuelve a verificar de punta a punta. Nunca elige por tag, fecha, nombre parecido o estado parcial.
-
-  Un ledger vacío, corrupto, sustituido, con permisos incorrectos, versión desconocida o incoherente con los contenedores hace fallar cerrado antes de mutarlos. Tampoco se repara a mano ni se elimina para “destrabar” el deploy: detener el runner, preservar ledger, checkpoint e imágenes e inspeccionar con `sudo jq . /var/lib/ticketsadmin/releases/release-state.json`, `docker ps -a --no-trunc`, `docker inspect` y `docker volume inspect`.
-
-  Los estados terminales `manual_intervention`, `rollback_failed` y `first_deploy_contained` tampoco se eliminan a mano. Después de corregir la causa y comprobar las identidades, se reanudan únicamente con `workflow_dispatch`, informando `resume_pending_attempt` y `expected_state_generation` exactamente como figuran en el ledger. Ambos valores forman una autorización de un solo estado: si otro intento cambia la generación, no se toca Docker. Para un pending compatible, la reanudación converge al baseline; para primer deploy, legacy o fix-forward, solo reintenta/promociona la candidata exacta. Antes de un `up` legacy/fix-forward autorizado se persiste `retrying_forward`; si el proceso se interrumpe con el baseline todavía exacto, el siguiente run reintenta esa misma candidata y no puede cerrar el intento sobre un baseline incompatible. Una topología parcial o desconocida vuelve a `manual_intervention` y exige otra decisión explícita.
-
-  Las transiciones legacy y fix-forward no tienen un baseline automáticamente recuperable. Tras un corte pueden consolidarse únicamente hacia la candidata: un par candidato exacto y sano se promociona, un `retrying_forward` cortado antes de cambiar el runtime vuelve a intentar los mismos IDs y cualquier estado parcial exige una nueva decisión explícita. En el primer deploy tampoco existe `current`: el reconciliador puede reintentar el par candidato exacto, pero si no logra verificarlo registra `containing_first_deploy` antes de detener solo esos contenedores identificados, conserva `pending` y el volumen, y falla para intervención. Si el proceso vuelve a cortarse durante esa contención, el siguiente intento la repite idempotentemente. En todos los casos está prohibido usar `docker compose down -v`, borrar `ticketsadmin_tickets_data` o restaurar SQLite como reacción automática.
-
-- **No ejecutar `docker compose up` manualmente mientras este mecanismo esté activo**: el lock es cooperativo y un comando directo lo elude. Los cambios normales se hacen mediante el workflow. Una intervención excepcional debe detener el runner y seguir un procedimiento específico; nunca se restaura el checkpoint de forma automática por un fallo de aplicación.
-- **Backup de la base**: no usar `cat`, `cp` ni copiar solamente `/data/tickets.db`; SQLite está en WAL y eso puede omitir transacciones confirmadas. La imagen del backend incluye un CLI que usa la API online de SQLite y publica la copia solo después de verificar integridad, claves foráneas y el esquema histórico mínimo de la aplicación. Para guardar el backup fuera del volumen Docker:
-
-  ```bash
-  umask 077
-  TICKETSADMIN_BACKUP_DIR="/var/lib/ticketsadmin/backups"
-  sudo install -d -m 0700 -o "$USER" -g "$(id -gn)" "$TICKETSADMIN_BACKUP_DIR"
-  BACKUP_NAME="tickets-$(date -u +%Y%m%dT%H%M%SZ).db"
-  EVIDENCE_NAME="$BACKUP_NAME.evidence.json"
-  WEBHOOK_API_KEY=not-used-by-backup ADMIN_API_KEY=not-used-by-backup docker compose exec -T backend \
-    node dist/backup-db.mjs --output "/tmp/$BACKUP_NAME" --json \
-    > "$TICKETSADMIN_BACKUP_DIR/$EVIDENCE_NAME"
-  WEBHOOK_API_KEY=not-used-by-backup ADMIN_API_KEY=not-used-by-backup docker compose cp \
-    "backend:/tmp/$BACKUP_NAME" "$TICKETSADMIN_BACKUP_DIR/$BACKUP_NAME"
-  BACKEND_CONTAINER_ID="$(WEBHOOK_API_KEY=not-used-by-backup ADMIN_API_KEY=not-used-by-backup docker compose ps -q backend)"
-  BACKEND_IMAGE_ID="$(docker inspect --format '{{.Image}}' "$BACKEND_CONTAINER_ID")"
-  docker run --rm --network none --read-only \
-    --tmpfs /tmp:rw,noexec,nosuid,size=64m \
-    --volume "$TICKETSADMIN_BACKUP_DIR:/evidence:ro" \
-    "$BACKEND_IMAGE_ID" node dist/verify-db.mjs \
-    --source "/evidence/$BACKUP_NAME" \
-    --expect-evidence "/evidence/$EVIDENCE_NAME" --json
-  WEBHOOK_API_KEY=not-used-by-backup ADMIN_API_KEY=not-used-by-backup docker compose exec -T backend \
-    rm -f "/tmp/$BACKUP_NAME"
-  ```
-
-  Los placeholders solo satisfacen la interpolación de Compose: `exec` usa el entorno real del backend que ya está corriendo y no lo modifica. El destino es obligatorio y nunca se sobrescribe. `backup-db.mjs --json` deja una única evidencia `ticketsadmin.sqlite-evidence` v1; luego, un contenedor efímero de la misma imagen reabre la copia ya transportada y exige la misma tupla SHA-256/bytes/páginas además de integridad, FK y esquema. El comando de verificación también responde con una sola línea JSON y cualquier exit distinto de cero invalida el checkpoint. La ruta puede cambiar sin invalidar la identidad del artefacto.
-
-  El archivo SQLite se crea `0600` en Linux porque contiene PII, hashes de contraseña y hashes de sesión; `umask 077` protege también la evidencia. El `cp` extrae la copia ya verificada y el último comando elimina el temporal del contenedor. El directorio externo debe ser privado (`0700`, o ACL equivalente) y tener una política explícita de retención. El workflow automatizado ya aplica exclusión mutua, verificación independiente y publicación atómica antes del rollout.
-
-- **Cambios de schema**: si se modifica cualquier archivo de `lib/db/src/schema/*.ts`, hay que generar la migración ANTES de mergear a main:
-  ```bash
-  pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts
-  ```
-  Esto crea un nuevo archivo en `lib/db/drizzle/`. Commitear ese archivo junto con el cambio de schema — el próximo deploy lo aplica solo.
-- **Rollback rápido**: `git revert` el commit problemático y pushear — el pipeline redeploya la versión anterior. Si el commit incluía un cambio estructural ya aplicado, diseñar una migración _forward_ compatible y específica; no asumir que revertir código revierte la base ni improvisar una inversa destructiva. `0011` es una excepción de datos deliberada: no cambia columnas, su `DELETE` no es reversible y **no** se debe restaurar un backup ni crear una migración inversa para recuperar sesiones. El rollback funciona sobre la columna existente y exige re-login, pero solo está soportado hasta `06db746`; restaurar una base anterior o arrancar código más viejo reintroduciría el riesgo de bearer reutilizables y además podría perder datos funcionales posteriores.
-
-### Restauración manual de SQLite
-
-Restaurar datos y volver atrás código son decisiones distintas. **Nunca se restaura automáticamente un backup por un deploy fallido**, porque podría borrar tickets o gestiones recibidas después de crear ese backup. Este procedimiento se usa solo cuando se decidió recuperar un punto de datos concreto.
-
-Precondiciones:
-
-1. Identificar el backup, la release que lo generó y el alcance de datos que se perdería. Verificar explícitamente que la release actualmente desplegada sea compatible con ese esquema; si no lo es, preparar por separado el rollback de aplicación antes de iniciar esta intervención. La verificación física no garantiza por sí sola compatibilidad semántica.
-2. Pausar el workflow de n8n o su reintento de ingesta y avisar la ventana de mantenimiento.
-3. Deshabilitar primero el workflow **Deploy** en GitHub Actions para impedir nuevas asignaciones. No alcanza con mirar que la cola esté vacía mientras el runner todavía puede recibir trabajo.
-4. Detener el runner dedicado de `ticketsAdmin`. Con el servicio ya inactivo, cancelar ejecuciones `queued`/`in_progress` y esperar a que todas queden en estado terminal; si alguna había comenzado, comprobar también que no dejó un build o proceso hijo activo. **No avanzar** mientras falte cualquiera de estas comprobaciones.
-5. Ejecutar desde el mismo checkout/configuración que administra los contenedores actualmente desplegados. Este procedimiento reinicia exactamente esos contenedores detenidos; no construye ni selecciona implícitamente otra release.
-6. Mantener backup y recovery fuera del checkout, en un directorio privado. No borrar ninguna copia hasta validar funcionalmente el sistema.
+La imagen del backend incluye CLIs independientes de backup y verificación. La
+copia online incluye transacciones confirmadas que todavía estén en WAL:
 
 ```bash
 set -euo pipefail
+umask 077
+COMPOSE_ENV=/etc/ticketsadmin/compose.env
+BACKUP_DIR=/var/lib/ticketsadmin/backups
+BACKUP_NAME="tickets-$(date -u +%Y%m%dT%H%M%SZ).db"
+EVIDENCE_NAME="$BACKUP_NAME.evidence.json"
+
+docker compose --env-file "$COMPOSE_ENV" exec -T backend \
+  node dist/backup-db.mjs --output "/tmp/$BACKUP_NAME" --json \
+  > "$BACKUP_DIR/$EVIDENCE_NAME"
+docker compose --env-file "$COMPOSE_ENV" cp \
+  "backend:/tmp/$BACKUP_NAME" "$BACKUP_DIR/$BACKUP_NAME"
+BACKEND_CONTAINER_ID="$(docker compose --env-file "$COMPOSE_ENV" ps -q backend)"
+BACKEND_IMAGE_ID="$(docker inspect --format '{{.Image}}' "$BACKEND_CONTAINER_ID")"
+docker run --rm --network none --read-only \
+  --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+  --volume "$BACKUP_DIR:/evidence:ro" \
+  "$BACKEND_IMAGE_ID" node dist/verify-db.mjs \
+  --source "/evidence/$BACKUP_NAME" \
+  --expect-evidence "/evidence/$EVIDENCE_NAME" --json
+docker compose --env-file "$COMPOSE_ENV" exec -T backend \
+  rm -f "/tmp/$BACKUP_NAME"
+```
+
+Cualquier salida no exitosa invalida ese backup o su evidencia. No copiar el
+archivo `tickets.db` directamente mientras el backend está activo.
+
+## 5. Respuesta ante un deploy fallido
+
+1. No lanzar pushes, reruns ni workflows de recuperación en cadena.
+2. Leer el primer error del job y los diagnósticos de `compose ps` y logs.
+3. Comprobar si la versión anterior sigue sana o si Compose ya recreó uno de los
+   servicios.
+4. Verificar el volumen y el backup predeploy antes de cualquier intervención.
+5. Elegir explícitamente entre una corrección hacia adelante o `git revert` más
+   un nuevo deploy. Revertir código no revierte migraciones ya aplicadas.
+6. Restaurar datos únicamente si se comprobó corrupción o se aceptó de forma
+   consciente perder todo lo posterior al backup.
+
+Nunca usar `docker compose down -v`, `docker volume rm`, copiar la base local
+sobre producción ni restaurar SQLite como respuesta automática a un fallo de la
+aplicación.
+
+## 6. Restauración manual de SQLite
+
+La restauración es una intervención offline y distinta del rollback de código.
+Debe existir una decisión humana sobre el punto de restauración y la pérdida de
+datos posterior.
+
+Precondiciones:
+
+1. Pausar la ingesta de n8n y avisar la ventana de mantenimiento.
+2. **Deshabilitar primero el workflow** Deploy en GitHub Actions.
+3. Detener el runner dedicado con el primer bloque de comandos.
+4. Verificar el backup y confirmar que el código desplegado entiende su esquema.
+5. Conservar una recovery del estado actual; no borrar archivos hasta validar la
+   aplicación completa.
+
+```bash
+set -euo pipefail
+umask 077
 
 TICKETSADMIN_RUNNER_DIR="$HOME/actions-runner-ticketsAdmin"
 RUNNER_SERVICE="$(sudo cat "$TICKETSADMIN_RUNNER_DIR/.service")"
 sudo "$TICKETSADMIN_RUNNER_DIR/svc.sh" stop
-if sudo systemctl is-active --quiet "$RUNNER_SERVICE"; then
-  echo "El runner dedicado sigue activo; restauración abortada" >&2
-  exit 1
-fi
+sudo systemctl is-active --quiet "$RUNNER_SERVICE" && exit 1 || true
 ```
 
-Con el runner offline, volver a GitHub Actions: cancelar cualquier run de **Deploy** pendiente o activo y esperar a que no quede ninguno fuera de estado terminal. Este es un control humano obligatorio porque el host no conserva una credencial de GitHub con la cual probarlo automáticamente. Recién después ejecutar el bloque siguiente:
+Con el servicio ya detenido, cancelar cualquier run de **Deploy** que continúe
+`queued` o `in_progress`. No avanzar hasta que todos queden en estado terminal.
 
 ```bash
 set -euo pipefail
+umask 077
 
-TICKETSADMIN_RECOVERY_DIR="/var/lib/ticketsadmin/recovery"
-RESTORE_SOURCE="/var/lib/ticketsadmin/backups/tickets-AAAA-MM-DD.db"
+COMPOSE_ENV=/etc/ticketsadmin/compose.env
+RESTORE_SOURCE=/var/lib/ticketsadmin/backups/<backup-elegido>.db
+RECOVERY_DIR=/var/lib/ticketsadmin/recovery
 RESTORE_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-sudo install -d -m 0700 -o "$USER" -g "$(id -gn)" "$TICKETSADMIN_RECOVERY_DIR"
+sudo install -d -m 0700 -o "$USER" -g "$(id -gn)" "$RECOVERY_DIR"
 test -f "$RESTORE_SOURCE"
-chmod 0600 "$RESTORE_SOURCE"
 
-BACKEND_CONTAINER_ID="$(WEBHOOK_API_KEY=not-used-during-restore ADMIN_API_KEY=not-used-during-restore \
-  docker compose ps -a -q backend)"
+BACKEND_CONTAINER_ID="$(docker compose --env-file "$COMPOSE_ENV" ps -a -q backend)"
 test -n "$BACKEND_CONTAINER_ID"
-if [[ "$BACKEND_CONTAINER_ID" == *$'\n'* ]]; then
-  echo "Se encontró más de un contenedor backend; restauración abortada" >&2
-  exit 1
-fi
 BACKEND_IMAGE_ID="$(docker inspect --format '{{.Image}}' "$BACKEND_CONTAINER_ID")"
-TICKETS_VOLUME_NAME="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}' "$BACKEND_CONTAINER_ID")"
+TICKETS_VOLUME_NAME="$(docker inspect --format \
+  '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}' \
+  "$BACKEND_CONTAINER_ID")"
 test -n "$BACKEND_IMAGE_ID"
 test -n "$TICKETS_VOLUME_NAME"
-printf 'Restore con backend=%s image=%s volume=%s\n' \
-  "$BACKEND_CONTAINER_ID" "$BACKEND_IMAGE_ID" "$TICKETS_VOLUME_NAME"
 
-WEBHOOK_API_KEY=not-used-during-restore ADMIN_API_KEY=not-used-during-restore \
-  docker compose stop frontend backend
-
-RUNNING_SERVICES="$(WEBHOOK_API_KEY=not-used-during-restore ADMIN_API_KEY=not-used-during-restore \
-  docker compose ps --status running --services)"
-if [[ -n "$RUNNING_SERVICES" ]]; then
-  printf 'Compose conserva servicios activos: %s\n' "$RUNNING_SERVICES" >&2
-  exit 1
-fi
-
+docker compose --env-file "$COMPOSE_ENV" stop frontend backend
 VOLUME_HOLDERS="$(docker ps -q --filter "volume=$TICKETS_VOLUME_NAME")"
-if [[ -n "$VOLUME_HOLDERS" ]]; then
-  printf 'Hay contenedores ajenos usando el volumen SQLite: %s\n' "$VOLUME_HOLDERS" >&2
-  exit 1
-fi
+test -z "$VOLUME_HOLDERS"
 
 docker run --rm --network none \
   --volume "$TICKETS_VOLUME_NAME:/data" \
   --volume "$RESTORE_SOURCE:/restore/source.db:ro" \
-  --volume "$TICKETSADMIN_RECOVERY_DIR:/recovery" \
+  --volume "$RECOVERY_DIR:/recovery" \
   "$BACKEND_IMAGE_ID" node dist/restore-db.mjs \
   --source /restore/source.db \
   --target /data/tickets.db \
   --recovery-output "/recovery/pre-restore-$RESTORE_STAMP.db" \
   --confirm-stopped
 
-sudo chown "$(id -u):$(id -g)" \
-  "$TICKETSADMIN_RECOVERY_DIR/pre-restore-$RESTORE_STAMP.db"
-chmod 0600 "$TICKETSADMIN_RECOVERY_DIR/pre-restore-$RESTORE_STAMP.db"
-```
+docker compose --env-file "$COMPOSE_ENV" start backend frontend
+test "$(curl -fsS --max-time 10 http://127.0.0.1:5000/api/readyz)" = \
+  '{"status":"ready"}'
+curl -fsS --max-time 10 http://127.0.0.1:3000/ | \
+  grep -Fq '<div id="root"></div>'
+test "$(curl -fsS --max-time 10 http://127.0.0.1:3000/api/readyz)" = \
+  '{"status":"ready"}'
 
-El comando one-shot usa por ID exacto la imagen del contenedor backend detenido y descubre desde ese contenedor el volumen montado en `/data`; no depende de una tag que otro build haya podido mover, no ejecuta migraciones y no levanta la API. Los placeholders anteriores solo permiten interpolar Compose y no se usan para autenticar nada. Si el destino existe, la operación se niega a avanzar sin publicar antes `pre-restore-*.db`; tampoco sobrescribe una recovery anterior. `--allow-missing-target` solo corresponde a un volumen realmente vacío y requiere revisar dos veces la ruta.
-
-Si informa `ROLLBACK_FAILED`, **no borrar** `.ticketmanager-restore-*`, `tickets.db.restore.lock` ni la recovery: el lock queda a propósito para impedir nuevos intentos hasta inspeccionar cuál snapshot está instalado. Un lock huérfano después de una caída también se investiga antes de retirarlo; no existe un `--force` que lo saltee.
-
-Tras una restauración exitosa, reiniciar exactamente los contenedores que se detuvieron con `docker compose start`. A diferencia de `up`, `start` no crea ni reemplaza servicios ausentes; si alguno ya no existe, falla y obliga a preparar de forma separada una release explícitamente compatible. El arranque vuelve a ejecutar sus migraciones y debe alcanzar estado healthy antes de los tres smoke tests:
-
-```bash
-set -euo pipefail
-
-docker compose --env-file /etc/ticketsadmin/compose.env start backend frontend
-BACKEND_CONTAINER_ID="$(docker compose --env-file /etc/ticketsadmin/compose.env ps -a -q backend)"
-FRONTEND_CONTAINER_ID="$(docker compose --env-file /etc/ticketsadmin/compose.env ps -a -q frontend)"
-test -n "$BACKEND_CONTAINER_ID"
-test -n "$FRONTEND_CONTAINER_ID"
-
-for ATTEMPT in $(seq 1 90); do
-  BACKEND_HEALTH="$(docker inspect --format '{{.State.Health.Status}}' "$BACKEND_CONTAINER_ID")"
-  FRONTEND_HEALTH="$(docker inspect --format '{{.State.Health.Status}}' "$FRONTEND_CONTAINER_ID")"
-  if [[ "$BACKEND_HEALTH" == "healthy" && "$FRONTEND_HEALTH" == "healthy" ]]; then
-    break
-  fi
-  if [[ "$ATTEMPT" == "90" ]]; then
-    echo "Los contenedores no alcanzaron estado healthy en 180 segundos" >&2
-    exit 1
-  fi
-  sleep 2
-done
-
-test "$(curl -fsS --max-time 5 http://127.0.0.1:5000/api/readyz)" = '{"status":"ready"}'
-SPA="$(curl -fsS --max-time 5 http://127.0.0.1:3000/)"
-grep -Fq '<div id="root"></div>' <<< "$SPA"
-test "$(curl -fsS --max-time 5 http://127.0.0.1:3000/api/readyz)" = '{"status":"ready"}'
-```
-
-Revisar tickets recientes, usuarios/roles, autenticación y una gestión completa antes de reactivar n8n. La recovery previa permanece retenida hasta cerrar formalmente la intervención.
-
-Por último, comprobar otra vez en GitHub que no haya un deploy obsoleto en cola, reactivar el runner dedicado y verificar su servicio. Reactivar el workflow **Deploy** en GitHub recién después de este bloque; n8n se reanuda al final de la ventana de mantenimiento:
-
-```bash
-set -euo pipefail
-
-TICKETSADMIN_RUNNER_DIR="$HOME/actions-runner-ticketsAdmin"
-RUNNER_SERVICE="$(sudo cat "$TICKETSADMIN_RUNNER_DIR/.service")"
 sudo "$TICKETSADMIN_RUNNER_DIR/svc.sh" start
 sudo systemctl is-active --quiet "$RUNNER_SERVICE"
 ```
+
+Después, revisar tickets recientes, usuarios, roles, login y una gestión
+completa antes de reactivar n8n y el workflow. Si `restore-db.mjs` informa un
+doble fallo o deja un lock de restauración, preservar recovery, staging y lock;
+no existe un `--force` seguro para ignorarlos.

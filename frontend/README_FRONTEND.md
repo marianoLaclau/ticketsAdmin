@@ -91,10 +91,12 @@ Todo se define en `App.tsx`. La raíz es la única entrada pública del lado del
 ```tsx
 <WouterRouter>
   <Switch>
-    <Route path="/" component={PublicEntry} />  {/* login; decide cambio o dashboard */}
+    <Route path="/" component={PublicEntry} />{" "}
+    {/* login; decide cambio o dashboard */}
     <Route>
       <AuthGate>
-        <ProtectedRouter />  {/* cambio pendiente no llega a montar este layout */}
+        <ProtectedRouter />{" "}
+        {/* cambio pendiente no llega a montar este layout */}
       </AuthGate>
     </Route>
   </Switch>
@@ -114,10 +116,12 @@ Todo se define en `App.tsx`. La raíz es la única entrada pública del lado del
 Espejo de `backend/src/lib/auth.ts`, en `frontend/src/lib/roles.ts`:
 
 ```ts
-export const ROL_SYSADMIN = 'SysAdmin';
-export const ROL_ADMINISTRADOR = 'Administrador';
-export const ROL_OPERADOR = 'Operador';
-export function puedeCerrarTickets(rol) { return rol === ROL_SYSADMIN || rol === ROL_ADMINISTRADOR; }
+export const ROL_SYSADMIN = "SysAdmin";
+export const ROL_ADMINISTRADOR = "Administrador";
+export const ROL_OPERADOR = "Operador";
+export function puedeCerrarTickets(rol) {
+  return rol === ROL_SYSADMIN || rol === ROL_ADMINISTRADOR;
+}
 ```
 
 Las restricciones visibles principales son:
@@ -131,9 +135,11 @@ En todos los casos la restricción visual es **solo UX** — la fuente de verdad
 ## Páginas
 
 ### `Dashboard.tsx` (ruta `/dashboard`)
+
 KPIs (sin revisar, en proceso, vencidos, resueltos), distribución por estado (barra segmentada), gauge de tasa de resolución, ranking de motivos (usa `getMotivoCategoriaConfig` de `lib/motivos.ts` para color y label), gráfico de barras por prioridad (Recharts), tabla de vencidos y feed de actividad reciente. El selector **Todo / Semana actual / Mes actual / Período personalizado** envía el mismo rango a los hooks `useGetDashboardStats`, `useGetActividadReciente`, `useGetTicketsVencidos` y `useGetMotivoStats`; el rango personalizado se aplica recién al confirmar fechas válidas. Todos los paneles de tickets usan la misma cohorte por fecha de creación; actividad usa la fecha real de cada evento. Dentro de una cohorte, “Resueltos” cuenta los que actualmente están resueltos o cerrados. `Todo` conserva el comportamiento histórico y “Resueltos hoy”.
 
 ### `TicketList.tsx`
+
 El listado principal (ruta `/tickets`). Filtros: búsqueda libre, estado, prioridad, **categoría de motivo** (`MOTIVO_CATEGORIA_OPTIONS`, incluida `Embargos`), rango de fechas, rango de horas, empresa y switch de "Vencidos". Cada control conserva un prefijo visible (`Estado:`, `Prioridad:`, `Categoría:`, `Fecha:`, `Hora:`, `Empresa:` y `Plazo:`), de modo que los valores default `Todos/Todas` nunca quedan sin contexto. En escritorio usa tres filas estables: búsqueda amplia con estado y prioridad; categoría con fecha y hora; empresa con plazo, exportación y limpiar. En resoluciones menores cada grupo se apila sin depender de cortes automáticos. La columna Contacto presenta nombre y empresa; debajo de una empresa real muestra `Activo` o `Inactivo` cuando `estado_empleado` fue informado. Los valores vacíos y los marcadores `Sin empresa asignada/asociada` conservan la presentación anterior sin una línea de estado. Si nombre y apellido están vacíos usa `Sin nombre proporcionado` sin alterar el registro recibido.
 
 Todos los encabezados de datos son ordenables mediante `SortableTableHead`: un clic selecciona o invierte el criterio principal y `Shift + clic` agrega criterios secundarios numerados. El frontend envía `sort` y conserva `sort_by`/`order` por compatibilidad; el backend ordena el conjunto completo antes de paginar. `Restablecer orden` vuelve a fecha de llegada descendente. La paginación conserva tamaños 10/25/50/100 y vuelve a la página 1 al cambiar filtros u orden.
@@ -141,6 +147,7 @@ Todos los encabezados de datos son ordenables mediante `SortableTableHead`: un c
 El botón **Exportar CSV**, junto a los filtros de plazo, conserva filtros y orden activos pero no la paginación: descarga todos los tickets operativos coincidentes. Mientras se genera bloquea dobles clics y comunica éxito/error con los toasts de la aplicación.
 
 ### `TicketDetail.tsx` (rutas `/tickets/:id` y `/admin/tickets/:id`)
+
 - Header con motivo, badge de vencido, fecha de creación, asignado.
 - Datos del contacto con filas fijas de teléfono y email. Cada una muestra el valor cuando existe o `Teléfono no proporcionado` / `Email no proporcionado` cuando el llamante no lo indicó; nombre también mantiene su fallback visual. Si hay empresa y estado laboral, presenta `Activo` o `Inactivo` debajo de la empresa.
 - Botón con lápiz **Editar datos**: abre `TicketDataEditDialog` para nombre, apellido, teléfono, DNI/CUIT, empresa, email, motivo y resumen. Genera un PATCH mínimo, normaliza opcionales vacíos a `null` y recalcula la categoría al cambiar motivo/resumen. Al corregir DNI o empresa, el backend invalida el estado laboral obtenido previamente desde Serin para evitar asociarlo a datos distintos. La interfaz avisa que cada corrección quedará registrada.
@@ -153,7 +160,9 @@ El botón **Exportar CSV**, junto a los filtros de plazo, conserva filtros y ord
 - Los dos editores congelan el `Ticket.version` junto con sus valores al abrir y envían `expected_version` con un PATCH mínimo. Ante `409 TICKET_VERSION_CONFLICT` conservan el draft visible, bloquean Guardar y solo lo reemplazan cuando la persona elige explícitamente cargar la versión actual. Si la recarga falla, nada escrito se descarta.
 
 ### `Admin.tsx` (ruta `/admin`, solo SysAdmin)
+
 Tres tabs:
+
 - **Registros**: tabla CRUD completa (busca, pagina, crea, edita, elimina cualquier ticket) — es la única vía de alta manual del sistema (`POST /api/admin/tickets`).
 - La tabla de Registros muestra ID, fecha/hora, conversation ID, contacto (con teléfono/email), empresa, categoría/motivo, estado, prioridad, asignado y vencimiento. Todas las columnas de datos son ordenables en el servidor; la tabla usa scroll horizontal controlado y mantiene las acciones visibles. Además de editar/eliminar, cada fila se puede abrir en el detalle administrativo, incluidos los registros en cuarentena.
 - La edición captura un baseline versionado, omite `conversation_id` y envía solo diferencias. Un conflicto conserva el formulario hasta que el SysAdmin confirma la carga de la revisión actual; las respuestas de mutaciones nunca reemplazan en caché una versión más nueva recibida por SSE/refetch.
@@ -165,7 +174,9 @@ Usa `AdminHeader` (compartido con `AdminRolesUsers.tsx`) para crear o revocar la
 `main.tsx` elimina de forma preventiva las claves legadas `admin-key` y `admin-key:user:*` de `localStorage` y `sessionStorage` antes de montar React. Solo enumera y elimina nombres: nunca lee ni migra el valor anterior. Esta compatibilidad de limpieza no vuelve a convertir el almacenamiento del navegador en parte del diseño vigente.
 
 ### `AdminRolesUsers.tsx` (ruta `/admin/roles-usuarios`, solo SysAdmin)
+
 Dos tabs, cada uno con su propia paginación/búsqueda/filtros:
+
 - **Usuarios**: alta/edición (nombre, apellido, **nombre de usuario**, email, rol, activo), activación/desactivación con `Switch` (nunca borrado físico). El backend rechaza roles inactivos y evita desactivar o degradar al último SysAdmin con credenciales utilizables. **Al crear** un usuario, el formulario pide además contraseña + repetir y aplica la política compartida (16–128 caracteres, sin controles ni espacios exteriores, y sin valores predecibles conocidos; admite frases con espacios interiores). El SysAdmin define las credenciales ahí mismo y se las entrega a la persona; esos campos no aparecen al editar un usuario existente. Cambiar la contraseña de alguien que ya existe se hace con la **llavesita de reset** (ícono ámbar), con la misma política, y al guardar revoca las sesiones activas de ese usuario en el backend. Todos los campos de contraseña usan `PasswordInput`: permanecen ocultos por defecto y tienen un ojo accesible para mostrar/ocultar.
 - **Roles**: alta/edición/activación y borrado con confirmación para perfiles personalizados. `SysAdmin`, `Administrador` y `Operador` muestran bloqueados los controles de nombre, estado y borrado porque son identidades reservadas; su descripción sí se puede editar. Desactivar un rol personalizado invalida el acceso de sus usuarios.
 
@@ -223,7 +234,7 @@ El transporte real (`customFetch`) vive en `lib/api-client-react/src/custom-fetc
 
 La suite de navegador vive en [`../e2e/`](../e2e/) y se ejecuta desde la raíz con `pnpm run test:e2e` o `pnpm run test:e2e:headed`. Playwright levanta un backend real y Vite en puertos exclusivos, crea una base SQLite temporal, aplica dos veces la cadena real de migraciones para comprobar idempotencia y corre cuatro flujos seriales en Chromium: primer ingreso/cambio obligatorio, ingesta y SSE, elevación/RBAC/revocación, y cuarentena/conflicto/exportación. Verifica también que el secreto administrativo solo aparezca en el body del POST de elevación y no quede en headers, URLs ni storage.
 
-Antes de la primera corrida local se instala el navegador con `pnpm --filter @workspace/e2e exec playwright install chromium`. Las trazas, screenshots y videos retenidos ante fallos quedan bajo `e2e/artifacts/`, ignorado por Git; en CI se agrega allí el reporte HTML. En GitHub, el job `e2e` depende del job `quality`, instala Chromium con sus dependencias y ejecuta esta suite como segunda etapa bloqueante de pull requests y deploy; ante un fallo publica `playwright-diagnostics` durante 7 días.
+Antes de la primera corrida local se instala el navegador con `pnpm --filter @workspace/e2e exec playwright install chromium`. Las trazas, screenshots y videos retenidos ante fallos quedan bajo `e2e/artifacts/`, ignorado por Git; en CI se agrega allí el reporte HTML. En GitHub, el job `e2e` depende del job `quality`, instala Chromium con sus dependencias y ejecuta esta suite como segunda etapa bloqueante del workflow Quality para pull requests. Deploy es un workflow separado; ante un fallo de navegador, Quality publica `playwright-diagnostics` durante 7 días.
 
 ## Pantallas de error
 

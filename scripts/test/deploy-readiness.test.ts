@@ -1,27 +1,18 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
-const compose = readFileSync(
-  new URL("../../docker-compose.yml", import.meta.url),
-  "utf8",
-).replace(/\r\n?/g, "\n");
-const workflow = readFileSync(
-  new URL("../../.github/workflows/deploy.yml", import.meta.url),
-  "utf8",
-).replace(/\r\n?/g, "\n");
-const backendDockerfile = readFileSync(
-  new URL("../../Dockerfile.backend", import.meta.url),
-  "utf8",
-).replace(/\r\n?/g, "\n");
-const frontendDockerfile = readFileSync(
-  new URL("../../Dockerfile.frontend", import.meta.url),
-  "utf8",
-).replace(/\r\n?/g, "\n");
-const dockerIgnore = readFileSync(
-  new URL("../../.dockerignore", import.meta.url),
-  "utf8",
-).replace(/\r\n?/g, "\n");
+function readRepositoryFile(path: string): string {
+  return readFileSync(
+    new URL(`../../${path}`, import.meta.url),
+    "utf8",
+  ).replace(/\r\n?/g, "\n");
+}
+
+const compose = readRepositoryFile("docker-compose.yml");
+const workflow = readRepositoryFile(".github/workflows/deploy.yml");
+const backendDockerfile = readRepositoryFile("Dockerfile.backend");
+const frontendDockerfile = readRepositoryFile("Dockerfile.frontend");
 const activeCompose = compose.replace(/#[^\n]*/g, "");
 
 const escapeRegExp = (value: string): string =>
@@ -29,218 +20,124 @@ const escapeRegExp = (value: string): string =>
 
 function serviceBlock(name: "backend" | "frontend"): string {
   const end = name === "backend" ? "\\n  frontend:" : "\\nvolumes:";
-  const pattern = new RegExp(`\\n  ${name}:\\n([\\s\\S]*?)${end}`);
-  const match = pattern.exec(activeCompose);
-  assert.ok(match?.[1], `no se encontro el servicio ${name}`);
+  const match = new RegExp(`\\n  ${name}:\\n([\\s\\S]*?)${end}`).exec(
+    activeCompose,
+  );
+  assert.ok(match?.[1], `no se encontró el servicio ${name}`);
   return match[1];
 }
 
 function workflowStep(name: string): string {
-  const pattern = new RegExp(
+  const match = new RegExp(
     `\\n {6}- name: ${escapeRegExp(name)}\\n([\\s\\S]*?)(?=\\n {6}- name:|$)`,
-  );
-  const match = pattern.exec(workflow);
-  assert.ok(match?.[1], `no se encontro el step ${name}`);
+  ).exec(workflow);
+  assert.ok(match?.[1], `no se encontró el step ${name}`);
   return match[1];
 }
 
-test("Compose publica readiness end-to-end", () => {
+test("Compose publica readiness end-to-end y conserva SQLite", () => {
   const backend = serviceBlock("backend");
   const frontend = serviceBlock("frontend");
 
+  assert.match(backend, /image: ticketsadmin-backend:local/);
+  assert.match(backend, /tickets_data:\/data/);
   assert.match(backend, /http:\/\/127\.0\.0\.1:5000\/api\/readyz/);
   assert.match(backend, /\{"status":"ready"\}/);
   assert.doesNotMatch(backend, /\/api\/healthz/);
   assert.match(backend, /start_period:\s*60s/);
 
+  assert.match(frontend, /image: ticketsadmin-frontend:local/);
   assert.match(frontend, /condition:\s*service_healthy/);
   assert.match(frontend, /restart:\s*true/);
-  assert.match(frontend, /"CMD-SHELL"/);
-  assert.match(frontend, /spa="\$\$\(wget[^\n]*127\.0\.0\.1\/\)"/);
-  assert.match(frontend, /printf[^\n]*\$\$spa[^\n]*<div id="root"><\/div>/);
-  assert.match(frontend, /&& ready="\$\$\(wget[^\n]*\/api\/readyz\)"/);
-  assert.match(frontend, /printf[^\n]*\$\$ready[^\n]*grep -Fxq/);
+  assert.match(frontend, /<div id="root"><\/div>/);
+  assert.match(frontend, /\/api\/readyz/);
   assert.match(frontend, /\{"status":"ready"\}/);
+  assert.match(activeCompose, /\nvolumes:\n {2}tickets_data:\s*$/);
 });
 
-test("el workflow delega checkpoint, deploy y smoke a una sola operacion", () => {
-  const release = workflowStep("Create checkpoint and deploy verified release");
-  const diagnostics = workflowStep("Deployment diagnostics");
+test("el deploy real ejecuta backup, build, up y smoke en ese orden", () => {
+  const backup = workflowStep("Backup SQLite");
+  const build = workflowStep("Build images");
+  const deploy = workflowStep("Deploy");
+  const smoke = workflowStep("Smoke test");
+  const diagnostics = workflowStep("Diagnostics on failure");
 
-  assert.match(release, /bash scripts\/deploy\/deploy-release\.sh/);
-  assert.match(release, /id: release/);
-  assert.match(release, /--backend-image-id/);
-  assert.match(release, /--frontend-image-id/);
-  assert.match(release, /--backup-dir/);
-  assert.match(release, /--state-dir/);
-  assert.match(release, /--lock-file/);
-  assert.match(release, /--allow-legacy-adoption/);
-  assert.match(release, /--allow-fix-forward-transition/);
-  assert.match(release, /--expected-baseline-release/);
-  assert.match(release, /--expected-baseline-backend-image-id/);
-  assert.match(release, /--expected-baseline-frontend-image-id/);
-  assert.match(release, /--resume-pending-attempt/);
-  assert.match(release, /--expected-state-generation/);
-  assert.match(workflow, /workflow_dispatch:\n\s+inputs:/);
-  assert.match(workflow, /inputs\.allow_legacy_adoption \|\| false/);
-  assert.match(workflow, /inputs\.allow_fix_forward_transition \|\| false/);
-  assert.match(workflow, /inputs\.expected_baseline_release \|\| ''/);
-  assert.match(workflow, /inputs\.expected_baseline_backend_image_id \|\| ''/);
-  assert.match(workflow, /inputs\.expected_baseline_frontend_image_id \|\| ''/);
-  assert.match(workflow, /inputs\.resume_pending_attempt \|\| ''/);
-  assert.match(workflow, /inputs\.expected_state_generation \|\| ''/);
-  assert.doesNotMatch(workflow, /vars\.TICKETSADMIN_ALLOW_/);
-  assert.doesNotMatch(workflow, /name: Deploy and wait for healthy services/);
-  assert.doesNotMatch(workflow, /name: Smoke test published services/);
-  assert.doesNotMatch(workflow, /run: docker compose up/);
+  const orderedSteps = [
+    "Backup SQLite",
+    "Build images",
+    "Deploy",
+    "Smoke test",
+  ];
+  for (let index = 1; index < orderedSteps.length; index += 1) {
+    assert.ok(
+      workflow.indexOf(`- name: ${orderedSteps[index - 1]}`) <
+        workflow.indexOf(`- name: ${orderedSteps[index]}`),
+      `${orderedSteps[index - 1]} debe preceder a ${orderedSteps[index]}`,
+    );
+  }
 
-  assert.match(
-    diagnostics,
-    /if: failure\(\) && steps\.release\.outcome == 'failure'/,
-  );
-  assert.match(
-    diagnostics,
-    /docker compose logs --no-color --tail=100 backend frontend/,
-  );
+  assert.match(backup, /set -euo pipefail/);
+  assert.match(backup, /\/var\/lib\/ticketsadmin\/backups/);
+  assert.match(backup, /ticketsadmin_tickets_data:\/data:ro/);
+  assert.match(backup, /\.backup '\/backups\/pre-deploy-\$stamp\.db'/);
+  assert.match(backup, /PRAGMA integrity_check;/);
+  assert.match(backup, /grep -Fxq ok/);
+  assert.doesNotMatch(backup, /continue-on-error|cp \/data\/tickets\.db/);
+
+  assert.match(build, /run: docker compose build/);
+  assert.match(build, /WEBHOOK_API_KEY: not-used-during-image-build/);
+  assert.match(build, /ADMIN_API_KEY: not-used-during-image-build/);
+  assert.doesNotMatch(build, /secrets\./);
+
+  assert.match(deploy, /docker compose up -d --wait --wait-timeout 180/);
+  assert.match(deploy, /secrets\.WEBHOOK_API_KEY/);
+  assert.match(deploy, /secrets\.ADMIN_API_KEY/);
+  assert.match(deploy, /secrets\.BOOTSTRAP_SYSADMIN_PASSWORD/);
+
+  assert.match(smoke, /127\.0\.0\.1:5000\/api\/readyz/);
+  assert.match(smoke, /127\.0\.0\.1:3000\//);
+  assert.match(smoke, /<div id="root"><\/div>/);
+  assert.match(diagnostics, /if: failure\(\)/);
+  assert.match(diagnostics, /docker compose ps \|\| true/);
+  assert.match(diagnostics, /logs --no-color --tail=150 backend frontend/);
   assert.doesNotMatch(diagnostics, /--follow|logs\s+-f/);
 
-  assert.doesNotMatch(workflow, /docker image prune/);
-});
-
-test("el runner valida capacidades de Compose antes de construir", () => {
-  const preflight = workflowStep("Verify Docker Compose capabilities");
-  assert.match(preflight, /minimum_version="2\.17\.0"/);
-  assert.match(preflight, /compose_up_help="\$\(docker compose up --help\)"/);
-  assert.match(preflight, /--wait\(\[\[:space:\]\]\|\$\)/);
-  assert.match(preflight, /--wait-timeout\(\[\[:space:\]\]\|\$\)/);
-  assert.match(preflight, /--no-build\(\[\[:space:\]\]\|\$\)/);
-  assert.match(preflight, /command -v "\$required_command" >\/dev\/null/);
-  assert.match(
-    preflight,
-    /bash curl flock jq sha256sum stat mktemp realpath sync/,
-  );
-  assert.match(preflight, /TICKETSADMIN_BACKUP_DIR/);
-  assert.match(preflight, /TICKETSADMIN_RELEASE_STATE_DIR/);
-  assert.match(preflight, /TICKETSADMIN_DEPLOY_LOCK_DIR/);
-  assert.match(
+  assert.doesNotMatch(
     workflow,
-    /TICKETSADMIN_DEPLOY_LOCK_DIR: \/var\/lib\/ticketsadmin\/locks/,
-  );
-  assert.doesNotMatch(workflow, /\/var\/lock\/ticketsadmin/);
-  assert.match(preflight, /Preflight failed: %s/);
-  assert.match(preflight, /missing private directory:/);
-  assert.match(preflight, /private directory is not canonical:/);
-  assert.match(preflight, /test ! -L "\$private_directory"/);
-  assert.match(preflight, /realpath -e -- "\$private_directory"/);
-  assert.match(preflight, /stat -c '%u'/);
-  assert.match(preflight, /stat -c '%a'/);
-  assert.match(preflight, /= "700"/);
-  assert.match(
-    preflight,
-    /lock_file="\$TICKETSADMIN_DEPLOY_LOCK_DIR\/deploy\.lock"/,
-  );
-  assert.match(preflight, /test ! -L "\$lock_file"/);
-  assert.match(preflight, /= "600"/);
-  assert.match(preflight, /release-state\.json/);
-  assert.match(preflight, /stat -c '%h'/);
-  assert.match(preflight, /release_state_bytes/);
-  assert.match(preflight, /131072/);
-  assert.match(preflight, /docker compose config --quiet/);
-  assert.match(preflight, /docker compose config --format json/);
-  assert.match(
-    preflight,
-    /del\(\.services\[\]\.image, \.services\[\]\.build\)/,
-  );
-  assert.match(preflight, /compose_contract_sha256/);
-  assert.match(preflight, /git rev-parse HEAD:lib\/db\/drizzle/);
-  assert.match(preflight, /TICKETSADMIN_DB_ROLLBACK_EPOCH=drizzle-/);
-  assert.match(preflight, /GITHUB_ENV/);
-  assert.ok(
-    workflow.indexOf("Verify Docker Compose capabilities") <
-      workflow.indexOf("Build images"),
-    "el preflight debe ocurrir antes del build",
+    /deploy-release|release-state|recover-pending|fix-forward|docker compose down|docker volume rm|docker image prune|restore-db/,
   );
 });
 
-test("cada ejecucion construye y verifica referencias de imagen identificables", () => {
-  const backend = serviceBlock("backend");
-  const frontend = serviceBlock("frontend");
-  const verify = workflowStep("Verify candidate image identities");
-  const release = workflowStep("Create checkpoint and deploy verified release");
+test("el workflow serializa deploys desde main sin cancelar uno activo", () => {
+  assert.match(workflow, /push:\n\s+branches: \[main\]/);
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /runs-on: self-hosted/);
+  assert.match(workflow, /group: deploy-testing/);
+  assert.match(workflow, /cancel-in-progress: false/);
+  assert.match(workflow, /timeout-minutes: 30/);
+});
 
-  assert.match(
-    backend,
-    /image: \$\{TICKETSADMIN_BACKEND_IMAGE:-ticketsadmin-backend:local\}/,
-  );
-  assert.match(
-    frontend,
-    /image: \$\{TICKETSADMIN_FRONTEND_IMAGE:-ticketsadmin-frontend:local\}/,
-  );
-  assert.match(backend, /pull_policy:\s*never/);
-  assert.match(frontend, /pull_policy:\s*never/);
-  assert.match(backend, /TICKETSADMIN_IMAGE_REVISION:/);
-  assert.match(frontend, /TICKETSADMIN_IMAGE_REVISION:/);
+test("no quedan entrypoints ni metadatos del orquestador retirado", () => {
+  for (const path of [
+    ".github/workflows/recover-pending.yml",
+    "scripts/deploy/deploy-release.sh",
+    "scripts/deploy/release-state.sh",
+  ]) {
+    assert.equal(existsSync(new URL(`../../${path}`, import.meta.url)), false);
+  }
 
-  assert.match(
-    workflow,
-    /TICKETSADMIN_BACKEND_IMAGE: ticketsadmin-backend:git-\$\{\{ github\.sha \}\}-run-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}/,
-  );
-  assert.match(
-    workflow,
-    /TICKETSADMIN_FRONTEND_IMAGE: ticketsadmin-frontend:git-\$\{\{ github\.sha \}\}-run-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}/,
-  );
-  assert.doesNotMatch(workflow, /(?:backend|frontend):latest/);
-
-  assert.match(verify, /docker image inspect/);
-  assert.match(verify, /org\.opencontainers\.image\.revision/);
-  assert.match(verify, /org\.opencontainers\.image\.source/);
-  assert.match(verify, /io\.ticketsadmin\.release-id/);
-  assert.match(verify, /io\.ticketsadmin\.runtime-epoch/);
-  assert.match(verify, /io\.ticketsadmin\.db-rollback-epoch/);
-  assert.match(verify, /io\.ticketsadmin\.compose-contract-sha256/);
-  assert.match(verify, /TICKETSADMIN_DB_ROLLBACK_EPOCH/);
-  assert.match(verify, /test "\$revision" = "\$GITHUB_SHA"/);
-  assert.match(verify, /test "\$source" = "\$TICKETSADMIN_IMAGE_SOURCE"/);
-  assert.match(
-    verify,
-    /verify_image "\$TICKETSADMIN_BACKEND_IMAGE" backend_id/,
-  );
-  assert.match(
-    verify,
-    /verify_image "\$TICKETSADMIN_FRONTEND_IMAGE" frontend_id/,
-  );
-  assert.match(verify, /GITHUB_OUTPUT/);
-  assert.match(verify, /node dist\/backup-db\.mjs --help/);
-  assert.match(verify, /node dist\/verify-db\.mjs --help/);
-  assert.match(verify, /node dist\/restore-db\.mjs --help/);
-  assert.match(
-    verify,
-    /--network none --add-host backend:127\.0\.0\.1[\s\S]*--entrypoint nginx[\s\S]*"\$TICKETSADMIN_FRONTEND_IMAGE" -t/,
-  );
-  assert.match(release, /steps\.candidate_images\.outputs\.backend_id/);
-  assert.match(release, /steps\.candidate_images\.outputs\.frontend_id/);
+  for (const source of [compose, backendDockerfile, frontendDockerfile]) {
+    assert.doesNotMatch(
+      source,
+      /TICKETSADMIN_(?:RELEASE|IMAGE|COMPOSE_CONTRACT|DB_ROLLBACK)/,
+    );
+    assert.doesNotMatch(
+      source,
+      /io\.ticketsadmin\.(?:release-id|runtime-epoch|db-rollback-epoch|compose-contract)/,
+    );
+  }
 
   for (const dockerfile of [backendDockerfile, frontendDockerfile]) {
-    assert.match(dockerfile, /ARG TICKETSADMIN_IMAGE_REVISION=development/);
-    assert.match(dockerfile, /ARG TICKETSADMIN_RELEASE_ID=development/);
-    assert.match(
-      dockerfile,
-      /ARG TICKETSADMIN_COMPOSE_CONTRACT_SHA256=development/,
-    );
-    assert.match(dockerfile, /ARG TICKETSADMIN_DB_ROLLBACK_EPOCH=development/);
-    assert.match(dockerfile, /org\.opencontainers\.image\.revision/);
-    assert.match(dockerfile, /org\.opencontainers\.image\.source/);
-    assert.match(dockerfile, /io\.ticketsadmin\.release-id/);
-    assert.match(dockerfile, /io\.ticketsadmin\.runtime-epoch="readyz-v1"/);
-    assert.match(
-      dockerfile,
-      /io\.ticketsadmin\.db-rollback-epoch="\$\{TICKETSADMIN_DB_ROLLBACK_EPOCH\}"/,
-    );
-    assert.match(dockerfile, /io\.ticketsadmin\.compose-contract-sha256/);
-    assert.match(
-      dockerfile,
-      /^COPY package\.json pnpm-lock\.yaml pnpm-workspace\.yaml \.\/$/m,
-    );
     assert.ok(
       dockerfile.indexOf(
         "COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./",
@@ -251,17 +148,4 @@ test("cada ejecucion construye y verifica referencias de imagen identificables",
         dockerfile.indexOf("COPY . ."),
     );
   }
-
-  assert.ok(
-    workflow.indexOf("Build images") <
-      workflow.indexOf("Verify candidate image identities"),
-  );
-  assert.ok(
-    workflow.indexOf("Verify candidate image identities") <
-      workflow.indexOf("Create checkpoint and deploy verified release"),
-  );
-
-  assert.match(dockerIgnore, /^\.pnpm-store$/m);
-  assert.match(dockerIgnore, /^tmp$/m);
-  assert.match(dockerIgnore, /^\*\*\/node_modules$/m);
 });

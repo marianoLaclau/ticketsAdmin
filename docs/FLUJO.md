@@ -109,30 +109,30 @@ New-NetFirewallRule -DisplayName "GSB Tickets API" -Direction Inbound -Protocol 
 
 API REST en Express 5. Único componente que toca la base. Rutas:
 
-| Ruta                                     | Qué hace                                                                                                                                                                                                                            |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /api/webhooks/ticket`              | **Ingesta**: crea el ticket de una llamada. Única ruta autenticada con la API key de integración `x-api-key`. Idempotente. Si no viene `fecha_limite`, se preestablece a **48 horas hábiles de lunes a viernes** (SLA).        |
-| `GET/POST/DELETE /api/auth/admin-elevation` | Consulta, crea con body `{ admin_key }` o revoca el grant efímero de la sesión SysAdmin. La clave se presenta solo en el POST; el grant dura hasta 15 minutos.                                                                      |
-| `GET /api/tickets`                       | Listado operativo con filtros, orden server-side por columna y paginación. Omite registros en cuarentena; `incluir_vacios=true` exige sesión SysAdmin elevada y `x-admin-intent: 1`.                                                 |
-| `GET /api/tickets/export.csv`            | Exporta por streaming todos los tickets operativos que cumplen los filtros y el orden activos, no solo la página visible; mantiene memoria acotada y libera el cursor si el cliente se desconecta.                                  |
-| `GET /api/tickets/:id`                   | Detalle + historial de seguimientos; `incluir_vacios=true` permite abrir la cuarentena con acceso administrativo.                                                                                                                   |
-| `PATCH /api/tickets/:id`                 | Exige `expected_version` + cambios. Edita gestión/datos funcionales; los técnicos requieren SysAdmin elevado + `x-admin-intent: 1`. Dato, versión y auditoría son atómicos; una revisión vieja recibe `409 TICKET_VERSION_CONFLICT`. |
-| `DELETE /api/tickets/:id`                | Eliminar; exige sesión SysAdmin elevada y `x-admin-intent: 1`.                                                                                                                                                                      |
-| `GET/POST /api/tickets/:id/seguimientos` | Historial: notas y cambios de estado, prioridad, asignación y campos editados. Autor y contexto los determina el backend.                                                                                                           |
-| `GET /api/dashboard/stats`               | Totales y KPIs; acepta `fecha_desde`/`fecha_hasta` inclusivas por fecha de creación.                                                                                                                                                |
-| `GET /api/dashboard/actividad-reciente`  | Línea de tiempo de tickets y seguimientos; el rango se aplica a la fecha real del evento.                                                                                                                                           |
-| `GET /api/dashboard/tickets-vencidos`    | Vencidos del conjunto de tickets creados dentro del rango solicitado.                                                                                                                                                               |
-| `GET /api/dashboard/motivos`             | Categorías de contacto del conjunto creado dentro del rango solicitado.                                                                                                                                                             |
-| `GET /api/healthz`                       | Chequeo de vida.                                                                                                                                                                                                                    |
-| `GET /api/readyz`                        | Disponibilidad real: `200` solo en fase `ready` y con los schemas runtime de tickets, cuarentena y sesiones accesibles en SQLite; `503` durante arranque, fallo o drenaje.                                                        |
-| `POST /api/admin/tickets`                | **Admin**: alta manual de un registro (409 si el conversation_id existe).                                                                                                                                                           |
-| `POST /api/admin/import`                 | **Admin**: importación masiva CSV atómica e idempotente; `dry_run` simula sin escribir.                                                                                                                                             |
-| `POST /api/admin/truncate`               | **Admin**: borra registros y reinicia ids en una transacción (requiere `confirmar: true`).                                                                                                                                          |
-| `GET/POST /api/admin/roles`              | **Admin**: listado paginado y alta de roles.                                                                                                                                                                                        |
-| `PATCH/DELETE /api/admin/roles/:id`      | **Admin**: CRUD de roles personalizados. Los roles base permiten editar descripción, pero no nombre, estado ni eliminación.                                                                                                         |
-| `GET/POST /api/admin/users`              | **Admin**: listado paginado, filtros y alta de usuarios.                                                                                                                                                                            |
-| `PATCH /api/admin/users/:id`             | **Admin**: edición, cambio de rol y activación/desactivación; preserva un SysAdmin y revoca sesiones ante un cambio real de rol.                                                                                                    |
-| `GET /api/events`                        | **SSE**: stream de eventos en vivo. El frontend recibe altas/importaciones, actualizaciones de tickets y cambios automáticos de prioridad al instante. Fuera de OpenAPI porque Orval no modela streams.                             |
+| Ruta                                        | Qué hace                                                                                                                                                                                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /api/webhooks/ticket`                 | **Ingesta**: crea el ticket de una llamada. Única ruta autenticada con la API key de integración `x-api-key`. Idempotente. Si no viene `fecha_limite`, se preestablece a **48 horas hábiles de lunes a viernes** (SLA).              |
+| `GET/POST/DELETE /api/auth/admin-elevation` | Consulta, crea con body `{ admin_key }` o revoca el grant efímero de la sesión SysAdmin. La clave se presenta solo en el POST; el grant dura hasta 15 minutos.                                                                       |
+| `GET /api/tickets`                          | Listado operativo con filtros, orden server-side por columna y paginación. Omite registros en cuarentena; `incluir_vacios=true` exige sesión SysAdmin elevada y `x-admin-intent: 1`.                                                 |
+| `GET /api/tickets/export.csv`               | Exporta por streaming todos los tickets operativos que cumplen los filtros y el orden activos, no solo la página visible; mantiene memoria acotada y libera el cursor si el cliente se desconecta.                                   |
+| `GET /api/tickets/:id`                      | Detalle + historial de seguimientos; `incluir_vacios=true` permite abrir la cuarentena con acceso administrativo.                                                                                                                    |
+| `PATCH /api/tickets/:id`                    | Exige `expected_version` + cambios. Edita gestión/datos funcionales; los técnicos requieren SysAdmin elevado + `x-admin-intent: 1`. Dato, versión y auditoría son atómicos; una revisión vieja recibe `409 TICKET_VERSION_CONFLICT`. |
+| `DELETE /api/tickets/:id`                   | Eliminar; exige sesión SysAdmin elevada y `x-admin-intent: 1`.                                                                                                                                                                       |
+| `GET/POST /api/tickets/:id/seguimientos`    | Historial: notas y cambios de estado, prioridad, asignación y campos editados. Autor y contexto los determina el backend.                                                                                                            |
+| `GET /api/dashboard/stats`                  | Totales y KPIs; acepta `fecha_desde`/`fecha_hasta` inclusivas por fecha de creación.                                                                                                                                                 |
+| `GET /api/dashboard/actividad-reciente`     | Línea de tiempo de tickets y seguimientos; el rango se aplica a la fecha real del evento.                                                                                                                                            |
+| `GET /api/dashboard/tickets-vencidos`       | Vencidos del conjunto de tickets creados dentro del rango solicitado.                                                                                                                                                                |
+| `GET /api/dashboard/motivos`                | Categorías de contacto del conjunto creado dentro del rango solicitado.                                                                                                                                                              |
+| `GET /api/healthz`                          | Chequeo de vida.                                                                                                                                                                                                                     |
+| `GET /api/readyz`                           | Disponibilidad real: `200` solo en fase `ready` y con los schemas runtime de tickets, cuarentena y sesiones accesibles en SQLite; `503` durante arranque, fallo o drenaje.                                                           |
+| `POST /api/admin/tickets`                   | **Admin**: alta manual de un registro (409 si el conversation_id existe).                                                                                                                                                            |
+| `POST /api/admin/import`                    | **Admin**: importación masiva CSV atómica e idempotente; `dry_run` simula sin escribir.                                                                                                                                              |
+| `POST /api/admin/truncate`                  | **Admin**: borra registros y reinicia ids en una transacción (requiere `confirmar: true`).                                                                                                                                           |
+| `GET/POST /api/admin/roles`                 | **Admin**: listado paginado y alta de roles.                                                                                                                                                                                         |
+| `PATCH/DELETE /api/admin/roles/:id`         | **Admin**: CRUD de roles personalizados. Los roles base permiten editar descripción, pero no nombre, estado ni eliminación.                                                                                                          |
+| `GET/POST /api/admin/users`                 | **Admin**: listado paginado, filtros y alta de usuarios.                                                                                                                                                                             |
+| `PATCH /api/admin/users/:id`                | **Admin**: edición, cambio de rol y activación/desactivación; preserva un SysAdmin y revoca sesiones ante un cambio real de rol.                                                                                                     |
+| `GET /api/events`                           | **SSE**: stream de eventos en vivo. El frontend recibe altas/importaciones, actualizaciones de tickets y cambios automáticos de prioridad al instante. Fuera de OpenAPI porque Orval no modela streams.                              |
 
 Las estadísticas y los motivos del Dashboard se agregan directamente en SQLite, sin traer tickets completos al proceso web. Los KPIs de una respuesta comparten snapshot y los límites de “hoy” se calculan siempre con el calendario de Buenos Aires; así no cambian si el contenedor o la máquina de desarrollo usan otra zona horaria.
 
@@ -285,30 +285,30 @@ La promoción comprueba nuevamente estado, prioridad y vencimiento antes de escr
 
 ### Tabla `usuarios` — personas y asignación de rol
 
-| Campo                                    | Tipo                                                    |
-| ---------------------------------------- | ------------------------------------------------------- |
-| `id`                                     | entero autoincremental                                  |
-| `nombre`, `apellido`                     | texto; apellido opcional                                |
-| `email`                                  | texto único, normalizado a minúsculas                   |
+| Campo                                    | Tipo                                                       |
+| ---------------------------------------- | ---------------------------------------------------------- |
+| `id`                                     | entero autoincremental                                     |
+| `nombre`, `apellido`                     | texto; apellido opcional                                   |
+| `email`                                  | texto único, normalizado a minúsculas                      |
 | `username`                               | texto único; identificador de login, distinto del email    |
-| `password_hash`                          | hash scrypt versionado, nullable para filas históricas       |
-| `debe_cambiar_password`                  | booleano autoritativo; `true` para credenciales temporales      |
-| `role_id`                                | referencia a `roles`; no permite borrar un rol asignado |
-| `activo`                                 | booleano; se desactiva en vez de borrar físicamente     |
-| `fecha_creacion` / `fecha_actualizacion` | timestamp                                               |
+| `password_hash`                          | hash scrypt versionado, nullable para filas históricas     |
+| `debe_cambiar_password`                  | booleano autoritativo; `true` para credenciales temporales |
+| `role_id`                                | referencia a `roles`; no permite borrar un rol asignado    |
+| `activo`                                 | booleano; se desactiva en vez de borrar físicamente        |
+| `fecha_creacion` / `fecha_actualizacion` | timestamp                                                  |
 
 `usuarios` contiene las identidades autenticables y gobierna los permisos junto con `roles`. Nunca guarda una contraseña en claro: solo el hash scrypt. Desactivar una cuenta o su rol invalida sus sesiones; los cambios reales de rol y los resets administrativos también las revocan.
 
 ### Tabla `sesiones` — login revocable y elevación
 
-| Campo                              | Tipo                                                    |
-| ---------------------------------- | ------------------------------------------------------- |
-| `token`                            | PK física histórica; contiene `sha256:<digest>`    |
-| `usuario_id`                       | referencia a `usuarios`, borrado en cascada             |
-| `fecha_expiracion`                 | timestamp absoluto; siete días desde el login         |
-| `admin_elevacion_hasta`            | timestamp nullable del grant administrativo             |
-| `admin_elevacion_clave_hash`       | fingerprint nullable y versionado de `ADMIN_API_KEY`    |
-| `fecha_creacion`                   | timestamp                                               |
+| Campo                        | Tipo                                                 |
+| ---------------------------- | ---------------------------------------------------- |
+| `token`                      | PK física histórica; contiene `sha256:<digest>`      |
+| `usuario_id`                 | referencia a `usuarios`, borrado en cascada          |
+| `fecha_expiracion`           | timestamp absoluto; siete días desde el login        |
+| `admin_elevacion_hasta`      | timestamp nullable del grant administrativo          |
+| `admin_elevacion_clave_hash` | fingerprint nullable y versionado de `ADMIN_API_KEY` |
+| `fecha_creacion`             | timestamp                                            |
 
 La cookie `gsb_session` contiene el bearer aleatorio raw; SQLite conserva solo su hash con separación de dominio, que no puede reutilizarse como cookie. La elevación pertenece a esa misma fila, dura como máximo 15 minutos y almacena una huella, nunca la clave cruda. Rotar `ADMIN_API_KEY` invalida el grant aunque todavía no haya llegado su vencimiento.
 
@@ -336,16 +336,16 @@ pnpm --filter @workspace/scripts run import-excel -- "ruta\archivo.csv"         
 
 Archivo `.env` en la raíz (plantilla: [.env.example](../.env.example)):
 
-| Variable                           | Para qué                                                                                                                                                                                                         |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PORT`                             | Puerto del backend (default 5000).                                                                                                                                                                               |
-| `HOST_IP`                          | IP de esta máquina en la red interna — la usa n8n para llegar al webhook. Actualizar acá cuando cambie la IP o se mude de servidor.                                                                              |
-| `WEBHOOK_API_KEY`                  | La clave que n8n manda en `x-api-key`. Sin ella el webhook responde 503.                                                                                                                                         |
-| `ADMIN_API_KEY`                    | Credencial obligatoria aceptada solo como `admin_key` en `POST /auth/admin-elevation`. Crea un grant temporal ligado a la sesión; si falta, la elevación responde `503`.                                  |
-| `BOOTSTRAP_SYSADMIN_PASSWORD`      | Secreto externo para crear `sysadmin` en una base sin hashes o rotar la credencial semilla heredada. Solo se persiste su hash y no resetea cuentas ya aseguradas.                                                |
-| `TICKETS_DB_PATH`                  | Ruta del archivo SQLite (opcional; default `data/tickets.db`).                                                                                                                                                   |
-| `TICKET_CSV_EXPORT_TIMEOUT_MS`     | Deadline absoluto de cada exportación CSV; default `300000` ms (5 minutos), rango `1000`–`2147483647`. Evita retener indefinidamente un snapshot lector por un cliente lento.                                      |
-| `PRIORIDAD_AUTOMATICA_INTERVAL_MS` | Intervalo opcional de la revisión de prioridades; default `300000` ms (5 minutos), mínimo `10000` ms.                                                                                                            |
+| Variable                           | Para qué                                                                                                                                                                      |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                             | Puerto del backend (default 5000).                                                                                                                                            |
+| `HOST_IP`                          | IP de esta máquina en la red interna — la usa n8n para llegar al webhook. Actualizar acá cuando cambie la IP o se mude de servidor.                                           |
+| `WEBHOOK_API_KEY`                  | La clave que n8n manda en `x-api-key`. Sin ella el webhook responde 503.                                                                                                      |
+| `ADMIN_API_KEY`                    | Credencial obligatoria aceptada solo como `admin_key` en `POST /auth/admin-elevation`. Crea un grant temporal ligado a la sesión; si falta, la elevación responde `503`.      |
+| `BOOTSTRAP_SYSADMIN_PASSWORD`      | Secreto externo para crear `sysadmin` en una base sin hashes o rotar la credencial semilla heredada. Solo se persiste su hash y no resetea cuentas ya aseguradas.             |
+| `TICKETS_DB_PATH`                  | Ruta del archivo SQLite (opcional; default `data/tickets.db`).                                                                                                                |
+| `TICKET_CSV_EXPORT_TIMEOUT_MS`     | Deadline absoluto de cada exportación CSV; default `300000` ms (5 minutos), rango `1000`–`2147483647`. Evita retener indefinidamente un snapshot lector por un cliente lento. |
+| `PRIORIDAD_AUTOMATICA_INTERVAL_MS` | Intervalo opcional de la revisión de prioridades; default `300000` ms (5 minutos), mínimo `10000` ms.                                                                         |
 
 Arrancar el sistema (dos terminales):
 
@@ -358,7 +358,7 @@ Y abrir http://localhost:3000.
 
 Para validar el workspace, `pnpm run quality` ejecuta lint, formato Prettier sin drift, codegen, verificación del schema Drizzle, suites no-browser, typecheck y builds. La carpeta `e2e/` participa de lint y typecheck, y Playwright se puede ejecutar localmente con `pnpm run test:e2e` o `pnpm run test:e2e:headed`; la primera vez hay que instalar Chromium con `pnpm --filter @workspace/e2e exec playwright install chromium`. La suite usa una base temporal, aplica dos veces las migraciones reales y cubre cuatro recorridos críticos sin tocar `data/tickets.db` ni el `.env` local. En GitHub es un segundo job bloqueante, dependiente de `quality`, y publica diagnósticos durante 7 días cuando falla.
 
-Esto es para **desarrollo local**. El servidor de testing corre los mismos dos servicios pero en contenedores Docker, con CI/CD automático en cada push a `main` — ver [docs/DEPLOY.md](DEPLOY.md) para el detalle completo (arquitectura, runbook del servidor, backups).
+Esto es para **desarrollo local**. El servidor corre los mismos dos servicios en contenedores Docker y el workflow Deploy se dispara en cada push a `main`. Quality valida pull requests en un workflow separado — ver [docs/DEPLOY.md](DEPLOY.md) para el flujo real, el runbook y los backups.
 
 ## 6. Seguridad — estado actual
 

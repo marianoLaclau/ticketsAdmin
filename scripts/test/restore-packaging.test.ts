@@ -50,7 +50,10 @@ test("empaqueta y expone el restore offline sin atajos destructivos", () => {
   assert.match(restoreCli, /restoreVerifiedSqliteBackup/);
   assert.doesNotMatch(restoreCli, /--force|rmSync|unlinkSync/);
   assert.match(deployRunbook, /BACKEND_IMAGE_ID=.*docker inspect/);
-  assert.match(deployRunbook, /docker compose ps -a -q backend/);
+  assert.match(
+    deployRunbook,
+    /docker compose --env-file "\$COMPOSE_ENV" ps -a -q backend/,
+  );
   assert.match(
     deployRunbook,
     /docker ps -q --filter "volume=\$TICKETS_VOLUME_NAME"/,

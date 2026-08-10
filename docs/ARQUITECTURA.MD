@@ -498,7 +498,7 @@ Si una auditoría falla, la transacción se revierte. Si un cliente SSE se desco
 
 El workspace usa ESLint flat con reglas de TypeScript, promesas, hooks de React y `jsx-a11y`. Las fuentes se analizan con información de tipos mediante `projectService`; tests y configuración reciben lint estructural desde sus `tsconfig` de prueba. El alcance incluye backend, frontend, scripts, librerías y `e2e/`; código generado, builds y dependencias quedan excluidos. Las expresiones regulares que procesan controles mantienen supresiones locales motivadas, no excepciones globales.
 
-La deuda de `any` explícito quedó eliminada del alcance analizado. `no-explicit-any` es un error y `--max-warnings 0` impide aceptar advertencias. El Dashboard trata de forma explícita la nulabilidad de `fecha_limite`, aunque la consulta de vencidos la excluya en SQL. `pnpm run quality` ejecuta lint y `format:check` antes de codegen, schema, suites no-browser, typecheck y builds. En GitHub, un segundo job `e2e` depende de ese resultado, instala Chromium y ejecuta Playwright; ambos jobs son bloqueantes para PR y deploy.
+La deuda de `any` explícito quedó eliminada del alcance analizado. `no-explicit-any` es un error y `--max-warnings 0` impide aceptar advertencias. El Dashboard trata de forma explícita la nulabilidad de `fecha_limite`, aunque la consulta de vencidos la excluya en SQL. `pnpm run quality` ejecuta lint y `format:check` antes de codegen, schema, suites no-browser, typecheck y builds. En GitHub, un segundo job `e2e` depende de ese resultado, instala Chromium y ejecuta Playwright; ambos jobs son bloqueantes en el workflow Quality para pull requests. Deploy es un workflow independiente disparado desde `main`.
 
 La suite `e2e/` usa Playwright con Desktop Chrome, un solo worker y una base SQLite efímera. Su servidor aplica dos veces la cadena real de migraciones, inicia el backend y Vite en puertos exclusivos y cubre cuatro recorridos: autenticación/cambio obligatorio, ingesta/SSE/auditoría, elevación/RBAC/revocación y cuarentena/conflicto/exportación. Una única invocación del teardown ejecuta hasta tres rondas internas: cada paso tiene deadline, los fallos no bloquean los recursos siguientes y una operación todavía activa se comparte en vez de duplicarse. Resoluciones tardías completan el paso, rechazos tardíos habilitan su reintento y los errores finales se conservan en orden. Las trazas, screenshots y videos retenidos ante fallos quedan en `e2e/artifacts/`; en CI se agrega allí el reporte HTML. GitHub publica el directorio como `playwright-diagnostics` durante 7 días cuando el job falla.
 
@@ -506,73 +506,39 @@ La suite `e2e/` usa Playwright con Desktop Chrome, un solo worker y una base SQL
 
 ```mermaid
 flowchart TD
-    git[Push a main]
-    quality[Quality: lint, codegen, schema,<br/>tests no-browser, typecheck y build]
-    e2e[Playwright E2E bloqueante<br/>sobre Chromium y stack aislado]
+    trigger[Push a main o ejecución manual]
     runner[Runner self-hosted]
-    images[Docker Compose build]
-    release[Lock, baseline y candidatos inmutables]
-    reconcile{Ledger sin pending<br/>o reconciliado}
-    gate{Rollback compatible o<br/>transición autorizada}
-    checkpoint[Checkpoint SQLite verificado + manifiesto<br/>salvo instalación vacía]
-    writeAhead[Publicar pending durable<br/>antes de Compose]
-    rollout[Up con IDs candidatos exactos]
-    verify{Topología, health y<br/>tres smoke tests}
-    promote[Promover current/previous<br/>y limpiar pending]
+    backup[Backup SQLite online<br/>más integrity_check]
+    images[docker compose build]
+    rollout[docker compose up -d --wait]
+    migrate[Migraciones antes de abrir la API]
+    health{Backend y frontend healthy}
+    smoke[Smoke de readyz y SPA]
     active[Release activa]
-    rollback[Up con IDs baseline exactos]
-    verifyRollback[Verificación completa del rollback]
-    closeRollback[Confirmar current baseline<br/>y limpiar pending]
-    contain[Primer deploy: detener solo<br/>contenedores candidatos identificados]
-    intervention[Job fallido + intervención<br/>o fix-forward]
+    diagnostics[Estado y logs]
+    intervention[Intervención manual]
     volume[(tickets_data volume)]
 
-    git --> quality --> e2e --> runner --> images --> release --> reconcile
-    reconcile -->|estado válido| gate
-    reconcile -->|corrupto, desconocido<br/>o irrecuperable| intervention
-    gate -->|compatible o autorización explícita| checkpoint
-    gate -->|sin autorización| intervention
-    volume --> checkpoint
-    checkpoint --> writeAhead --> rollout
-    rollout -->|dist/migrate.mjs al arrancar| volume
-    rollout --> verify
-    verify -->|correcto| promote --> active
-    verify -->|falla y baseline compatible| rollback --> verifyRollback
-    verifyRollback -->|correcto| closeRollback --> intervention
-    verifyRollback -->|falla| intervention
-    verify -->|falla en primer deploy| contain --> intervention
-    verify -->|falla en transición incompatible autorizada| intervention
+    trigger --> runner --> backup --> images --> rollout
+    volume --> backup
+    rollout --> migrate --> volume
+    rollout --> health
+    health -->|sí| smoke --> active
+    backup -. fallo .-> diagnostics
+    images -. fallo .-> diagnostics
+    rollout -. fallo .-> diagnostics
+    health -->|no| diagnostics
+    smoke -. fallo .-> diagnostics
+    diagnostics --> intervention
 ```
 
-El runner valida Docker Compose `>= 2.17.0` y la configuración antes del build. Cada ejecución crea referencias separadas e irrepetibles para backend y frontend, identificadas por SHA/run/attempt y por labels OCI; inspecciona los IDs y ejecuta los CLIs y `nginx -t` antes de permitir el rollout.
+El workflow Deploy corre en el runner self-hosted ante cada push a `main` o por `workflow_dispatch`. El grupo de concurrencia `deploy-testing` serializa ejecuciones y `cancel-in-progress: false` evita interrumpir un despliegue que ya empezó. Quality y Deploy son workflows independientes; la política de merge debe exigir Quality si se necesita ese gate antes de llegar a `main`.
 
-Un único orquestador mantiene un `flock` cooperativo desde la captura del baseline hasta terminar los smoke tests o el rollback. Para una instalación existente exige exactamente un backend y un frontend saludables de la misma release, conserva sus IDs/imágenes/instante de arranque, valida que `/data` sea el volumen esperado y rechaza cualquier otro contenedor que lo monte. Backend y frontend nuevos comparten el label `io.ticketsadmin.release-id`, además de revisión, origen OCI, epoch de runtime, identidad Git del árbol de migraciones y hash del contrato Compose canonicalizado sin secretos.
+Antes de construir, un contenedor efímero monta `ticketsadmin_tickets_data` en solo lectura y usa la API `.backup` de SQLite. La copia queda fuera del checkout en `/var/lib/ticketsadmin/backups` y debe superar `PRAGMA integrity_check`. Si no existe el volumen o `tickets.db`, se considera una instalación nueva. Un fallo real de backup detiene el job.
 
-El rollback automático solo se habilita si el par anterior comparte los tres contratos de compatibilidad con el candidato. La adopción acotada del despliegue histórico sin labels y una transición fix-forward requieren inputs distintos de `workflow_dispatch`, mutuamente excluyentes y ligados al `release-id` y a los dos IDs de imagen exactos que el orquestador captura bajo lock; un push automático nunca los recibe. La segunda vía admite tanto una release plenamente etiquetada pero incompatible como el formato reconocido anterior a estos tres labels. Autorizarla implica aceptar fix-forward si el candidato falla: no inventa compatibilidad ni habilita una restauración insegura.
+`docker compose build` recibe únicamente placeholders no sensibles. Los secretos se inyectan al ejecutar `docker compose up -d --wait --wait-timeout 180`. El backend aplica `dist/migrate.mjs` antes de abrir la API; su healthcheck exige el JSON exacto de `/api/readyz`. El frontend queda healthy solo si Nginx sirve la SPA y alcanza readiness a través del proxy. El host agrega dos smokes: readiness directa y HTML de la SPA.
 
-La imagen candidata del backend abre el volumen solo lectura, sin red ni secretos, genera el snapshot online en un helper aislado y el host vuelve a verificar el archivo transportado contra evidencia SHA-256/bytes/páginas. El `.db` se publica sin overwrite y se fija nuevamente por inode/hash antes de publicar un manifiesto versionado como marcador final de completitud. Una topología parcial, duplicada, sustituida, un holder externo o un volumen huérfano hacen fallar cerrado; el primer deploy solo omite el checkpoint cuando los listados exitosos confirman que no existen contenedores ni volumen.
-
-`up --no-build --wait` recibe los IDs exactos de las dos candidatas, no tags mutables. El backend es healthy únicamente si `/api/readyz` devuelve su JSON exacto, y Nginx exige simultáneamente la SPA real y el mismo endpoint a través del proxy. El host repite los tres recorridos como smoke antes de liberar el lock. Si el rollout falla y el baseline es compatible, ejecuta otro `up` con sus dos IDs exactos y vuelve a comprobar topología, imágenes, health, mount, exclusividad del volumen y los tres recorridos HTTP; el job conserva el error original aunque la aplicación haya sido recuperada. En un primer deploy fallido solo detiene contenedores cuya identidad candidata pudo demostrar. En ningún caso ejecuta `compose down`, prune, borrado de volumen ni restore automático de SQLite.
-
-El contrato Compose, su proyecto y el volumen se recalculan inmediatamente antes de cada `up`, para impedir que una configuración cambiada durante la operación invalide las garantías. No existe un prune global en el host compartido. Una actualización explícita del backend reinicia también Nginx para renovar su resolución DNS.
-
-### Ledger durable y reconciliación
-
-El estado de releases vive fuera del checkout en `/var/lib/ticketsadmin/releases/release-state.json`. Su directorio debe ser real, privado y propiedad del usuario del runner, con modo exacto `0700`; el documento se publica con modo `0600` mediante un temporal en el mismo directorio, sincronización y reemplazo atómico. El contrato distingue tres posiciones:
-
-- `current`: par backend/frontend cuya identidad y funcionamiento fueron confirmados;
-- `previous`: última release desplazada, retenida como evidencia y posible insumo de una recuperación compatible, no como autorización automática;
-- `pending`: registro write-ahead de la candidata, el baseline y sus IDs/contratos exactos, publicado después del checkpoint y antes de cualquier mutación mediante Compose.
-
-La promoción de `pending` a `current` ocurre solamente después de comprobar topología completa, los IDs exactos de ambas imágenes, health de backend y frontend, mount `/data`, exclusividad del volumen y los tres smokes publicados. Un rollback compatible exige la misma verificación antes de confirmar nuevamente el baseline y despejar `pending`. La base SQLite no se restaura en ninguno de estos caminos: checkpoint de datos, rollback de aplicación y restore manual siguen siendo operaciones distintas.
-
-Al comenzar cada intento, y todavía bajo el `flock`, el orquestador reconcilia el ledger antes de aceptar un baseline nuevo. Esto cubre una terminación por `SIGKILL`, caída del runner o reinicio del host: puede consolidar una candidata exacta ya saludable, reconocer un baseline exacto ya recuperado o reconstruir el baseline por IDs inmutables cuando los contratos demuestran que el rollback es seguro. No infiere identidad a partir de tags, fechas ni contenedores parciales.
-
-La política es fail-closed. Un documento vacío, corrupto, sustituido, con permisos incorrectos, versión desconocida o incoherente con la topología detiene el proceso antes de otro `up` y conserva evidencia para intervención. Las adopciones legacy y las transiciones fix-forward carecen deliberadamente de rollback automático: después de una interrupción solo se consolidan hacia adelante si el par candidato exacto ya supera todas las verificaciones; cualquier estado parcial requiere una decisión humana nueva. En un primer deploy parcial no existe `current`: solo puede reintentarse la candidata exacta o contener sus contenedores demostrados, siempre preservando `pending` y `ticketsadmin_tickets_data`. La intención de contener también se escribe antes de detener contenedores, de modo que otro proceso pueda repetirla tras un corte.
-
-Un pending terminal no se edita ni se borra. El operador puede reanudarlo mediante una autorización ligada simultáneamente a su `attemptId` y a la `generation` exacta observada; cualquier cambio concurrente invalida el permiso. Esa vía conserva la política original: un intento compatible converge al baseline y uno first-deploy/legacy/fix-forward solo converge a la candidata exacta. Para legacy/fix-forward, la autorización se transforma antes de Compose en la fase durable `retrying_forward`: un corte con el baseline aún exacto vuelve a intentar los mismos IDs candidatos, mientras que una topología parcial o desconocida retorna a intervención manual. Así el baseline incompatible nunca puede aceptarse por perder contexto entre procesos.
-
-La semántica continúa siendo single-replica. El ledger permite recuperar el proceso de release en el siguiente intento, pero no brinda cero downtime, autohealing ni monitoreo continuo. Un escritor que eluda el lock cooperativo o una pérdida simultánea del ledger y de las imágenes permanece fuera de la garantía.
+El volumen nombrado persiste entre recreaciones. El workflow no ejecuta `compose down -v`, prune, eliminación de volumen ni restore de SQLite. Tampoco implementa rollback automático, ledger de releases o reconciliación de intentos: ante un fallo conserva los datos, publica `compose ps` y logs, y requiere una decisión manual entre corrección hacia adelante o reversión de código. Restaurar datos sigue siendo una operación offline, explícita y separada.
 
 En local, `pnpm --filter @workspace/db run push` combina `drizzle-kit push` con una reconciliación transaccional de invariantes no expresables por el schema declarativo. Así se conservan las bases históricas sin ledger sin fingir que ejecutaron migraciones. El backend vuelve a validar tabla, FK y fingerprint de los cinco triggers antes de cualquier seed o tarea; una base versionada incompleta falla cerrada. En Docker, `dist/migrate.mjs` ejecuta la cadena real antes de iniciar la API. Las migraciones versionadas actuales mantienen una secuencia lineal:
 
@@ -614,7 +580,7 @@ lib/ingesta/              clasificación, SLA y normalización compartida
 lib/password-policy/      política pura de contraseñas nuevas
 scripts/                  importador histórico y backup de SQLite
 docs/                    arquitectura, flujo, deploy y bitácora
-.github/workflows/        quality gate reutilizable y deploy automático desde main
+.github/workflows/        Quality para PR y Deploy independiente desde main
 data/                     base local ignorada por Git
 backups/                  copias locales ignoradas por Git
 tmp/                      temporales de tests y desarrollo, ignorados

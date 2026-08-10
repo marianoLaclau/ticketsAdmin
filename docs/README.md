@@ -23,7 +23,8 @@ Este directorio reúne la documentación operativa y técnica de GSB Tickets.
 - **Migraciones de producción:** `lib/db/drizzle/`. Cada cambio de schema que llegue a Docker debe incluir su migración y su prueba correspondiente.
 - **Lógica compartida de ingesta:** `lib/ingesta/src/`.
 - **Flujos críticos de navegador:** `e2e/tests/critical-flows.spec.ts`, con el entorno aislado implementado en `e2e/scripts/runtime.ts` y activado por `e2e/scripts/global-setup.ts`.
-- **Gate de PR y deploy:** `.github/workflows/quality.yml`; el job `quality` debe aprobar antes de ejecutar el job bloqueante `e2e`.
+- **Gate de pull requests:** `.github/workflows/quality.yml`; el job `quality` debe aprobar antes de ejecutar el job bloqueante `e2e`.
+- **Deploy desde `main`:** `.github/workflows/deploy.yml`; backup SQLite bloqueante, build, `compose up --wait` y smoke tests en el runner self-hosted.
 
 ## Flujo mínimo para trabajar
 
@@ -39,7 +40,7 @@ pnpm --filter @workspace/e2e exec playwright install chromium  # primera vez
 pnpm run test:e2e
 ```
 
-`pnpm run quality` reproduce el primer job del gate: lint, formato Prettier sin drift, regeneración OpenAPI, verificación de la cadena Drizzle, suites unitarias/integración/componentes, typecheck y builds. El segundo job instala Chromium con sus dependencias y ejecuta `pnpm run test:e2e` solo si el primero aprobó; ambos son bloqueantes para pull requests y para el deploy desde `main`. Ante un fallo de navegador, GitHub conserva `e2e/artifacts/` como `playwright-diagnostics` durante 7 días. Si cambia el schema, generar la migración, revisar el SQL y validar una instalación nueva y una actualización desde la última migración de producción.
+`pnpm run quality` reproduce el primer job del gate: lint, formato Prettier sin drift, regeneración OpenAPI, verificación de la cadena Drizzle, suites unitarias/integración/componentes, typecheck y builds. El segundo job instala Chromium con sus dependencias y ejecuta `pnpm run test:e2e` solo si el primero aprobó; ambos validan pull requests. Deploy es independiente, por lo que la protección de `main` debe exigir Quality si se quiere impedir el merge de una revisión no validada. Ante un fallo de navegador, GitHub conserva `e2e/artifacts/` como `playwright-diagnostics` durante 7 días. Si cambia el schema, generar la migración, revisar el SQL y validar una instalación nueva y una actualización desde la última migración de producción.
 
 ## Estado local que no se versiona
 

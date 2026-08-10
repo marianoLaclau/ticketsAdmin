@@ -66,7 +66,7 @@ lib/
   api-client-react/ → hooks React Query generados
   api-zod/          → schemas Zod generados
   password-policy/  → política pura compartida por backend y frontend
-scripts/    → utilidades CLI (importación/backup/restore) y orquestador de release
+scripts/    → utilidades CLI de importación, backup, verificación y restore
 data/       → base SQLite (gitignoreado, solo en desarrollo local)
 docs/       → README.md, ARQUITECTURA.MD, FLUJO.md, DEPLOY.md, BITACORA_AGENTES.MD
 Dockerfile.backend, Dockerfile.frontend, docker-compose.yml → despliegue en contenedores
@@ -111,23 +111,23 @@ Abrir http://localhost:3000. En una base nueva, el primer arranque crea el usuar
 - `pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts` — genera el SQL de migración tras cambiar el schema (commitear el resultado)
 - `WEBHOOK_API_KEY=... ADMIN_API_KEY=... BOOTSTRAP_SYSADMIN_PASSWORD=... docker compose up -d --build` — levanta una instalación nueva en contenedores (ver [docs/DEPLOY.md](docs/DEPLOY.md)); el tercer valor deja de ser necesario después del bootstrap
 
-El workflow reutilizable de GitHub exige dos jobs en orden: `quality` y luego `e2e`. El segundo instala Chromium, ejecuta los cuatro flujos Playwright sobre un stack efímero y, si falla, publica `playwright-diagnostics` durante 7 días. Ambos bloquean pull requests y el deploy desde `main`.
+El workflow Quality de GitHub exige dos jobs en orden: `quality` y luego `e2e`. El segundo instala Chromium, ejecuta los cuatro flujos Playwright sobre un stack efímero y, si falla, publica `playwright-diagnostics` durante 7 días. Ambos validan pull requests. El deploy desde `main` vive en un workflow independiente; la protección de rama debe exigir Quality si se quiere convertir esa validación en condición de merge.
 
 ## Configuración
 
 Copiar `.env.example` a `.env` en la raíz:
 
-| Variable                           | Para qué                                                                                                                                                  |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PORT`                             | Puerto del backend (default 5000)                                                                                                                         |
-| `HOST_IP`                          | IP de esta máquina en la red interna — la usa n8n para llegar al webhook (solo referencia, no la lee el código)                                           |
-| `WEBHOOK_API_KEY`                  | Clave que n8n manda en `x-api-key` al crear tickets (requerida para el webhook)                                                                           |
+| Variable                           | Para qué                                                                                                                                                                |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                             | Puerto del backend (default 5000)                                                                                                                                       |
+| `HOST_IP`                          | IP de esta máquina en la red interna — la usa n8n para llegar al webhook (solo referencia, no la lee el código)                                                         |
+| `WEBHOOK_API_KEY`                  | Clave que n8n manda en `x-api-key` al crear tickets (requerida para el webhook)                                                                                         |
 | `ADMIN_API_KEY`                    | Credencial obligatoria que se acepta solo en el body de `POST /auth/admin-elevation`; crea un grant efímero ligado a la sesión y, si falta, la elevación responde `503` |
-| `BOOTSTRAP_SYSADMIN_PASSWORD`      | Secreto exclusivo del bootstrap: crea `sysadmin` en una base sin hashes o rota la credencial semilla heredada; nunca modifica una contraseña ya asegurada |
-| `TICKETS_DB_PATH`                  | Ruta del archivo SQLite (opcional, default `data/tickets.db`)                                                                                             |
-| `TICKET_CSV_EXPORT_TIMEOUT_MS`     | Duración máxima absoluta de una exportación CSV (default 300000 = 5 minutos; rango 1000–2147483647)                                                       |
-| `PRIORIDAD_AUTOMATICA_INTERVAL_MS` | Intervalo opcional de revisión de prioridades en milisegundos (default 300000 = 5 minutos; mínimo aceptado 10000)                                         |
-| `TZ`                               | Timezone del proceso backend — en Docker por default `America/Argentina/Buenos_Aires`; los filtros por día calendario usan esta zona                      |
+| `BOOTSTRAP_SYSADMIN_PASSWORD`      | Secreto exclusivo del bootstrap: crea `sysadmin` en una base sin hashes o rota la credencial semilla heredada; nunca modifica una contraseña ya asegurada               |
+| `TICKETS_DB_PATH`                  | Ruta del archivo SQLite (opcional, default `data/tickets.db`)                                                                                                           |
+| `TICKET_CSV_EXPORT_TIMEOUT_MS`     | Duración máxima absoluta de una exportación CSV (default 300000 = 5 minutos; rango 1000–2147483647)                                                                     |
+| `PRIORIDAD_AUTOMATICA_INTERVAL_MS` | Intervalo opcional de revisión de prioridades en milisegundos (default 300000 = 5 minutos; mínimo aceptado 10000)                                                       |
+| `TZ`                               | Timezone del proceso backend — en Docker por default `America/Argentina/Buenos_Aires`; los filtros por día calendario usan esta zona                                    |
 
 ## Stack
 

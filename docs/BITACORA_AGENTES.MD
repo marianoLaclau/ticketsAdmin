@@ -2953,6 +2953,33 @@ Archivos afectados: `backend/src/routes/tickets.ts` y `lib/api-spec/openapi.yaml
 
 - Cambios sin commitear a la espera del OK del usuario tras la prueba local.
 
+## 2026-08-10 — Retiro del orquestador de releases obsoleto
+
+**Agente:** Codex
+
+El mecanismo de ledger durable, estados `pending`, recuperación manual y rollback automático quedó retirado después de demostrar que podía bloquear indefinidamente el camino de producción. Las entradas anteriores de esta bitácora se conservan como historia del desarrollo, pero ya no describen el despliegue vigente.
+
+### Limpieza realizada
+
+- Se eliminaron el workflow `recover-pending.yml`, `scripts/deploy/deploy-release.sh`, `scripts/deploy/release-state.sh` y las cuatro suites dedicadas exclusivamente a ese subsistema.
+- Se retiraron de Dockerfiles y Compose los argumentos y labels de release, runtime epoch, compatibilidad de migraciones y hash del contrato que no tenían consumidor después de quitar el orquestador.
+- `deploy-readiness.test.ts` quedó reducido a un contrato del flujo real y comprueba que no reaparezcan los entrypoints retirados ni operaciones destructivas.
+- Se actualizaron el runbook, la arquitectura y los README para no atribuir al sistema ledger, rollback automático, tags inmutables ni un gate de Quality que el workflow Deploy no ejecuta.
+
+### Flujo vigente
+
+`push a main o workflow_dispatch → backup SQLite online bloqueante → integrity_check → docker compose build → docker compose up -d --wait → smoke de readiness y SPA`.
+
+El volumen `ticketsadmin_tickets_data` se conserva. No hay restore automático, borrado de volumen ni rollback automático de aplicación. Ante un fallo se detienen los reintentos, se inspeccionan el primer error, el estado y los logs, y se decide explícitamente entre corrección hacia adelante o reversión de código. Las utilidades independientes de backup, verificación y restore permanecen porque siguen siendo parte válida de la operación.
+
+### Validaciones de la limpieza
+
+- TypeScript del paquete `@workspace/scripts`: correcto.
+- Suite operativa del paquete: 15/15 pruebas aprobadas.
+- ESLint y Prettier sobre los tests y configuraciones modificados: correctos.
+- `docker compose config --quiet` y `git diff --check`: correctos.
+- La comprobación global de formato conserva cuatro avisos en archivos preexistentes y no modificados por esta limpieza (`backend/build.mjs`, `eslint.config.mjs`, `frontend/src/index.css` y `lib/api-spec/test/admin-elevation-contract.test.mjs`); no se mezclaron correcciones ajenas en este paquete.
+
 ## 2026-07-23 — Ordenamiento múltiple en Tickets y Administrador
 
 **Agente:** Codex
