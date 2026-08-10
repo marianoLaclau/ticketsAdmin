@@ -5,7 +5,7 @@ import {
   type AdminImportResult,
 } from "@workspace/api-client-react";
 import { CheckCircle2, FileText, Upload } from "lucide-react";
-import { AdminCredentialNotice } from "@/components/admin/AdminCredentialNotice";
+import { AdminAccessNotice } from "@/components/admin/AdminAccessNotice";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,13 +20,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TabsContent } from "@/components/ui/tabs";
 import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { useToast } from "@/hooks/use-toast";
-import type { AdminCredentialState } from "@/lib/admin-credential-state";
+import type { AdminAccessState } from "@/lib/admin-access-state";
 import { getAdminErrorMessage } from "@/lib/error-messages";
 import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
 
 interface AdminCsvImportTabProps {
   request: RequestInit;
-  adminAccessState: AdminCredentialState;
+  adminAccessState: AdminAccessState;
   accessVersion: number;
   accessGeneration: number;
 }
@@ -186,7 +186,7 @@ export function AdminCsvImportTab({
   if (adminAccessState !== "ready") {
     return (
       <TabsContent value="importar" className="mt-4 max-w-3xl">
-        <AdminCredentialNotice
+        <AdminAccessNotice
           state={adminAccessState}
           pendingDescription="Esperá un instante antes de analizar o importar archivos."
           missingDescription="La importación permanece protegida. Completá la llave en la cabecera para continuar."

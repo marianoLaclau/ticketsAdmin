@@ -1,15 +1,15 @@
 import { useCallback, useLayoutEffect, useRef } from "react";
 import {
   isCurrentAdminOperation,
-  type AdminCredentialState,
-} from "@/lib/admin-credential-state";
+  type AdminAccessState,
+} from "@/lib/admin-access-state";
 
 export function useAdminOperationGuard(
-  credentialState: AdminCredentialState,
+  accessState: AdminAccessState,
   accessGeneration: number,
 ) {
   const isMountedRef = useRef(false);
-  const latestCredentialStateRef = useRef(credentialState);
+  const latestAccessStateRef = useRef(accessState);
   const latestAccessGenerationRef = useRef(accessGeneration);
 
   useLayoutEffect(() => {
@@ -20,9 +20,9 @@ export function useAdminOperationGuard(
   }, []);
 
   useLayoutEffect(() => {
-    latestCredentialStateRef.current = credentialState;
+    latestAccessStateRef.current = accessState;
     latestAccessGenerationRef.current = accessGeneration;
-  }, [accessGeneration, credentialState]);
+  }, [accessGeneration, accessState]);
 
   const isCurrentOperation = useCallback(
     (operationGeneration: number) =>
@@ -30,7 +30,7 @@ export function useAdminOperationGuard(
       isCurrentAdminOperation(
         operationGeneration,
         latestAccessGenerationRef.current,
-        latestCredentialStateRef.current,
+        latestAccessStateRef.current,
       ),
     [],
   );

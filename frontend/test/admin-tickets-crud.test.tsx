@@ -12,7 +12,7 @@ import {
 } from "@workspace/api-client-react";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { useAdminTicketsCrud } from "../src/features/admin-tickets/useAdminTicketsCrud.ts";
-import type { AdminCredentialState } from "../src/lib/admin-credential-state.ts";
+import type { AdminAccessState } from "../src/lib/admin-access-state.ts";
 
 const ticket: Ticket = {
   id: 41,
@@ -50,7 +50,7 @@ const queryRequest: RequestInit = {
 };
 
 interface CrudProps {
-  adminAccessState: AdminCredentialState;
+  adminAccessState: AdminAccessState;
   accessVersion: number;
   accessGeneration: number;
   currentListQueryKey: QueryKey;

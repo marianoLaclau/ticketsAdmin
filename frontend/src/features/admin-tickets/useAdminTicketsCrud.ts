@@ -10,7 +10,7 @@ import {
 import { useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { useToast } from "@/hooks/use-toast";
-import type { AdminCredentialState } from "@/lib/admin-credential-state";
+import type { AdminAccessState } from "@/lib/admin-access-state";
 import { getAdminErrorMessage, isTicketVersionConflict } from "@/lib/error-messages";
 import {
   buildAdminTicketInput,
@@ -31,7 +31,7 @@ import {
 interface UseAdminTicketsCrudOptions {
   request: RequestInit;
   queryRequest: RequestInit;
-  adminAccessState: AdminCredentialState;
+  adminAccessState: AdminAccessState;
   accessVersion: number;
   accessGeneration: number;
   currentListQueryKey: QueryKey;

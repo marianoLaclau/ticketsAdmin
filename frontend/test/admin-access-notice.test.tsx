@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { cleanup, render, screen } from "@testing-library/react";
-import { AdminCredentialNotice } from "../src/components/admin/AdminCredentialNotice.tsx";
+import { AdminAccessNotice } from "../src/components/admin/AdminAccessNotice.tsx";
 
 test("presenta de forma diferenciada la ausencia y la transición del acceso", (t) => {
   t.after(cleanup);
 
   const view = render(
-    <AdminCredentialNotice
+    <AdminAccessNotice
       state="missing"
       pendingDescription="Esperá mientras se valida."
       missingDescription="Completá la llave para continuar."
@@ -22,7 +22,7 @@ test("presenta de forma diferenciada la ausencia y la transición del acceso", (
   assert.equal(alert.querySelector("svg")?.getAttribute("aria-hidden"), "true");
 
   view.rerender(
-    <AdminCredentialNotice
+    <AdminAccessNotice
       state="pending"
       pendingDescription="Esperá mientras se valida."
       missingDescription="Completá la llave para continuar."

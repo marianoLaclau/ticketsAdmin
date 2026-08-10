@@ -17,15 +17,15 @@ import {
   type AdminElevationStatus,
   type AuthUser,
 } from "@workspace/api-client-react";
+import type { AdminAccessState } from "@/lib/admin-access-state";
 import { ROL_SYSADMIN } from "@/lib/roles";
 import { getConfirmedSessionUser } from "@/lib/session-state";
 
-export type AdminElevationState = "missing" | "pending" | "ready";
 export type AdminElevationAction = "idle" | "elevating" | "revoking";
 
 export interface AdminElevationAccess {
   readonly user: AuthUser | null;
-  readonly state: AdminElevationState;
+  readonly state: AdminAccessState;
   readonly expiresAt: string | null;
   readonly error: unknown;
   readonly action: AdminElevationAction;
@@ -186,7 +186,7 @@ export function useAdminElevation({
     (elevationQuery.isPending || elevationQuery.fetchStatus !== "idle");
   const expiresAt = activeExpiration(elevationQuery.data, Date.now());
 
-  let rawState: AdminElevationState = "missing";
+  let rawState: AdminAccessState = "missing";
   if (action !== "idle" || identityIsPending || elevationIsPending) {
     rawState = "pending";
   } else if (
@@ -222,7 +222,7 @@ export function useAdminElevation({
     }));
   }, [boundary]);
 
-  const state: AdminElevationState =
+  const state: AdminAccessState =
     accessBoundary.value === boundary ? rawState : "pending";
 
   const isCurrentOperation = useCallback(

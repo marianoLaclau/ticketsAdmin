@@ -18,7 +18,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { Tabs } from "../src/components/ui/tabs.tsx";
 import { AdminRolesTab } from "../src/features/admin-directory/AdminRolesTab.tsx";
-import type { AdminCredentialState } from "../src/lib/admin-credential-state.ts";
+import type { AdminAccessState } from "../src/lib/admin-access-state.ts";
 import { installDomEventRealm } from "./dom-event-realm.ts";
 
 installDomEventRealm();
@@ -48,7 +48,7 @@ function seedRoles(queryClient: QueryClient, accessVersion: number): void {
 }
 
 interface HarnessProps {
-  adminAccessState: AdminCredentialState;
+  adminAccessState: AdminAccessState;
   accessVersion: number;
   accessGeneration: number;
 }
@@ -61,8 +61,8 @@ function RolesHarness({
   return (
     <Tabs value="roles">
       <AdminRolesTab
-        request={{ headers: { "x-admin-key": "test-only" } }}
-        queryRequest={{ headers: { "x-admin-key": "test-only" } }}
+        request={{ headers: { "x-admin-intent": "1" } }}
+        queryRequest={{ headers: { "x-admin-intent": "1" } }}
         adminAccessState={adminAccessState}
         accessVersion={accessVersion}
         accessGeneration={accessGeneration}

@@ -6,7 +6,7 @@ import {
   useTruncateTickets,
 } from "@workspace/api-client-react";
 import { AlertTriangle, Trash2 } from "lucide-react";
-import { AdminCredentialNotice } from "@/components/admin/AdminCredentialNotice";
+import { AdminAccessNotice } from "@/components/admin/AdminAccessNotice";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,14 +20,14 @@ import { Label } from "@/components/ui/label";
 import { TabsContent } from "@/components/ui/tabs";
 import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { useToast } from "@/hooks/use-toast";
-import type { AdminCredentialState } from "@/lib/admin-credential-state";
+import type { AdminAccessState } from "@/lib/admin-access-state";
 import { getAdminErrorMessage } from "@/lib/error-messages";
 import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
 
 interface AdminDangerZoneTabProps {
   request: RequestInit;
   queryRequest: RequestInit;
-  adminAccessState: AdminCredentialState;
+  adminAccessState: AdminAccessState;
   accessVersion: number;
   accessGeneration: number;
 }
@@ -116,7 +116,7 @@ export function AdminDangerZoneTab({
   if (adminAccessState !== "ready") {
     return (
       <TabsContent value="peligro" className="mt-4 max-w-3xl">
-        <AdminCredentialNotice
+        <AdminAccessNotice
           state={adminAccessState}
           pendingDescription="Esperá un instante antes de usar las acciones de mantenimiento."
           missingDescription="La zona peligrosa permanece protegida. Completá la llave en la cabecera para continuar."

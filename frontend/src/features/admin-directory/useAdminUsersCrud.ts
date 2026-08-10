@@ -19,13 +19,13 @@ import {
 import { useAdminUserPasswordReset } from "@/features/admin-directory/useAdminUserPasswordReset";
 import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { useToast } from "@/hooks/use-toast";
-import type { AdminCredentialState } from "@/lib/admin-credential-state";
+import type { AdminAccessState } from "@/lib/admin-access-state";
 import { getAdminErrorMessage } from "@/lib/error-messages";
 import { getNewPasswordError } from "@/lib/password-policy";
 
 interface UseAdminUsersCrudOptions {
   request: RequestInit;
-  adminAccessState: AdminCredentialState;
+  adminAccessState: AdminAccessState;
   accessVersion: number;
   accessGeneration: number;
   roles: readonly AdminRole[];

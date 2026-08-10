@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Estado administrativo nombrado por acceso
+
+**Agente:** Codex
+**Estado:** ducentésima vigésima quinta remediación de la auditoría técnica, implementada localmente.
+
+- `AdminCredentialState` y `AdminCredentialNotice` fueron reemplazados por `AdminAccessState` y `AdminAccessNotice`: el modelo representa una elevación `missing/pending/ready`, no una credencial almacenada en el cliente. Se eliminó el comparador de secretos muerto y se conservó exactamente el guard de estado y generación.
+- El hook de elevación, el guard de operaciones, tickets, roles, usuarios y sus pruebas comparten ahora el mismo tipo. Los fixtures de frontera dejaron `x-admin-key` y envían la intención fija `x-admin-intent: 1`; las únicas referencias restantes a la clave en headers son las dos aserciones negativas que prueban que nunca sale del frontend.
+- Aprobaron 36 pruebas relevantes, typecheck del frontend, ESLint y `git diff --check`. La revisión independiente confirmó equivalencia de runtime, ausencia de imports legacy y ningún cambio funcional accidental. No se hizo push.
+
 ## 2026-08-09 — Acceso administrativo legacy retirado del frontend
 
 **Agente:** Codex

@@ -1,18 +1,18 @@
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import type { AdminCredentialState } from "@/lib/admin-credential-state";
+import type { AdminAccessState } from "@/lib/admin-access-state";
 
-interface AdminCredentialNoticeProps {
-  state: Exclude<AdminCredentialState, "ready">;
+interface AdminAccessNoticeProps {
+  state: Exclude<AdminAccessState, "ready">;
   pendingDescription: string;
   missingDescription: string;
 }
 
-export function AdminCredentialNotice({
+export function AdminAccessNotice({
   state,
   pendingDescription,
   missingDescription,
-}: AdminCredentialNoticeProps) {
+}: AdminAccessNoticeProps) {
   const isPending = state === "pending";
 
   return (

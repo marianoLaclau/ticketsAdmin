@@ -8,14 +8,14 @@ import { AdminTicketDeleteDialog } from "@/features/admin-tickets/AdminTicketDel
 import { AdminTicketFormDialog } from "@/features/admin-tickets/AdminTicketFormDialog";
 import { AdminTicketsListPanel } from "@/features/admin-tickets/AdminTicketsListPanel";
 import { useAdminTicketsCrud } from "@/features/admin-tickets/useAdminTicketsCrud";
-import { AdminCredentialNotice } from "@/components/admin/AdminCredentialNotice";
+import { AdminAccessNotice } from "@/components/admin/AdminAccessNotice";
 import type {
   AdminTicketsUrlNavigation,
   AdminTicketsUrlUpdate,
 } from "@/features/admin-tickets/useAdminTicketsUrl";
 
 import { TabsContent } from "@/components/ui/tabs";
-import type { AdminCredentialState } from "@/lib/admin-credential-state";
+import type { AdminAccessState } from "@/lib/admin-access-state";
 import { getAdminErrorMessage } from "@/lib/error-messages";
 import {
   buildTicketListParams,
@@ -30,7 +30,7 @@ import type { AdminTicketDetailNavigationState } from "@/lib/ticket-navigation";
 interface AdminTicketsTabProps {
   request: RequestInit;
   queryRequest: RequestInit;
-  adminAccessState: AdminCredentialState;
+  adminAccessState: AdminAccessState;
   accessVersion: number;
   accessGeneration: number;
   urlState: AdminTicketsUrlState;
@@ -141,7 +141,7 @@ export function AdminTicketsTab({
   if (adminAccessState !== "ready") {
     return (
       <TabsContent value="registros" className="mt-4">
-        <AdminCredentialNotice
+        <AdminAccessNotice
           state={adminAccessState}
           pendingDescription="Esperá un instante antes de consultar o gestionar registros."
           missingDescription="Los registros administrativos permanecen protegidos. Completá la llave en la cabecera para consultarlos y gestionarlos."

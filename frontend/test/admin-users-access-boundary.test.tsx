@@ -20,7 +20,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { Tabs } from "../src/components/ui/tabs.tsx";
 import { AdminUsersTab } from "../src/features/admin-directory/AdminUsersTab.tsx";
-import type { AdminCredentialState } from "../src/lib/admin-credential-state.ts";
+import type { AdminAccessState } from "../src/lib/admin-access-state.ts";
 import type { AdminDirectoryUsersUrlState } from "../src/lib/admin-directory-url.ts";
 import { installDomEventRealm } from "./dom-event-realm.ts";
 
@@ -68,7 +68,7 @@ function seedDirectoryQueries(
 }
 
 interface HarnessProps {
-  adminAccessState: AdminCredentialState;
+  adminAccessState: AdminAccessState;
   accessVersion: number;
   accessGeneration: number;
 }
@@ -81,8 +81,8 @@ function DirectoryHarness({
   return (
     <Tabs value="users">
       <AdminUsersTab
-        request={{ headers: { "x-admin-key": "test-only" } }}
-        queryRequest={{ headers: { "x-admin-key": "test-only" } }}
+        request={{ headers: { "x-admin-intent": "1" } }}
+        queryRequest={{ headers: { "x-admin-intent": "1" } }}
         adminAccessState={adminAccessState}
         accessVersion={accessVersion}
         accessGeneration={accessGeneration}

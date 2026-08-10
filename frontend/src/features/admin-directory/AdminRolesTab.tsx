@@ -44,8 +44,8 @@ import type {
   AdminDirectoryRolesUrlUpdate,
   AdminDirectoryUrlNavigation,
 } from "@/features/admin-directory/useAdminDirectoryUrl";
-import { AdminCredentialNotice } from "@/components/admin/AdminCredentialNotice";
-import type { AdminCredentialState } from "@/lib/admin-credential-state";
+import { AdminAccessNotice } from "@/components/admin/AdminAccessNotice";
+import type { AdminAccessState } from "@/lib/admin-access-state";
 import type { AdminDirectoryRolesUrlState } from "@/lib/admin-directory-url";
 import { getAdminErrorMessage } from "@/lib/error-messages";
 import { esRolSistema } from "@/lib/roles";
@@ -53,7 +53,7 @@ import { esRolSistema } from "@/lib/roles";
 interface AdminRolesTabProps {
   request: RequestInit;
   queryRequest: RequestInit;
-  adminAccessState: AdminCredentialState;
+  adminAccessState: AdminAccessState;
   accessVersion: number;
   accessGeneration: number;
   urlState: AdminDirectoryRolesUrlState;
@@ -156,7 +156,7 @@ export function AdminRolesTab({
   if (adminAccessState !== "ready") {
     return (
       <TabsContent value="roles">
-        <AdminCredentialNotice
+        <AdminAccessNotice
           state={adminAccessState}
           pendingDescription="Esperá un instante antes de consultar o gestionar roles."
           missingDescription="El directorio permanece protegido. Completá la llave en la cabecera para consultar y gestionar roles."

@@ -24,14 +24,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TabsContent } from '@/components/ui/tabs';
 import { getAdminErrorMessage } from '@/lib/error-messages';
-import { AdminCredentialNotice } from '@/components/admin/AdminCredentialNotice';
+import { AdminAccessNotice } from '@/components/admin/AdminAccessNotice';
 import type { AdminDirectoryUsersUrlState } from '@/lib/admin-directory-url';
-import type { AdminCredentialState } from '@/lib/admin-credential-state';
+import type { AdminAccessState } from '@/lib/admin-access-state';
 
 interface AdminUsersTabProps {
   request: RequestInit;
   queryRequest: RequestInit;
-  adminAccessState: AdminCredentialState;
+  adminAccessState: AdminAccessState;
   accessVersion: number;
   accessGeneration: number;
   urlState: AdminDirectoryUsersUrlState;
@@ -218,7 +218,7 @@ export function AdminUsersTab({
   if (adminAccessState !== 'ready') {
     return (
       <TabsContent value="users">
-        <AdminCredentialNotice
+        <AdminAccessNotice
           state={adminAccessState}
           pendingDescription="Esperá un instante antes de consultar o gestionar usuarios."
           missingDescription="El directorio permanece protegido. Completá la llave en la cabecera para consultar y gestionar usuarios."

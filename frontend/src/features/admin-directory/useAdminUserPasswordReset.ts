@@ -7,13 +7,13 @@ import {
 } from "@workspace/api-client-react";
 import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { toast } from "@/hooks/use-toast";
-import type { AdminCredentialState } from "@/lib/admin-credential-state";
+import type { AdminAccessState } from "@/lib/admin-access-state";
 import { getAdminErrorMessage } from "@/lib/error-messages";
 import { getNewPasswordError } from "@/lib/password-policy";
 
 interface UseAdminUserPasswordResetOptions {
   request: RequestInit;
-  adminAccessState: AdminCredentialState;
+  adminAccessState: AdminAccessState;
   accessVersion: number;
   accessGeneration: number;
 }
