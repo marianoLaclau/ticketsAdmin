@@ -638,7 +638,7 @@ describe("restauración SQLite offline", () => {
     assert.deepEqual(restoreArtifacts(directory), []);
   });
 
-  it("un fallo al publicar la recovery no altera el destino", async () => {
+  it("rechaza una recovery con padre inválido sin alterar el destino", async () => {
     const directory = makeTemporaryDirectory();
     const backupPath = await createRestorableBackup(directory, "Nuevo");
     const targetPath = path.join(directory, "tickets.db");
@@ -655,7 +655,7 @@ describe("restauración SQLite offline", () => {
         recoveryOutput: recoveryPath,
         offlineConfirmed: true,
       }),
-      assertRestoreError("RESTORE_FAILED"),
+      assertRestoreError("INVALID_RESTORE_PATH"),
     );
 
     assert.deepEqual(fs.readFileSync(targetPath), originalBytes);

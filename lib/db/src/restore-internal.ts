@@ -74,6 +74,51 @@ function targetChanged(message: string, cause?: unknown): SqliteRestoreError {
   return new SqliteRestoreError("TARGET_CHANGED", message, { cause });
 }
 
+function restorePathEntryExists(
+  filePath: string,
+  description: string,
+): boolean {
+  try {
+    return pathEntryExists(filePath);
+  } catch (error) {
+    // POSIX reports ENOTDIR when an existing ancestor is a regular file,
+    // while Windows commonly reports the leaf as simply absent. Normalize
+    // both platforms into the restore API's validation error contract.
+    throw invalidPath(`No se pudo inspeccionar ${description}`, error);
+  }
+}
+
+function assertPotentialPathHasDirectoryAncestor(
+  filePath: string,
+  description: string,
+): void {
+  let current = path.dirname(filePath);
+
+  while (true) {
+    let entry: fs.Stats | undefined;
+    try {
+      entry = fs.lstatSync(current, { throwIfNoEntry: false });
+    } catch (error) {
+      throw invalidPath(`No se pudo inspeccionar ${description}`, error);
+    }
+
+    if (entry) {
+      if (!entry.isDirectory()) {
+        throw invalidPath(`${description} debe depender de un directorio`);
+      }
+      return;
+    }
+
+    const parent = path.dirname(current);
+    if (areSamePath(parent, current)) {
+      throw invalidPath(
+        `No se encontró un directorio existente para ${description}`,
+      );
+    }
+    current = parent;
+  }
+}
+
 function fileIdentity(stat: fs.BigIntStats): FileIdentity {
   return { dev: stat.dev, ino: stat.ino };
 }
@@ -142,6 +187,10 @@ function validateRestorePaths(
   let targetPath: string;
   try {
     targetPath = resolvePotentialPath(options.target);
+    assertPotentialPathHasDirectoryAncestor(
+      targetPath,
+      "la ruta de la base destino",
+    );
   } catch (error) {
     throw invalidPath("No se pudo resolver la ruta de la base destino", error);
   }
@@ -185,6 +234,10 @@ function validateRestorePaths(
   if (options.recoveryOutput) {
     try {
       recoveryPath = resolvePotentialPath(options.recoveryOutput);
+      assertPotentialPathHasDirectoryAncestor(
+        recoveryPath,
+        "la ruta de recovery",
+      );
     } catch (error) {
       throw invalidPath("No se pudo resolver la ruta de recovery", error);
     }
@@ -214,7 +267,9 @@ function validateRestorePaths(
         "Origen, destino, recovery y lock deben usar rutas independientes",
       );
     }
-    if (pathEntryExists(recoveryPath)) {
+    if (
+      restorePathEntryExists(recoveryPath, "la ruta de recovery solicitada")
+    ) {
       throw new SqliteRestoreError(
         "RECOVERY_ALREADY_EXISTS",
         `La copia de recuperación ya existe y nunca se sobrescribe: ${recoveryPath}`,
