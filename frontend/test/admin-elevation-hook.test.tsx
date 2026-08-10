@@ -543,13 +543,21 @@ test("un GET concurrente y tardío no restaura una elevación revocada", async (
 test("bloquea al vencer y vuelve a consultar el estado del servidor", async (t) => {
   const scheduleNormally = window.setTimeout.bind(window);
   let expirationCallback: (() => void) | undefined;
-  t.mock.method(window, "setTimeout", (handler, timeout, ...arguments_) => {
-    if ((timeout ?? 0) > 30_000 && typeof handler === "function") {
-      expirationCallback = () => handler(...arguments_);
-      return 2_000_000_000;
-    }
-    return scheduleNormally(handler, timeout, ...arguments_);
-  });
+  t.mock.method(
+    window,
+    "setTimeout",
+    (
+      handler: TimerHandler,
+      timeout?: number,
+      ...arguments_: unknown[]
+    ): number => {
+      if ((timeout ?? 0) > 30_000 && typeof handler === "function") {
+        expirationCallback = () => handler(...arguments_);
+        return 2_000_000_000;
+      }
+      return scheduleNormally(handler, timeout, ...arguments_);
+    },
+  );
   let getCalls = 0;
   t.mock.method(globalThis, "fetch", async () => {
     getCalls += 1;

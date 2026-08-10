@@ -2,6 +2,14 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Temporizador de expiración tipado estrictamente
+
+**Agente:** Codex
+**Estado:** ducentésima décima sexta remediación de la auditoría técnica, implementada localmente.
+
+- El doble controlado de `window.setTimeout` usado para probar la expiración administrativa declara ahora `TimerHandler`, timeout, argumentos y retorno sin `implicit any`, conservando el disparo determinista del único deadline largo.
+- Aprobaron ambos typechecks del frontend y `git diff --check`. No se hizo push.
+
 ## 2026-08-09 — Elevación administrativa aislada del modo operativo
 
 **Agente:** Codex
