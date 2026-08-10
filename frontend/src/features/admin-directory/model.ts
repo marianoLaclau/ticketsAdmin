@@ -1,4 +1,4 @@
-import type { AdminRole, AdminUser } from '@workspace/api-client-react';
+import type { AdminRole, AdminUser } from "@workspace/api-client-react";
 
 export interface AdminUserFormState {
   nombre: string;
@@ -19,13 +19,13 @@ export interface AdminRoleFormState {
 
 export function createEmptyAdminUserForm(): AdminUserFormState {
   return {
-    nombre: '',
-    apellido: '',
-    username: '',
-    password: '',
-    passwordRepetida: '',
-    email: '',
-    roleId: '',
+    nombre: "",
+    apellido: "",
+    username: "",
+    password: "",
+    passwordRepetida: "",
+    email: "",
+    roleId: "",
     activo: true,
   };
 }
@@ -35,17 +35,17 @@ export function createNewAdminUserForm(
 ): AdminUserFormState {
   return {
     ...createEmptyAdminUserForm(),
-    roleId: String(roles.find((role) => role.activo)?.id ?? ''),
+    roleId: String(roles.find((role) => role.activo)?.id ?? ""),
   };
 }
 
 export function createAdminUserForm(user: AdminUser): AdminUserFormState {
   return {
     nombre: user.nombre,
-    apellido: user.apellido ?? '',
-    username: user.username ?? '',
-    password: '',
-    passwordRepetida: '',
+    apellido: user.apellido ?? "",
+    username: user.username ?? "",
+    password: "",
+    passwordRepetida: "",
     email: user.email,
     roleId: String(user.role_id),
     activo: user.activo,
@@ -54,8 +54,8 @@ export function createAdminUserForm(user: AdminUser): AdminUserFormState {
 
 export function createEmptyAdminRoleForm(): AdminRoleFormState {
   return {
-    nombre: '',
-    descripcion: '',
+    nombre: "",
+    descripcion: "",
     activo: true,
   };
 }
@@ -63,7 +63,7 @@ export function createEmptyAdminRoleForm(): AdminRoleFormState {
 export function createAdminRoleForm(role: AdminRole): AdminRoleFormState {
   return {
     nombre: role.nombre,
-    descripcion: role.descripcion ?? '',
+    descripcion: role.descripcion ?? "",
     activo: role.activo,
   };
 }
@@ -79,16 +79,16 @@ export function filterAdminRoles(
   rawSearch: string,
   status: string,
 ): AdminRole[] {
-  const search = rawSearch.trim().toLocaleLowerCase('es');
+  const search = rawSearch.trim().toLocaleLowerCase("es");
   return roles.filter((role) => {
     const matchesSearch =
       !search ||
-      role.nombre.toLocaleLowerCase('es').includes(search) ||
-      (role.descripcion ?? '').toLocaleLowerCase('es').includes(search);
+      role.nombre.toLocaleLowerCase("es").includes(search) ||
+      (role.descripcion ?? "").toLocaleLowerCase("es").includes(search);
     const matchesStatus =
-      status === '_all' ||
-      (status === 'active' && role.activo) ||
-      (status === 'inactive' && !role.activo);
+      status === "_all" ||
+      (status === "active" && role.activo) ||
+      (status === "inactive" && !role.activo);
     return matchesSearch && matchesStatus;
   });
 }

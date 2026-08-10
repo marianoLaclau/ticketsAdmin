@@ -59,7 +59,9 @@ describe("SLA de 48 horas hábiles", () => {
 
   it("comienza a contar el lunes 00:00 si ingresa durante el fin de semana", () => {
     const sabado = calcularFechaLimiteSla(fechaEnBuenosAires(2026, 7, 25, 10));
-    const domingo = calcularFechaLimiteSla(fechaEnBuenosAires(2026, 7, 26, 23, 59));
+    const domingo = calcularFechaLimiteSla(
+      fechaEnBuenosAires(2026, 7, 26, 23, 59),
+    );
 
     assert.deepEqual(partesEnBuenosAires(sabado), [2026, 7, 29, 0, 0, 0, 0]);
     assert.deepEqual(partesEnBuenosAires(domingo), [2026, 7, 29, 0, 0, 0, 0]);
@@ -91,8 +93,14 @@ describe("SLA de 48 horas hábiles", () => {
   });
 
   it("rechaza fechas y cantidades de horas inválidas", () => {
-    assert.throws(() => sumarHorasHabiles(new Date(Number.NaN), 48), RangeError);
+    assert.throws(
+      () => sumarHorasHabiles(new Date(Number.NaN), 48),
+      RangeError,
+    );
     assert.throws(() => sumarHorasHabiles(new Date(), -1), RangeError);
-    assert.throws(() => sumarHorasHabiles(new Date(), Number.POSITIVE_INFINITY), RangeError);
+    assert.throws(
+      () => sumarHorasHabiles(new Date(), Number.POSITIVE_INFINITY),
+      RangeError,
+    );
   });
 });

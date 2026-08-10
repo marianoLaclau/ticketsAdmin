@@ -42,7 +42,9 @@ describe("reconciliación de categorías derivadas", () => {
     assert.equal(resultado.actualizados, 2);
     assert.deepEqual(
       sqlite
-        .prepare("SELECT id, motivo_categoria, version FROM tickets ORDER BY id")
+        .prepare(
+          "SELECT id, motivo_categoria, version FROM tickets ORDER BY id",
+        )
         .all(),
       [
         { id: 1, motivo_categoria: "embargos", version: 2 },
@@ -54,7 +56,9 @@ describe("reconciliación de categorías derivadas", () => {
       ],
     );
     assert.deepEqual(
-      sqlite.prepare("SELECT id, motivo, resumen FROM tickets ORDER BY id").all(),
+      sqlite
+        .prepare("SELECT id, motivo, resumen FROM tickets ORDER BY id")
+        .all(),
       textosAntes,
     );
 

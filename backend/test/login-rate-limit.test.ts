@@ -97,7 +97,8 @@ describe("limitador de intentos de login", () => {
 
     const atCapacity = limiter.reserve("tercera");
     assert.equal(atCapacity.allowed, false);
-    if (atCapacity.allowed) assert.fail("no debia expulsar una reserva en vuelo");
+    if (atCapacity.allowed)
+      assert.fail("no debia expulsar una reserva en vuelo");
     assert.equal(atCapacity.retryAfterSeconds, 60);
     assert.equal(limiter.size, 2);
 

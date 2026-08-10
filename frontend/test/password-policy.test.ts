@@ -16,10 +16,7 @@ test("presenta cada incumplimiento de la política sin datos técnicos", () => {
     getNewPasswordError("PASSWORDPASSWORD") ?? "",
     /común, repetitiva o de ejemplo/i,
   );
-  assert.match(
-    getNewPasswordError("a".repeat(16)) ?? "",
-    /repetitiva/i,
-  );
+  assert.match(getNewPasswordError("a".repeat(16)) ?? "", /repetitiva/i);
   assert.match(
     getNewPasswordError("Frase\ninterna segura 2026") ?? "",
     /caracteres de control/i,

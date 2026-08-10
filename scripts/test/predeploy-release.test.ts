@@ -128,7 +128,10 @@ test("persiste y reconcilia el intento antes de aceptar otro rollout", () => {
   const main = shellFunction("main");
   const cleanup = shellFunction("cleanup");
 
-  assert.match(release, /source "\$DEPLOY_SCRIPT_DIRECTORY\/release-state\.sh"/);
+  assert.match(
+    release,
+    /source "\$DEPLOY_SCRIPT_DIRECTORY\/release-state\.sh"/,
+  );
   assertPatternsInOrder(
     main,
     [
@@ -147,7 +150,11 @@ test("persiste y reconcilia el intento antes de aceptar otro rollout", () => {
   );
   assertPatternsInOrder(
     cleanup,
-    [/release_state_update_pending/, /rollback_application/, /release_state_finalize_baseline/],
+    [
+      /release_state_update_pending/,
+      /rollback_application/,
+      /release_state_finalize_baseline/,
+    ],
     "cleanup debe escribir rolling_back antes de restaurar el baseline",
   );
   assert.match(releaseState, /ticketsadmin\.application-release-state/);
@@ -156,7 +163,10 @@ test("persiste y reconcilia el intento antes de aceptar otro rollout", () => {
   assert.match(releaseState, /sync "\$temporary"/);
   assert.match(releaseState, /mv -T -- "\$temporary" "\$file"/);
   assert.match(releaseState, /sync -f "\$directory"/);
-  assert.doesNotMatch(releaseState, /restore-db\.mjs|docker compose down|docker volume (?:rm|prune)/);
+  assert.doesNotMatch(
+    releaseState,
+    /restore-db\.mjs|docker compose down|docker volume (?:rm|prune)/,
+  );
 });
 
 test("un unico lock abarca baseline, backup, freshness, rollout y smoke", () => {

@@ -112,7 +112,9 @@ function validarEntrada(fecha: Date, horas: number): void {
     throw new RangeError("La fecha base del SLA no es válida");
   }
   if (!Number.isFinite(horas) || horas < 0) {
-    throw new RangeError("Las horas hábiles deben ser un número finito no negativo");
+    throw new RangeError(
+      "Las horas hábiles deben ser un número finito no negativo",
+    );
   }
 }
 
@@ -123,10 +125,7 @@ function validarEntrada(fecha: Date, horas: number): void {
  * consumen plazo; si el inicio cae en fin de semana, el reloj comienza el
  * lunes a las 00:00. No contempla feriados.
  */
-export function sumarHorasHabiles(
-  fecha: Date,
-  horas: number,
-): Date {
+export function sumarHorasHabiles(fecha: Date, horas: number): Date {
   validarEntrada(fecha, horas);
   if (horas === 0) return new Date(fecha.getTime());
 

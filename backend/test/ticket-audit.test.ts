@@ -83,6 +83,9 @@ describe("helpers de auditoría de tickets", () => {
   });
 
   it("mantiene la nota base cuando no existen detalles", () => {
-    assert.equal(buildTicketAuditNote(current, current, []), "Ticket actualizado.");
+    assert.equal(
+      buildTicketAuditNote(current, current, []),
+      "Ticket actualizado.",
+    );
   });
 });

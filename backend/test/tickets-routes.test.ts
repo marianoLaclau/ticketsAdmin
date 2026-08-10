@@ -111,13 +111,12 @@ const [
   { sqlite },
   { addEventClient },
   { fingerprintAdminApiKey },
-] =
-  await Promise.all([
-    import("../src/routes/tickets.ts"),
-    import("@workspace/db"),
-    import("../src/lib/events.ts"),
-    import("../src/lib/admin-elevation.ts"),
-  ]);
+] = await Promise.all([
+  import("../src/routes/tickets.ts"),
+  import("@workspace/db"),
+  import("../src/lib/events.ts"),
+  import("../src/lib/admin-elevation.ts"),
+]);
 
 const app = express();
 app.use(express.json());
@@ -171,14 +170,7 @@ interface RequestOptions extends RequestInit {
 }
 
 function request(path: string, options: RequestOptions = {}) {
-  const {
-    role,
-    userId,
-    adminIntent,
-    elevated,
-    headers,
-    ...init
-  } = options;
+  const { role, userId, adminIntent, elevated, headers, ...init } = options;
   const requestHeaders = new Headers(headers);
   requestHeaders.set("x-test-role", role ?? "Operador");
   requestHeaders.set("x-test-user", String(userId ?? 1));
@@ -445,10 +437,7 @@ describe("acceso a registros en cuarentena", () => {
       adminIntent: "1",
     });
     assert.equal(elevatedList.status, 200);
-    assert.equal(
-      ((await elevatedList.json()) as { total: number }).total,
-      3,
-    );
+    assert.equal(((await elevatedList.json()) as { total: number }).total, 3);
 
     const list = await request("/tickets?incluir_vacios=true", {
       role: "SysAdmin",

@@ -65,17 +65,23 @@ function insertarTicket(
     fechaLimite?: Date | null;
   },
 ): void {
-  sqlite.prepare(`
+  sqlite
+    .prepare(
+      `
     INSERT INTO tickets (id, estado, prioridad, fecha_limite)
     VALUES (?, ?, ?, ?)
-  `).run(
-    valores.id,
-    valores.estado ?? "nuevo",
-    valores.prioridad ?? "media",
-    valores.fechaLimite === null
-      ? null
-      : (valores.fechaLimite ?? new Date("2026-07-23T13:00:00.000Z")).getTime(),
-  );
+  `,
+    )
+    .run(
+      valores.id,
+      valores.estado ?? "nuevo",
+      valores.prioridad ?? "media",
+      valores.fechaLimite === null
+        ? null
+        : (
+            valores.fechaLimite ?? new Date("2026-07-23T13:00:00.000Z")
+          ).getTime(),
+    );
 }
 
 describe("repositorio transaccional de prioridad automatica", () => {
@@ -88,7 +94,10 @@ describe("repositorio transaccional de prioridad automatica", () => {
     insertarTicket(sqlite, { id: 4, fechaLimite });
 
     const candidatos = await repositorio.listarCandidatos();
-    assert.deepEqual(candidatos.map(({ id }) => id), [1]);
+    assert.deepEqual(
+      candidatos.map(({ id }) => id),
+      [1],
+    );
 
     const cambio = {
       ticketId: 1,
@@ -97,19 +106,22 @@ describe("repositorio transaccional de prioridad automatica", () => {
       fechaLimiteEsperada: fechaLimite,
       horasHabilesRestantes: 24,
     };
-    assert.deepEqual(
-      await repositorio.promoverSiCoincide(cambio),
-      { version: 2 },
-    );
+    assert.deepEqual(await repositorio.promoverSiCoincide(cambio), {
+      version: 2,
+    });
 
     const ticket = sqlite
       .prepare("SELECT prioridad, version FROM tickets WHERE id = 1")
       .get() as { prioridad: string; version: number };
-    const seguimientos = sqlite.prepare(`
+    const seguimientos = sqlite
+      .prepare(
+        `
       SELECT ticket_id, nota, prioridad_anterior, prioridad_nueva, autor
       FROM seguimientos
       WHERE ticket_id = 1
-    `).all() as Array<Record<string, unknown>>;
+    `,
+      )
+      .all() as Array<Record<string, unknown>>;
 
     assert.equal(ticket.prioridad, "alta");
     assert.equal(ticket.version, 2);
@@ -139,9 +151,9 @@ describe("repositorio transaccional de prioridad automatica", () => {
     assert.equal(total, 1);
     assert.equal(
       (
-        sqlite
-          .prepare("SELECT version FROM tickets WHERE id = 1")
-          .get() as { version: number }
+        sqlite.prepare("SELECT version FROM tickets WHERE id = 1").get() as {
+          version: number;
+        }
       ).version,
       2,
     );
@@ -178,13 +190,15 @@ describe("notificacion de una promocion", () => {
     const orden: string[] = [];
     let versionNotificada: number | undefined;
     const repositorio: RepositorioPrioridadAutomatica = {
-      listarCandidatos: async () => [{
-        id: 7,
-        estado: "nuevo",
-        prioridad: "media",
-        fechaLimite: new Date("2026-07-22T23:00:00.000Z"),
-        visible: true,
-      }],
+      listarCandidatos: async () => [
+        {
+          id: 7,
+          estado: "nuevo",
+          prioridad: "media",
+          fechaLimite: new Date("2026-07-22T23:00:00.000Z"),
+          visible: true,
+        },
+      ],
       promoverSiCoincide: async () => {
         orden.push("transaccion_confirmada");
         return { version: 6 };
@@ -214,7 +228,8 @@ describe("notificacion de una promocion", () => {
       "Prioridad actualizada automáticamente de ALTA a URGENTE por proximidad al vencimiento (vencido hace 2,5 horas hábiles).",
     );
 
-    const emisiones: Array<{ tipo: string; data: Record<string, unknown> }> = [];
+    const emisiones: Array<{ tipo: string; data: Record<string, unknown> }> =
+      [];
     emitirPromocionPrioridadSse(
       {
         ticketId: 9,
@@ -226,16 +241,18 @@ describe("notificacion de una promocion", () => {
       (tipo, data = {}) => emisiones.push({ tipo, data }),
     );
 
-    assert.deepEqual(emisiones, [{
-      tipo: "ticket_actualizado",
-      data: {
-        ticket_id: 9,
-        version: 4,
-        prioridad: "urgente",
-        prioridad_anterior: "alta",
-        prioridad_nueva: "urgente",
-        origen: "prioridad_automatica",
+    assert.deepEqual(emisiones, [
+      {
+        tipo: "ticket_actualizado",
+        data: {
+          ticket_id: 9,
+          version: 4,
+          prioridad: "urgente",
+          prioridad_anterior: "alta",
+          prioridad_nueva: "urgente",
+          origen: "prioridad_automatica",
+        },
       },
-    }]);
+    ]);
   });
 });

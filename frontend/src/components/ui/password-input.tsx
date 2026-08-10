@@ -1,9 +1,9 @@
-import * as React from 'react';
-import { Eye, EyeOff } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
+import * as React from "react";
+import { Eye, EyeOff } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
-type PasswordInputProps = Omit<React.ComponentProps<typeof Input>, 'type'> & {
+type PasswordInputProps = Omit<React.ComponentProps<typeof Input>, "type"> & {
   containerClassName?: string;
   visibilityLabel?: string;
 };
@@ -14,21 +14,21 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
       className,
       containerClassName,
       disabled,
-      visibilityLabel = 'contraseña',
+      visibilityLabel = "contraseña",
       ...props
     },
     ref,
   ) => {
     const [isVisible, setIsVisible] = React.useState(false);
-    const actionLabel = `${isVisible ? 'Ocultar' : 'Mostrar'} ${visibilityLabel}`;
+    const actionLabel = `${isVisible ? "Ocultar" : "Mostrar"} ${visibilityLabel}`;
 
     return (
-      <div className={cn('relative', containerClassName)}>
+      <div className={cn("relative", containerClassName)}>
         <Input
           ref={ref}
-          type={isVisible ? 'text' : 'password'}
+          type={isVisible ? "text" : "password"}
           disabled={disabled}
-          className={cn('pr-10', className)}
+          className={cn("pr-10", className)}
           {...props}
         />
         <button
@@ -52,6 +52,6 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
   },
 );
 
-PasswordInput.displayName = 'PasswordInput';
+PasswordInput.displayName = "PasswordInput";
 
 export { PasswordInput };

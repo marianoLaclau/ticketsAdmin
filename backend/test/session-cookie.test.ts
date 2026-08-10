@@ -65,8 +65,7 @@ describe("token de cookie de sesión", () => {
 
   it("centraliza atributos idénticos al crear y eliminar la cookie", () => {
     let created:
-      | { name: string; value: string; options: CookieOptions }
-      | undefined;
+      { name: string; value: string; options: CookieOptions } | undefined;
     let cleared: { name: string; options: CookieOptions } | undefined;
     const response = {
       cookie(name: string, value: string, options: CookieOptions) {

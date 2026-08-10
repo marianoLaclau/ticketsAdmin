@@ -1,4 +1,4 @@
-export const SESSION_REVOKED_EVENT = 'sesion_revocada';
+export const SESSION_REVOKED_EVENT = "sesion_revocada";
 
 interface RealtimeEvent {
   tipo: string;
@@ -11,11 +11,13 @@ interface RealtimeEvent {
 }
 
 function optionalString(value: unknown): string | null | undefined {
-  return typeof value === 'string' || value === null ? value : undefined;
+  return typeof value === "string" || value === null ? value : undefined;
 }
 
 function optionalFiniteNumber(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 /**
@@ -31,9 +33,9 @@ export function parseRealtimeEvent(payload: string): RealtimeEvent | null {
     return null;
   }
 
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
-  if (typeof record.tipo !== 'string' || !record.tipo.trim()) return null;
+  if (typeof record.tipo !== "string" || !record.tipo.trim()) return null;
 
   const ticketId = record.ticket_id;
   const nombre = optionalString(record.nombre);
@@ -43,7 +45,7 @@ export function parseRealtimeEvent(payload: string): RealtimeEvent | null {
   const cantidadTotal = optionalFiniteNumber(record.cantidad_total);
   return {
     tipo: record.tipo,
-    ...(typeof ticketId === 'number' || typeof ticketId === 'string'
+    ...(typeof ticketId === "number" || typeof ticketId === "string"
       ? { ticket_id: ticketId }
       : {}),
     ...(nombre === undefined ? {} : { nombre }),

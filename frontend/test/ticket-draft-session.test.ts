@@ -1,16 +1,16 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
+import assert from "node:assert/strict";
+import test from "node:test";
 import {
   transitionTicketDraftSession,
   type TicketDraftSession,
-} from '../src/lib/ticket-draft-session.ts';
+} from "../src/lib/ticket-draft-session.ts";
 
 const closedSession: TicketDraftSession = {
   wasOpen: false,
   ticketId: null,
 };
 
-test('captura un baseline al abrir y no muta la sesión anterior', () => {
+test("captura un baseline al abrir y no muta la sesión anterior", () => {
   const transition = transitionTicketDraftSession(closedSession, true, 12);
 
   assert.equal(transition.shouldReset, true);
@@ -18,7 +18,7 @@ test('captura un baseline al abrir y no muta la sesión anterior', () => {
   assert.deepEqual(closedSession, { wasOpen: false, ticketId: null });
 });
 
-test('preserva el draft ante una revisión SSE del mismo ticket', () => {
+test("preserva el draft ante una revisión SSE del mismo ticket", () => {
   const transition = transitionTicketDraftSession(
     { wasOpen: true, ticketId: 12 },
     true,
@@ -29,7 +29,7 @@ test('preserva el draft ante una revisión SSE del mismo ticket', () => {
   assert.deepEqual(transition.next, { wasOpen: true, ticketId: 12 });
 });
 
-test('reinicia el draft si cambia el ticket mientras el diálogo sigue abierto', () => {
+test("reinicia el draft si cambia el ticket mientras el diálogo sigue abierto", () => {
   const transition = transitionTicketDraftSession(
     { wasOpen: true, ticketId: 12 },
     true,
@@ -40,7 +40,7 @@ test('reinicia el draft si cambia el ticket mientras el diálogo sigue abierto',
   assert.deepEqual(transition.next, { wasOpen: true, ticketId: 27 });
 });
 
-test('cerrar y reabrir captura los datos y la versión más recientes', () => {
+test("cerrar y reabrir captura los datos y la versión más recientes", () => {
   const closed = transitionTicketDraftSession(
     { wasOpen: true, ticketId: 12 },
     false,

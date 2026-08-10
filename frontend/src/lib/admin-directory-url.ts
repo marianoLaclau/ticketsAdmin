@@ -19,8 +19,7 @@ export const ADMIN_DIRECTORY_USER_LIMITS = Object.freeze([
   10, 25, 50, 100,
 ] as const);
 
-type AdminDirectoryStatus =
-  (typeof ADMIN_DIRECTORY_USER_STATUSES)[number];
+type AdminDirectoryStatus = (typeof ADMIN_DIRECTORY_USER_STATUSES)[number];
 type AdminDirectoryUserStatus = AdminDirectoryStatus;
 type AdminDirectoryRoleStatus = AdminDirectoryStatus;
 export type AdminDirectoryUserLimit =

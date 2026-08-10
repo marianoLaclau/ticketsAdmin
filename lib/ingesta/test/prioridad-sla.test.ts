@@ -70,7 +70,10 @@ describe("horas habiles restantes", () => {
     const domingo = fechaEnBuenosAires(2026, 7, 26, 18);
 
     assert.equal(calcularHorasHabilesEntre(sabado, domingo), 0);
-    assert.equal(Object.is(calcularHorasHabilesEntre(domingo, sabado), -0), false);
+    assert.equal(
+      Object.is(calcularHorasHabilesEntre(domingo, sabado), -0),
+      false,
+    );
   });
 
   it("rechaza fechas invalidas", () => {

@@ -120,20 +120,17 @@ async function provisionSysAdmin(): Promise<void> {
     throw new Error("El bootstrap E2E no recibió la cookie de sesión");
   }
 
-  const changeResponse = await fetch(
-    `${E2E_BACKEND_URL}/api/auth/password`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: sessionCookie,
-      },
-      body: JSON.stringify({
-        password_actual: E2E_BOOTSTRAP_PASSWORD,
-        password_nueva: E2E_SYSADMIN_PASSWORD,
-      }),
+  const changeResponse = await fetch(`${E2E_BACKEND_URL}/api/auth/password`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: sessionCookie,
     },
-  );
+    body: JSON.stringify({
+      password_actual: E2E_BOOTSTRAP_PASSWORD,
+      password_nueva: E2E_SYSADMIN_PASSWORD,
+    }),
+  });
   if (!changeResponse.ok) {
     throw new Error(
       `No se pudo fijar la clave definitiva del SysAdmin E2E (HTTP ${changeResponse.status})`,

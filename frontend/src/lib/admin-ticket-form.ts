@@ -1,8 +1,5 @@
-import type {
-  Ticket,
-  TicketInput,
-} from '@workspace/api-client-react';
-import type { TicketChanges } from './ticket-version';
+import type { Ticket, TicketInput } from "@workspace/api-client-react";
+import type { TicketChanges } from "./ticket-version";
 
 export interface AdminTicketForm {
   conversation_id: string;
@@ -17,13 +14,13 @@ export interface AdminTicketForm {
   resumen: string;
   notas: string;
   audio_url: string;
-  estado: Ticket['estado'];
-  prioridad: Ticket['prioridad'];
+  estado: Ticket["estado"];
+  prioridad: Ticket["prioridad"];
 }
 
 export type AdminTicketTextField = Exclude<
   keyof AdminTicketForm,
-  'estado' | 'prioridad'
+  "estado" | "prioridad"
 >;
 
 const cleanRequired = (value: string): string => value.trim();
@@ -31,24 +28,22 @@ const cleanNullable = (value: string): string | null => value.trim() || null;
 const cleanOptional = (value: string): string | undefined =>
   value.trim() || undefined;
 
-export function createEmptyAdminTicketForm(
-  now = new Date(),
-): AdminTicketForm {
+export function createEmptyAdminTicketForm(now = new Date()): AdminTicketForm {
   return {
     conversation_id: `manual_${now.getTime()}`,
-    hora: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
-    nombre: '',
-    apellido: '',
-    telefono: '',
-    dni: '',
-    empresa: '',
-    email: '',
-    motivo: '',
-    resumen: '',
-    notas: '',
-    audio_url: '',
-    estado: 'nuevo',
-    prioridad: 'media',
+    hora: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
+    nombre: "",
+    apellido: "",
+    telefono: "",
+    dni: "",
+    empresa: "",
+    email: "",
+    motivo: "",
+    resumen: "",
+    notas: "",
+    audio_url: "",
+    estado: "nuevo",
+    prioridad: "media",
   };
 }
 
@@ -58,14 +53,14 @@ export function ticketToAdminTicketForm(ticket: Ticket): AdminTicketForm {
     hora: ticket.hora,
     nombre: ticket.nombre,
     apellido: ticket.apellido,
-    telefono: ticket.telefono ?? '',
-    dni: ticket.dni ?? '',
-    empresa: ticket.empresa ?? '',
-    email: ticket.email ?? '',
+    telefono: ticket.telefono ?? "",
+    dni: ticket.dni ?? "",
+    empresa: ticket.empresa ?? "",
+    email: ticket.email ?? "",
     motivo: ticket.motivo,
-    resumen: ticket.resumen ?? '',
-    notas: ticket.notas ?? '',
-    audio_url: ticket.audio_url ?? '',
+    resumen: ticket.resumen ?? "",
+    notas: ticket.notas ?? "",
+    audio_url: ticket.audio_url ?? "",
     estado: ticket.estado,
     prioridad: ticket.prioridad,
   };
@@ -105,7 +100,7 @@ export function buildAdminTicketUpdate(
 ): TicketChanges {
   const update: TicketChanges = {};
 
-  const requiredFields = ['hora', 'nombre', 'apellido', 'motivo'] as const;
+  const requiredFields = ["hora", "nombre", "apellido", "motivo"] as const;
   for (const field of requiredFields) {
     const nextValue = cleanRequired(form[field]);
     const currentValue = cleanRequired(baseline[field]);
@@ -113,13 +108,13 @@ export function buildAdminTicketUpdate(
   }
 
   const nullableFields = [
-    'telefono',
-    'dni',
-    'empresa',
-    'email',
-    'resumen',
-    'notas',
-    'audio_url',
+    "telefono",
+    "dni",
+    "empresa",
+    "email",
+    "resumen",
+    "notas",
+    "audio_url",
   ] as const;
   for (const field of nullableFields) {
     const nextValue = cleanNullable(form[field]);

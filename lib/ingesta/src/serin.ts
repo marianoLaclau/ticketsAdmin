@@ -20,10 +20,7 @@ export function crearSeguimientoOrigenSerin(
   empresa: string | null | undefined,
 ): SeguimientoOrigenSerin | null {
   const empresaNormalizada = (empresa ?? "").trim().toLowerCase();
-  if (
-    !empresaNormalizada ||
-    EMPRESAS_NO_ASOCIADAS.has(empresaNormalizada)
-  ) {
+  if (!empresaNormalizada || EMPRESAS_NO_ASOCIADAS.has(empresaNormalizada)) {
     return null;
   }
 

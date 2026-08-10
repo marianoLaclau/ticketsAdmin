@@ -28,11 +28,16 @@ function cellToString(value: ExcelJS.CellValue): string {
   if (value === null || value === undefined) return "";
   if (value instanceof Date) return fechaExcelAStringLocal(value);
   if (typeof value === "object") {
-    if ("text" in value && typeof value.text === "string") return value.text.trim(); // hyperlink / rich text
+    if ("text" in value && typeof value.text === "string")
+      return value.text.trim(); // hyperlink / rich text
     if ("richText" in value && Array.isArray(value.richText)) {
-      return value.richText.map((r) => r.text).join("").trim();
+      return value.richText
+        .map((r) => r.text)
+        .join("")
+        .trim();
     }
-    if ("result" in value) return cellToString(value.result as ExcelJS.CellValue); // formula
+    if ("result" in value)
+      return cellToString(value.result as ExcelJS.CellValue); // formula
     return String(value).trim();
   }
   return String(value).trim();
@@ -43,10 +48,16 @@ type Grid = { name: string; rows: string[][] };
 async function readXlsx(filePath: string, sheetName?: string): Promise<Grid> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(filePath);
-  const sheet = sheetName ? workbook.getWorksheet(sheetName) : workbook.worksheets[0];
+  const sheet = sheetName
+    ? workbook.getWorksheet(sheetName)
+    : workbook.worksheets[0];
   if (!sheet) {
-    console.error(`No se encontró la hoja ${sheetName ?? "(primera)"} en el archivo.`);
-    console.error(`Hojas disponibles: ${workbook.worksheets.map((w) => w.name).join(", ")}`);
+    console.error(
+      `No se encontró la hoja ${sheetName ?? "(primera)"} en el archivo.`,
+    );
+    console.error(
+      `Hojas disponibles: ${workbook.worksheets.map((w) => w.name).join(", ")}`,
+    );
     process.exit(1);
   }
   const rows: string[][] = [];
@@ -78,7 +89,9 @@ async function main() {
   const filePath = args.find((a) => !a.startsWith("--") && a !== sheetName);
 
   if (!filePath) {
-    console.error("Uso: pnpm --filter @workspace/scripts run import-excel -- <archivo.xlsx|csv> [--dry-run] [--sheet <nombre>]");
+    console.error(
+      "Uso: pnpm --filter @workspace/scripts run import-excel -- <archivo.xlsx|csv> [--dry-run] [--sheet <nombre>]",
+    );
     process.exit(1);
   }
   const resolved = path.resolve(filePath);
@@ -87,7 +100,9 @@ async function main() {
     process.exit(1);
   }
 
-  const grid = resolved.toLowerCase().endsWith(".csv") ? readCsv(resolved) : await readXlsx(resolved, sheetName);
+  const grid = resolved.toLowerCase().endsWith(".csv")
+    ? readCsv(resolved)
+    : await readXlsx(resolved, sheetName);
   const [headerCells, ...dataRows] = grid.rows;
 
   const { columnas, sinMapear } = detectarColumnas(headerCells);
@@ -101,7 +116,9 @@ async function main() {
     console.warn(`⚠ Columnas sin mapear (se ignoran): ${sinMapear.join(", ")}`);
   }
   if (![...columnas.values()].includes("conversation_id")) {
-    console.error("✗ No se encontró ninguna columna que mapee a conversation_id. Ajustá HEADER_ALIASES en lib/ingesta/src/headers.ts");
+    console.error(
+      "✗ No se encontró ninguna columna que mapee a conversation_id. Ajustá HEADER_ALIASES en lib/ingesta/src/headers.ts",
+    );
     process.exit(1);
   }
 
@@ -157,10 +174,15 @@ async function main() {
   );
 
   for (const w of warnings.slice(0, 20)) console.warn(`⚠ ${w}`);
-  if (warnings.length > 20) console.warn(`⚠ ... y ${warnings.length - 20} advertencias más`);
+  if (warnings.length > 20)
+    console.warn(`⚠ ... y ${warnings.length - 20} advertencias más`);
 
   console.log("");
-  console.log(dryRun ? "== SIMULACIÓN (--dry-run, no se escribió nada) ==" : "== Importación terminada ==");
+  console.log(
+    dryRun
+      ? "== SIMULACIÓN (--dry-run, no se escribió nada) =="
+      : "== Importación terminada ==",
+  );
   console.log(`  Insertados:            ${importResult.inserted}`);
   console.log(`  Ya existentes (salteados): ${importResult.skippedExisting}`);
   console.log(`  Inválidos (salteados):     ${skippedInvalid}`);

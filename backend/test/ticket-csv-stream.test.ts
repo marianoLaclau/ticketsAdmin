@@ -204,7 +204,10 @@ describe("streaming CSV de tickets", () => {
       },
     });
 
-    assert.throws(() => deadline.dispose(), (error) => error === clearError);
+    assert.throws(
+      () => deadline.dispose(),
+      (error) => error === clearError,
+    );
     deadline.dispose();
     deadline.dispose();
     assert.equal(clearCalls, 2);

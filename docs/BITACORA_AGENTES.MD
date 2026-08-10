@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Formato determinista incorporado al quality gate
+
+**Agente:** Codex
+**Estado:** ducentésima trigésima segunda remediación de la auditoría técnica, implementada localmente.
+
+- El workspace expone `format` y `format:check`; el quality gate rechaza desde ahora cualquier drift de Prettier antes de codegen, schema, pruebas y builds. La política cubre código, configuración, estilos, JSON y YAML en todos los paquetes y omite exclusivamente dependencias, builds, artefactos E2E, metadatos/generados y lockfiles gobernados por sus propias herramientas.
+- Se normalizó mecánicamente el remanente histórico de backend, frontend, librerías, scripts y E2E sin modificar contratos ni comportamiento. El cambio queda aislado de las correcciones funcionales anteriores para que el diff pueda revisarse como formato.
+- `pnpm run format:check` recorrió el workspace completo y aprobó sin archivos divergentes; `git diff --check` permaneció limpio. No se hizo push.
+
 ## 2026-08-09 — Flujos críticos de navegador aislados y bloqueantes
 
 **Agente:** Codex

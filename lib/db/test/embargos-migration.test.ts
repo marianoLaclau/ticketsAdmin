@@ -25,12 +25,37 @@ describe("migración de la categoría Embargos", () => {
       VALUES (?, ?, ?, ?)
     `);
     insert.run(1, "Consulta por embargo de sueldo", "haberes_pagos", null);
-    insert.run(2, "Sin embargo, necesita su recibo", "recibos_documentacion", null);
-    insert.run(3, "Necesita ayuda", "sin_clasificar", "Retención judicial de haberes");
+    insert.run(
+      2,
+      "Sin embargo, necesita su recibo",
+      "recibos_documentacion",
+      null,
+    );
+    insert.run(
+      3,
+      "Necesita ayuda",
+      "sin_clasificar",
+      "Retención judicial de haberes",
+    );
     insert.run(4, "Medida cautelar judicial", "legales", null);
-    insert.run(5, "Sin embargo, consulta por un embargo de cuenta", "legales", null);
-    insert.run(6, "Solicita su recibo", "recibos_documentacion", "También mencionó un embargo");
-    insert.run(7, "Orden judicial para retener parte del sueldo", "legales", null);
+    insert.run(
+      5,
+      "Sin embargo, consulta por un embargo de cuenta",
+      "legales",
+      null,
+    );
+    insert.run(
+      6,
+      "Solicita su recibo",
+      "recibos_documentacion",
+      "También mencionó un embargo",
+    );
+    insert.run(
+      7,
+      "Orden judicial para retener parte del sueldo",
+      "legales",
+      null,
+    );
     insert.run(8, "Oficio de retención de haberes", "sin_clasificar", null);
 
     const textosAntes = sqlite

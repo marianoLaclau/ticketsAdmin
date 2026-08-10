@@ -151,10 +151,7 @@ describe("ciclo de prioridad automatica", () => {
     const repositorio = new RepositorioEnMemoria([]);
 
     await assert.rejects(
-      ejecutarCicloPrioridadAutomatica(
-        repositorio,
-        new Date(Number.NaN),
-      ),
+      ejecutarCicloPrioridadAutomatica(repositorio, new Date(Number.NaN)),
       RangeError,
     );
     assert.equal(repositorio.lecturas, 0);
@@ -163,7 +160,8 @@ describe("ciclo de prioridad automatica", () => {
 
 describe("servicio de prioridad automatica", () => {
   it("coalesce ejecuciones concurrentes y no permite solapamiento", async () => {
-    let liberarLectura: ((tickets: readonly TicketCandidatoPrioridad[]) => void) | undefined;
+    let liberarLectura:
+      ((tickets: readonly TicketCandidatoPrioridad[]) => void) | undefined;
     let lecturas = 0;
     const repositorio: RepositorioPrioridadAutomatica = {
       listarCandidatos: () => {

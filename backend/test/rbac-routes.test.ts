@@ -160,9 +160,9 @@ function assertClearedSessionCookie(response: Response): void {
   );
 }
 
-async function adminSession(
-  { elevate = true }: { elevate?: boolean } = {},
-): Promise<string> {
+async function adminSession({
+  elevate = true,
+}: { elevate?: boolean } = {}): Promise<string> {
   const response = await login("sysadmin");
   assert.equal(response.status, 200);
   const cookie = sessionCookie(response);
@@ -548,9 +548,10 @@ describe("ciclo de la cookie de sesión", () => {
     let storedTokens = sqlite
       .prepare("SELECT token FROM sesiones ORDER BY token")
       .all() as Array<{ token: string }>;
-    assert.deepEqual(storedTokens, [validFuture, validExpired]
-      .sort()
-      .map((token) => ({ token })));
+    assert.deepEqual(
+      storedTokens,
+      [validFuture, validExpired].sort().map((token) => ({ token })),
+    );
 
     await purgeExpiredSessions(boundary);
     storedTokens = sqlite
@@ -793,8 +794,7 @@ describe("autenticación uniforme", () => {
       await Promise.all(blockers);
     }
     await waitFor(
-      () =>
-        loginKdfGate.activeCount === 0 && loginKdfGate.queuedCount === 0,
+      () => loginKdfGate.activeCount === 0 && loginKdfGate.queuedCount === 0,
       "la verificacion abortada no termino de procesarse",
       10,
     );
@@ -962,7 +962,10 @@ describe("autenticación uniforme", () => {
       rawTokens.map(hashSessionToken).sort(),
     );
     for (const rawToken of rawTokens) {
-      assert.equal(sessions.some(({ token }) => token === rawToken), false);
+      assert.equal(
+        sessions.some(({ token }) => token === rawToken),
+        false,
+      );
     }
   });
 
@@ -1301,9 +1304,7 @@ describe("cambio obligatorio de contraseña", () => {
     assert.equal(stored.debe_cambiar_password, 0);
     assert.deepEqual(sessions, [
       {
-        token: hashSessionToken(
-          rotatedCookie.slice("gsb_session=".length),
-        ),
+        token: hashSessionToken(rotatedCookie.slice("gsb_session=".length)),
       },
     ]);
     assert.equal((await login("operadora", password)).status, 401);
@@ -1401,9 +1402,7 @@ describe("cambio obligatorio de contraseña", () => {
     assert.equal(stored.debe_cambiar_password, 0);
     assert.deepEqual(sessions, [
       {
-        token: hashSessionToken(
-          winnerCookie.slice("gsb_session=".length),
-        ),
+        token: hashSessionToken(winnerCookie.slice("gsb_session=".length)),
       },
     ]);
   });
@@ -1710,11 +1709,9 @@ describe("autorización administrativa elevada", () => {
     const elevated = await elevatedAdminRequest("/admin/roles", cookie);
     assert.equal(elevated.status, 200);
 
-    const rawOnlyAfterGrant = await requestWithSession(
-      "/admin/roles",
-      cookie,
-      { headers: { "x-admin-key": "rbac-admin-key" } },
-    );
+    const rawOnlyAfterGrant = await requestWithSession("/admin/roles", cookie, {
+      headers: { "x-admin-key": "rbac-admin-key" },
+    });
     assert.equal(rawOnlyAfterGrant.status, 401);
     assert.deepEqual(await rawOnlyAfterGrant.json(), {
       code: "ADMIN_ELEVATION_REQUIRED",

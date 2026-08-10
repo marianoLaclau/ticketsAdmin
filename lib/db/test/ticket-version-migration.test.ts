@@ -31,18 +31,15 @@ describe("migración de versión optimista de tickets", () => {
       .run(2, "Nuevo");
     assert.equal(
       (
-        sqlite
-          .prepare("SELECT version FROM tickets WHERE id = 2")
-          .get() as { version: number }
+        sqlite.prepare("SELECT version FROM tickets WHERE id = 2").get() as {
+          version: number;
+        }
       ).version,
       1,
     );
 
     assert.throws(
-      () =>
-        sqlite
-          .prepare("UPDATE tickets SET version = 0 WHERE id = 1")
-          .run(),
+      () => sqlite.prepare("UPDATE tickets SET version = 0 WHERE id = 1").run(),
       /constraint failed/i,
     );
 

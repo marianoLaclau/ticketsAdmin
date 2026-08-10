@@ -1,26 +1,26 @@
-import type { Ticket } from '@workspace/api-client-react';
-import type { TicketChanges } from './ticket-version';
+import type { Ticket } from "@workspace/api-client-react";
+import type { TicketChanges } from "./ticket-version";
 
 const FUNCTIONAL_TICKET_FIELD_LABELS = {
-  nombre: 'Nombre',
-  apellido: 'Apellido',
-  telefono: 'Teléfono',
-  dni: 'DNI / CUIT',
-  empresa: 'Empresa',
-  email: 'Email',
-  motivo: 'Motivo',
-  resumen: 'Resumen del llamado',
+  nombre: "Nombre",
+  apellido: "Apellido",
+  telefono: "Teléfono",
+  dni: "DNI / CUIT",
+  empresa: "Empresa",
+  email: "Email",
+  motivo: "Motivo",
+  resumen: "Resumen del llamado",
 } as const;
 
 const TICKET_AUDIT_FIELD_LABELS: Readonly<Record<string, string>> = {
   ...FUNCTIONAL_TICKET_FIELD_LABELS,
-  hora: 'Hora del llamado',
-  notificado: 'Notificación',
-  audio_url: 'Audio',
-  notas: 'Notas internas',
-  fecha_limite: 'Fecha límite',
-  fecha_resolucion: 'Fecha de resolución',
-  progreso: 'Progreso',
+  hora: "Hora del llamado",
+  notificado: "Notificación",
+  audio_url: "Audio",
+  notas: "Notas internas",
+  fecha_limite: "Fecha límite",
+  fecha_resolucion: "Fecha de resolución",
+  progreso: "Progreso",
 };
 
 export interface TicketFunctionalForm {
@@ -35,22 +35,21 @@ export interface TicketFunctionalForm {
 }
 
 export interface TicketManagementForm {
-  estado: Ticket['estado'];
-  prioridad: Ticket['prioridad'];
+  estado: Ticket["estado"];
+  prioridad: Ticket["prioridad"];
   progreso: number;
   notas: string;
   fecha_limite: string;
 }
 
-export const TICKET_STATE_PROGRESS: Readonly<
-  Record<Ticket['estado'], number>
-> = {
-  nuevo: 0,
-  en_proceso: 25,
-  pendiente: 50,
-  resuelto: 75,
-  cerrado: 100,
-};
+export const TICKET_STATE_PROGRESS: Readonly<Record<Ticket["estado"], number>> =
+  {
+    nuevo: 0,
+    en_proceso: 25,
+    pendiente: 50,
+    resuelto: 75,
+    cerrado: 100,
+  };
 
 const cleanRequired = (value: string): string => value.trim();
 const cleanOptional = (value: string | null | undefined): string | null =>
@@ -65,33 +64,33 @@ export function isValidOptionalEmail(value: string): boolean {
 
 export function ticketToFunctionalForm(ticket: Ticket): TicketFunctionalForm {
   return {
-    nombre: ticket.nombre ?? '',
-    apellido: ticket.apellido ?? '',
-    telefono: ticket.telefono ?? '',
-    dni: ticket.dni ?? '',
-    empresa: ticket.empresa ?? '',
-    email: ticket.email ?? '',
-    motivo: ticket.motivo ?? '',
-    resumen: ticket.resumen ?? '',
+    nombre: ticket.nombre ?? "",
+    apellido: ticket.apellido ?? "",
+    telefono: ticket.telefono ?? "",
+    dni: ticket.dni ?? "",
+    empresa: ticket.empresa ?? "",
+    email: ticket.email ?? "",
+    motivo: ticket.motivo ?? "",
+    resumen: ticket.resumen ?? "",
   };
 }
 
 export function ticketToManagementForm(
   ticket: Ticket,
-  fechaLimite = '',
+  fechaLimite = "",
 ): TicketManagementForm {
   return {
     estado: ticket.estado,
     prioridad: ticket.prioridad,
     progreso: ticket.progreso,
-    notas: ticket.notas ?? '',
+    notas: ticket.notas ?? "",
     fecha_limite: fechaLimite,
   };
 }
 
 export function applyTicketManagementState(
   form: TicketManagementForm,
-  estado: Ticket['estado'],
+  estado: Ticket["estado"],
   baseline: TicketManagementForm = form,
 ): TicketManagementForm {
   return {
@@ -144,14 +143,20 @@ export function buildFunctionalTicketUpdateFromBaseline(
 ): TicketChanges {
   const update: TicketChanges = {};
 
-  const requiredFields = ['nombre', 'apellido', 'motivo'] as const;
+  const requiredFields = ["nombre", "apellido", "motivo"] as const;
   for (const field of requiredFields) {
     const nextValue = cleanRequired(form[field]);
     const currentValue = cleanRequired(baseline[field]);
     if (nextValue !== currentValue) update[field] = nextValue;
   }
 
-  const optionalFields = ['telefono', 'dni', 'empresa', 'email', 'resumen'] as const;
+  const optionalFields = [
+    "telefono",
+    "dni",
+    "empresa",
+    "email",
+    "resumen",
+  ] as const;
   for (const field of optionalFields) {
     const nextValue = cleanOptional(form[field]);
     const currentValue = cleanOptional(baseline[field]);

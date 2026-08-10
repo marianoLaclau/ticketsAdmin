@@ -50,7 +50,11 @@ describe("integración del SLA con importaciones", () => {
       null,
     );
     assert.equal(
-      filaATicket({ conversation_id: "hora-invalida", fecha: "24/07/2026", hora: "25:00" }),
+      filaATicket({
+        conversation_id: "hora-invalida",
+        fecha: "24/07/2026",
+        hora: "25:00",
+      }),
       null,
     );
   });
@@ -60,7 +64,10 @@ describe("integración del SLA con importaciones", () => {
     const valorLocal = fechaExcelAStringLocal(serialExcel);
 
     assert.equal(valorLocal, "2026-07-24T10:00:00.000");
-    assert.equal(parseFecha(valorLocal)?.toISOString(), "2026-07-24T13:00:00.000Z");
+    assert.equal(
+      parseFecha(valorLocal)?.toISOString(),
+      "2026-07-24T13:00:00.000Z",
+    );
   });
 
   it("usa la fecha importada como base y omite el fin de semana", () => {
@@ -90,8 +97,14 @@ describe("integración del SLA con importaciones", () => {
 
     assert.ok(ticket);
     assert.equal(ticket.hora, "10:00");
-    assert.deepEqual(partesEnBuenosAires(ticket.fecha_creacion), [2026, 7, 24, 10, 0]);
-    assert.deepEqual(partesEnBuenosAires(ticket.fecha_limite), [2026, 7, 28, 10, 0]);
+    assert.deepEqual(
+      partesEnBuenosAires(ticket.fecha_creacion),
+      [2026, 7, 24, 10, 0],
+    );
+    assert.deepEqual(
+      partesEnBuenosAires(ticket.fecha_limite),
+      [2026, 7, 28, 10, 0],
+    );
   });
 
   it("reconoce una celda de hora de Excel separada y le da precedencia", () => {
@@ -103,7 +116,13 @@ describe("integración del SLA con importaciones", () => {
 
     assert.ok(ticket);
     assert.equal(ticket.hora, "10:00");
-    assert.deepEqual(partesEnBuenosAires(ticket.fecha_creacion), [2026, 7, 24, 10, 0]);
-    assert.deepEqual(partesEnBuenosAires(ticket.fecha_limite), [2026, 7, 28, 10, 0]);
+    assert.deepEqual(
+      partesEnBuenosAires(ticket.fecha_creacion),
+      [2026, 7, 24, 10, 0],
+    );
+    assert.deepEqual(
+      partesEnBuenosAires(ticket.fecha_limite),
+      [2026, 7, 28, 10, 0],
+    );
   });
 });

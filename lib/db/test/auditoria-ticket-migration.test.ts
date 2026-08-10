@@ -57,11 +57,13 @@ describe("migración de auditoría v0.5", () => {
 
     assert.deepEqual(
       sqlite
-        .prepare(`
+        .prepare(
+          `
           SELECT asignado_anterior_usuario_id, asignado_anterior,
                  asignado_nuevo_usuario_id, asignado_nuevo, campos_editados
           FROM seguimientos
-        `)
+        `,
+        )
         .get(),
       {
         asignado_anterior_usuario_id: null,

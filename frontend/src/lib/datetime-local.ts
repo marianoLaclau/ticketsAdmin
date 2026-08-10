@@ -1,20 +1,22 @@
-const padTwoDigits = (value: number) => String(value).padStart(2, '0');
+const padTwoDigits = (value: number) => String(value).padStart(2, "0");
 
 /**
  * Convierte un instante a la representación local que espera un input
  * `datetime-local`. No usa UTC porque el control representa la zona horaria
  * del navegador.
  */
-export function toDateTimeLocalValue(value: string | Date | null | undefined): string {
-  if (!value) return '';
+export function toDateTimeLocalValue(
+  value: string | Date | null | undefined,
+): string {
+  if (!value) return "";
 
   const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
+  if (Number.isNaN(date.getTime())) return "";
 
   return [
     `${date.getFullYear()}-${padTwoDigits(date.getMonth() + 1)}-${padTwoDigits(date.getDate())}`,
     `${padTwoDigits(date.getHours())}:${padTwoDigits(date.getMinutes())}`,
-  ].join('T');
+  ].join("T");
 }
 
 /**

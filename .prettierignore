@@ -1,0 +1,11 @@
+**/node_modules/**
+**/dist/**
+**/build/**
+**/coverage/**
+.agents/**
+.codex/**
+e2e/artifacts/**
+lib/api-client-react/src/generated/**
+lib/api-zod/src/generated/**
+lib/db/drizzle/meta/**
+pnpm-lock.yaml

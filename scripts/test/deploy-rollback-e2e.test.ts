@@ -1004,20 +1004,23 @@ function runMainScenario(
       JSON.stringify({
         contract: "ticketsadmin.application-release-state",
         contractVersion: 1,
-        current: options.pendingPolicy === "first-deploy" ? null : baselineRelease,
+        current:
+          options.pendingPolicy === "first-deploy" ? null : baselineRelease,
         dataVolume: "ticketsadmin_tickets_data",
         generation: 7,
         lastAttempt: null,
         pending: {
           attemptId: candidateReleaseId,
-          baseline: options.pendingPolicy === "first-deploy" ? null : baselineRelease,
+          baseline:
+            options.pendingPolicy === "first-deploy" ? null : baselineRelease,
           candidate: candidateRelease,
-          checkpoint: options.pendingPolicy === "first-deploy"
-            ? null
-            : {
-                manifest: pendingManifestName,
-                manifestSha256: pendingManifestSha256,
-              },
+          checkpoint:
+            options.pendingPolicy === "first-deploy"
+              ? null
+              : {
+                  manifest: pendingManifestName,
+                  manifestSha256: pendingManifestSha256,
+                },
           failure: null,
           phase: options.pendingPhase ?? "rolling_out",
           policy: options.pendingPolicy ?? "rollback-compatible",
@@ -1140,9 +1143,10 @@ function runMainScenario(
     events,
     finalState: JSON.parse(readFileSync(stateFile, "utf8")) as FakeState,
     initialState,
-    releaseLedger: existsSync(ledgerPath) && !options.corruptLedger
-      ? JSON.parse(readFileSync(ledgerPath, "utf8"))
-      : null,
+    releaseLedger:
+      existsSync(ledgerPath) && !options.corruptLedger
+        ? JSON.parse(readFileSync(ledgerPath, "utf8"))
+        : null,
     outputs: parseOutputs(outputContents),
     result,
   };
@@ -1491,7 +1495,10 @@ test(
         scenario.finalState.dbFingerprint,
         scenario.initialState.dbFingerprint,
       );
-      assert.equal(scenario.finalState.volumeId, scenario.initialState.volumeId);
+      assert.equal(
+        scenario.finalState.volumeId,
+        scenario.initialState.volumeId,
+      );
       assert.equal(
         scenario.releaseLedger.current.backendImageId,
         scenario.baselineBackend,
@@ -1583,7 +1590,10 @@ test(
       assert.equal(scenario.result.status, 1);
       assert.equal(scenario.events.filter(isComposeUp).length, 0);
       assert.equal(scenario.releaseLedger.pending.phase, "manual_intervention");
-      assert.equal(scenario.releaseLedger.pending.failure.code, "state_mismatch");
+      assert.equal(
+        scenario.releaseLedger.pending.failure.code,
+        "state_mismatch",
+      );
       assert.equal(scenario.outputs.recovery_action, "fail-closed");
       assert.match(scenario.result.stderr, /runtime cambio antes/);
       assertNoDataRollbackOrBroadTeardown(scenario.events);
@@ -1614,7 +1624,10 @@ test(
         scenario.finalState.dbFingerprint,
         scenario.initialState.dbFingerprint,
       );
-      assert.equal(scenario.finalState.volumeId, scenario.initialState.volumeId);
+      assert.equal(
+        scenario.finalState.volumeId,
+        scenario.initialState.volumeId,
+      );
       assert.equal(scenario.releaseLedger.current, null);
       assert.equal(
         scenario.releaseLedger.pending.phase,

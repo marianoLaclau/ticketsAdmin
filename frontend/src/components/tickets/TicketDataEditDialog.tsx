@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import type { Ticket, TicketUpdate } from '@workspace/api-client-react';
-import { Button } from '@/components/ui/button';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import type { Ticket, TicketUpdate } from "@workspace/api-client-react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,26 +8,26 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   buildFunctionalTicketUpdateFromBaseline,
   isValidOptionalEmail,
   ticketToFunctionalForm,
   type TicketFunctionalForm,
-} from '@/lib/ticket-edit';
+} from "@/lib/ticket-edit";
 import {
   buildVersionedTicketUpdate,
   createTicketEditBaseline,
   type TicketEditBaseline,
-} from '@/lib/ticket-version';
+} from "@/lib/ticket-version";
 import {
   transitionTicketDraftSession,
   type TicketDraftSession,
-} from '@/lib/ticket-draft-session';
-import { TicketVersionConflictAlert } from './TicketVersionConflictAlert';
+} from "@/lib/ticket-draft-session";
+import { TicketVersionConflictAlert } from "./TicketVersionConflictAlert";
 
 interface TicketDataEditDialogProps {
   ticket: Ticket;
@@ -42,21 +42,22 @@ interface TicketDataEditDialogProps {
 }
 
 const CONTACT_FIELDS: Array<{
-  field: keyof Pick<TicketFunctionalForm, 'nombre' | 'apellido' | 'telefono' | 'dni' | 'empresa' | 'email'>;
+  field: keyof Pick<
+    TicketFunctionalForm,
+    "nombre" | "apellido" | "telefono" | "dni" | "empresa" | "email"
+  >;
   label: string;
   type?: string;
 }> = [
-  { field: 'nombre', label: 'Nombre' },
-  { field: 'apellido', label: 'Apellido' },
-  { field: 'telefono', label: 'Teléfono', type: 'tel' },
-  { field: 'dni', label: 'DNI / CUIT' },
-  { field: 'empresa', label: 'Empresa' },
-  { field: 'email', label: 'Email', type: 'email' },
+  { field: "nombre", label: "Nombre" },
+  { field: "apellido", label: "Apellido" },
+  { field: "telefono", label: "Teléfono", type: "tel" },
+  { field: "dni", label: "DNI / CUIT" },
+  { field: "empresa", label: "Empresa" },
+  { field: "email", label: "Email", type: "email" },
 ];
 
-type TicketDataValidationErrors = Partial<
-  Record<'email' | 'motivo', string>
->;
+type TicketDataValidationErrors = Partial<Record<"email" | "motivo", string>>;
 
 export function TicketDataEditDialog({
   ticket,
@@ -71,10 +72,9 @@ export function TicketDataEditDialog({
 }: TicketDataEditDialogProps) {
   const initialForm = ticketToFunctionalForm(ticket);
   const isEditingDisabled = isSaving || isReloadingConflict;
-  const [baseline, setBaseline] =
-    useState<TicketEditBaseline<TicketFunctionalForm>>(() =>
-      createTicketEditBaseline(ticket, initialForm),
-    );
+  const [baseline, setBaseline] = useState<
+    TicketEditBaseline<TicketFunctionalForm>
+  >(() => createTicketEditBaseline(ticket, initialForm));
   const [form, setForm] = useState<TicketFunctionalForm>(initialForm);
   const [validationErrors, setValidationErrors] =
     useState<TicketDataValidationErrors>({});
@@ -126,10 +126,10 @@ export function TicketDataEditDialog({
 
     const nextErrors: TicketDataValidationErrors = {};
     if (!isValidOptionalEmail(form.email)) {
-      nextErrors.email = 'Ingresá un email válido o dejá el campo vacío.';
+      nextErrors.email = "Ingresá un email válido o dejá el campo vacío.";
     }
     if (!form.motivo.trim()) {
-      nextErrors.motivo = 'El motivo no puede quedar vacío.';
+      nextErrors.motivo = "El motivo no puede quedar vacío.";
     }
     setValidationErrors(nextErrors);
     if (nextErrors.email) {
@@ -163,7 +163,8 @@ export function TicketDataEditDialog({
         <DialogHeader>
           <DialogTitle>Editar datos del ticket</DialogTitle>
           <DialogDescription>
-            Completá o corregí la información obtenida de la llamada. Cada cambio quedará registrado en el historial.
+            Completá o corregí la información obtenida de la llamada. Cada
+            cambio quedará registrado en el historial.
           </DialogDescription>
         </DialogHeader>
 
@@ -181,16 +182,16 @@ export function TicketDataEditDialog({
                 <Label htmlFor={`ticket-data-${field}`}>{label}</Label>
                 <Input
                   id={`ticket-data-${field}`}
-                  ref={field === 'email' ? emailInputRef : undefined}
+                  ref={field === "email" ? emailInputRef : undefined}
                   type={type}
                   value={form[field]}
                   disabled={isEditingDisabled}
                   aria-invalid={
-                    field === 'email' && Boolean(validationErrors.email)
+                    field === "email" && Boolean(validationErrors.email)
                   }
                   aria-describedby={
-                    field === 'email' && validationErrors.email
-                      ? 'ticket-data-email-error'
+                    field === "email" && validationErrors.email
+                      ? "ticket-data-email-error"
                       : undefined
                   }
                   onChange={(event) => {
@@ -198,10 +199,10 @@ export function TicketDataEditDialog({
                       ...current,
                       [field]: event.target.value,
                     }));
-                    if (field === 'email') clearValidationError('email');
+                    if (field === "email") clearValidationError("email");
                   }}
                 />
-                {field === 'email' && validationErrors.email && (
+                {field === "email" && validationErrors.email && (
                   <p
                     id="ticket-data-email-error"
                     className="text-sm text-destructive"
@@ -217,7 +218,8 @@ export function TicketDataEditDialog({
               <Label htmlFor="ticket-data-motivo">
                 Motivo
                 <span aria-hidden="true" className="text-destructive">
-                  {' '}*
+                  {" "}
+                  *
                 </span>
               </Label>
               <Input
@@ -229,7 +231,7 @@ export function TicketDataEditDialog({
                 aria-invalid={Boolean(validationErrors.motivo)}
                 aria-describedby={
                   validationErrors.motivo
-                    ? 'ticket-data-motivo-error'
+                    ? "ticket-data-motivo-error"
                     : undefined
                 }
                 onChange={(event) => {
@@ -237,7 +239,7 @@ export function TicketDataEditDialog({
                     ...current,
                     motivo: event.target.value,
                   }));
-                  clearValidationError('motivo');
+                  clearValidationError("motivo");
                 }}
               />
               {validationErrors.motivo && (
@@ -283,7 +285,7 @@ export function TicketDataEditDialog({
               className="w-full sm:w-auto"
               disabled={!hasChanges || isEditingDisabled || hasVersionConflict}
             >
-              {isSaving ? 'Guardando…' : 'Guardar datos'}
+              {isSaving ? "Guardando…" : "Guardar datos"}
             </Button>
           </DialogFooter>
         </form>

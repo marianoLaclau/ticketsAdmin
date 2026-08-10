@@ -1,6 +1,6 @@
-import { AlertTriangle, RefreshCw } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+import { AlertTriangle, RefreshCw } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 interface TicketVersionConflictAlertProps {
   isReloading: boolean;
@@ -18,8 +18,8 @@ export function TicketVersionConflictAlert({
       <AlertDescription className="space-y-3">
         <p>
           Conservamos tus cambios en este formulario. Para evitar sobrescribir
-          el trabajo de otra persona, cargá la versión actual antes de volver
-          a guardar.
+          el trabajo de otra persona, cargá la versión actual antes de volver a
+          guardar.
         </p>
         <Button
           type="button"
@@ -30,10 +30,12 @@ export function TicketVersionConflictAlert({
           onClick={onReload}
         >
           <RefreshCw
-            className={`mr-2 h-4 w-4 shrink-0 ${isReloading ? 'animate-spin' : ''}`}
+            className={`mr-2 h-4 w-4 shrink-0 ${isReloading ? "animate-spin" : ""}`}
             aria-hidden="true"
           />
-          {isReloading ? 'Cargando…' : 'Descartar mis cambios y cargar la versión actual'}
+          {isReloading
+            ? "Cargando…"
+            : "Descartar mis cambios y cargar la versión actual"}
         </Button>
       </AlertDescription>
     </Alert>

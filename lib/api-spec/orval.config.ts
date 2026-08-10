@@ -61,10 +61,10 @@ export default defineConfig({
           // compatibilidad de 3.25 emita constructores exclusivos de Zod 4.
           version: 3,
           coerce: {
-            query: ['date', 'number', 'string'],
-            param: ['boolean', 'number', 'string'],
-            body: ['bigint', 'date'],
-            response: ['bigint', 'date'],
+            query: ["date", "number", "string"],
+            param: ["boolean", "number", "string"],
+            body: ["bigint", "date"],
+            response: ["bigint", "date"],
           },
         },
         useDates: true,

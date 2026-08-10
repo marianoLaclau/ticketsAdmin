@@ -59,9 +59,7 @@ describe("categoría Embargos", () => {
       "sin_clasificar",
     );
     assert.equal(
-      clasificarMotivo(
-        "Sin embargo, también consulta por un embargo salarial",
-      ),
+      clasificarMotivo("Sin embargo, también consulta por un embargo salarial"),
       "embargos",
     );
   });

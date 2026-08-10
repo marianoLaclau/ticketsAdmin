@@ -5,9 +5,9 @@ import type {
   ListTicketsPrioridad,
   MotivoCategoria,
   TicketSortBy,
-} from '@workspace/api-client-react';
+} from "@workspace/api-client-react";
 
-export type TicketSortOrder = 'asc' | 'desc';
+export type TicketSortOrder = "asc" | "desc";
 
 export interface TicketSortRule {
   sortBy: TicketSortBy;
@@ -17,8 +17,8 @@ export interface TicketSortRule {
 export type TicketSortState = readonly TicketSortRule[];
 
 const DEFAULT_TICKET_SORT: TicketSortRule = {
-  sortBy: 'fecha_creacion',
-  order: 'desc',
+  sortBy: "fecha_creacion",
+  order: "desc",
 };
 
 export function createDefaultTicketSort(): TicketSortRule[] {
@@ -47,7 +47,7 @@ export interface TicketActiveFilters {
 }
 
 function oppositeTicketSortOrder(order: TicketSortOrder): TicketSortOrder {
-  return order === 'asc' ? 'desc' : 'asc';
+  return order === "asc" ? "desc" : "asc";
 }
 
 /**
@@ -67,23 +67,27 @@ export function nextTicketSort(
     return [
       {
         sortBy: column,
-        order: currentRule ? oppositeTicketSortOrder(currentRule.order) : 'asc',
+        order: currentRule ? oppositeTicketSortOrder(currentRule.order) : "asc",
       },
     ];
   }
 
   if (currentIndex < 0) {
-    return [...current, { sortBy: column, order: 'asc' }];
+    return [...current, { sortBy: column, order: "asc" }];
   }
 
   return current.map((rule, index) =>
-    index === currentIndex ? { ...rule, order: oppositeTicketSortOrder(rule.order) } : rule,
+    index === currentIndex
+      ? { ...rule, order: oppositeTicketSortOrder(rule.order) }
+      : rule,
   );
 }
 
 export function serializeTicketSort(sort: TicketSortState): string {
   const effectiveSort = sort.length > 0 ? sort : [DEFAULT_TICKET_SORT];
-  return effectiveSort.map(({ sortBy, order }) => `${sortBy}:${order}`).join(',');
+  return effectiveSort
+    .map(({ sortBy, order }) => `${sortBy}:${order}`)
+    .join(",");
 }
 
 function normalizedOptionalText(value: string | undefined): string | undefined {
@@ -91,7 +95,9 @@ function normalizedOptionalText(value: string | undefined): string | undefined {
   return normalized || undefined;
 }
 
-function compactTicketFilters(filters: TicketActiveFilters): TicketActiveFilters {
+function compactTicketFilters(
+  filters: TicketActiveFilters,
+): TicketActiveFilters {
   const compact: TicketActiveFilters = {};
   const search = normalizedOptionalText(filters.search);
   const empresa = normalizedOptionalText(filters.empresa);
@@ -147,14 +153,14 @@ export function buildTicketExportParams(
 
 export function createTicketCsvFilename(now = new Date()): string {
   const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Argentina/Buenos_Aires',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
     })
       .formatToParts(now)
-      .filter(({ type }) => type !== 'literal')
+      .filter(({ type }) => type !== "literal")
       .map(({ type, value }) => [type, value]),
   );
   return `tickets-${parts.year}-${parts.month}-${parts.day}.csv`;
@@ -169,10 +175,10 @@ export interface TicketCsvDownloadAdapter {
 const browserDownloadAdapter: TicketCsvDownloadAdapter = {
   createObjectUrl: (blob) => URL.createObjectURL(blob),
   triggerDownload: (url, filename) => {
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
     link.download = filename;
-    link.style.display = 'none';
+    link.style.display = "none";
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -187,8 +193,8 @@ export function downloadTicketCsv(
 ): void {
   // Response.text() puede consumir el BOM enviado por el backend. Reponerlo
   // aca garantiza que Excel detecte UTF-8 sin duplicarlo si todavia existe.
-  const utf8Csv = csv.startsWith('\uFEFF') ? csv : `\uFEFF${csv}`;
-  const blob = new Blob([utf8Csv], { type: 'text/csv;charset=utf-8' });
+  const utf8Csv = csv.startsWith("\uFEFF") ? csv : `\uFEFF${csv}`;
+  const blob = new Blob([utf8Csv], { type: "text/csv;charset=utf-8" });
   const objectUrl = adapter.createObjectUrl(blob);
   try {
     adapter.triggerDownload(objectUrl, filename);

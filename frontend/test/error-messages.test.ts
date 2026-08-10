@@ -1,5 +1,5 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
+import assert from "node:assert/strict";
+import test from "node:test";
 import {
   getAdminErrorMessage,
   getApiErrorStatus,
@@ -8,12 +8,12 @@ import {
   getServerErrorCode,
   getUserErrorMessage,
   isTicketVersionConflict,
-} from '../src/lib/error-messages.ts';
+} from "../src/lib/error-messages.ts";
 
 function apiError(
   status: number,
   serverError: string,
-  technicalMessage = 'detalle técnico',
+  technicalMessage = "detalle técnico",
   retryAfterSeconds?: number,
   code?: string,
 ) {
@@ -21,162 +21,205 @@ function apiError(
     status,
     data: {
       error: serverError,
-      details: [{ path: ['password'], code: 'too_small' }],
-      ...(retryAfterSeconds === undefined ? {} : { retry_after_seconds: retryAfterSeconds }),
+      details: [{ path: ["password"], code: "too_small" }],
+      ...(retryAfterSeconds === undefined
+        ? {}
+        : { retry_after_seconds: retryAfterSeconds }),
       ...(code === undefined ? {} : { code }),
     },
   });
 }
 
-test('nunca muestra el mensaje técnico del Error', () => {
+test("nunca muestra el mensaje técnico del Error", () => {
   const result = getUserErrorMessage(
-    apiError(400, 'Invalid body', 'password: String must contain at least 16 character(s)'),
+    apiError(
+      400,
+      "Invalid body",
+      "password: String must contain at least 16 character(s)",
+    ),
   );
 
-  assert.equal(result, 'Revisá los datos ingresados e intentá nuevamente.');
+  assert.equal(result, "Revisá los datos ingresados e intentá nuevamente.");
   assert.doesNotMatch(result, /HTTP|String|password|code/i);
 });
 
-test('expone únicamente el código estructurado para refrescar la sesión', () => {
+test("expone únicamente el código estructurado para refrescar la sesión", () => {
   assert.equal(
     getServerErrorCode({
       status: 403,
-      data: { code: 'PASSWORD_CHANGE_REQUIRED', error: 'mensaje' },
+      data: { code: "PASSWORD_CHANGE_REQUIRED", error: "mensaje" },
     }),
-    'PASSWORD_CHANGE_REQUIRED',
+    "PASSWORD_CHANGE_REQUIRED",
   );
-  assert.equal(getServerErrorCode({ data: { error: 'sin código' } }), '');
-  assert.equal(getServerErrorCode(new Error('PASSWORD_CHANGE_REQUIRED')), '');
+  assert.equal(getServerErrorCode({ data: { error: "sin código" } }), "");
+  assert.equal(getServerErrorCode(new Error("PASSWORD_CHANGE_REQUIRED")), "");
 });
 
-test('extrae el estado solamente desde datos estructurados', () => {
-  assert.equal(getApiErrorStatus({ response: { status: 403 }, message: 'HTTP 500' }), 403);
-  assert.equal(getApiErrorStatus(new Error('HTTP 401 Unauthorized')), undefined);
-});
-
-test('traduce conflictos de negocio conocidos sin copiar la respuesta cruda', () => {
+test("extrae el estado solamente desde datos estructurados", () => {
   assert.equal(
-    getUserErrorMessage(apiError(409, 'Ya existe un usuario con ese email o nombre de usuario')),
-    'El email o el nombre de usuario ya está en uso.',
+    getApiErrorStatus({ response: { status: 403 }, message: "HTTP 500" }),
+    403,
   );
   assert.equal(
-    getUserErrorMessage(apiError(409, 'No se puede eliminar un rol con usuarios asignados')),
-    'No se puede eliminar un rol que tiene usuarios asignados. Podés desactivarlo.',
-  );
-  assert.equal(
-    getUserErrorMessage(apiError(409, 'Ese nombre está reservado para un rol del sistema')),
-    'Ese nombre está reservado para un rol del sistema.',
-  );
-  assert.equal(
-    getUserErrorMessage(apiError(409, 'Los roles del sistema deben permanecer activos')),
-    'Los roles del sistema deben permanecer activos.',
-  );
-  assert.equal(
-    getUserErrorMessage(apiError(409, 'No se puede asignar un rol inactivo')),
-    'El rol seleccionado está inactivo. Elegí o activá otro rol.',
-  );
-  assert.equal(
-    getUserErrorMessage(apiError(409, 'Debe permanecer al menos un SysAdmin activo con credenciales')),
-    'Debe quedar al menos un SysAdmin activo con credenciales utilizables.',
+    getApiErrorStatus(new Error("HTTP 401 Unauthorized")),
+    undefined,
   );
 });
 
-test('traduce la política de contraseñas sin exponer validaciones internas', () => {
+test("traduce conflictos de negocio conocidos sin copiar la respuesta cruda", () => {
   assert.equal(
-    getUserErrorMessage(apiError(400, 'La contraseña debe tener entre 16 y 128 caracteres')),
-    'La contraseña debe tener entre 16 y 128 caracteres.',
-  );
-  assert.equal(
-    getUserErrorMessage(apiError(400, 'La contraseña no puede comenzar ni terminar con espacios')),
-    'La contraseña no puede tener espacios al principio ni al final.',
+    getUserErrorMessage(
+      apiError(409, "Ya existe un usuario con ese email o nombre de usuario"),
+    ),
+    "El email o el nombre de usuario ya está en uso.",
   );
   assert.equal(
     getUserErrorMessage(
-      apiError(400, 'La contraseña elegida es demasiado común o corresponde a un ejemplo público'),
+      apiError(409, "No se puede eliminar un rol con usuarios asignados"),
     ),
-    'Elegí una contraseña menos predecible; esa clave es común, repetitiva o de ejemplo.',
+    "No se puede eliminar un rol que tiene usuarios asignados. Podés desactivarlo.",
   );
   assert.equal(
-    getUserErrorMessage(apiError(400, 'La contraseña no puede contener caracteres de control')),
-    'La contraseña no puede contener saltos de línea, tabulaciones ni otros caracteres de control.',
+    getUserErrorMessage(
+      apiError(409, "Ese nombre está reservado para un rol del sistema"),
+    ),
+    "Ese nombre está reservado para un rol del sistema.",
+  );
+  assert.equal(
+    getUserErrorMessage(
+      apiError(409, "Los roles del sistema deben permanecer activos"),
+    ),
+    "Los roles del sistema deben permanecer activos.",
+  );
+  assert.equal(
+    getUserErrorMessage(apiError(409, "No se puede asignar un rol inactivo")),
+    "El rol seleccionado está inactivo. Elegí o activá otro rol.",
+  );
+  assert.equal(
+    getUserErrorMessage(
+      apiError(
+        409,
+        "Debe permanecer al menos un SysAdmin activo con credenciales",
+      ),
+    ),
+    "Debe quedar al menos un SysAdmin activo con credenciales utilizables.",
   );
 });
 
-test('las acciones administrativas traducen la clave inválida por su código estable', () => {
+test("traduce la política de contraseñas sin exponer validaciones internas", () => {
+  assert.equal(
+    getUserErrorMessage(
+      apiError(400, "La contraseña debe tener entre 16 y 128 caracteres"),
+    ),
+    "La contraseña debe tener entre 16 y 128 caracteres.",
+  );
+  assert.equal(
+    getUserErrorMessage(
+      apiError(400, "La contraseña no puede comenzar ni terminar con espacios"),
+    ),
+    "La contraseña no puede tener espacios al principio ni al final.",
+  );
+  assert.equal(
+    getUserErrorMessage(
+      apiError(
+        400,
+        "La contraseña elegida es demasiado común o corresponde a un ejemplo público",
+      ),
+    ),
+    "Elegí una contraseña menos predecible; esa clave es común, repetitiva o de ejemplo.",
+  );
+  assert.equal(
+    getUserErrorMessage(
+      apiError(400, "La contraseña no puede contener caracteres de control"),
+    ),
+    "La contraseña no puede contener saltos de línea, tabulaciones ni otros caracteres de control.",
+  );
+});
+
+test("las acciones administrativas traducen la clave inválida por su código estable", () => {
   assert.equal(
     getAdminErrorMessage(
       apiError(
         401,
-        'detalle deliberadamente irrelevante',
-        'stack privado',
+        "detalle deliberadamente irrelevante",
+        "stack privado",
         undefined,
-        'ADMIN_KEY_INVALID',
+        "ADMIN_KEY_INVALID",
       ),
     ),
-    'La clave de administración no es válida. Revisala e intentá nuevamente.',
+    "La clave de administración no es válida. Revisala e intentá nuevamente.",
   );
 });
 
-test('las acciones administrativas explican una elevación ausente sin filtrar detalles', () => {
+test("las acciones administrativas explican una elevación ausente sin filtrar detalles", () => {
   const result = getAdminErrorMessage(
     apiError(
       401,
-      'token interno 89af expirado',
-      'POST /api/admin/tickets devolvió 401',
+      "token interno 89af expirado",
+      "POST /api/admin/tickets devolvió 401",
       undefined,
-      'ADMIN_ELEVATION_REQUIRED',
+      "ADMIN_ELEVATION_REQUIRED",
     ),
   );
 
   assert.equal(
     result,
-    'El acceso administrativo venció o no está habilitado. Ingresá nuevamente la clave de administración.',
+    "El acceso administrativo venció o no está habilitado. Ingresá nuevamente la clave de administración.",
   );
   assert.doesNotMatch(result, /token|89af|POST|401/i);
 });
 
-test('un texto parecido sin código estable no se confunde con una clave inválida', () => {
+test("un texto parecido sin código estable no se confunde con una clave inválida", () => {
   assert.equal(
-    getAdminErrorMessage(apiError(401, 'Clave de administración inválida')),
-    'Tu sesión venció o no es válida. Volvé a iniciar sesión.',
+    getAdminErrorMessage(apiError(401, "Clave de administración inválida")),
+    "Tu sesión venció o no es válida. Volvé a iniciar sesión.",
   );
 });
 
-test('el login diferencia credenciales inválidas y problemas de conexión', () => {
+test("el login diferencia credenciales inválidas y problemas de conexión", () => {
   assert.equal(
-    getLoginErrorMessage(apiError(401, 'Usuario o contraseña incorrectos')),
-    'Usuario o contraseña incorrectos.',
+    getLoginErrorMessage(apiError(401, "Usuario o contraseña incorrectos")),
+    "Usuario o contraseña incorrectos.",
   );
-  assert.match(getLoginErrorMessage(new TypeError('Failed to fetch')), /conectar con el servidor/i);
-});
-
-test('el login no presenta una validación HTTP como un problema de conexión', () => {
-  assert.match(getLoginErrorMessage(apiError(400, 'Invalid body')), /Revisá el usuario/i);
-  assert.match(getLoginErrorMessage(apiError(403, 'Cuenta bloqueada')), /no tiene permitido/i);
-  assert.equal(
-    getLoginErrorMessage(apiError(429, 'LOGIN_RATE_LIMITED')),
-    'Demasiados intentos. Esperá un momento antes de volver a probar.',
-  );
-  assert.equal(
-    getLoginErrorMessage(apiError(429, 'LOGIN_RATE_LIMITED', 'detalle', 1)),
-    'Demasiados intentos. Volvé a probar en 1 segundo.',
-  );
-  assert.equal(
-    getLoginErrorMessage(apiError(429, 'LOGIN_RATE_LIMITED', 'detalle', 900)),
-    'Demasiados intentos. Volvé a probar en 15 minutos.',
+  assert.match(
+    getLoginErrorMessage(new TypeError("Failed to fetch")),
+    /conectar con el servidor/i,
   );
 });
 
-test('el cambio de contraseña usa códigos estables sin filtrar el servidor', () => {
+test("el login no presenta una validación HTTP como un problema de conexión", () => {
+  assert.match(
+    getLoginErrorMessage(apiError(400, "Invalid body")),
+    /Revisá el usuario/i,
+  );
+  assert.match(
+    getLoginErrorMessage(apiError(403, "Cuenta bloqueada")),
+    /no tiene permitido/i,
+  );
+  assert.equal(
+    getLoginErrorMessage(apiError(429, "LOGIN_RATE_LIMITED")),
+    "Demasiados intentos. Esperá un momento antes de volver a probar.",
+  );
+  assert.equal(
+    getLoginErrorMessage(apiError(429, "LOGIN_RATE_LIMITED", "detalle", 1)),
+    "Demasiados intentos. Volvé a probar en 1 segundo.",
+  );
+  assert.equal(
+    getLoginErrorMessage(apiError(429, "LOGIN_RATE_LIMITED", "detalle", 900)),
+    "Demasiados intentos. Volvé a probar en 15 minutos.",
+  );
+});
+
+test("el cambio de contraseña usa códigos estables sin filtrar el servidor", () => {
   for (const [code, expected] of [
-    ['CURRENT_PASSWORD_INVALID', /temporal no es correcta/i],
-    ['PASSWORD_REUSE_NOT_ALLOWED', /diferente de la temporal/i],
-    ['PASSWORD_CHANGE_REQUIRED', /contraseña definitiva/i],
-    ['SESSION_CHANGED', /sesión cambió o venció/i],
+    ["CURRENT_PASSWORD_INVALID", /temporal no es correcta/i],
+    ["PASSWORD_REUSE_NOT_ALLOWED", /diferente de la temporal/i],
+    ["PASSWORD_CHANGE_REQUIRED", /contraseña definitiva/i],
+    ["SESSION_CHANGED", /sesión cambió o venció/i],
   ] as const) {
-    const error = Object.assign(new Error('stack y payload técnico'), {
-      status: code === 'PASSWORD_REUSE_NOT_ALLOWED' ? 409 : 400,
-      data: { code, error: 'detalle interno que no debe mostrarse' },
+    const error = Object.assign(new Error("stack y payload técnico"), {
+      status: code === "PASSWORD_REUSE_NOT_ALLOWED" ? 409 : 400,
+      data: { code, error: "detalle interno que no debe mostrarse" },
     });
     const message = getPasswordChangeErrorMessage(error);
     assert.match(message, expected);
@@ -184,23 +227,26 @@ test('el cambio de contraseña usa códigos estables sin filtrar el servidor', (
   }
 });
 
-test('respeta un fallback amigable para errores no clasificados', () => {
-  const result = getUserErrorMessage(new Error('stack trace interno'), 'No se pudo guardar. Reintentá.');
-  assert.equal(result, 'No se pudo guardar. Reintentá.');
+test("respeta un fallback amigable para errores no clasificados", () => {
+  const result = getUserErrorMessage(
+    new Error("stack trace interno"),
+    "No se pudo guardar. Reintentá.",
+  );
+  assert.equal(result, "No se pudo guardar. Reintentá.");
 });
 
-test('reconoce solo el código estable de conflicto de versión', () => {
+test("reconoce solo el código estable de conflicto de versión", () => {
   const conflict = {
     status: 409,
     data: {
-      code: 'TICKET_VERSION_CONFLICT',
-      error: 'detalle técnico',
+      code: "TICKET_VERSION_CONFLICT",
+      error: "detalle técnico",
     },
   };
 
   assert.equal(isTicketVersionConflict(conflict), true);
   assert.equal(
-    isTicketVersionConflict({ status: 409, data: { error: 'Otro conflicto' } }),
+    isTicketVersionConflict({ status: 409, data: { error: "Otro conflicto" } }),
     false,
   );
   assert.match(getUserErrorMessage(conflict), /actualizó este ticket/i);

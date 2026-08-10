@@ -310,7 +310,9 @@ test(
         } else if (mutation === "extra-key") {
           const ledger = JSON.parse(readFileSync(current.ledger, "utf8"));
           ledger.secret = "must-be-rejected";
-          writeFileSync(current.ledger, JSON.stringify(ledger), { mode: 0o600 });
+          writeFileSync(current.ledger, JSON.stringify(ledger), {
+            mode: 0o600,
+          });
         } else {
           chmodSync(current.ledger, 0o640);
         }
