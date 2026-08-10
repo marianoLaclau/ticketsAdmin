@@ -2,6 +2,15 @@
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
+## 2026-08-09 — Credenciales administrativas legacy purgadas al iniciar
+
+**Agente:** Codex
+**Estado:** ducentésima décima tercera remediación de la auditoría técnica, implementada localmente.
+
+- Antes de montar React se eliminan de forma síncrona `admin-key` y todas las claves `admin-key:user:*` tanto de `localStorage` como de `sessionStorage`. La purga enumera únicamente nombres: nunca lee ni copia el valor de una credencial y no afecta ninguna clave ajena a esos identificadores exactos.
+- Errores de acceso, enumeración o borrado quedan aislados por storage y por entrada, de modo que un `SecurityError` no impide limpiar el otro almacenamiento ni bloquea el inicio de la aplicación. Incluso sin poder enumerar se intenta retirar la clave legacy exacta.
+- Aprobaron las seis pruebas focalizadas de alcance, ausencia de lecturas y fallos parciales, ambos typechecks del frontend, ESLint, Prettier y `git diff --check`. No se hizo push.
+
 ## 2026-08-09 — Fronteras asíncronas del detalle de ticket endurecidas
 
 **Agente:** Codex
