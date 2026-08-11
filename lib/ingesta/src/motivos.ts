@@ -90,6 +90,17 @@ export const REGLAS_CLASIFICACION_MOTIVO: readonly ReglaClasificacionMotivo[] =
         /\b(?:fin|finaliz\w*|termin\w*|venci\w*)(?:\s+\w+){0,4}\s+periodo de prueba\b/,
         /\bperiodo de prueba(?:\s+\w+){0,4}\s+(?:finaliz\w*|termin\w*|venci\w*)\b/,
         /\b(?:entreg\w*|devolv\w*)(?:\s+\w+){0,3}\s+uniforme\b/,
+        // Despido expresado como verbo, no solo como sustantivo.
+        /\bdespid\w*\b/,
+        // "lo van a echar", "me echaron". Exige el pronombre para no capturar
+        // "echar un vistazo" ni otros usos coloquiales del verbo.
+        /\b(?:me|te|lo|la|los|las|nos)\s+(?:van a\s+|iban a\s+|pueden\s+)?(?:echar|echan|echen|echaron)\b/,
+        /\bindemnizacion\b/,
+        /\b(?:retiro voluntario|mutuo acuerdo|acuerdo de partes)\b/,
+        // Negociación de salida: "llegar a un arreglo", "arreglo para irme".
+        /\b(?:llegar|llegue|llega|lleguemos)(?:\s+\w+){0,2}\s+a\s+(?:un\s+)?(?:arreglo|acuerdo)\b/,
+        /\b(?:arreglo|acuerdo|arregl\w*|acord\w*)(?:\s+\w+){0,6}\s+(?:dejar de trabajar|salida|irme|irse|retirarme|retirarse|desvincul\w*)\b/,
+        /\b(?:dejar de trabajar|no trabajar mas|no seguir trabajando)\b/,
       ],
     },
     {
@@ -118,8 +129,16 @@ export const REGLAS_CLASIFICACION_MOTIVO: readonly ReglaClasificacionMotivo[] =
       categoria: "empleo_postulaciones",
       patrones: [
         /\bpostul\w*\b/,
-        /\b(?:busc\w*|consult\w*|pregunt\w*)(?:\s+\w+){0,4}\s+(?:empleo|trabajo|vacante)\b/,
         /\b(?:curriculum|cv|incorpor\w*|vacantes?)\b/,
+        // Búsqueda de empleo: el verbo debe pegarse al sustantivo, opcionalmente
+        // con un artículo indefinido. La regla anterior permitía hasta cuatro
+        // palabras intermedias y aceptaba "consulta"/"pregunta", por lo que
+        // "consulta por su situación de trabajo" —alguien que YA trabaja acá—
+        // caía como postulación.
+        /\b(?:busc\w*|solicit\w*|necesit\w*)(?:\s+(?:un|una|de))?\s+(?:empleo|trabajo|puesto)\b/,
+        /\b(?:consult\w*|pregunt\w*|averigu\w*)(?:\s+\w+){0,3}\s+(?:vacantes?|puestos?|busquedas?|empleo)\b/,
+        /\b(?:oportunidad|oferta)(?:es)?(?:\s+\w+){0,2}\s+(?:laboral\w*|de trabajo|de empleo)\b/,
+        /\b(?:enviar|mandar|dejar|adjunt\w*)(?:\s+\w+){0,2}\s+(?:cv|curriculum)\b/,
       ],
     },
     {

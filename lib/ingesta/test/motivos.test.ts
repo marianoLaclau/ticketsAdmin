@@ -131,6 +131,55 @@ describe("categoría Legales", () => {
     assert.equal(MOTIVO_CATEGORIA_LABELS.legales, "Legales");
   });
 
+  it("no confunde a un empleado que consulta por su situación con una postulación", () => {
+    // Caso real: alguien que ya trabaja en la empresa llama por sus faltas y
+    // por negociar una salida. La regla anterior permitía cuatro palabras entre
+    // "consulta" y "trabajo", así que lo clasificaba como búsqueda de empleo.
+    for (const motivo of [
+      "Consulta por su situación de trabajo y si puede arreglar con la empresa para irse con plata",
+      "Consulta si puede llegar a un arreglo para dejar de trabajar en la empresa y recibir un pago",
+      "Quiere saber si lo van a echar o suspender por faltas",
+      "Faltas desde enero, quiere saber si lo despiden y si puede arreglar una salida con pago",
+    ]) {
+      assert.equal(clasificarMotivo(motivo), "bajas_liquidacion");
+    }
+  });
+
+  it("conserva las postulaciones genuinas al ajustar la precisión", () => {
+    for (const motivo of [
+      "Se quiere postular a una vacante",
+      "Busca trabajo en la empresa",
+      "Busca un empleo",
+      "Consulta si hay vacantes disponibles",
+      "Quiere enviar su CV",
+      "Solicitud de trabajo",
+      "Pregunta por puestos disponibles",
+      "Consulta por oportunidades laborales",
+    ]) {
+      assert.equal(clasificarMotivo(motivo), "empleo_postulaciones");
+    }
+  });
+
+  it("reconoce la negociación de salida y el despido expresado como verbo", () => {
+    assert.equal(
+      clasificarMotivo("Reclama su indemnización"),
+      "bajas_liquidacion",
+    );
+    assert.equal(
+      clasificarMotivo("Consulta por un retiro voluntario"),
+      "bajas_liquidacion",
+    );
+    assert.equal(
+      clasificarMotivo("Quiere saber si lo despiden"),
+      "bajas_liquidacion",
+    );
+    // "echar" solo cuenta con pronombre: evita capturar usos coloquiales.
+    assert.equal(
+      clasificarMotivo("Quiere echar un vistazo a su legajo"),
+      "sin_clasificar",
+    );
+  });
+
   it("no modifica los textos originales", () => {
     const motivo = "  Consulta Jurídica: recibió una Carta Documento.  ";
     const resumen = "La persona solicita orientación.";
