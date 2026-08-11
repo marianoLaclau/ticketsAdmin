@@ -64,12 +64,7 @@ function renderImportTab(queryClient: QueryClient) {
   return render(
     <QueryClientProvider client={queryClient}>
       <Tabs value="importar">
-        <AdminCsvImportTab
-          request={{ headers: { "x-admin-intent": "1" } }}
-          adminAccessState="ready"
-          accessVersion={1}
-          accessGeneration={0}
-        />
+        <AdminCsvImportTab />
       </Tabs>
     </QueryClientProvider>,
   );

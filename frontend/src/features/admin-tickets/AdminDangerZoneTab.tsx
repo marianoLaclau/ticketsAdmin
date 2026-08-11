@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getListTicketsQueryKey,
@@ -6,7 +6,6 @@ import {
   useTruncateTickets,
 } from "@workspace/api-client-react";
 import { AlertTriangle, Trash2 } from "lucide-react";
-import { AdminAccessNotice } from "@/components/admin/AdminAccessNotice";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,83 +19,46 @@ import { Label } from "@/components/ui/label";
 import { TabsContent } from "@/components/ui/tabs";
 import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { useToast } from "@/hooks/use-toast";
-import type { AdminAccessState } from "@/lib/admin-access-state";
 import { getAdminErrorMessage } from "@/lib/error-messages";
 import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
 
-interface AdminDangerZoneTabProps {
-  request: RequestInit;
-  queryRequest: RequestInit;
-  adminAccessState: AdminAccessState;
-  accessVersion: number;
-  accessGeneration: number;
-}
-
-export function AdminDangerZoneTab({
-  request,
-  queryRequest,
-  adminAccessState,
-  accessVersion,
-  accessGeneration,
-}: AdminDangerZoneTabProps) {
+export function AdminDangerZoneTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const hasAdminAccess = adminAccessState === "ready";
-  const accessBoundary = `${adminAccessState}:${accessVersion}:${accessGeneration}`;
-  const { isCurrentOperation, operationGeneration } = useAdminOperationGuard(
-    adminAccessState,
-    accessGeneration,
-  );
+  const isCurrentOperation = useAdminOperationGuard();
   const totalBaseParams = { page: 1, limit: 1, incluir_vacios: true };
   const totalBaseQuery = useListTickets(totalBaseParams, {
     query: {
-      enabled: hasAdminAccess,
-      queryKey: [
-        ...getListTicketsQueryKey(totalBaseParams),
-        "admin-access",
-        accessVersion,
-      ],
+      queryKey: [...getListTicketsQueryKey(totalBaseParams)],
       retry: false,
     },
-    request: queryRequest,
   });
-  const truncate = useTruncateTickets({ request });
-  const { reset: resetTruncate } = truncate;
+  const truncate = useTruncateTickets();
   const [confirmTexto, setConfirmTexto] = useState("");
-  const resetAccessBoundaryRef = useRef(accessBoundary);
-
-  useLayoutEffect(() => {
-    if (resetAccessBoundaryRef.current === accessBoundary) return;
-    resetAccessBoundaryRef.current = accessBoundary;
-    setConfirmTexto("");
-    resetTruncate();
-  }, [accessBoundary, resetTruncate]);
 
   const refrescarTickets = () => invalidateTicketDomainQueries(queryClient);
 
-  const errorToast =
-    (title: string, operationAccessGeneration: number) => (err: unknown) => {
-      if (!isCurrentOperation(operationAccessGeneration)) return;
-      toast({
-        variant: "destructive",
-        title,
-        description: getAdminErrorMessage(err),
-      });
-    };
+  const errorToast = (title: string) => (err: unknown) => {
+    if (!isCurrentOperation()) return;
+    toast({
+      variant: "destructive",
+      title,
+      description: getAdminErrorMessage(err),
+    });
+  };
 
   const ejecutarTruncate = () => {
     if (
-      !isCurrentOperation(operationGeneration) ||
+      !isCurrentOperation() ||
       confirmTexto !== "BORRAR" ||
       truncate.isPending
     )
       return;
-    const operationAccessGeneration = operationGeneration;
     truncate.mutate(
       { data: { confirmar: true } },
       {
         onSuccess: (r) => {
-          if (!isCurrentOperation(operationAccessGeneration)) return;
+          if (!isCurrentOperation()) return;
           setConfirmTexto("");
           void refrescarTickets();
           toast({
@@ -105,25 +67,10 @@ export function AdminDangerZoneTab({
             description: `${r.tickets_eliminados} tickets y ${r.seguimientos_eliminados} seguimientos eliminados.`,
           });
         },
-        onError: errorToast(
-          "No se pudo vaciar la base",
-          operationAccessGeneration,
-        ),
+        onError: errorToast("No se pudo vaciar la base"),
       },
     );
   };
-
-  if (adminAccessState !== "ready") {
-    return (
-      <TabsContent value="peligro" className="mt-4 max-w-3xl">
-        <AdminAccessNotice
-          state={adminAccessState}
-          pendingDescription="Esperá un instante antes de usar las acciones de mantenimiento."
-          missingDescription="La zona peligrosa permanece protegida. Completá la llave en la cabecera para continuar."
-        />
-      </TabsContent>
-    );
-  }
 
   return (
     <TabsContent value="peligro" className="mt-4 max-w-3xl">

@@ -86,12 +86,10 @@ test("el deploy real ejecuta backup, build, up y smoke en ese orden", () => {
 
   assert.match(build, /run: docker compose build/);
   assert.match(build, /WEBHOOK_API_KEY: not-used-during-image-build/);
-  assert.match(build, /ADMIN_API_KEY: not-used-during-image-build/);
   assert.doesNotMatch(build, /secrets\./);
 
   assert.match(deploy, /docker compose up -d --wait --wait-timeout 180/);
   assert.match(deploy, /secrets\.WEBHOOK_API_KEY/);
-  assert.match(deploy, /secrets\.ADMIN_API_KEY/);
   assert.match(deploy, /secrets\.BOOTSTRAP_SYSADMIN_PASSWORD/);
 
   assert.match(smoke, /127\.0\.0\.1:5000\/api\/readyz/);

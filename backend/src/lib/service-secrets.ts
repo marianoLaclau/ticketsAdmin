@@ -1,14 +1,10 @@
 export const SERVICE_SECRET_MIN_LENGTH = 32;
 
-export const REQUIRED_SERVICE_SECRET_NAMES = [
-  "WEBHOOK_API_KEY",
-  "ADMIN_API_KEY",
-] as const;
+export const REQUIRED_SERVICE_SECRET_NAMES = ["WEBHOOK_API_KEY"] as const;
 
 type ServiceSecretName = (typeof REQUIRED_SERVICE_SECRET_NAMES)[number];
 interface ServiceSecretEnvironment {
   readonly WEBHOOK_API_KEY?: string;
-  readonly ADMIN_API_KEY?: string;
 }
 
 const PUBLIC_PLACEHOLDERS = new Set([
@@ -59,16 +55,5 @@ function validateServiceSecret(
 export function validateServiceSecrets(
   environment: ServiceSecretEnvironment = process.env,
 ): void {
-  const webhookKey = validateServiceSecret(
-    "WEBHOOK_API_KEY",
-    environment.WEBHOOK_API_KEY,
-  );
-  const adminKey = validateServiceSecret(
-    "ADMIN_API_KEY",
-    environment.ADMIN_API_KEY,
-  );
-
-  if (webhookKey === adminKey) {
-    throw new Error("WEBHOOK_API_KEY y ADMIN_API_KEY deben ser diferentes");
-  }
+  validateServiceSecret("WEBHOOK_API_KEY", environment.WEBHOOK_API_KEY);
 }

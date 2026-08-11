@@ -57,107 +57,15 @@ export interface LoginRateLimitError {
   retry_after_seconds: number;
 }
 
-export interface AdminElevationStatus {
-  active: boolean;
-  /** @nullable */
-  expires_at: string | null;
-}
-
-export interface AdminElevationInput {
-  /**
-     * Credencial administrativa presentada una sola vez. Nunca se devuelve ni se persiste de forma reutilizable.
-     * @minLength 1
-     */
-  admin_key: string;
-}
-
-export type AdminElevationBadRequestErrorCode = typeof AdminElevationBadRequestErrorCode[keyof typeof AdminElevationBadRequestErrorCode];
+export type AdminAccessUnauthorizedCode = typeof AdminAccessUnauthorizedCode[keyof typeof AdminAccessUnauthorizedCode];
 
 
-export const AdminElevationBadRequestErrorCode = {
-  ADMIN_ELEVATION_INVALID_BODY: 'ADMIN_ELEVATION_INVALID_BODY',
-} as const;
-
-export interface AdminElevationBadRequestError {
-  code: AdminElevationBadRequestErrorCode;
-  error: string;
-}
-
-export type AdminElevationUnauthorizedErrorCode = typeof AdminElevationUnauthorizedErrorCode[keyof typeof AdminElevationUnauthorizedErrorCode];
-
-
-export const AdminElevationUnauthorizedErrorCode = {
-  SESSION_INVALID: 'SESSION_INVALID',
-  ADMIN_KEY_INVALID: 'ADMIN_KEY_INVALID',
-} as const;
-
-export interface AdminElevationUnauthorizedError {
-  code: AdminElevationUnauthorizedErrorCode;
-  error: string;
-}
-
-export type AdminElevationSessionUnauthorizedErrorCode = typeof AdminElevationSessionUnauthorizedErrorCode[keyof typeof AdminElevationSessionUnauthorizedErrorCode];
-
-
-export const AdminElevationSessionUnauthorizedErrorCode = {
+export const AdminAccessUnauthorizedCode = {
   SESSION_INVALID: 'SESSION_INVALID',
 } as const;
 
-export interface AdminElevationSessionUnauthorizedError {
-  code: AdminElevationSessionUnauthorizedErrorCode;
-  error: string;
-}
-
-export type AdminElevationRequiredErrorCode = typeof AdminElevationRequiredErrorCode[keyof typeof AdminElevationRequiredErrorCode];
-
-
-export const AdminElevationRequiredErrorCode = {
-  ADMIN_ELEVATION_REQUIRED: 'ADMIN_ELEVATION_REQUIRED',
-} as const;
-
-export interface AdminElevationRequiredError {
-  code: AdminElevationRequiredErrorCode;
-  error: string;
-}
-
-export type AdminAccessUnauthorized = AdminElevationSessionUnauthorizedError | AdminElevationRequiredError;
-
-export type AdminElevationForbiddenErrorCode = typeof AdminElevationForbiddenErrorCode[keyof typeof AdminElevationForbiddenErrorCode];
-
-
-export const AdminElevationForbiddenErrorCode = {
-  SYSADMIN_REQUIRED: 'SYSADMIN_REQUIRED',
-  PASSWORD_CHANGE_REQUIRED: 'PASSWORD_CHANGE_REQUIRED',
-} as const;
-
-export interface AdminElevationForbiddenError {
-  code: AdminElevationForbiddenErrorCode;
-  error: string;
-}
-
-export type AdminElevationRateLimitErrorCode = typeof AdminElevationRateLimitErrorCode[keyof typeof AdminElevationRateLimitErrorCode];
-
-
-export const AdminElevationRateLimitErrorCode = {
-  ADMIN_ELEVATION_RATE_LIMITED: 'ADMIN_ELEVATION_RATE_LIMITED',
-} as const;
-
-export interface AdminElevationRateLimitError {
-  code: AdminElevationRateLimitErrorCode;
-  error: string;
-  /** @minimum 1 */
-  retry_after_seconds: number;
-}
-
-export type AdminElevationUnavailableErrorCode = typeof AdminElevationUnavailableErrorCode[keyof typeof AdminElevationUnavailableErrorCode];
-
-
-export const AdminElevationUnavailableErrorCode = {
-  ADMIN_ELEVATION_UNAVAILABLE: 'ADMIN_ELEVATION_UNAVAILABLE',
-} as const;
-
-export interface AdminElevationUnavailableError {
-  code: AdminElevationUnavailableErrorCode;
+export interface AdminAccessUnauthorized {
+  code: AdminAccessUnauthorizedCode;
   error: string;
 }
 
@@ -810,7 +718,7 @@ motivo_categoria?: MotivoCategoria;
 search?: string;
 vencidos?: boolean;
 /**
- * Incluye registros en cuarentena sin datos útiles. Requiere sesión SysAdmin, elevacion administrativa vigente y el header de intencion x-admin-intent con valor literal 1; el listado operativo los excluye.
+ * Incluye registros en cuarentena sin datos útiles. Requiere sesión SysAdmin; el listado operativo los excluye.
  */
 incluir_vacios?: boolean;
 /**
@@ -949,28 +857,28 @@ limit?: number;
 
 export type GetTicketParams = {
 /**
- * Permite abrir registros en cuarentena; requiere SysAdmin, elevacion administrativa vigente y x-admin-intent con valor literal 1.
+ * Permite abrir registros en cuarentena; requiere SysAdmin.
  */
 incluir_vacios?: boolean;
 };
 
 export type UpdateTicketParams = {
 /**
- * Permite modificar registros en cuarentena; requiere SysAdmin, elevacion administrativa vigente y x-admin-intent con valor literal 1.
+ * Permite modificar registros en cuarentena; requiere SysAdmin, rol SysAdmin.
  */
 incluir_vacios?: boolean;
 };
 
 export type ListSeguimientosParams = {
 /**
- * Permite consultar un registro en cuarentena; requiere SysAdmin, elevacion administrativa vigente y x-admin-intent con valor literal 1.
+ * Permite consultar un registro en cuarentena; requiere SysAdmin, rol SysAdmin.
  */
 incluir_vacios?: boolean;
 };
 
 export type CreateSeguimientoParams = {
 /**
- * Permite agregar seguimiento a un registro en cuarentena; requiere SysAdmin, elevacion administrativa vigente y x-admin-intent con valor literal 1.
+ * Permite agregar seguimiento a un registro en cuarentena; requiere SysAdmin.
  */
 incluir_vacios?: boolean;
 };

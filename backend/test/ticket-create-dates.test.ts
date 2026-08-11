@@ -13,7 +13,6 @@ mkdirSync(testDirectory, { recursive: true });
 rmSync(databasePath, { force: true });
 
 process.env.TICKETS_DB_PATH = databasePath;
-process.env.ADMIN_API_KEY = "admin-create-test-key";
 process.env.WEBHOOK_API_KEY = "webhook-create-test-key";
 process.env.NODE_ENV = "test";
 
@@ -147,15 +146,6 @@ assert.equal(login.status, 200);
 const setCookie = login.headers.get("set-cookie");
 assert.ok(setCookie, "el login debe devolver una cookie de sesión");
 const adminCookie = setCookie.split(";", 1)[0];
-const elevation = await fetch(`${baseUrl}/auth/admin-elevation`, {
-  method: "POST",
-  headers: {
-    "content-type": "application/json",
-    cookie: adminCookie,
-  },
-  body: JSON.stringify({ admin_key: "admin-create-test-key" }),
-});
-assert.equal(elevation.status, 200);
 
 function ticketBody(conversationId: string, fechaLimite: unknown) {
   return {

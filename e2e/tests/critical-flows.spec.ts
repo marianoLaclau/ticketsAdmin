@@ -8,7 +8,6 @@ import {
   type Response as PlaywrightResponse,
 } from "@playwright/test";
 import {
-  E2E_ADMIN_API_KEY,
   E2E_AGENT_PASSWORD,
   E2E_AGENT_TEMP_PASSWORD,
   E2E_SYSADMIN_PASSWORD,
@@ -76,16 +75,6 @@ async function completeRequiredPasswordChange(
 async function loginSysAdmin(page: Page): Promise<void> {
   await login(page, "sysadmin", E2E_SYSADMIN_PASSWORD);
   await expect(page).toHaveURL(/\/dashboard$/);
-}
-
-async function elevate(page: Page): Promise<void> {
-  await page
-    .getByLabel("Clave de administración", { exact: true })
-    .fill(E2E_ADMIN_API_KEY);
-  await page.getByRole("button", { name: "Habilitar" }).click();
-  await expect(
-    page.getByText("Acceso administrativo habilitado", { exact: false }),
-  ).toBeVisible();
 }
 
 async function ingestTicket(
@@ -162,12 +151,7 @@ async function createTemporaryUser(
   username: string,
   email: string,
 ): Promise<void> {
-  const elevationResponse = await page.request.post(
-    "/api/auth/admin-elevation",
-    { data: { admin_key: E2E_ADMIN_API_KEY } },
-  );
-  expect(elevationResponse.ok()).toBe(true);
-  const adminHeaders = { "x-admin-intent": "1" };
+  const adminHeaders = {};
   const rolesResponse = await page.request.get("/api/admin/roles?limit=100", {
     headers: adminHeaders,
   });
@@ -274,10 +258,7 @@ test("ingesta en vivo, clasificación Serin, gestión y auditoría", async ({
   await expect(page.getByText("Cambio de estado:")).toBeVisible();
 });
 
-test("elevación efímera, CRUD RBAC y revocación SSE de otra sesión", async ({
-  browser,
-  page,
-}) => {
+test("CRUD RBAC y revocación SSE de otra sesión", async ({ browser, page }) => {
   const requests: CapturedRequest[] = [];
   page.on("request", (request) => {
     requests.push(captureRequest(request));
@@ -289,7 +270,6 @@ test("elevación efímera, CRUD RBAC y revocación SSE de otra sesión", async (
 
   await loginSysAdmin(page);
   await page.goto("/admin/roles-usuarios");
-  await elevate(page);
 
   await page.getByRole("tab", { name: "Roles" }).click();
   await page.getByRole("button", { name: "Nuevo rol" }).click();
@@ -354,33 +334,12 @@ test("elevación efímera, CRUD RBAC y revocación SSE de otra sesión", async (
     await agentContext.close();
   }
 
-  const elevationRequests = requests.filter(
-    (request) =>
-      request.method === "POST" &&
-      new URL(request.url).pathname === "/api/auth/admin-elevation",
-  );
-  expect(elevationRequests).toHaveLength(1);
-  const elevationRequest = elevationRequests[0];
-  if (!elevationRequest) throw new Error("No se capturó el POST de elevación");
-  expect(JSON.parse(elevationRequest.postData ?? "null")).toEqual({
-    admin_key: E2E_ADMIN_API_KEY,
-  });
-  expect(
-    requests.some((request) => request.url.includes(E2E_ADMIN_API_KEY)),
-  ).toBe(false);
-  expect(
-    requests.some((request) =>
-      Object.values(request.headers).some((value) =>
-        value.includes(E2E_ADMIN_API_KEY),
-      ),
-    ),
-  ).toBe(false);
-  expect(
-    requests
-      .filter((request) => request !== elevationRequest)
-      .some((request) => request.postData?.includes(E2E_ADMIN_API_KEY)),
-  ).toBe(false);
+  // La llave administrativa ya no existe: las mutaciones administrativas
+  // viajan solo con la cookie de sesión y el rol SysAdmin las autoriza.
   expect(requests.some((request) => "x-admin-key" in request.headers)).toBe(
+    false,
+  );
+  expect(requests.some((request) => "x-admin-intent" in request.headers)).toBe(
     false,
   );
   const protectedAdminMutations = requests.filter(
@@ -389,11 +348,6 @@ test("elevación efímera, CRUD RBAC y revocación SSE de otra sesión", async (
       new URL(request.url).pathname.startsWith("/api/admin/"),
   );
   expect(protectedAdminMutations.length).toBeGreaterThan(0);
-  expect(
-    protectedAdminMutations.every(
-      (request) => request.headers["x-admin-intent"] === "1",
-    ),
-  ).toBe(true);
 
   const browserStorage = await page.evaluate(() =>
     JSON.stringify({
@@ -401,15 +355,11 @@ test("elevación efímera, CRUD RBAC y revocación SSE de otra sesión", async (
       session: { ...sessionStorage },
     }),
   );
-  expect(browserStorage.includes(E2E_ADMIN_API_KEY)).toBe(false);
+  // El formulario de la llave administrativa se retiró junto con la elevación.
   await expect(
     page.getByLabel("Clave de administración", { exact: true }),
   ).toHaveCount(0);
-
-  await page.getByRole("button", { name: "Revocar acceso" }).click();
-  await expect(
-    page.getByLabel("Clave de administración", { exact: true }),
-  ).toBeVisible();
+  expect(browserStorage.includes("admin_key")).toBe(false);
 });
 
 test("cuarentena, conflicto optimista y exportación CSV operativa", async ({
@@ -453,7 +403,6 @@ test("cuarentena, conflicto optimista y exportación CSV operativa", async ({
   await expect(page.getByText("No se encontraron llamados")).toBeVisible();
 
   await page.goto("/admin");
-  await elevate(page);
   await page
     .getByLabel("Buscar registros administrativos")
     .fill(quarantineConversation);

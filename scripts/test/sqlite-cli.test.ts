@@ -54,7 +54,6 @@ function runCli(name: "backup-db" | "verify-db", args: string[]) {
       encoding: "utf8",
       env: {
         ...process.env,
-        ADMIN_API_KEY: "sentinel-admin-must-not-leak",
         WEBHOOK_API_KEY: "sentinel-webhook-must-not-leak",
       },
       timeout: 30_000,

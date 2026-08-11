@@ -3,7 +3,6 @@ import type { Request, Response, NextFunction } from "express";
 import { db, sesionesTable, usuariosTable, rolesTable } from "@workspace/db";
 import { eq, lte } from "drizzle-orm";
 import { ROL_SYSADMIN } from "./rbac";
-import { isAdminElevationActive } from "./admin-elevation";
 import {
   clearSessionCookie,
   getSessionToken,
@@ -64,8 +63,6 @@ export interface SessionContext {
   user: SessionUser;
   tokenHash: string;
   sessionExpiresAt: Date;
-  adminElevationExpiresAt: Date | null;
-  adminElevationKeyFingerprint: string | null;
 }
 
 export async function getSessionContext(
@@ -78,8 +75,6 @@ export async function getSessionContext(
   const [row] = await db
     .select({
       expiracion: sesionesTable.fecha_expiracion,
-      admin_elevacion_hasta: sesionesTable.admin_elevacion_hasta,
-      admin_elevacion_clave_hash: sesionesTable.admin_elevacion_clave_hash,
       usuario_id: usuariosTable.id,
       nombre: usuariosTable.nombre,
       apellido: usuariosTable.apellido,
@@ -120,8 +115,6 @@ export async function getSessionContext(
     },
     tokenHash,
     sessionExpiresAt: row.expiracion,
-    adminElevationExpiresAt: row.admin_elevacion_hasta,
-    adminElevationKeyFingerprint: row.admin_elevacion_clave_hash,
   };
 }
 
@@ -191,50 +184,4 @@ export function requireSysAdmin(
     return;
   }
   next();
-}
-
-/**
- * Segunda frontera del panel administrativo.
- *
- * Las sesiones elevadas usan un header fijo y no secreto para volver
- * intencionales las solicitudes de navegador. La clave cruda solo se acepta
- * al crear la elevación y nunca vuelve a viajar en las rutas protegidas.
- * Una configuración ausente siempre devuelve 503 porque también es necesaria
- * para validar la huella de una elevación vigente.
- */
-export function requireAdminElevation(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) {
-  const configuredKey = process.env.ADMIN_API_KEY;
-  if (!configuredKey?.trim()) {
-    res.status(503).json({
-      code: "ADMIN_ELEVATION_UNAVAILABLE",
-      error: "La elevación administrativa no está disponible",
-    });
-    return;
-  }
-
-  if (req.header("x-admin-intent") === "1") {
-    const session = res.locals.authSession as SessionContext | undefined;
-    const isElevated =
-      session !== undefined &&
-      isAdminElevationActive({
-        now: new Date(),
-        sessionExpiresAt: session.sessionExpiresAt,
-        elevationExpiresAt: session.adminElevationExpiresAt,
-        storedKeyFingerprint: session.adminElevationKeyFingerprint,
-        configuredAdminApiKey: configuredKey,
-      });
-    if (isElevated) {
-      next();
-      return;
-    }
-  }
-
-  res.status(401).json({
-    code: "ADMIN_ELEVATION_REQUIRED",
-    error: "Elevación administrativa requerida",
-  });
 }

@@ -127,6 +127,13 @@
       "when": 1786457198364,
       "tag": "0017_add_rrhh_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1786465035878,
+      "tag": "0018_drop_admin_elevation",
+      "breakpoints": true
     }
   ]
 }

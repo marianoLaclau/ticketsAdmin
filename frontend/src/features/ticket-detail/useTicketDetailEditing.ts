@@ -53,7 +53,6 @@ interface UseTicketDetailEditingOptions {
   ticket: Ticket | undefined;
   ticketQueryKey: QueryKey;
   adminMode: boolean;
-  adminRequest: RequestInit;
   refetchTicket: () => Promise<TicketRefetchResult>;
   refetchSeguimientos: () => Promise<unknown>;
 }
@@ -67,15 +66,12 @@ export function useTicketDetailEditing({
   ticket,
   ticketQueryKey,
   adminMode,
-  adminRequest,
   refetchTicket,
   refetchSeguimientos,
 }: UseTicketDetailEditingOptions) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const updateTicket = useUpdateTicket(
-    adminMode ? { request: adminRequest } : undefined,
-  );
+  const updateTicket = useUpdateTicket(undefined);
   const { reset: resetUpdateTicket } = updateTicket;
   const includeEmptyParams = adminMode
     ? ({ incluir_vacios: true } as const)

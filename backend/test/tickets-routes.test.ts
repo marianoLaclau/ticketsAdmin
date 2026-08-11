@@ -32,7 +32,6 @@ mkdirSync(testDirectory, { recursive: true });
 rmSync(databasePath, { force: true });
 
 process.env.TICKETS_DB_PATH = databasePath;
-process.env.ADMIN_API_KEY = "admin-test-key";
 
 const bootstrap = new Database(databasePath);
 bootstrap.pragma("foreign_keys = ON");
@@ -106,17 +105,12 @@ bootstrap.exec(indexMigrationSql);
 bootstrap.exec(quarantineMigrationSql);
 bootstrap.close();
 
-const [
-  { default: ticketsRouter },
-  { sqlite },
-  { addEventClient },
-  { fingerprintAdminApiKey },
-] = await Promise.all([
-  import("../src/routes/tickets.ts"),
-  import("@workspace/db"),
-  import("../src/lib/events.ts"),
-  import("../src/lib/admin-elevation.ts"),
-]);
+const [{ default: ticketsRouter }, { sqlite }, { addEventClient }] =
+  await Promise.all([
+    import("../src/routes/tickets.ts"),
+    import("@workspace/db"),
+    import("../src/lib/events.ts"),
+  ]);
 
 const app = express();
 app.use(express.json());
@@ -130,18 +124,11 @@ app.use((req, res, next) => {
     rol: req.header("x-test-role") ?? "Operador",
     debe_cambiar_password: false,
   };
-  const isElevated = req.header("x-test-elevated") === "1";
   res.locals.authUser = authUser;
   res.locals.authSession = {
     user: authUser,
     tokenHash: `sha256:${"a".repeat(64)}`,
     sessionExpiresAt: new Date(Date.now() + 60 * 60_000),
-    adminElevationExpiresAt: isElevated
-      ? new Date(Date.now() + 15 * 60_000)
-      : null,
-    adminElevationKeyFingerprint: isElevated
-      ? fingerprintAdminApiKey("admin-test-key")
-      : null,
   };
   next();
 });
@@ -165,18 +152,13 @@ const baseUrl = `http://127.0.0.1:${port}`;
 interface RequestOptions extends RequestInit {
   role?: string;
   userId?: number;
-  adminIntent?: string;
-  elevated?: boolean;
 }
 
 function request(path: string, options: RequestOptions = {}) {
-  const { role, userId, adminIntent, elevated, headers, ...init } = options;
+  const { role, userId, headers, ...init } = options;
   const requestHeaders = new Headers(headers);
   requestHeaders.set("x-test-role", role ?? "Operador");
   requestHeaders.set("x-test-user", String(userId ?? 1));
-  if (adminIntent !== undefined)
-    requestHeaders.set("x-admin-intent", adminIntent);
-  if (elevated) requestHeaders.set("x-test-elevated", "1");
   if (init.body !== undefined)
     requestHeaders.set("Content-Type", "application/json");
 
@@ -399,51 +381,17 @@ describe("listado y exportación de tickets", () => {
 });
 
 describe("acceso a registros en cuarentena", () => {
-  it("exige SysAdmin y elevación en listado, detalle, PATCH y seguimientos", async () => {
+  it("exige rol SysAdmin en listado, detalle, PATCH y seguimientos", async () => {
+    // Un Operador nunca ve los registros en cuarentena.
     const listAsOperator = await request("/tickets?incluir_vacios=true");
     assert.equal(listAsOperator.status, 403);
+    const detailAsOperator = await request("/tickets/3?incluir_vacios=true");
+    assert.equal(detailAsOperator.status, 403);
 
-    const listWithoutKey = await request("/tickets?incluir_vacios=true", {
-      role: "SysAdmin",
-      userId: 2,
-    });
-    assert.equal(listWithoutKey.status, 401);
-
-    const elevatedWithoutIntent = await request(
-      "/tickets?incluir_vacios=true",
-      { role: "SysAdmin", userId: 2, elevated: true },
-    );
-    assert.equal(elevatedWithoutIntent.status, 401);
-    assert.deepEqual(await elevatedWithoutIntent.json(), {
-      code: "ADMIN_ELEVATION_REQUIRED",
-      error: "Elevación administrativa requerida",
-    });
-
-    const elevatedWithWrongIntent = await request(
-      "/tickets?incluir_vacios=true",
-      {
-        role: "SysAdmin",
-        userId: 2,
-        elevated: true,
-        adminIntent: "true",
-      },
-    );
-    assert.equal(elevatedWithWrongIntent.status, 401);
-
-    const elevatedList = await request("/tickets?incluir_vacios=true", {
-      role: "SysAdmin",
-      userId: 2,
-      elevated: true,
-      adminIntent: "1",
-    });
-    assert.equal(elevatedList.status, 200);
-    assert.equal(((await elevatedList.json()) as { total: number }).total, 3);
-
+    // El SysAdmin accede sin ninguna verificación adicional.
     const list = await request("/tickets?incluir_vacios=true", {
       role: "SysAdmin",
       userId: 2,
-      elevated: true,
-      adminIntent: "1",
     });
     assert.equal(list.status, 200);
     const listBody = (await list.json()) as {
@@ -456,57 +404,28 @@ describe("acceso a registros en cuarentena", () => {
       true,
     );
 
-    const detailAsOperator = await request("/tickets/3?incluir_vacios=true");
-    assert.equal(detailAsOperator.status, 403);
-
-    const detailWithoutKey = await request("/tickets/3?incluir_vacios=true", {
-      role: "SysAdmin",
-      userId: 2,
-    });
-    assert.equal(detailWithoutKey.status, 401);
-
     const detail = await request("/tickets/3?incluir_vacios=true", {
       role: "SysAdmin",
       userId: 2,
-      elevated: true,
-      adminIntent: "1",
     });
     assert.equal(detail.status, 200);
 
-    const patchWithoutKey = await jsonRequest(
-      "/tickets/3?incluir_vacios=true",
-      "PATCH",
-      { nombre: "Persona identificada" },
-      { role: "SysAdmin", userId: 2 },
-    );
-    assert.equal(patchWithoutKey.status, 401);
-
-    const historyWithoutKey = await request(
+    const historial = await request(
       "/tickets/3/seguimientos?incluir_vacios=true",
-      { role: "SysAdmin", userId: 2 },
-    );
-    assert.equal(historyWithoutKey.status, 401);
-
-    const followUpWithoutKey = await jsonRequest(
-      "/tickets/3/seguimientos?incluir_vacios=true",
-      "POST",
-      { nota: "Revisado" },
-      { role: "SysAdmin", userId: 2 },
-    );
-    assert.equal(followUpWithoutKey.status, 401);
-
-    const patchWithElevation = await jsonRequest(
-      "/tickets/3?incluir_vacios=true",
-      "PATCH",
-      { nombre: "Persona identificada" },
       {
         role: "SysAdmin",
         userId: 2,
-        elevated: true,
-        adminIntent: "1",
       },
     );
-    assert.equal(patchWithElevation.status, 200);
+    assert.equal(historial.status, 200);
+
+    const patch = await jsonRequest(
+      "/tickets/3?incluir_vacios=true",
+      "PATCH",
+      { nombre: "Persona identificada" },
+      { role: "SysAdmin", userId: 2 },
+    );
+    assert.equal(patch.status, 200);
   });
 });
 
@@ -526,8 +445,6 @@ describe("eliminación administrativa", () => {
         method: "DELETE",
         role: "SysAdmin",
         userId: 2,
-        elevated: true,
-        adminIntent: "1",
       });
       assert.equal(deleted.status, 204);
       assert.equal(
@@ -554,8 +471,6 @@ describe("eliminación administrativa", () => {
         method: "DELETE",
         role: "SysAdmin",
         userId: 2,
-        elevated: true,
-        adminIntent: "1",
       });
       assert.equal(alreadyMissing.status, 204);
       assert.equal(received.length, 1);
@@ -947,20 +862,12 @@ describe("edición y auditoría atómica", () => {
     ]);
   });
 
-  it("mantiene los campos técnicos detrás de SysAdmin y la elevación", async () => {
+  it("mantiene los campos técnicos detrás del rol SysAdmin", async () => {
     const deadline = "2026-07-30T12:00:00.000Z";
     const asOperator = await jsonRequest("/tickets/1", "PATCH", {
       fecha_limite: deadline,
     });
     assert.equal(asOperator.status, 403);
-
-    const withoutKey = await jsonRequest(
-      "/tickets/1",
-      "PATCH",
-      { fecha_limite: deadline },
-      { role: "SysAdmin", userId: 2 },
-    );
-    assert.equal(withoutKey.status, 401);
 
     const asAdmin = await jsonRequest(
       "/tickets/1",
@@ -969,8 +876,6 @@ describe("edición y auditoría atómica", () => {
       {
         role: "SysAdmin",
         userId: 2,
-        elevated: true,
-        adminIntent: "1",
       },
     );
     assert.equal(asAdmin.status, 200);
@@ -982,8 +887,6 @@ describe("edición y auditoría atómica", () => {
       {
         role: "SysAdmin",
         userId: 2,
-        elevated: true,
-        adminIntent: "1",
       },
     );
     assert.equal(asElevatedAdmin.status, 200);
@@ -994,8 +897,6 @@ describe("validacion estricta de fechas en PATCH", () => {
   const adminOptions = {
     role: "SysAdmin",
     userId: 2,
-    elevated: true,
-    adminIntent: "1",
   } as const;
 
   it("rechaza null, false, 0, formatos locales y fechas imposibles", async () => {

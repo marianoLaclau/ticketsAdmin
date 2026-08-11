@@ -15,7 +15,6 @@ for (const suffix of ["", "-shm", "-wal"]) {
 }
 
 process.env.TICKETS_DB_PATH = databasePath;
-process.env.ADMIN_API_KEY = "bulk-admin-key";
 process.env.NODE_ENV = "test";
 
 const bootstrap = new Database(databasePath);
@@ -173,15 +172,6 @@ async function loginAs(username: string): Promise<string> {
 }
 
 const adminCookie = await loginAs("sysadmin");
-const elevation = await fetch(`${baseUrl}/auth/admin-elevation`, {
-  method: "POST",
-  headers: {
-    "content-type": "application/json",
-    cookie: adminCookie,
-  },
-  body: JSON.stringify({ admin_key: "bulk-admin-key" }),
-});
-assert.equal(elevation.status, 200);
 const operatorCookie = await loginAs("operador");
 
 function adminPost(path: "/admin/import" | "/admin/truncate", body: unknown) {
@@ -190,7 +180,6 @@ function adminPost(path: "/admin/import" | "/admin/truncate", body: unknown) {
     headers: {
       "content-type": "application/json",
       cookie: adminCookie,
-      "x-admin-intent": "1",
     },
     body: JSON.stringify(body),
   });
@@ -226,27 +215,12 @@ after(async () => {
 });
 
 describe("operaciones administrativas masivas", () => {
-  it("conserva el doble guard del router administrativo padre", async () => {
-    const withoutIntent = await fetch(`${baseUrl}/admin/import`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        cookie: adminCookie,
-      },
-      body: JSON.stringify({}),
-    });
-    assert.equal(withoutIntent.status, 401);
-    assert.deepEqual(await withoutIntent.json(), {
-      code: "ADMIN_ELEVATION_REQUIRED",
-      error: "Elevación administrativa requerida",
-    });
-
+  it("conserva el guard de rol del router administrativo padre", async () => {
     const withoutSysAdminRole = await fetch(`${baseUrl}/admin/truncate`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         cookie: operatorCookie,
-        "x-admin-intent": "1",
       },
       body: JSON.stringify({ confirmar: true }),
     });

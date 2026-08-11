@@ -8,14 +8,11 @@ import { AdminTicketDeleteDialog } from "@/features/admin-tickets/AdminTicketDel
 import { AdminTicketFormDialog } from "@/features/admin-tickets/AdminTicketFormDialog";
 import { AdminTicketsListPanel } from "@/features/admin-tickets/AdminTicketsListPanel";
 import { useAdminTicketsCrud } from "@/features/admin-tickets/useAdminTicketsCrud";
-import { AdminAccessNotice } from "@/components/admin/AdminAccessNotice";
 import type {
   AdminTicketsUrlNavigation,
   AdminTicketsUrlUpdate,
 } from "@/features/admin-tickets/useAdminTicketsUrl";
 
-import { TabsContent } from "@/components/ui/tabs";
-import type { AdminAccessState } from "@/lib/admin-access-state";
 import { getAdminErrorMessage } from "@/lib/error-messages";
 import {
   buildTicketListParams,
@@ -28,11 +25,6 @@ import type { AdminTicketsUrlState } from "@/lib/admin-tickets-url";
 import type { AdminTicketDetailNavigationState } from "@/lib/ticket-navigation";
 
 interface AdminTicketsTabProps {
-  request: RequestInit;
-  queryRequest: RequestInit;
-  adminAccessState: AdminAccessState;
-  accessVersion: number;
-  accessGeneration: number;
   urlState: AdminTicketsUrlState;
   updateUrlState: (
     update: AdminTicketsUrlUpdate,
@@ -42,17 +34,10 @@ interface AdminTicketsTabProps {
 }
 
 export function AdminTicketsTab({
-  request,
-  queryRequest,
-  adminAccessState,
-  accessVersion,
-  accessGeneration,
   urlState,
   updateUrlState,
   detailNavigationState,
 }: AdminTicketsTabProps) {
-  const hasAdminAccess = adminAccessState === "ready";
-
   // ---------- Registros (CRUD) ----------
   const { page, limit: pageSize, sort: sorts } = urlState;
   const search = urlState.search ?? "";
@@ -60,18 +45,12 @@ export function AdminTicketsTab({
     ...buildTicketListParams({ search }, sorts, page, pageSize),
     incluir_vacios: true,
   };
-  const listQueryKey = [
-    ...getListTicketsQueryKey(listParams),
-    "admin-access",
-    accessVersion,
-  ] as const;
+  const listQueryKey = [...getListTicketsQueryKey(listParams)] as const;
   const listQuery = useListTickets(listParams, {
     query: {
-      enabled: hasAdminAccess,
       queryKey: listQueryKey,
       retry: false,
     },
-    request: queryRequest,
   });
   const { data: listResponse, isLoading } = listQuery;
   const tickets = listResponse?.tickets ?? [];
@@ -79,10 +58,10 @@ export function AdminTicketsTab({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   useEffect(() => {
-    if (hasAdminAccess && listResponse && page > totalPages) {
+    if (listResponse && page > totalPages) {
       updateUrlState((current) => ({ ...current, page: totalPages }));
     }
-  }, [hasAdminAccess, listResponse, page, totalPages, updateUrlState]);
+  }, [listResponse, page, totalPages, updateUrlState]);
 
   const ordenarRegistros = (column: TicketSortBy, additive: boolean) => {
     updateUrlState((current) => ({
@@ -129,26 +108,9 @@ export function AdminTicketsTab({
     descartarEliminacion,
     confirmarEliminar,
   } = useAdminTicketsCrud({
-    request,
-    queryRequest,
-    adminAccessState,
-    accessVersion,
-    accessGeneration,
     currentListQueryKey: listQueryKey,
     refetchCurrentList: () => listQuery.refetch(),
   });
-
-  if (adminAccessState !== "ready") {
-    return (
-      <TabsContent value="registros" className="mt-4">
-        <AdminAccessNotice
-          state={adminAccessState}
-          pendingDescription="Esperá un instante antes de consultar o gestionar registros."
-          missingDescription="Los registros administrativos permanecen protegidos. Completá la llave en la cabecera para consultarlos y gestionarlos."
-        />
-      </TabsContent>
-    );
-  }
 
   return (
     <>

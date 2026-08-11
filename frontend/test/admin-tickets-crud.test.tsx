@@ -12,7 +12,6 @@ import {
 } from "@workspace/api-client-react";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { useAdminTicketsCrud } from "../src/features/admin-tickets/useAdminTicketsCrud.ts";
-import type { AdminAccessState } from "../src/lib/admin-access-state.ts";
 
 const ticket: Ticket = {
   id: 41,
@@ -42,17 +41,7 @@ const ticket: Ticket = {
   progreso: 50,
 };
 
-const mutationRequest: RequestInit = {
-  headers: { "x-test-request": "mutation" },
-};
-const queryRequest: RequestInit = {
-  headers: { "x-test-query": "detail" },
-};
-
 interface CrudProps {
-  adminAccessState: AdminAccessState;
-  accessVersion: number;
-  accessGeneration: number;
   currentListQueryKey: QueryKey;
 }
 
@@ -169,17 +158,12 @@ test("conserva payloads, requests, caché e invalidaciones del CRUD", async (t) 
   const view = renderHook(
     (props: CrudProps) =>
       useAdminTicketsCrud({
-        request: mutationRequest,
-        queryRequest,
         ...props,
         refetchCurrentList,
       }),
     {
       wrapper: createWrapper(queryClient),
       initialProps: {
-        adminAccessState: "ready",
-        accessVersion: 1,
-        accessGeneration: 0,
         currentListQueryKey: listQueryKey,
       },
     },
@@ -209,7 +193,6 @@ test("conserva payloads, requests, caché e invalidaciones del CRUD", async (t) 
     prioridad: "media",
   });
   assert.equal(observed[0]?.url, "/api/admin/tickets");
-  assert.equal(observed[0]?.headers.get("x-test-request"), "mutation");
   assert.equal(invalidateQueries.mock.callCount(), 1);
 
   act(() => view.result.current.abrirEditar(ticket));
@@ -234,7 +217,6 @@ test("conserva payloads, requests, caché e invalidaciones del CRUD", async (t) 
   });
   assert.equal(observed[1]?.method, "PATCH");
   assert.equal(observed[1]?.url, "/api/tickets/41?incluir_vacios=true");
-  assert.equal(observed[1]?.headers.get("x-test-request"), "mutation");
   assert.equal(invalidateQueries.mock.callCount(), 2);
   assert.deepEqual(
     queryClient.getQueryData<TicketListResponse>(listQueryKey)?.tickets[0],
@@ -247,7 +229,6 @@ test("conserva payloads, requests, caché e invalidaciones del CRUD", async (t) 
   await waitFor(() => assert.equal(view.result.current.aEliminar, null));
   assert.equal(observed[2]?.method, "DELETE");
   assert.equal(observed[2]?.url, "/api/tickets/41");
-  assert.equal(observed[2]?.headers.get("x-test-request"), "mutation");
   assert.equal(invalidateQueries.mock.callCount(), 3);
   assert.equal(refetchCurrentList.mock.callCount(), 0);
 });
@@ -307,11 +288,6 @@ test("conserva el borrador ante conflicto y reintenta con la versión recargada"
   const view = renderHook(
     () =>
       useAdminTicketsCrud({
-        request: mutationRequest,
-        queryRequest,
-        adminAccessState: "ready",
-        accessVersion: 1,
-        accessGeneration: 0,
         currentListQueryKey: listQueryKey,
         refetchCurrentList,
       }),
@@ -346,7 +322,6 @@ test("conserva el borrador ante conflicto y reintenta con la versión recargada"
   assert.equal(view.result.current.form.nombre, "Versión del servidor");
   const detailRequest = observed.find(({ method }) => method === "GET");
   assert.equal(detailRequest?.url, "/api/tickets/41?incluir_vacios=true");
-  assert.equal(detailRequest?.headers.get("x-test-query"), "detail");
 
   act(() =>
     view.result.current.setForm((current) => ({
@@ -367,117 +342,6 @@ test("conserva el borrador ante conflicto y reintenta con la versión recargada"
     queryClient.getQueryData<TicketListResponse>(listQueryKey)?.tickets[0]
       ?.version,
     6,
-  );
-});
-
-test("purga la frontera y descarta el éxito tardío de otra generación", async (t) => {
-  let resolveCreate: ((response: Response) => void) | undefined;
-  t.mock.method(
-    globalThis,
-    "fetch",
-    async (
-      _input: RequestInfo | URL,
-      init?: RequestInit,
-    ): Promise<Response> => {
-      const method = (init?.method ?? "GET").toUpperCase();
-      if (method === "POST") {
-        return new Promise<Response>((resolve) => {
-          resolveCreate = resolve;
-        });
-      }
-      throw new Error(`Solicitud inesperada en la prueba: ${method}`);
-    },
-  );
-
-  const queryClient = createQueryClient();
-  const firstListKey = ["/api/tickets", "boundary-1"] as const;
-  const secondListKey = ["/api/tickets", "boundary-2"] as const;
-  seedList(queryClient, firstListKey);
-  seedList(queryClient, secondListKey);
-  const invalidateQueries = t.mock.method(queryClient, "invalidateQueries");
-  const refetchCurrentList = t.mock.fn(async () => undefined);
-  t.after(() => {
-    cleanup();
-    queryClient.clear();
-  });
-  const view = renderHook(
-    (props: CrudProps) =>
-      useAdminTicketsCrud({
-        request: mutationRequest,
-        queryRequest,
-        ...props,
-        refetchCurrentList,
-      }),
-    {
-      wrapper: createWrapper(queryClient),
-      initialProps: {
-        adminAccessState: "ready",
-        accessVersion: 1,
-        accessGeneration: 0,
-        currentListQueryKey: firstListKey,
-      },
-    },
-  );
-
-  act(() => {
-    view.result.current.abrirCrear();
-    view.result.current.setForm((current) => ({
-      ...current,
-      nombre: "Solicitud anterior",
-      motivo: "Alta anterior",
-    }));
-    view.result.current.abrirEliminar(ticket);
-  });
-  act(() => view.result.current.guardarRegistro());
-  await waitFor(() => assert.ok(resolveCreate));
-
-  view.rerender({
-    adminAccessState: "pending",
-    accessVersion: 1,
-    accessGeneration: 1,
-    currentListQueryKey: firstListKey,
-  });
-  assert.equal(view.result.current.dialogAbierto, false);
-  assert.equal(view.result.current.aEliminar, null);
-  assert.equal(view.result.current.editandoId, null);
-  assert.equal(view.result.current.hasVersionConflict, false);
-
-  view.rerender({
-    adminAccessState: "ready",
-    accessVersion: 2,
-    accessGeneration: 1,
-    currentListQueryKey: secondListKey,
-  });
-  act(() => {
-    view.result.current.abrirCrear();
-    view.result.current.setForm((current) => ({
-      ...current,
-      nombre: "Borrador vigente",
-    }));
-  });
-
-  await act(async () => {
-    resolveCreate?.(
-      jsonResponse(
-        {
-          ...ticket,
-          id: 51,
-          version: 1,
-          nombre: "Solicitud anterior",
-          motivo: "Alta anterior",
-        } satisfies Ticket,
-        201,
-      ),
-    );
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
-
-  assert.equal(view.result.current.dialogAbierto, true);
-  assert.equal(view.result.current.form.nombre, "Borrador vigente");
-  assert.equal(invalidateQueries.mock.callCount(), 0);
-  assert.deepEqual(
-    queryClient.getQueryData<TicketListResponse>(secondListKey)?.tickets,
-    [ticket],
   );
 });
 
@@ -512,11 +376,6 @@ test("una recarga tardía no contamina un editor abierto después", async (t) =>
   const view = renderHook(
     () =>
       useAdminTicketsCrud({
-        request: mutationRequest,
-        queryRequest,
-        adminAccessState: "ready",
-        accessVersion: 1,
-        accessGeneration: 0,
         currentListQueryKey: listQueryKey,
         refetchCurrentList,
       }),
@@ -567,7 +426,6 @@ test("una recarga tardía no contamina un editor abierto después", async (t) =>
       ?.version,
     ticket.version,
   );
-  assert.equal(observed[0]?.headers.get("x-test-query"), "detail");
 });
 
 test("serializa un alta pendiente dentro de la misma generación", async (t) => {
@@ -601,11 +459,6 @@ test("serializa un alta pendiente dentro de la misma generación", async (t) => 
   const view = renderHook(
     () =>
       useAdminTicketsCrud({
-        request: mutationRequest,
-        queryRequest,
-        adminAccessState: "ready",
-        accessVersion: 1,
-        accessGeneration: 0,
         currentListQueryKey: listQueryKey,
         refetchCurrentList: async () => undefined,
       }),
@@ -697,11 +550,6 @@ test("serializa una actualización pendiente dentro de la misma generación", as
   const view = renderHook(
     () =>
       useAdminTicketsCrud({
-        request: mutationRequest,
-        queryRequest,
-        adminAccessState: "ready",
-        accessVersion: 1,
-        accessGeneration: 0,
         currentListQueryKey: listQueryKey,
         refetchCurrentList: async () => undefined,
       }),
@@ -791,11 +639,6 @@ test("serializa una eliminación pendiente dentro de la misma generación", asyn
   const view = renderHook(
     () =>
       useAdminTicketsCrud({
-        request: mutationRequest,
-        queryRequest,
-        adminAccessState: "ready",
-        accessVersion: 1,
-        accessGeneration: 0,
         currentListQueryKey: listQueryKey,
         refetchCurrentList: async () => undefined,
       }),
@@ -864,11 +707,6 @@ test("una respuesta versión 4 no reemplaza la revisión 5 de la caché", async 
   const view = renderHook(
     () =>
       useAdminTicketsCrud({
-        request: mutationRequest,
-        queryRequest,
-        adminAccessState: "ready",
-        accessVersion: 1,
-        accessGeneration: 0,
         currentListQueryKey: listQueryKey,
         refetchCurrentList: async () => undefined,
       }),

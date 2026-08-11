@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getListAdminUsersQueryKey,
@@ -19,81 +19,43 @@ import {
 import { useAdminUserPasswordReset } from "@/features/admin-directory/useAdminUserPasswordReset";
 import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { useToast } from "@/hooks/use-toast";
-import type { AdminAccessState } from "@/lib/admin-access-state";
 import { getAdminErrorMessage } from "@/lib/error-messages";
 import { getNewPasswordError } from "@/lib/password-policy";
 
 interface UseAdminUsersCrudOptions {
-  request: RequestInit;
-  adminAccessState: AdminAccessState;
-  accessVersion: number;
-  accessGeneration: number;
   roles: readonly AdminRole[];
 }
 
-export function useAdminUsersCrud({
-  request,
-  adminAccessState,
-  accessVersion,
-  accessGeneration,
-  roles,
-}: UseAdminUsersCrudOptions) {
+export function useAdminUsersCrud({ roles }: UseAdminUsersCrudOptions) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const accessBoundary = `${adminAccessState}:${accessVersion}:${accessGeneration}`;
-  const { isCurrentOperation, operationGeneration } = useAdminOperationGuard(
-    adminAccessState,
-    accessGeneration,
-  );
+  const isCurrentOperation = useAdminOperationGuard();
   const roleById = useMemo(() => createRoleNameMap(roles), [roles]);
 
-  const createUser = useCreateAdminUser({ request });
-  const updateUser = useUpdateAdminUser({ request });
-  const { reset: resetCreateUser } = createUser;
-  const { reset: resetUpdateUser } = updateUser;
-  const passwordReset = useAdminUserPasswordReset({
-    request,
-    adminAccessState,
-    accessVersion,
-    accessGeneration,
-  });
+  const createUser = useCreateAdminUser();
+  const updateUser = useUpdateAdminUser();
+  const passwordReset = useAdminUserPasswordReset({});
 
   const [userDialogOpen, setUserDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [userForm, setUserForm] = useState<AdminUserFormState>(
     createEmptyAdminUserForm,
   );
-  const resetAccessBoundaryRef = useRef(accessBoundary);
 
   const refreshUsers = () =>
     queryClient.invalidateQueries({ queryKey: getListAdminUsersQueryKey() });
 
-  const showError =
-    (title: string, expectedGeneration: number) => (error: unknown) => {
-      if (!isCurrentOperation(expectedGeneration)) return;
-      toast({
-        variant: "destructive",
-        title,
-        description: getAdminErrorMessage(error),
-      });
-    };
-
-  useLayoutEffect(() => {
-    if (resetAccessBoundaryRef.current === accessBoundary) return;
-    resetAccessBoundaryRef.current = accessBoundary;
-    setUserDialogOpen(false);
-    setEditingUser(null);
-    setUserForm(createEmptyAdminUserForm());
-    resetCreateUser();
-    resetUpdateUser();
-  }, [accessBoundary, resetCreateUser, resetUpdateUser]);
+  const showError = (title: string) => (error: unknown) => {
+    if (!isCurrentOperation()) return;
+    toast({
+      variant: "destructive",
+      title,
+      description: getAdminErrorMessage(error),
+    });
+  };
 
   const openCreateUser = () => {
-    if (
-      !isCurrentOperation(operationGeneration) ||
-      createUser.isPending ||
-      updateUser.isPending
-    ) {
+    if (!isCurrentOperation() || createUser.isPending || updateUser.isPending) {
       return;
     }
     setEditingUser(null);
@@ -102,11 +64,7 @@ export function useAdminUsersCrud({
   };
 
   const openEditUser = (user: AdminUser) => {
-    if (
-      !isCurrentOperation(operationGeneration) ||
-      createUser.isPending ||
-      updateUser.isPending
-    ) {
+    if (!isCurrentOperation() || createUser.isPending || updateUser.isPending) {
       return;
     }
     setEditingUser(user);
@@ -129,14 +87,9 @@ export function useAdminUsersCrud({
   };
 
   const saveUser = () => {
-    if (
-      !isCurrentOperation(operationGeneration) ||
-      createUser.isPending ||
-      updateUser.isPending
-    ) {
+    if (!isCurrentOperation() || createUser.isPending || updateUser.isPending) {
       return;
     }
-    const operationAccessGeneration = operationGeneration;
     const nombre = userForm.nombre.trim();
     const email = userForm.email.trim().toLowerCase();
     const username = userForm.username.trim().toLowerCase();
@@ -180,7 +133,7 @@ export function useAdminUsersCrud({
     const userName = `${nombre} ${userForm.apellido.trim()}`.trim();
     const roleName = roleById.get(roleId) ?? `Rol #${roleId}`;
     const onSuccess = () => {
-      if (!isCurrentOperation(operationAccessGeneration)) return;
+      if (!isCurrentOperation()) return;
       closeUserDialog();
       void refreshUsers();
       toast({
@@ -205,10 +158,7 @@ export function useAdminUsersCrud({
         { id: editingUser.id, data },
         {
           onSuccess,
-          onError: showError(
-            "No se pudo actualizar el usuario",
-            operationAccessGeneration,
-          ),
+          onError: showError("No se pudo actualizar el usuario"),
         },
       );
       return;
@@ -227,24 +177,20 @@ export function useAdminUsersCrud({
       { data },
       {
         onSuccess,
-        onError: showError(
-          "No se pudo crear el usuario",
-          operationAccessGeneration,
-        ),
+        onError: showError("No se pudo crear el usuario"),
       },
     );
   };
 
   const toggleUser = (user: AdminUser) => {
-    if (!isCurrentOperation(operationGeneration) || updateUser.isPending) {
+    if (!isCurrentOperation() || updateUser.isPending) {
       return;
     }
-    const operationAccessGeneration = operationGeneration;
     updateUser.mutate(
       { id: user.id, data: { activo: !user.activo } },
       {
         onSuccess: () => {
-          if (!isCurrentOperation(operationAccessGeneration)) return;
+          if (!isCurrentOperation()) return;
           void refreshUsers();
           toast({
             variant: user.activo ? "warning" : "success",
@@ -258,7 +204,6 @@ export function useAdminUsersCrud({
           user.activo
             ? "No se pudo desactivar el usuario"
             : "No se pudo activar el usuario",
-          operationAccessGeneration,
         ),
       },
     );

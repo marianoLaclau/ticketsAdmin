@@ -15,7 +15,6 @@ mkdirSync(testDirectory, { recursive: true });
 rmSync(databasePath, { force: true });
 
 process.env.TICKETS_DB_PATH = databasePath;
-process.env.ADMIN_API_KEY = "rbac-admin-key";
 process.env.NODE_ENV = "test";
 
 const bootstrap = new Database(databasePath);
@@ -46,8 +45,6 @@ bootstrap.exec(`
     token TEXT PRIMARY KEY,
     usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     fecha_expiracion INTEGER NOT NULL,
-    admin_elevacion_hasta INTEGER,
-    admin_elevacion_clave_hash TEXT,
     fecha_creacion INTEGER NOT NULL DEFAULT 0
   );
 `);
@@ -160,14 +157,10 @@ function assertClearedSessionCookie(response: Response): void {
   );
 }
 
-async function adminSession({
-  elevate = true,
-}: { elevate?: boolean } = {}): Promise<string> {
+async function adminSession(): Promise<string> {
   const response = await login("sysadmin");
   assert.equal(response.status, 200);
-  const cookie = sessionCookie(response);
-  if (elevate) await elevateAdminSession(cookie);
-  return cookie;
+  return sessionCookie(response);
 }
 
 function requestWithSession(
@@ -186,33 +179,7 @@ function adminRequest(
   cookie: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const headers = new Headers(init.headers);
-  headers.set("x-admin-intent", "1");
-  return requestWithSession(path, cookie, { ...init, headers });
-}
-
-function elevatedAdminRequest(
-  path: string,
-  cookie: string,
-  init: RequestInit = {},
-): Promise<Response> {
-  const headers = new Headers(init.headers);
-  headers.set("x-admin-intent", "1");
-  return requestWithSession(path, cookie, { ...init, headers });
-}
-
-async function elevateAdminSession(cookie: string): Promise<void> {
-  const response = await requestWithSession("/auth/admin-elevation", cookie, {
-    method: "POST",
-    body: JSON.stringify({ admin_key: "rbac-admin-key" }),
-  });
-  assert.equal(response.status, 200);
-  const payload = (await response.json()) as {
-    active: boolean;
-    expires_at: string | null;
-  };
-  assert.equal(payload.active, true);
-  assert.ok(payload.expires_at);
+  return requestWithSession(path, cookie, init);
 }
 
 function changeOwnPassword(
@@ -390,21 +357,9 @@ describe("ciclo de la cookie de sesión", () => {
     const rawToken = cookie.slice("gsb_session=".length);
     const tokenHash = hashSessionToken(rawToken);
     const sessionExpiresAt = new Date(Date.now() + 45 * 60_000);
-    const adminElevationExpiresAt = new Date(Date.now() + 10 * 60_000);
-    const adminElevationKeyFingerprint = `v1:sha256:${"a".repeat(64)}`;
     sqlite
-      .prepare(
-        `UPDATE sesiones
-         SET fecha_expiracion = ?, admin_elevacion_hasta = ?,
-             admin_elevacion_clave_hash = ?
-         WHERE token = ?`,
-      )
-      .run(
-        sessionExpiresAt.getTime(),
-        adminElevationExpiresAt.getTime(),
-        adminElevationKeyFingerprint,
-        tokenHash,
-      );
+      .prepare(`UPDATE sesiones SET fecha_expiracion = ? WHERE token = ?`)
+      .run(sessionExpiresAt.getTime(), tokenHash);
 
     const me = await requestWithSession("/auth/me", cookie);
     assert.equal(me.status, 200);
@@ -430,8 +385,6 @@ describe("ciclo de la cookie de sesión", () => {
       },
       tokenHash,
       sessionExpiresAt: sessionExpiresAt.toISOString(),
-      adminElevationExpiresAt: adminElevationExpiresAt.toISOString(),
-      adminElevationKeyFingerprint,
     });
 
     const directContext = await getSessionContext({
@@ -448,8 +401,6 @@ describe("ciclo de la cookie de sesión", () => {
       },
       tokenHash,
       sessionExpiresAt,
-      adminElevationExpiresAt,
-      adminElevationKeyFingerprint,
     });
   });
 
@@ -1666,126 +1617,14 @@ describe("política de contraseñas nuevas", () => {
   });
 });
 
-describe("autorización administrativa elevada", () => {
-  it("rechaza la clave cruda, usa una intención no secreta después de elevar y permite revocar", async () => {
-    const cookie = await adminSession({ elevate: false });
-
-    const beforeElevation = await elevatedAdminRequest("/admin/roles", cookie);
-    assert.equal(beforeElevation.status, 401);
-    assert.deepEqual(await beforeElevation.json(), {
-      code: "ADMIN_ELEVATION_REQUIRED",
-      error: "Elevación administrativa requerida",
-    });
-
-    const rawOnly = await requestWithSession("/admin/roles", cookie, {
-      headers: { "x-admin-key": "rbac-admin-key" },
-    });
-    assert.equal(rawOnly.status, 401);
-    assert.deepEqual(await rawOnly.json(), {
-      code: "ADMIN_ELEVATION_REQUIRED",
-      error: "Elevación administrativa requerida",
-    });
-
-    const rawWithIntent = await elevatedAdminRequest("/admin/roles", cookie, {
-      headers: { "x-admin-key": "rbac-admin-key" },
-    });
-    assert.equal(rawWithIntent.status, 401);
-    assert.deepEqual(await rawWithIntent.json(), {
-      code: "ADMIN_ELEVATION_REQUIRED",
-      error: "Elevación administrativa requerida",
-    });
-
-    const statusAfterRawKey = await requestWithSession(
-      "/auth/admin-elevation",
-      cookie,
-    );
-    assert.equal(statusAfterRawKey.status, 200);
-    assert.deepEqual(await statusAfterRawKey.json(), {
-      active: false,
-      expires_at: null,
-    });
-
-    await elevateAdminSession(cookie);
-    const elevated = await elevatedAdminRequest("/admin/roles", cookie);
-    assert.equal(elevated.status, 200);
-
-    const rawOnlyAfterGrant = await requestWithSession("/admin/roles", cookie, {
-      headers: { "x-admin-key": "rbac-admin-key" },
-    });
-    assert.equal(rawOnlyAfterGrant.status, 401);
-    assert.deepEqual(await rawOnlyAfterGrant.json(), {
-      code: "ADMIN_ELEVATION_REQUIRED",
-      error: "Elevación administrativa requerida",
-    });
-
-    const revoked = await requestWithSession("/auth/admin-elevation", cookie, {
-      method: "DELETE",
-    });
-    assert.equal(revoked.status, 200);
-    assert.deepEqual(await revoked.json(), {
-      active: false,
-      expires_at: null,
-    });
-
-    const afterRevocation = await elevatedAdminRequest("/admin/roles", cookie);
-    assert.equal(afterRevocation.status, 401);
-    assert.deepEqual(await afterRevocation.json(), {
-      code: "ADMIN_ELEVATION_REQUIRED",
-      error: "Elevación administrativa requerida",
-    });
-  });
-
-  it("rechaza una elevación vencida", async () => {
-    const cookie = await adminSession();
-    sqlite
-      .prepare("UPDATE sesiones SET admin_elevacion_hasta = ?")
-      .run(Date.now() - 1);
-
-    const expired = await elevatedAdminRequest("/admin/roles", cookie);
-    assert.equal(expired.status, 401);
-    assert.deepEqual(await expired.json(), {
-      code: "ADMIN_ELEVATION_REQUIRED",
-      error: "Elevación administrativa requerida",
-    });
-  });
-
-  it("falla cerrado al rotar o retirar la clave configurada", async () => {
-    const cookie = await adminSession();
-
-    try {
-      process.env.ADMIN_API_KEY = "rbac-admin-key-rotated";
-      const rotated = await elevatedAdminRequest("/admin/roles", cookie);
-      assert.equal(rotated.status, 401);
-      assert.deepEqual(await rotated.json(), {
-        code: "ADMIN_ELEVATION_REQUIRED",
-        error: "Elevación administrativa requerida",
-      });
-
-      delete process.env.ADMIN_API_KEY;
-      const unavailable = await elevatedAdminRequest("/admin/roles", cookie);
-      assert.equal(unavailable.status, 503);
-      assert.deepEqual(await unavailable.json(), {
-        code: "ADMIN_ELEVATION_UNAVAILABLE",
-        error: "La elevación administrativa no está disponible",
-      });
-    } finally {
-      process.env.ADMIN_API_KEY = "rbac-admin-key";
-    }
-  });
-});
-
 describe("catálogo administrativo de roles", () => {
-  it("mantiene el subrouter detrás del rol SysAdmin y la elevación administrativa", async () => {
+  it("mantiene el subrouter detrás del rol SysAdmin", async () => {
     const sysAdminCookie = await adminSession();
-    const withoutIntent = await requestWithSession(
+    const comoSysAdmin = await requestWithSession(
       "/admin/roles",
       sysAdminCookie,
     );
-    assert.equal(withoutIntent.status, 401);
-    assert.deepEqual(await withoutIntent.json(), {
-      code: "ADMIN_ELEVATION_REQUIRED",
-      error: "Elevación administrativa requerida",
-    });
+    assert.equal(comoSysAdmin.status, 200);
 
     const operatorLogin = await login("operadora");
     assert.equal(operatorLogin.status, 200);
@@ -1917,15 +1756,11 @@ describe("catálogo administrativo de roles", () => {
 describe("catálogo administrativo de usuarios", () => {
   it("conserva el guard padre y expone el listado sin hashes", async () => {
     const sysAdminCookie = await adminSession();
-    const withoutIntent = await requestWithSession(
+    const comoSysAdmin = await requestWithSession(
       "/admin/users",
       sysAdminCookie,
     );
-    assert.equal(withoutIntent.status, 401);
-    assert.deepEqual(await withoutIntent.json(), {
-      code: "ADMIN_ELEVATION_REQUIRED",
-      error: "Elevación administrativa requerida",
-    });
+    assert.equal(comoSysAdmin.status, 200);
 
     const operatorLogin = await login("operadora");
     assert.equal(operatorLogin.status, 200);

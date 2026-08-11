@@ -3,7 +3,7 @@ import { db, esTicketVacio, ticketsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateAdminTicketBody } from "@workspace/api-zod";
 import { calcularFechaLimiteSla, clasificarMotivo } from "@workspace/ingesta";
-import { requireAdminElevation, requireSysAdmin } from "../lib/auth";
+import { requireSysAdmin } from "../lib/auth";
 import { broadcastEvent } from "../lib/events";
 import { findInvalidRfc3339DateTimeField } from "../lib/rfc3339";
 import adminBulkRouter from "./admin-bulk";
@@ -14,7 +14,7 @@ const router = Router();
 
 // Doble frontera sobre la sesión ya validada: primero el rol SysAdmin y luego
 // una elevación administrativa vigente con intención explícita.
-router.use("/admin", requireSysAdmin, requireAdminElevation);
+router.use("/admin", requireSysAdmin);
 
 // Alta manual de un registro (el flujo normal sigue siendo el webhook)
 router.post("/admin/tickets", async (req, res) => {

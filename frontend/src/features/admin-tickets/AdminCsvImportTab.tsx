@@ -1,11 +1,10 @@
-import { useLayoutEffect, useRef, useState, type ChangeEvent } from "react";
+import { useRef, useState, type ChangeEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useImportCsv,
   type AdminImportResult,
 } from "@workspace/api-client-react";
 import { CheckCircle2, FileText, Upload } from "lucide-react";
-import { AdminAccessNotice } from "@/components/admin/AdminAccessNotice";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,16 +18,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TabsContent } from "@/components/ui/tabs";
 import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { useToast } from "@/hooks/use-toast";
-import type { AdminAccessState } from "@/lib/admin-access-state";
 import { getAdminErrorMessage } from "@/lib/error-messages";
 import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
-
-interface AdminCsvImportTabProps {
-  request: RequestInit;
-  adminAccessState: AdminAccessState;
-  accessVersion: number;
-  accessGeneration: number;
-}
 
 function getImportAnnouncement(result: AdminImportResult): string {
   const stage = result.dry_run
@@ -42,21 +33,12 @@ function getImportAnnouncement(result: AdminImportResult): string {
   return `${stage}. ${result.filas} ${rowsLabel}: ${result.insertados} ${result.dry_run ? "a insertar" : "insertadas"}, ${result.ya_existentes} ${existingLabel} y ${result.invalidos} ${invalidLabel}.`;
 }
 
-export function AdminCsvImportTab({
-  request,
-  adminAccessState,
-  accessVersion,
-  accessGeneration,
-}: AdminCsvImportTabProps) {
+export function AdminCsvImportTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const importCsv = useImportCsv({ request });
+  const importCsv = useImportCsv();
   const { reset: resetImportCsv } = importCsv;
-  const accessBoundary = `${adminAccessState}:${accessVersion}:${accessGeneration}`;
-  const { isCurrentOperation, operationGeneration } = useAdminOperationGuard(
-    adminAccessState,
-    accessGeneration,
-  );
+  const isCurrentOperation = useAdminOperationGuard();
   const fileReadAttemptRef = useRef(0);
   const [isReadingFile, setIsReadingFile] = useState(false);
   const [csvNombre, setCsvNombre] = useState("");
@@ -64,49 +46,30 @@ export function AdminCsvImportTab({
   const [csvAnnouncement, setCsvAnnouncement] = useState("");
   const [resultadoImport, setResultadoImport] =
     useState<AdminImportResult | null>(null);
-  const resetAccessBoundaryRef = useRef(accessBoundary);
-
-  useLayoutEffect(() => {
-    if (resetAccessBoundaryRef.current === accessBoundary) return;
-    resetAccessBoundaryRef.current = accessBoundary;
-    fileReadAttemptRef.current += 1;
-    setIsReadingFile(false);
-    setCsvNombre("");
-    setCsvTexto("");
-    setCsvAnnouncement("");
-    setResultadoImport(null);
-    resetImportCsv();
-  }, [accessBoundary, resetImportCsv]);
 
   const refrescarTickets = () => invalidateTicketDomainQueries(queryClient);
 
-  const errorToast =
-    (title: string, operationAccessGeneration: number) => (err: unknown) => {
-      if (!isCurrentOperation(operationAccessGeneration)) return;
-      const description = getAdminErrorMessage(err);
-      // El toast de error ya aporta el live region assertive. Se limpia el
-      // estado polite para evitar que el lector anuncie el mismo error dos veces.
-      setCsvAnnouncement("");
-      toast({
-        variant: "destructive",
-        title,
-        description,
-      });
-    };
+  const errorToast = (title: string) => (err: unknown) => {
+    if (!isCurrentOperation()) return;
+    const description = getAdminErrorMessage(err);
+    // El toast de error ya aporta el live region assertive. Se limpia el
+    // estado polite para evitar que el lector anuncie el mismo error dos veces.
+    setCsvAnnouncement("");
+    toast({
+      variant: "destructive",
+      title,
+      description,
+    });
+  };
 
   const onArchivoSeleccionado = async (e: ChangeEvent<HTMLInputElement>) => {
-    if (
-      !isCurrentOperation(operationGeneration) ||
-      isReadingFile ||
-      importCsv.isPending
-    ) {
+    if (!isCurrentOperation() || isReadingFile || importCsv.isPending) {
       e.target.value = "";
       return;
     }
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
-    const operationAccessGeneration = operationGeneration;
     const fileReadAttempt = fileReadAttemptRef.current + 1;
     fileReadAttemptRef.current = fileReadAttempt;
     setIsReadingFile(true);
@@ -122,7 +85,7 @@ export function AdminCsvImportTab({
     } catch {
       if (
         fileReadAttemptRef.current !== fileReadAttempt ||
-        !isCurrentOperation(operationAccessGeneration)
+        !isCurrentOperation()
       )
         return;
       setIsReadingFile(false);
@@ -136,10 +99,7 @@ export function AdminCsvImportTab({
       });
       return;
     }
-    if (
-      fileReadAttemptRef.current !== fileReadAttempt ||
-      !isCurrentOperation(operationAccessGeneration)
-    )
+    if (fileReadAttemptRef.current !== fileReadAttempt || !isCurrentOperation())
       return;
     setCsvTexto(texto);
     setIsReadingFile(false);
@@ -151,7 +111,7 @@ export function AdminCsvImportTab({
         onSuccess: (result) => {
           if (
             fileReadAttemptRef.current !== fileReadAttempt ||
-            !isCurrentOperation(operationAccessGeneration)
+            !isCurrentOperation()
           )
             return;
           setResultadoImport(result);
@@ -160,13 +120,10 @@ export function AdminCsvImportTab({
         onError: (error) => {
           if (
             fileReadAttemptRef.current !== fileReadAttempt ||
-            !isCurrentOperation(operationAccessGeneration)
+            !isCurrentOperation()
           )
             return;
-          errorToast(
-            "No se pudo analizar el archivo",
-            operationAccessGeneration,
-          )(error);
+          errorToast("No se pudo analizar el archivo")(error);
         },
       },
     );
@@ -174,20 +131,19 @@ export function AdminCsvImportTab({
 
   const importarDefinitivo = () => {
     if (
-      !isCurrentOperation(operationGeneration) ||
+      !isCurrentOperation() ||
       isReadingFile ||
       importCsv.isPending ||
       !resultadoImport?.dry_run ||
       !csvTexto
     )
       return;
-    const operationAccessGeneration = operationGeneration;
     setCsvAnnouncement("Importando archivo CSV.");
     importCsv.mutate(
       { data: { csv: csvTexto, dry_run: false } },
       {
         onSuccess: (r) => {
-          if (!isCurrentOperation(operationAccessGeneration)) return;
+          if (!isCurrentOperation()) return;
           setResultadoImport(r);
           setCsvAnnouncement(getImportAnnouncement(r));
           void refrescarTickets();
@@ -198,25 +154,10 @@ export function AdminCsvImportTab({
             description: `${r.insertados} nuevos · ${r.ya_existentes} ya existentes · ${r.invalidos} inválidos`,
           });
         },
-        onError: errorToast(
-          "No se pudo importar el archivo",
-          operationAccessGeneration,
-        ),
+        onError: errorToast("No se pudo importar el archivo"),
       },
     );
   };
-
-  if (adminAccessState !== "ready") {
-    return (
-      <TabsContent value="importar" className="mt-4 max-w-3xl">
-        <AdminAccessNotice
-          state={adminAccessState}
-          pendingDescription="Esperá un instante antes de analizar o importar archivos."
-          missingDescription="La importación permanece protegida. Completá la llave en la cabecera para continuar."
-        />
-      </TabsContent>
-    );
-  }
 
   return (
     <TabsContent value="importar" className="mt-4 space-y-4 max-w-3xl">

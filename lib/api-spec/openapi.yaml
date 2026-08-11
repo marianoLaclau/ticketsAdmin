@@ -125,8 +125,7 @@ paths:
           in: query
           description: >
             Incluye registros en cuarentena sin datos útiles. Requiere sesión
-            SysAdmin, elevacion administrativa vigente y el header de intencion
-            x-admin-intent con valor literal 1; el listado operativo los excluye.
+            SysAdmin; el listado operativo los excluye.
           schema:
             type: boolean
             default: false
@@ -175,19 +174,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/TicketListResponse"
         "401":
-          description: Sesion invalida o elevacion administrativa ausente o vencida
+          description: Sesion invalida o ausente
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminAccessUnauthorized"
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
-        "503":
-          description: La elevacion administrativa no esta disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
 
   /tickets/export.csv:
     get:
@@ -391,132 +384,6 @@ paths:
         "401":
           description: Sin sesión válida
 
-  /auth/admin-elevation:
-    get:
-      operationId: getAdminElevation
-      tags: [auth]
-      summary: Consultar la elevación administrativa de la sesión
-      description: >
-        Devuelve únicamente el estado de la elevación asociada a la sesión
-        actual. Requiere una sesión vigente con rol SysAdmin y no expone la
-        clave ni su huella persistida.
-      security:
-        - sessionCookie: []
-      responses:
-        "200":
-          description: Estado actual de la elevación
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationStatus"
-        "401":
-          description: Sesión ausente o inválida
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationSessionUnauthorizedError"
-        "403":
-          description: La sesión no pertenece a un SysAdmin habilitado o aún usa una contraseña temporal
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationForbiddenError"
-        "503":
-          description: La elevación administrativa no está disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
-
-    post:
-      operationId: createAdminElevation
-      tags: [auth]
-      summary: Elevar temporalmente la sesión administrativa
-      description: >
-        Presenta la clave administrativa una sola vez para elevar únicamente
-        la sesión SysAdmin actual. La credencial no se devuelve ni se persiste
-        de forma reutilizable y no se acepta mediante headers.
-      security:
-        - sessionCookie: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AdminElevationInput"
-      responses:
-        "200":
-          description: Elevación concedida
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationStatus"
-        "400":
-          description: Cuerpo de elevación inválido
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationBadRequestError"
-        "401":
-          description: Sesión inválida o clave administrativa incorrecta
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnauthorizedError"
-        "403":
-          description: La sesión no pertenece a un SysAdmin habilitado o aún usa una contraseña temporal
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationForbiddenError"
-        "429":
-          description: Demasiados intentos de elevación para esta sesión
-          headers:
-            Retry-After:
-              description: Segundos que faltan para volver a intentar
-              schema:
-                type: integer
-                minimum: 1
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationRateLimitError"
-        "503":
-          description: La elevación administrativa no está disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
-
-    delete:
-      operationId: deleteAdminElevation
-      tags: [auth]
-      summary: Revocar la elevación administrativa de la sesión
-      description: >
-        Elimina de forma idempotente la elevación de la sesión SysAdmin actual
-        sin requerir que la clave administrativa vuelva a presentarse.
-      security:
-        - sessionCookie: []
-      responses:
-        "200":
-          description: Elevación revocada o previamente ausente
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationStatus"
-        "401":
-          description: Sesión ausente o inválida
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationSessionUnauthorizedError"
-        "403":
-          description: La sesión no pertenece a un SysAdmin habilitado o aún usa una contraseña temporal
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationForbiddenError"
-
   /webhooks/ticket:
     post:
       operationId: ingestTicket
@@ -560,7 +427,6 @@ paths:
         normal de creación de tickets sigue siendo el webhook de n8n.
       security:
         - sessionCookie: []
-          adminIntent: []
       requestBody:
         required: true
         content:
@@ -575,17 +441,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/Ticket"
         "401":
-          description: Sesión inválida o elevación administrativa ausente o vencida
+          description: Sesión inválida o ausente
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminAccessUnauthorized"
-        "503":
-          description: La elevacion administrativa no esta disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
         "409":
@@ -603,7 +463,6 @@ paths:
         y devuelve el resumen sin escribir nada.
       security:
         - sessionCookie: []
-          adminIntent: []
       requestBody:
         required: true
         content:
@@ -620,17 +479,11 @@ paths:
         "400":
           description: CSV inválido o sin columna conversation_id
         "401":
-          description: Sesión inválida o elevación administrativa ausente o vencida
+          description: Sesión inválida o ausente
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminAccessUnauthorized"
-        "503":
-          description: La elevacion administrativa no esta disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
 
@@ -644,7 +497,6 @@ paths:
         id. El schema queda intacto. Requiere confirmar explícitamente.
       security:
         - sessionCookie: []
-          adminIntent: []
       requestBody:
         required: true
         content:
@@ -661,17 +513,11 @@ paths:
         "400":
           description: Falta la confirmación explícita
         "401":
-          description: Sesión inválida o elevación administrativa ausente o vencida
+          description: Sesión inválida o ausente
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminAccessUnauthorized"
-        "503":
-          description: La elevacion administrativa no esta disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
 
@@ -682,7 +528,6 @@ paths:
       summary: Listar roles
       security:
         - sessionCookie: []
-          adminIntent: []
       parameters:
         - name: search
           in: query
@@ -711,17 +556,11 @@ paths:
         "400":
           description: Parametros de consulta invalidos
         "401":
-          description: Sesion invalida o elevacion administrativa ausente o vencida
+          description: Sesion invalida o ausente
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminAccessUnauthorized"
-        "503":
-          description: La elevacion administrativa no esta disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
 
@@ -731,7 +570,6 @@ paths:
       summary: Crear un rol
       security:
         - sessionCookie: []
-          adminIntent: []
       requestBody:
         required: true
         content:
@@ -748,17 +586,11 @@ paths:
         "400":
           description: Cuerpo invalido
         "401":
-          description: Sesion invalida o elevacion administrativa ausente o vencida
+          description: Sesion invalida o ausente
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminAccessUnauthorized"
-        "503":
-          description: La elevacion administrativa no esta disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
         "409":
@@ -771,7 +603,6 @@ paths:
       summary: Actualizar un rol
       security:
         - sessionCookie: []
-          adminIntent: []
       parameters:
         - name: id
           in: path
@@ -795,17 +626,11 @@ paths:
         "400":
           description: Id o cuerpo invalido
         "401":
-          description: Sesion invalida o elevacion administrativa ausente o vencida
+          description: Sesion invalida o ausente
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminAccessUnauthorized"
-        "503":
-          description: La elevacion administrativa no esta disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
         "404":
@@ -819,7 +644,6 @@ paths:
       summary: Eliminar un rol sin usuarios asignados
       security:
         - sessionCookie: []
-          adminIntent: []
       parameters:
         - name: id
           in: path
@@ -833,17 +657,11 @@ paths:
         "400":
           description: Id invalido
         "401":
-          description: Sesion invalida o elevacion administrativa ausente o vencida
+          description: Sesion invalida o ausente
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminAccessUnauthorized"
-        "503":
-          description: La elevacion administrativa no esta disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
         "404":
@@ -858,7 +676,6 @@ paths:
       summary: Listar usuarios
       security:
         - sessionCookie: []
-          adminIntent: []
       parameters:
         - name: search
           in: query
@@ -896,17 +713,11 @@ paths:
         "400":
           description: Parametros de consulta invalidos
         "401":
-          description: Sesion invalida o elevacion administrativa ausente o vencida
+          description: Sesion invalida o ausente
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminAccessUnauthorized"
-        "503":
-          description: La elevacion administrativa no esta disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
 
@@ -916,7 +727,6 @@ paths:
       summary: Crear un usuario
       security:
         - sessionCookie: []
-          adminIntent: []
       requestBody:
         required: true
         content:
@@ -933,17 +743,11 @@ paths:
         "400":
           description: Cuerpo invalido o rol inexistente
         "401":
-          description: Sesion invalida o elevacion administrativa ausente o vencida
+          description: Sesion invalida o ausente
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminAccessUnauthorized"
-        "503":
-          description: La elevacion administrativa no esta disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
         "409":
@@ -960,7 +764,6 @@ paths:
         sesiones activas. Reenviar el mismo role_id conserva la sesión.
       security:
         - sessionCookie: []
-          adminIntent: []
       parameters:
         - name: id
           in: path
@@ -984,17 +787,11 @@ paths:
         "400":
           description: Id o cuerpo invalido
         "401":
-          description: Sesion invalida o elevacion administrativa ausente o vencida
+          description: Sesion invalida o ausente
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminAccessUnauthorized"
-        "503":
-          description: La elevacion administrativa no esta disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
         "404":
@@ -1013,7 +810,6 @@ paths:
         queda afuera y debe volver a entrar con la clave nueva.
       security:
         - sessionCookie: []
-          adminIntent: []
       parameters:
         - name: id
           in: path
@@ -1033,17 +829,11 @@ paths:
         "400":
           description: Id o cuerpo invalido
         "401":
-          description: Sesion invalida o elevacion administrativa ausente o vencida
+          description: Sesion invalida o ausente
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminAccessUnauthorized"
-        "503":
-          description: La elevacion administrativa no esta disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
         "404":
@@ -1063,8 +853,7 @@ paths:
         - name: incluir_vacios
           in: query
           description: >
-            Permite abrir registros en cuarentena; requiere SysAdmin, elevacion
-            administrativa vigente y x-admin-intent con valor literal 1.
+            Permite abrir registros en cuarentena; requiere SysAdmin.
           schema:
             type: boolean
             default: false
@@ -1076,7 +865,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/TicketDetail"
         "401":
-          description: Sesion invalida o elevacion administrativa ausente o vencida
+          description: Sesion invalida o ausente
           content:
             application/json:
               schema:
@@ -1085,12 +874,6 @@ paths:
           $ref: "#/components/responses/FunctionalAccessForbidden"
         "404":
           description: Not found
-        "503":
-          description: La elevacion administrativa no esta disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
 
     patch:
       operationId: updateTicket
@@ -1100,8 +883,7 @@ paths:
         Las actualizaciones operativas y el enriquecimiento de contacto,
         motivo o resumen requieren una sesión válida. Los campos técnicos y
         el acceso a registros en cuarentena requieren además rol SysAdmin,
-        elevacion administrativa vigente y el header x-admin-intent con valor
-        literal 1. El body debe incluir expected_version junto a
+        rol SysAdmin. El body debe incluir expected_version junto a
         por lo menos un campo editable; una versión desactualizada devuelve
         TICKET_VERSION_CONFLICT sin persistir ni auditar el intento.
       parameters:
@@ -1114,7 +896,7 @@ paths:
           in: query
           description: >
             Permite modificar registros en cuarentena; requiere SysAdmin,
-            elevacion administrativa vigente y x-admin-intent con valor literal 1.
+            rol SysAdmin.
           schema:
             type: boolean
             default: false
@@ -1134,17 +916,11 @@ paths:
         "400":
           description: Body inválido, versión ausente o sin campos editables
         "401":
-          description: Sesion invalida o elevacion administrativa ausente o vencida
+          description: Sesion invalida o ausente
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminAccessUnauthorized"
-        "503":
-          description: La elevacion administrativa no esta disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
         "409":
@@ -1157,13 +933,11 @@ paths:
     delete:
       operationId: deleteTicket
       tags: [tickets]
-      summary: Delete a ticket (solo SysAdmin con elevacion administrativa)
+      summary: Delete a ticket (solo SysAdmin)
       description: >
-        Requiere sesion con rol SysAdmin, elevacion administrativa vigente y
-        el header x-admin-intent con valor literal 1.
+        Requiere sesion con rol SysAdmin.
       security:
         - sessionCookie: []
-          adminIntent: []
       parameters:
         - name: id
           in: path
@@ -1174,17 +948,11 @@ paths:
         "204":
           description: Deleted
         "401":
-          description: Sesion invalida o elevacion administrativa ausente o vencida
+          description: Sesion invalida o ausente
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminAccessUnauthorized"
-        "503":
-          description: La elevacion administrativa no esta disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
 
@@ -1203,7 +971,7 @@ paths:
           in: query
           description: >
             Permite consultar un registro en cuarentena; requiere SysAdmin,
-            elevacion administrativa vigente y x-admin-intent con valor literal 1.
+            rol SysAdmin.
           schema:
             type: boolean
             default: false
@@ -1217,19 +985,13 @@ paths:
                 items:
                   $ref: "#/components/schemas/Seguimiento"
         "401":
-          description: Sesion invalida o elevacion administrativa ausente o vencida
+          description: Sesion invalida o ausente
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminAccessUnauthorized"
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
-        "503":
-          description: La elevacion administrativa no esta disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
 
     post:
       operationId: createSeguimiento
@@ -1245,8 +1007,7 @@ paths:
           in: query
           description: >
             Permite agregar seguimiento a un registro en cuarentena; requiere
-            SysAdmin, elevacion administrativa vigente y x-admin-intent con
-            valor literal 1.
+            SysAdmin.
           schema:
             type: boolean
             default: false
@@ -1264,19 +1025,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/Seguimiento"
         "401":
-          description: Sesion invalida o elevacion administrativa ausente o vencida
+          description: Sesion invalida o ausente
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminAccessUnauthorized"
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
-        "503":
-          description: La elevacion administrativa no esta disponible
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AdminElevationUnavailableError"
 
   /dashboard/stats:
     get:
@@ -1404,14 +1159,6 @@ components:
       type: apiKey
       in: header
       name: x-api-key
-    adminIntent:
-      type: apiKey
-      in: header
-      name: x-admin-intent
-      description: >
-        Indicador fijo y no secreto de intencion administrativa. Debe enviarse
-        con el valor literal 1 y solo autoriza junto a una sesion SysAdmin con
-        elevacion administrativa vigente.
 
   schemas:
     FunctionalAccessError:
@@ -1468,60 +1215,7 @@ components:
           type: integer
           minimum: 1
 
-    AdminElevationStatus:
-      type: object
-      additionalProperties: false
-      required:
-        - active
-        - expires_at
-      properties:
-        active:
-          type: boolean
-        expires_at:
-          type: ["string", "null"]
-          format: date-time
-
-    AdminElevationInput:
-      type: object
-      additionalProperties: false
-      required:
-        - admin_key
-      properties:
-        admin_key:
-          type: string
-          minLength: 1
-          writeOnly: true
-          description: >
-            Credencial administrativa presentada una sola vez. Nunca se
-            devuelve ni se persiste de forma reutilizable.
-
-    AdminElevationBadRequestError:
-      type: object
-      additionalProperties: false
-      required:
-        - code
-        - error
-      properties:
-        code:
-          type: string
-          enum: [ADMIN_ELEVATION_INVALID_BODY]
-        error:
-          type: string
-
-    AdminElevationUnauthorizedError:
-      type: object
-      additionalProperties: false
-      required:
-        - code
-        - error
-      properties:
-        code:
-          type: string
-          enum: [SESSION_INVALID, ADMIN_KEY_INVALID]
-        error:
-          type: string
-
-    AdminElevationSessionUnauthorizedError:
+    AdminAccessUnauthorized:
       type: object
       additionalProperties: false
       required:
@@ -1531,67 +1225,6 @@ components:
         code:
           type: string
           enum: [SESSION_INVALID]
-        error:
-          type: string
-
-    AdminElevationRequiredError:
-      type: object
-      additionalProperties: false
-      required:
-        - code
-        - error
-      properties:
-        code:
-          type: string
-          enum: [ADMIN_ELEVATION_REQUIRED]
-        error:
-          type: string
-
-    AdminAccessUnauthorized:
-      oneOf:
-        - $ref: "#/components/schemas/AdminElevationSessionUnauthorizedError"
-        - $ref: "#/components/schemas/AdminElevationRequiredError"
-
-    AdminElevationForbiddenError:
-      type: object
-      additionalProperties: false
-      required:
-        - code
-        - error
-      properties:
-        code:
-          type: string
-          enum: [SYSADMIN_REQUIRED, PASSWORD_CHANGE_REQUIRED]
-        error:
-          type: string
-
-    AdminElevationRateLimitError:
-      type: object
-      additionalProperties: false
-      required:
-        - code
-        - error
-        - retry_after_seconds
-      properties:
-        code:
-          type: string
-          enum: [ADMIN_ELEVATION_RATE_LIMITED]
-        error:
-          type: string
-        retry_after_seconds:
-          type: integer
-          minimum: 1
-
-    AdminElevationUnavailableError:
-      type: object
-      additionalProperties: false
-      required:
-        - code
-        - error
-      properties:
-        code:
-          type: string
-          enum: [ADMIN_ELEVATION_UNAVAILABLE]
         error:
           type: string
 

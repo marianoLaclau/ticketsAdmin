@@ -7,22 +7,21 @@ import {
 
 const validEnvironment = {
   WEBHOOK_API_KEY: "webhook-7c99c3408ac44d2197d8f6d4",
-  ADMIN_API_KEY: "admin-45f2c78ce00e47a391d9e9f931",
 };
 
 describe("secretos entre servicios", () => {
-  it("acepta dos secretos independientes y suficientemente largos", () => {
+  it("acepta un secreto suficientemente largo e impredecible", () => {
     assert.doesNotThrow(() => validateServiceSecrets(validEnvironment));
   });
 
   it("rechaza variables ausentes o vacias", () => {
     for (const environment of [
-      { ...validEnvironment, WEBHOOK_API_KEY: undefined },
-      { ...validEnvironment, ADMIN_API_KEY: "" },
+      { WEBHOOK_API_KEY: undefined },
+      { WEBHOOK_API_KEY: "" },
     ]) {
       assert.throws(
         () => validateServiceSecrets(environment),
-        /WEBHOOK_API_KEY|ADMIN_API_KEY/,
+        /WEBHOOK_API_KEY/,
       );
     }
   });
@@ -50,7 +49,7 @@ describe("secretos entre servicios", () => {
       `${"x".repeat(16)}\u0000${"y".repeat(16)}`,
     ]) {
       assert.throws(() =>
-        validateServiceSecrets({ ...validEnvironment, ADMIN_API_KEY: value }),
+        validateServiceSecrets({ ...validEnvironment, WEBHOOK_API_KEY: value }),
       );
     }
   });
@@ -65,13 +64,5 @@ describe("secretos entre servicios", () => {
         validateServiceSecrets({ ...validEnvironment, WEBHOOK_API_KEY: value }),
       );
     }
-    assert.throws(
-      () =>
-        validateServiceSecrets({
-          WEBHOOK_API_KEY: validEnvironment.ADMIN_API_KEY,
-          ADMIN_API_KEY: validEnvironment.ADMIN_API_KEY,
-        }),
-      /deben ser diferentes/,
-    );
   });
 });

@@ -44,18 +44,11 @@ import type {
   AdminDirectoryRolesUrlUpdate,
   AdminDirectoryUrlNavigation,
 } from "@/features/admin-directory/useAdminDirectoryUrl";
-import { AdminAccessNotice } from "@/components/admin/AdminAccessNotice";
-import type { AdminAccessState } from "@/lib/admin-access-state";
 import type { AdminDirectoryRolesUrlState } from "@/lib/admin-directory-url";
 import { getAdminErrorMessage } from "@/lib/error-messages";
 import { esRolSistema } from "@/lib/roles";
 
 interface AdminRolesTabProps {
-  request: RequestInit;
-  queryRequest: RequestInit;
-  adminAccessState: AdminAccessState;
-  accessVersion: number;
-  accessGeneration: number;
   urlState: AdminDirectoryRolesUrlState;
   updateUrlState: (
     update: AdminDirectoryRolesUrlUpdate,
@@ -64,16 +57,9 @@ interface AdminRolesTabProps {
 }
 
 export function AdminRolesTab({
-  request,
-  queryRequest,
-  adminAccessState,
-  accessVersion,
-  accessGeneration,
   urlState,
   updateUrlState,
 }: AdminRolesTabProps) {
-  const hasAdminAccess = adminAccessState === "ready";
-
   const roleSearch = urlState.search ?? "";
   const roleStatusFilter = urlState.status ?? "_all";
 
@@ -87,16 +73,12 @@ export function AdminRolesTab({
   );
   const roleListQueryKey = [
     ...getListAdminRolesQueryKey(roleListParams),
-    "admin-access",
-    accessVersion,
   ] as const;
   const rolesQuery = useListAdminRoles(roleListParams, {
     query: {
-      enabled: hasAdminAccess,
       queryKey: roleListQueryKey,
       retry: false,
     },
-    request: queryRequest,
   });
   const listedRoles = useMemo(
     () => rolesQuery.data?.roles ?? [],
@@ -138,12 +120,7 @@ export function AdminRolesTab({
     confirmDeleteRole,
     changeRoleDialogOpen,
     changeRoleDeleteOpen,
-  } = useAdminRolesCrud({
-    request,
-    adminAccessState,
-    accessVersion,
-    accessGeneration,
-  });
+  } = useAdminRolesCrud({});
 
   const visibleRoles = useMemo(
     () => filterAdminRoles(listedRoles, roleSearch, roleStatusFilter),
@@ -152,18 +129,6 @@ export function AdminRolesTab({
   const roleResultsAvailable =
     !rolesQuery.isLoading && !rolesQuery.isError && visibleRoles.length > 0;
   const roleTableHasWideRows = rolesQuery.isLoading || roleResultsAvailable;
-
-  if (adminAccessState !== "ready") {
-    return (
-      <TabsContent value="roles">
-        <AdminAccessNotice
-          state={adminAccessState}
-          pendingDescription="Esperá un instante antes de consultar o gestionar roles."
-          missingDescription="El directorio permanece protegido. Completá la llave en la cabecera para consultar y gestionar roles."
-        />
-      </TabsContent>
-    );
-  }
 
   return (
     <>

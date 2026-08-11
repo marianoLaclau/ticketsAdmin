@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getListAdminRolesQueryKey,
@@ -17,37 +17,17 @@ import {
 } from "@/features/admin-directory/model";
 import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { useToast } from "@/hooks/use-toast";
-import type { AdminAccessState } from "@/lib/admin-access-state";
 import { getAdminErrorMessage } from "@/lib/error-messages";
 import { esRolSistema } from "@/lib/roles";
 
-interface UseAdminRolesCrudOptions {
-  request: RequestInit;
-  adminAccessState: AdminAccessState;
-  accessVersion: number;
-  accessGeneration: number;
-}
-
-export function useAdminRolesCrud({
-  request,
-  adminAccessState,
-  accessVersion,
-  accessGeneration,
-}: UseAdminRolesCrudOptions) {
+export function useAdminRolesCrud() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const accessBoundary = `${adminAccessState}:${accessVersion}:${accessGeneration}`;
-  const { isCurrentOperation, operationGeneration } = useAdminOperationGuard(
-    adminAccessState,
-    accessGeneration,
-  );
+  const isCurrentOperation = useAdminOperationGuard();
 
-  const createRole = useCreateAdminRole({ request });
-  const updateRole = useUpdateAdminRole({ request });
-  const deleteRole = useDeleteAdminRole({ request });
-  const { reset: resetCreateRole } = createRole;
-  const { reset: resetUpdateRole } = updateRole;
-  const { reset: resetDeleteRole } = deleteRole;
+  const createRole = useCreateAdminRole();
+  const updateRole = useUpdateAdminRole();
+  const deleteRole = useDeleteAdminRole();
 
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<AdminRole | null>(null);
@@ -55,7 +35,6 @@ export function useAdminRolesCrud({
   const [roleForm, setRoleForm] = useState<AdminRoleFormState>(
     createEmptyAdminRoleForm,
   );
-  const resetAccessBoundaryRef = useRef(accessBoundary);
   const roleMutationPending =
     createRole.isPending || updateRole.isPending || deleteRole.isPending;
 
@@ -64,37 +43,24 @@ export function useAdminRolesCrud({
   const refreshRoles = () =>
     queryClient.invalidateQueries({ queryKey: getListAdminRolesQueryKey() });
 
-  const showError =
-    (title: string, expectedGeneration: number) => (error: unknown) => {
-      if (!isCurrentOperation(expectedGeneration)) return;
-      toast({
-        variant: "destructive",
-        title,
-        description: getAdminErrorMessage(error),
-      });
-    };
-
-  useLayoutEffect(() => {
-    if (resetAccessBoundaryRef.current === accessBoundary) return;
-    resetAccessBoundaryRef.current = accessBoundary;
-    setRoleDialogOpen(false);
-    setEditingRole(null);
-    setRoleToDelete(null);
-    setRoleForm(createEmptyAdminRoleForm());
-    resetCreateRole();
-    resetUpdateRole();
-    resetDeleteRole();
-  }, [accessBoundary, resetCreateRole, resetDeleteRole, resetUpdateRole]);
+  const showError = (title: string) => (error: unknown) => {
+    if (!isCurrentOperation()) return;
+    toast({
+      variant: "destructive",
+      title,
+      description: getAdminErrorMessage(error),
+    });
+  };
 
   const openCreateRole = () => {
-    if (!isCurrentOperation(operationGeneration) || roleMutationPending) return;
+    if (!isCurrentOperation() || roleMutationPending) return;
     setEditingRole(null);
     setRoleForm(createEmptyAdminRoleForm());
     setRoleDialogOpen(true);
   };
 
   const openEditRole = (role: AdminRole) => {
-    if (!isCurrentOperation(operationGeneration) || roleMutationPending) return;
+    if (!isCurrentOperation() || roleMutationPending) return;
     setEditingRole(role);
     setRoleForm(createAdminRoleForm(role));
     setRoleDialogOpen(true);
@@ -102,7 +68,7 @@ export function useAdminRolesCrud({
 
   const openDeleteRole = (role: AdminRole) => {
     if (
-      !isCurrentOperation(operationGeneration) ||
+      !isCurrentOperation() ||
       roleMutationPending ||
       esRolSistema(role.nombre)
     ) {
@@ -112,8 +78,7 @@ export function useAdminRolesCrud({
   };
 
   const saveRole = () => {
-    if (!isCurrentOperation(operationGeneration) || roleMutationPending) return;
-    const operationAccessGeneration = operationGeneration;
+    if (!isCurrentOperation() || roleMutationPending) return;
     const nombre = roleForm.nombre.trim();
     if (!nombre) {
       toast({
@@ -130,7 +95,7 @@ export function useAdminRolesCrud({
       activo: roleForm.activo,
     };
     const onSuccess = () => {
-      if (!isCurrentOperation(operationAccessGeneration)) return;
+      if (!isCurrentOperation()) return;
       setRoleDialogOpen(false);
       void refreshRoles();
       void refreshUsers();
@@ -146,10 +111,7 @@ export function useAdminRolesCrud({
         { id: editingRole.id, data: data satisfies AdminRoleUpdate },
         {
           onSuccess,
-          onError: showError(
-            "No se pudo actualizar el rol",
-            operationAccessGeneration,
-          ),
+          onError: showError("No se pudo actualizar el rol"),
         },
       );
       return;
@@ -159,28 +121,24 @@ export function useAdminRolesCrud({
       { data },
       {
         onSuccess,
-        onError: showError(
-          "No se pudo crear el rol",
-          operationAccessGeneration,
-        ),
+        onError: showError("No se pudo crear el rol"),
       },
     );
   };
 
   const toggleRole = (role: AdminRole) => {
     if (
-      !isCurrentOperation(operationGeneration) ||
+      !isCurrentOperation() ||
       roleMutationPending ||
       esRolSistema(role.nombre)
     ) {
       return;
     }
-    const operationAccessGeneration = operationGeneration;
     updateRole.mutate(
       { id: role.id, data: { activo: !role.activo } },
       {
         onSuccess: () => {
-          if (!isCurrentOperation(operationAccessGeneration)) return;
+          if (!isCurrentOperation()) return;
           void refreshRoles();
           void refreshUsers();
           toast({
@@ -193,7 +151,6 @@ export function useAdminRolesCrud({
           role.activo
             ? "No se pudo desactivar el rol"
             : "No se pudo activar el rol",
-          operationAccessGeneration,
         ),
       },
     );
@@ -201,20 +158,19 @@ export function useAdminRolesCrud({
 
   const confirmDeleteRole = () => {
     if (
-      !isCurrentOperation(operationGeneration) ||
+      !isCurrentOperation() ||
       !roleToDelete ||
       deleteRole.isPending ||
       esRolSistema(roleToDelete.nombre)
     ) {
       return;
     }
-    const operationAccessGeneration = operationGeneration;
     const role = roleToDelete;
     deleteRole.mutate(
       { id: role.id },
       {
         onSuccess: () => {
-          if (!isCurrentOperation(operationAccessGeneration)) return;
+          if (!isCurrentOperation()) return;
           setRoleToDelete(null);
           void refreshRoles();
           toast({
@@ -223,26 +179,20 @@ export function useAdminRolesCrud({
             description: role.nombre,
           });
         },
-        onError: showError(
-          "No se pudo eliminar el rol",
-          operationAccessGeneration,
-        ),
+        onError: showError("No se pudo eliminar el rol"),
       },
     );
   };
 
   const changeRoleDialogOpen = (open: boolean) => {
-    if (
-      !isCurrentOperation(operationGeneration) ||
-      (open && roleMutationPending)
-    ) {
+    if (!isCurrentOperation() || (open && roleMutationPending)) {
       return;
     }
     setRoleDialogOpen(open);
   };
 
   const changeRoleDeleteOpen = (open: boolean) => {
-    if (!isCurrentOperation(operationGeneration) || open) return;
+    if (!isCurrentOperation() || open) return;
     setRoleToDelete(null);
   };
 

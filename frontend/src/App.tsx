@@ -10,11 +10,7 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
-import {
-  getGetAdminElevationQueryKey,
-  getGetMeQueryKey,
-  useGetMe,
-} from "@workspace/api-client-react";
+import { getGetMeQueryKey, useGetMe } from "@workspace/api-client-react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Loader2 } from "lucide-react";
@@ -46,7 +42,6 @@ import {
   publishSessionTransition,
   subscribeToSessionTransitions,
 } from "@/lib/session-sync";
-import { handleAdminElevationRequired } from "@/lib/admin-elevation-error-policy";
 
 const Dashboard = React.lazy(() => import("@/pages/Dashboard"));
 const TicketList = React.lazy(() => import("@/pages/TicketList"));
@@ -63,16 +58,6 @@ const queryClient = new QueryClient({
   },
   queryCache: new QueryCache({
     onError: (error, query) => {
-      const elevationReconciliation = handleAdminElevationRequired(
-        queryClient,
-        error,
-        getGetAdminElevationQueryKey(),
-      );
-      if (elevationReconciliation) {
-        void elevationReconciliation;
-        return;
-      }
-
       // Un 401 funcional obliga a revalidar /auth/me. Si falla la propia query
       // de sesión, se purga el estado de la identidad anterior sin invalidarla:
       // hacerlo aquí la refetchearía en loop antes de volver al login.
@@ -95,16 +80,6 @@ const queryClient = new QueryClient({
   }),
   mutationCache: new MutationCache({
     onError: (error) => {
-      const elevationReconciliation = handleAdminElevationRequired(
-        queryClient,
-        error,
-        getGetAdminElevationQueryKey(),
-      );
-      if (elevationReconciliation) {
-        void elevationReconciliation;
-        return;
-      }
-
       const isUnauthorized = getErrorStatus(error) === 401;
       const serverErrorCode = getServerErrorCode(error);
       const requiresPasswordChange =

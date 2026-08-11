@@ -4,10 +4,8 @@ import { AdminRolesTab } from "@/features/admin-directory/AdminRolesTab";
 import { AdminUsersTab } from "@/features/admin-directory/AdminUsersTab";
 import { useAdminDirectoryUrl } from "@/features/admin-directory/useAdminDirectoryUrl";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAdminElevation } from "@/hooks/use-admin-elevation";
 
 export default function AdminRolesUsers() {
-  const adminElevation = useAdminElevation();
   const { urlState, updateUsersUrlState, updateRolesUrlState, selectTab } =
     useAdminDirectoryUrl();
   return (
@@ -15,12 +13,6 @@ export default function AdminRolesUsers() {
       <AdminHeader
         title="Roles y usuarios"
         description="Administración de perfiles operativos, permisos previstos y estado de acceso."
-        state={adminElevation.state}
-        expiresAt={adminElevation.expiresAt}
-        error={adminElevation.error}
-        action={adminElevation.action}
-        onElevate={adminElevation.elevate}
-        onRevoke={adminElevation.revoke}
       />
 
       <Tabs
@@ -44,20 +36,10 @@ export default function AdminRolesUsers() {
         </TabsList>
 
         <AdminUsersTab
-          request={adminElevation.adminRequest}
-          queryRequest={adminElevation.adminRequest}
-          adminAccessState={adminElevation.state}
-          accessVersion={adminElevation.accessVersion}
-          accessGeneration={adminElevation.accessGeneration}
           urlState={urlState.users}
           updateUrlState={updateUsersUrlState}
         />
         <AdminRolesTab
-          request={adminElevation.adminRequest}
-          queryRequest={adminElevation.adminRequest}
-          adminAccessState={adminElevation.state}
-          accessVersion={adminElevation.accessVersion}
-          accessGeneration={adminElevation.accessGeneration}
           urlState={urlState.roles}
           updateUrlState={updateRolesUrlState}
         />

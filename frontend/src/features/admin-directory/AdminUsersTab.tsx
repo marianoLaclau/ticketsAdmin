@@ -38,16 +38,9 @@ import {
 } from "@/components/ui/table";
 import { TabsContent } from "@/components/ui/tabs";
 import { getAdminErrorMessage } from "@/lib/error-messages";
-import { AdminAccessNotice } from "@/components/admin/AdminAccessNotice";
 import type { AdminDirectoryUsersUrlState } from "@/lib/admin-directory-url";
-import type { AdminAccessState } from "@/lib/admin-access-state";
 
 interface AdminUsersTabProps {
-  request: RequestInit;
-  queryRequest: RequestInit;
-  adminAccessState: AdminAccessState;
-  accessVersion: number;
-  accessGeneration: number;
   urlState: AdminDirectoryUsersUrlState;
   updateUrlState: (
     update: AdminDirectoryUsersUrlUpdate,
@@ -56,31 +49,20 @@ interface AdminUsersTabProps {
 }
 
 export function AdminUsersTab({
-  request,
-  queryRequest,
-  adminAccessState,
-  accessVersion,
-  accessGeneration,
   urlState,
   updateUrlState,
 }: AdminUsersTabProps) {
-  const hasAdminAccess = adminAccessState === "ready";
-
   // Se obtiene el directorio completo admitido por la API para resolver role_id
   // en la tabla de usuarios y alimentar tanto filtros como formularios.
   const roleCatalogParams = { page: 1, limit: 100 };
   const roleCatalogQueryKey = [
     ...getListAdminRolesQueryKey(roleCatalogParams),
-    "admin-access",
-    accessVersion,
   ] as const;
   const roleCatalogQuery = useListAdminRoles(roleCatalogParams, {
     query: {
-      enabled: hasAdminAccess,
       queryKey: roleCatalogQueryKey,
       retry: false,
     },
-    request: queryRequest,
   });
   const roles = useMemo(
     () => roleCatalogQuery.data?.roles ?? [],
@@ -109,10 +91,6 @@ export function AdminUsersTab({
     closeResetPassword,
     savePassword,
   } = useAdminUsersCrud({
-    request,
-    adminAccessState,
-    accessVersion,
-    accessGeneration,
     roles,
   });
 
@@ -139,16 +117,12 @@ export function AdminUsersTab({
   );
   const userListQueryKey = [
     ...getListAdminUsersQueryKey(userListParams),
-    "admin-access",
-    accessVersion,
   ] as const;
   const usersQuery = useListAdminUsers(userListParams, {
     query: {
-      enabled: hasAdminAccess,
       queryKey: userListQueryKey,
       retry: false,
     },
-    request: queryRequest,
   });
 
   const users = usersQuery.data?.users ?? [];
@@ -216,18 +190,6 @@ export function AdminUsersTab({
     if (!Number.isSafeInteger(page) || page < 1) return;
     updateUrlState((current) => ({ ...current, page }), "push");
   };
-
-  if (adminAccessState !== "ready") {
-    return (
-      <TabsContent value="users">
-        <AdminAccessNotice
-          state={adminAccessState}
-          pendingDescription="Esperá un instante antes de consultar o gestionar usuarios."
-          missingDescription="El directorio permanece protegido. Completá la llave en la cabecera para consultar y gestionar usuarios."
-        />
-      </TabsContent>
-    );
-  }
 
   return (
     <>

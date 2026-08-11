@@ -1,16 +1,16 @@
 import { useCallback, useLayoutEffect, useRef } from "react";
-import {
-  isCurrentAdminOperation,
-  type AdminAccessState,
-} from "@/lib/admin-access-state";
 
-export function useAdminOperationGuard(
-  accessState: AdminAccessState,
-  accessGeneration: number,
-) {
+/**
+ * Evita aplicar el resultado de una operación administrativa sobre un
+ * componente que ya se desmontó.
+ *
+ * Antes este guard también seguía el estado de la elevación administrativa y
+ * su generación, para descartar respuestas emitidas bajo un permiso que había
+ * cambiado. Al eliminarse esa segunda verificación, la sesión SysAdmin es la
+ * única frontera y solo queda la comprobación de montaje.
+ */
+export function useAdminOperationGuard() {
   const isMountedRef = useRef(false);
-  const latestAccessStateRef = useRef(accessState);
-  const latestAccessGenerationRef = useRef(accessGeneration);
 
   useLayoutEffect(() => {
     isMountedRef.current = true;
@@ -19,24 +19,5 @@ export function useAdminOperationGuard(
     };
   }, []);
 
-  useLayoutEffect(() => {
-    latestAccessStateRef.current = accessState;
-    latestAccessGenerationRef.current = accessGeneration;
-  }, [accessGeneration, accessState]);
-
-  const isCurrentOperation = useCallback(
-    (operationGeneration: number) =>
-      isMountedRef.current &&
-      isCurrentAdminOperation(
-        operationGeneration,
-        latestAccessGenerationRef.current,
-        latestAccessStateRef.current,
-      ),
-    [],
-  );
-
-  return {
-    isCurrentOperation,
-    operationGeneration: accessGeneration,
-  };
+  return useCallback(() => isMountedRef.current, []);
 }

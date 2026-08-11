@@ -12,19 +12,15 @@ import { useTicketDetailOperationGuard } from "./useTicketDetailOperationGuard";
 interface UseTicketSeguimientoOptions {
   ticketId: number;
   adminMode: boolean;
-  adminRequest: RequestInit;
 }
 
 export function useTicketSeguimiento({
   ticketId,
   adminMode,
-  adminRequest,
 }: UseTicketSeguimientoOptions) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const createSeguimiento = useCreateSeguimiento(
-    adminMode ? { request: adminRequest } : undefined,
-  );
+  const createSeguimiento = useCreateSeguimiento(undefined);
   const { reset: resetCreateSeguimiento } = createSeguimiento;
   const includeEmptyParams = adminMode
     ? ({ incluir_vacios: true } as const)

@@ -31,7 +31,6 @@ export const E2E_WEBHOOK_API_KEY = runtimeSecret(
   "E2E_WEBHOOK_API_KEY",
   "webhook",
 );
-export const E2E_ADMIN_API_KEY = runtimeSecret("E2E_ADMIN_API_KEY", "admin");
 export const E2E_BOOTSTRAP_PASSWORD = runtimeSecret(
   "E2E_BOOTSTRAP_PASSWORD",
   "bootstrap",

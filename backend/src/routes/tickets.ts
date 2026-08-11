@@ -18,7 +18,6 @@ import {
 } from "@workspace/api-zod";
 import {
   puedeCerrarTickets,
-  requireAdminElevation,
   requireSysAdmin,
   type SessionUser,
 } from "../lib/auth";
@@ -70,11 +69,10 @@ function requireTechnicalTicketUpdate(
     return;
   }
 
-  requireSysAdmin(req, res, () => requireAdminElevation(req, res, next));
+  requireSysAdmin(req, res, next);
 }
 
-// `incluir_vacios` nunca amplía alcance por sí solo. El acceso administrativo
-// requiere simultáneamente sesión SysAdmin y elevación administrativa vigente.
+// `incluir_vacios` nunca amplía alcance por sí solo: exige sesión SysAdmin.
 function requireAdminForEmptyTickets(
   req: Request,
   res: Response,
@@ -85,7 +83,7 @@ function requireAdminForEmptyTickets(
     return;
   }
 
-  requireSysAdmin(req, res, () => requireAdminElevation(req, res, next));
+  requireSysAdmin(req, res, next);
 }
 
 // Listado operativo/administrativo: los filtros y el orden se aplican antes
@@ -262,27 +260,22 @@ router.patch(
   },
 );
 
-router.delete(
-  "/tickets/:id",
-  requireSysAdmin,
-  requireAdminElevation,
-  async (req, res) => {
-    const parsed = DeleteTicketParams.safeParse({ id: req.params.id });
-    if (!parsed.success || !Number.isInteger(parsed.data.id)) {
-      res.status(400).json({ error: "Identificador de ticket inválido" });
-      return;
-    }
+router.delete("/tickets/:id", requireSysAdmin, async (req, res) => {
+  const parsed = DeleteTicketParams.safeParse({ id: req.params.id });
+  if (!parsed.success || !Number.isInteger(parsed.data.id)) {
+    res.status(400).json({ error: "Identificador de ticket inválido" });
+    return;
+  }
 
-    const result = db
-      .delete(ticketsTable)
-      .where(eq(ticketsTable.id, parsed.data.id))
-      .run();
-    if (result.changes > 0) {
-      broadcastEvent("ticket_eliminado", { ticket_id: parsed.data.id });
-    }
-    res.status(204).end();
-  },
-);
+  const result = db
+    .delete(ticketsTable)
+    .where(eq(ticketsTable.id, parsed.data.id))
+    .run();
+  if (result.changes > 0) {
+    broadcastEvent("ticket_eliminado", { ticket_id: parsed.data.id });
+  }
+  res.status(204).end();
+});
 
 router.get(
   "/tickets/:id/seguimientos",

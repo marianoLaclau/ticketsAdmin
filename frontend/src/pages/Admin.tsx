@@ -6,11 +6,9 @@ import { AdminCsvImportTab } from "@/features/admin-tickets/AdminCsvImportTab";
 import { AdminDangerZoneTab } from "@/features/admin-tickets/AdminDangerZoneTab";
 import { AdminTicketsTab } from "@/features/admin-tickets/AdminTicketsTab";
 import { useAdminTicketsUrl } from "@/features/admin-tickets/useAdminTicketsUrl";
-import { useAdminElevation } from "@/hooks/use-admin-elevation";
 import { createAdminTicketDetailNavigationState } from "@/lib/ticket-navigation";
 
 export default function Admin() {
-  const adminElevation = useAdminElevation();
   const { urlState, canonicalSearch, updateUrlState, selectTab } =
     useAdminTicketsUrl();
   const detailNavigationState = useMemo(
@@ -22,12 +20,6 @@ export default function Admin() {
       <AdminHeader
         title="Administración"
         description="Gestión directa de la base de datos: registros, importación masiva y mantenimiento."
-        state={adminElevation.state}
-        expiresAt={adminElevation.expiresAt}
-        error={adminElevation.error}
-        action={adminElevation.action}
-        onElevate={adminElevation.elevate}
-        onRevoke={adminElevation.revoke}
       />
 
       <Tabs value={urlState.tab} onValueChange={selectTab}>
@@ -51,28 +43,12 @@ export default function Admin() {
         </TabsList>
 
         <AdminTicketsTab
-          request={adminElevation.adminRequest}
-          queryRequest={adminElevation.adminRequest}
-          adminAccessState={adminElevation.state}
-          accessVersion={adminElevation.accessVersion}
-          accessGeneration={adminElevation.accessGeneration}
           urlState={urlState}
           updateUrlState={updateUrlState}
           detailNavigationState={detailNavigationState}
         />
-        <AdminCsvImportTab
-          request={adminElevation.adminRequest}
-          adminAccessState={adminElevation.state}
-          accessVersion={adminElevation.accessVersion}
-          accessGeneration={adminElevation.accessGeneration}
-        />
-        <AdminDangerZoneTab
-          request={adminElevation.adminRequest}
-          queryRequest={adminElevation.adminRequest}
-          adminAccessState={adminElevation.state}
-          accessVersion={adminElevation.accessVersion}
-          accessGeneration={adminElevation.accessGeneration}
-        />
+        <AdminCsvImportTab />
+        <AdminDangerZoneTab />
       </Tabs>
     </div>
   );

@@ -1,6 +1,10 @@
 import { useLocation, useParams } from "wouter";
 import { useHistoryState } from "wouter/use-browser-location";
-import { useGetTicket, useListSeguimientos } from "@workspace/api-client-react";
+import {
+  useGetMe,
+  useGetTicket,
+  useListSeguimientos,
+} from "@workspace/api-client-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoadingStatus } from "@/components/ui/loading-status";
@@ -9,7 +13,6 @@ import { isVencido, EstadoBadge, PrioridadBadge } from "@/lib/utils-tickets";
 import { puedeCerrarTickets } from "@/lib/roles";
 import { ErrorPage, getErrorStatus } from "@/components/ErrorPage";
 import { getAppHref } from "@/lib/base-path";
-import { useAdminElevation } from "@/hooks/use-admin-elevation";
 import { getAdminErrorMessage } from "@/lib/error-messages";
 import { TicketDataEditDialog } from "@/components/tickets/TicketDataEditDialog";
 import { TicketCallSummaryCard } from "@/features/ticket-detail/TicketCallSummaryCard";
@@ -32,76 +35,28 @@ interface TicketDetailProps {
 
 interface TicketDetailContentProps {
   adminMode: boolean;
-  adminRequest: RequestInit;
-  accessVersion: number;
   historyState: unknown;
   canCloseTickets: boolean;
 }
 
-const NO_ADMIN_REQUEST = Object.freeze({}) satisfies RequestInit;
-
 export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
   const historyState = useHistoryState<unknown>();
-  const adminTicketListReturnTo = getAdminTicketListReturnTo(historyState);
-  const adminElevation = useAdminElevation({ enabled: adminMode });
-  const canCloseTickets = puedeCerrarTickets(adminElevation.user?.rol);
+  const { data: me } = useGetMe();
+  const canCloseTickets = puedeCerrarTickets(me?.rol);
 
   if (!adminMode) {
     return (
       <TicketDetailContent
         adminMode={false}
-        adminRequest={NO_ADMIN_REQUEST}
-        accessVersion={0}
         historyState={historyState}
         canCloseTickets={canCloseTickets}
       />
     );
   }
 
-  if (adminElevation.state === "pending") {
-    return (
-      <div className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6 lg:p-8">
-        <LoadingStatus>Validando acceso administrativo</LoadingStatus>
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-[400px] w-full" />
-      </div>
-    );
-  }
-
-  if (adminElevation.state === "missing") {
-    const status = getErrorStatus(adminElevation.error) ?? 401;
-    const returnMessage =
-      "Volvé a Administración y habilitá el acceso para abrir este registro.";
-
-    return (
-      <ErrorPage
-        embedded
-        status={status}
-        title={
-          adminElevation.error
-            ? "No pudimos verificar el acceso administrativo"
-            : "Acceso administrativo requerido"
-        }
-        message={
-          adminElevation.error
-            ? `${getAdminErrorMessage(adminElevation.error)} ${returnMessage}`
-            : returnMessage
-        }
-        homeHref={
-          import.meta.env?.BASE_URL
-            ? getAppHref(adminTicketListReturnTo ?? "admin")
-            : (adminTicketListReturnTo ?? "/admin")
-        }
-      />
-    );
-  }
-
   return (
     <TicketDetailContent
-      key={`admin-ticket-detail-${adminElevation.accessGeneration}`}
       adminMode
-      adminRequest={adminElevation.adminRequest}
-      accessVersion={adminElevation.accessVersion}
       historyState={historyState}
       canCloseTickets={canCloseTickets}
     />
@@ -110,8 +65,6 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
 
 function TicketDetailContent({
   adminMode,
-  adminRequest,
-  accessVersion,
   historyState,
   canCloseTickets,
 }: TicketDetailContentProps) {
@@ -121,9 +74,8 @@ function TicketDetailContent({
   const ticketListReturnTo = getTicketListReturnTo(historyState);
   const adminTicketListReturnTo = getAdminTicketListReturnTo(historyState);
   const includeEmptyParams = adminMode ? { incluir_vacios: true } : undefined;
-  const requestOptions = adminMode ? adminRequest : undefined;
   const queryScope = adminMode
-    ? (["admin", "admin-access", accessVersion] as const)
+    ? (["admin"] as const)
     : (["operativo"] as const);
   const ticketQueryKey = ["/api/tickets", ticketId, ...queryScope] as const;
 
@@ -132,7 +84,6 @@ function TicketDetailContent({
       enabled: !!ticketId,
       queryKey: ticketQueryKey,
     },
-    request: requestOptions,
   });
   const { data: ticket, isLoading: loadingTicket } = ticketQuery;
 
@@ -141,7 +92,6 @@ function TicketDetailContent({
       enabled: !!ticketId,
       queryKey: ["/api/tickets", ticketId, ...queryScope, "seguimientos"],
     },
-    request: requestOptions,
   });
   const { data: seguimientos, isLoading: loadingSeguimientos } =
     seguimientosQuery;
@@ -151,7 +101,6 @@ function TicketDetailContent({
     ticket,
     ticketQueryKey,
     adminMode,
-    adminRequest,
     refetchTicket: () => ticketQuery.refetch({ throwOnError: true }),
     refetchSeguimientos: () =>
       seguimientosQuery.refetch({ throwOnError: true }),
@@ -159,7 +108,6 @@ function TicketDetailContent({
   const seguimiento = useTicketSeguimiento({
     ticketId,
     adminMode,
-    adminRequest,
   });
 
   const handleBack = () => {

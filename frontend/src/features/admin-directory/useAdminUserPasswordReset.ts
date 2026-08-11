@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getListAdminUsersQueryKey,
@@ -7,44 +7,16 @@ import {
 } from "@workspace/api-client-react";
 import { useAdminOperationGuard } from "@/hooks/use-admin-operation-guard";
 import { toast } from "@/hooks/use-toast";
-import type { AdminAccessState } from "@/lib/admin-access-state";
 import { getAdminErrorMessage } from "@/lib/error-messages";
 import { getNewPasswordError } from "@/lib/password-policy";
 
-interface UseAdminUserPasswordResetOptions {
-  request: RequestInit;
-  adminAccessState: AdminAccessState;
-  accessVersion: number;
-  accessGeneration: number;
-}
-
-export function useAdminUserPasswordReset({
-  request,
-  adminAccessState,
-  accessVersion,
-  accessGeneration,
-}: UseAdminUserPasswordResetOptions) {
+export function useAdminUserPasswordReset() {
   const queryClient = useQueryClient();
-  const accessBoundary = `${adminAccessState}:${accessVersion}:${accessGeneration}`;
-  const { isCurrentOperation, operationGeneration } = useAdminOperationGuard(
-    adminAccessState,
-    accessGeneration,
-  );
-  const resetPassword = useResetAdminUserPassword({ request });
-  const { reset: resetPasswordMutation } = resetPassword;
+  const isCurrentOperation = useAdminOperationGuard();
+  const resetPassword = useResetAdminUserPassword();
   const [passwordUser, setPasswordUser] = useState<AdminUser | null>(null);
   const [password, setPassword] = useState("");
   const [repeatedPassword, setRepeatedPassword] = useState("");
-  const resetAccessBoundaryRef = useRef(accessBoundary);
-
-  useLayoutEffect(() => {
-    if (resetAccessBoundaryRef.current === accessBoundary) return;
-    resetAccessBoundaryRef.current = accessBoundary;
-    setPasswordUser(null);
-    setPassword("");
-    setRepeatedPassword("");
-    resetPasswordMutation();
-  }, [accessBoundary, resetPasswordMutation]);
 
   const closeResetPassword = () => {
     setPasswordUser(null);
@@ -53,7 +25,7 @@ export function useAdminUserPasswordReset({
   };
 
   const openResetPassword = (user: AdminUser) => {
-    if (!isCurrentOperation(operationGeneration) || resetPassword.isPending) {
+    if (!isCurrentOperation() || resetPassword.isPending) {
       return;
     }
     setPassword("");
@@ -62,15 +34,9 @@ export function useAdminUserPasswordReset({
   };
 
   const savePassword = () => {
-    if (
-      !isCurrentOperation(operationGeneration) ||
-      !passwordUser ||
-      resetPassword.isPending
-    ) {
+    if (!isCurrentOperation() || !passwordUser || resetPassword.isPending) {
       return;
     }
-
-    const operationAccessGeneration = operationGeneration;
     const passwordError = getNewPasswordError(password);
     if (passwordError) {
       toast({
@@ -93,7 +59,7 @@ export function useAdminUserPasswordReset({
       { id: passwordUser.id, data: { password } },
       {
         onSuccess: () => {
-          if (!isCurrentOperation(operationAccessGeneration)) return;
+          if (!isCurrentOperation()) return;
           closeResetPassword();
           void queryClient.invalidateQueries({
             queryKey: getListAdminUsersQueryKey(),
@@ -105,7 +71,7 @@ export function useAdminUserPasswordReset({
           });
         },
         onError: (error: unknown) => {
-          if (!isCurrentOperation(operationAccessGeneration)) return;
+          if (!isCurrentOperation()) return;
           toast({
             variant: "destructive",
             title: "No se pudo actualizar la contraseña",

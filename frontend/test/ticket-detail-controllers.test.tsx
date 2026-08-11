@@ -205,7 +205,6 @@ test("gestión conserva PATCH mínimo, admin request y reintento CAS recargado",
         ticket: ticketDetail,
         ticketQueryKey,
         adminMode: true,
-        adminRequest: { headers: { "x-admin-intent": "1" } },
         refetchTicket,
         refetchSeguimientos,
       }),
@@ -237,7 +236,6 @@ test("gestión conserva PATCH mínimo, admin request y reintento CAS recargado",
     expected_version: 3,
   });
   assert.equal(observed[0]?.url, "/api/tickets/41?incluir_vacios=true");
-  assert.equal(observed[0]?.headers.get("x-admin-intent"), "1");
   assert.equal(
     view.result.current.editing.managementDialog.form.prioridad,
     "alta",
@@ -313,7 +311,6 @@ test("datos operativos no degradan una revisión SSE más nueva", async (t) => {
         ticket: ticketDetail,
         ticketQueryKey,
         adminMode: false,
-        adminRequest: { headers: { "x-admin-intent": "must-not-leak" } },
         refetchTicket: async () => ({
           data: ticketDetail,
           error: null,
@@ -389,7 +386,6 @@ test("seguimiento normaliza el draft y conserva el contrato admin", async (t) =>
       seguimiento: useTicketSeguimiento({
         ticketId: ticket.id,
         adminMode: true,
-        adminRequest: { headers: { "x-admin-intent": "1" } },
       }),
       toasts: useToast().toasts,
     }),
@@ -415,7 +411,6 @@ test("seguimiento normaliza el draft y conserva el contrato admin", async (t) =>
     observed[0]?.url,
     "/api/tickets/41/seguimientos?incluir_vacios=true",
   );
-  assert.equal(observed[0]?.headers.get("x-admin-intent"), "1");
   assert.deepEqual(observed[0]?.body, { nota: note });
   assert.equal(invalidateQueries.mock.callCount(), 1);
   assert.ok(
@@ -623,7 +618,6 @@ test("cambiar de ticket resetea editores y descarta un PATCH tardío", async (t)
         ticket: props.ticket,
         ticketQueryKey: props.ticketQueryKey,
         adminMode: false,
-        adminRequest: {},
         refetchTicket: async () => ({
           data: props.ticket,
           error: null,
@@ -725,7 +719,6 @@ test("cerrar durante PATCH permite salir pero bloquea reaperturas y otro submit"
         ticket: ticketDetail,
         ticketQueryKey,
         adminMode: false,
-        adminRequest: {},
         refetchTicket: async () => ({
           data: ticketDetail,
           error: null,
@@ -809,7 +802,6 @@ test("un error vigente todavía se notifica si el editor fue cerrado", async (t)
         ticket: errorTicket,
         ticketQueryKey: errorQueryKey,
         adminMode: false,
-        adminRequest: {},
         refetchTicket: async () => ({
           data: errorTicket,
           error: null,
@@ -899,7 +891,6 @@ test("un conflicto tras cerrar sobrevive hasta recargar y reintenta con la versi
         ticket: conflictTicket,
         ticketQueryKey: conflictQueryKey,
         adminMode: false,
-        adminRequest: {},
         refetchTicket,
         refetchSeguimientos: async () => undefined,
       }),
@@ -1064,7 +1055,6 @@ test("A→B→A descarta ambos callbacks viejos y sólo notifica el A vigente", 
         ticket: props.ticket,
         ticketQueryKey: props.ticketQueryKey,
         adminMode: false,
-        adminRequest: {},
         refetchTicket: async () => ({
           data: props.ticket,
           error: null,
@@ -1187,7 +1177,6 @@ test("una recarga tardía de A no sobrescribe el editor abierto de B", async (t)
         ticket: props.ticket,
         ticketQueryKey: props.ticketQueryKey,
         adminMode: false,
-        adminRequest: {},
         refetchTicket: () =>
           new Promise((resolve) => {
             resolveReload = resolve;
@@ -1267,7 +1256,6 @@ test("seguimiento bloquea doble submit y preserva texto escrito durante el reque
       useTicketSeguimiento({
         ticketId: ticket.id,
         adminMode: false,
-        adminRequest: {},
       }),
     { wrapper: createWrapper(queryClient) },
   );
@@ -1321,7 +1309,6 @@ test("seguimiento de A no limpia ni notifica después de cambiar a B", async (t)
       useTicketSeguimiento({
         ticketId,
         adminMode: false,
-        adminRequest: {},
       }),
     {
       wrapper: createWrapper(queryClient),

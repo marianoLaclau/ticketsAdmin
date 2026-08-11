@@ -5,7 +5,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer, type ViteDevServer } from "vite";
 import {
-  E2E_ADMIN_API_KEY,
   E2E_BACKEND_PORT,
   E2E_BACKEND_URL,
   E2E_BOOTSTRAP_PASSWORD,
@@ -212,7 +211,6 @@ function createRuntimeEnvironment(databasePath: string): NodeJS.ProcessEnv {
     TICKETS_DB_PATH: databasePath,
     TICKET_CSV_EXPORT_TIMEOUT_MS: "300000",
     WEBHOOK_API_KEY: E2E_WEBHOOK_API_KEY,
-    ADMIN_API_KEY: E2E_ADMIN_API_KEY,
     BOOTSTRAP_SYSADMIN_PASSWORD: E2E_BOOTSTRAP_PASSWORD,
     PRIORIDAD_AUTOMATICA_INTERVAL_MS: "600000",
     TZ: "America/Argentina/Buenos_Aires",
