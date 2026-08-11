@@ -213,7 +213,7 @@ Después de elevarse, cada operación sensible envía solamente `x-admin-intent:
 
 ### Contraseñas
 
-La política de credenciales nuevas vive en `lib/password-policy` (`@workspace/password-policy`) y es consumida por alta, reset, bootstrap y frontend: 16 a 128 caracteres, sin controles C0/DEL ni whitespace al principio/final. También bloquea una lista acotada y explícita de credenciales comunes, placeholders y ejemplos públicos del repositorio, además de valores formados por un único carácter repetido. Se permiten espacios interiores y no se imponen reglas de composición. Los límites se miden con la longitud de string de JavaScript (unidades UTF-16), igual que los validadores Zod y los inputs actuales. La contraseña no se recorta ni normaliza antes de hashearla.
+La política de credenciales nuevas vive en `lib/password-policy` (`@workspace/password-policy`) y es consumida por alta, reset, bootstrap y frontend: 8 a 128 caracteres, sin controles C0/DEL ni whitespace al principio/final. También bloquea una lista acotada y explícita de credenciales comunes, placeholders y ejemplos públicos del repositorio, además de valores formados por un único carácter repetido. Se permiten espacios interiores y no se imponen reglas de composición. Los límites se miden con la longitud de string de JavaScript (unidades UTF-16), igual que los validadores Zod y los inputs actuales. La contraseña no se recorta ni normaliza antes de hashearla.
 
 El login y el campo `password_actual` son deliberadamente distintos: aceptan de 1 a 128 caracteres para no bloquear credenciales históricas cortas, comunes o con espacios exteriores. Esa excepción solo verifica/rehashea valores ya existentes; nunca permite crear una contraseña nueva fuera de política. Un rehash de formato conserva `debe_cambiar_password`; no convierte una contraseña histórica en temporal.
 
@@ -229,7 +229,7 @@ Se ejecuta una vez en cada arranque del backend (`await ensureAdminSeed()` en `i
 
 1. **Roles base**: crea `SysAdmin`, `Administrador` y `Operador` si faltan y reactiva cualquiera que hubiese quedado inactivo. Nunca renombra `Administrador` a `SysAdmin`, porque eso promovería también a todos sus usuarios.
 2. **Compatibilidad de identidad**: si existe el usuario histórico `admin` y no existe `sysadmin`, normaliza únicamente esa identidad. Al rotar el seed heredado le asigna el rol `SysAdmin` canónico; los demás usuarios de `Administrador` permanecen en su rol.
-3. **Alta inicial segura**: si ningún usuario tiene `password_hash`, exige `BOOTSTRAP_SYSADMIN_PASSWORD` (16 a 128 caracteres), crea el rol `SysAdmin`, guarda únicamente el hash scrypt y deja la contraseña como temporal. La validación ocurre antes de modificar filas y el backend no abre el puerto si falta o es inválida.
+3. **Alta inicial segura**: si ningún usuario tiene `password_hash`, exige `BOOTSTRAP_SYSADMIN_PASSWORD` (8 a 128 caracteres), crea el rol `SysAdmin`, guarda únicamente el hash scrypt y deja la contraseña como temporal. La validación ocurre antes de modificar filas y el backend no abre el puerto si falta o es inválida.
 4. **Upgrade seguro**: detecta exclusivamente si `sysadmin` —o el nombre histórico `admin`— todavía conserva la credencial pública del seed anterior. En ese caso exige el mismo secreto externo, rota el hash, lo marca como temporal y revoca sus sesiones dentro de una transacción.
 5. **Sin resets implícitos**: cualquier contraseña distinta de la credencial heredada queda intacta. Cambiar o conservar `BOOTSTRAP_SYSADMIN_PASSWORD` no modifica una cuenta ya asegurada.
 
