@@ -34,7 +34,7 @@ export function useAdminUsersCrud({ roles }: UseAdminUsersCrudOptions) {
 
   const createUser = useCreateAdminUser();
   const updateUser = useUpdateAdminUser();
-  const passwordReset = useAdminUserPasswordReset({});
+  const passwordReset = useAdminUserPasswordReset();
 
   const [userDialogOpen, setUserDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);

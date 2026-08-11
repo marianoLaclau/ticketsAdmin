@@ -99,7 +99,18 @@ export function parseFecha(s: string): Date | null {
     /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s*[-–]?\s*(\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?\s*(?:hs?)?)?$/i,
   );
   if (dmy) {
-    const [, d, mo, y, h = "0", mi = "0", seconds = "0", ms = "0"] = dmy;
+    // Los tres primeros grupos son obligatorios en el patrón; el default los
+    // hace explícitos para los consumidores con índices verificados.
+    const [
+      ,
+      d = "",
+      mo = "",
+      y = "",
+      h = "0",
+      mi = "0",
+      seconds = "0",
+      ms = "0",
+    ] = dmy;
     const year = y.length === 2 ? 2000 + Number(y) : Number(y);
     return fechaLocalEnBuenosAires({
       year,

@@ -19,6 +19,7 @@
     "typecheck:test": "tsc -p tsconfig.test.json"
   },
   "dependencies": {
+    "@workspace/ingesta": "workspace:*",
     "better-sqlite3": "^12.4.1",
     "drizzle-orm": "catalog:"
   },

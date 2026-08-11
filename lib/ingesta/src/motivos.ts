@@ -4,34 +4,33 @@
  * El texto recibido se conserva en `ticket.motivo`; estos códigos sirven para
  * agrupar y filtrar sin convertir cada redacción de n8n en una categoría nueva.
  */
-export const MOTIVO_CATEGORIAS = [
-  { codigo: "haberes_pagos", label: "Haberes y pagos" },
-  { codigo: "recibos_documentacion", label: "Recibos y documentación" },
-  { codigo: "vacaciones_licencias", label: "Vacaciones y licencias" },
-  { codigo: "bajas_liquidacion", label: "Bajas y liquidación final" },
-  { codigo: "empleo_postulaciones", label: "Empleo y postulaciones" },
-  { codigo: "contacto_general", label: "Contacto y consultas generales" },
-  { codigo: "reclamos", label: "Reclamos" },
-  { codigo: "embargos", label: "Embargos" },
-  { codigo: "legales", label: "Legales" },
-  { codigo: "prestamos_anticipos", label: "Préstamos y anticipos" },
-  { codigo: "obra_social", label: "Obra social y aportes" },
-  { codigo: "sanciones_ausencias", label: "Sanciones y ausencias" },
-  { codigo: "proveedores_comercial", label: "Proveedores y comercial" },
-  { codigo: "sin_clasificar", label: "Sin clasificar" },
+/**
+ * Fuente única del catálogo. El orden es el que se expone en la interfaz.
+ *
+ * Todo lo demás se deriva de acá: el enum de la columna en `lib/db`, las
+ * etiquetas y filtros del frontend y el contrato OpenAPI —este último no puede
+ * importar TypeScript, así que un test verifica que no se desincronice—.
+ */
+export const MOTIVO_CATEGORIA_CODIGOS = [
+  "haberes_pagos",
+  "recibos_documentacion",
+  "vacaciones_licencias",
+  "bajas_liquidacion",
+  "empleo_postulaciones",
+  "contacto_general",
+  "reclamos",
+  "embargos",
+  "legales",
+  "prestamos_anticipos",
+  "obra_social",
+  "sanciones_ausencias",
+  "proveedores_comercial",
+  "sin_clasificar",
 ] as const;
 
-export type MotivoCategoria = (typeof MOTIVO_CATEGORIAS)[number]["codigo"];
-export type MotivoCategoriaLabel = (typeof MOTIVO_CATEGORIAS)[number]["label"];
+export type MotivoCategoria = (typeof MOTIVO_CATEGORIA_CODIGOS)[number];
 
-export const MOTIVO_CATEGORIA_CODIGOS = MOTIVO_CATEGORIAS.map(
-  ({ codigo }) => codigo,
-);
-
-export const MOTIVO_CATEGORIA_LABELS: Record<
-  MotivoCategoria,
-  MotivoCategoriaLabel
-> = {
+export const MOTIVO_CATEGORIA_LABELS: Record<MotivoCategoria, string> = {
   haberes_pagos: "Haberes y pagos",
   recibos_documentacion: "Recibos y documentación",
   vacaciones_licencias: "Vacaciones y licencias",
@@ -47,6 +46,11 @@ export const MOTIVO_CATEGORIA_LABELS: Record<
   proveedores_comercial: "Proveedores y comercial",
   sin_clasificar: "Sin clasificar",
 };
+
+export const MOTIVO_CATEGORIAS = MOTIVO_CATEGORIA_CODIGOS.map((codigo) => ({
+  codigo,
+  label: MOTIVO_CATEGORIA_LABELS[codigo],
+}));
 
 interface ReglaClasificacionMotivo {
   categoria: Exclude<MotivoCategoria, "sin_clasificar">;

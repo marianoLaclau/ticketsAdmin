@@ -1,3 +1,4 @@
+import { MOTIVO_CATEGORIA_CODIGOS } from "@workspace/ingesta";
 import { sql } from "drizzle-orm";
 import {
   check,
@@ -17,26 +18,10 @@ export const ESTADOS = [
 ] as const;
 export const PRIORIDADES = ["baja", "media", "alta", "urgente"] as const;
 export const ESTADOS_EMPLEADO = ["Activo", "Inactivo"] as const;
-export const MOTIVO_CATEGORIAS = [
-  "haberes_pagos",
-  "recibos_documentacion",
-  "vacaciones_licencias",
-  "bajas_liquidacion",
-  "empleo_postulaciones",
-  "contacto_general",
-  "reclamos",
-  "embargos",
-  "legales",
-  "prestamos_anticipos",
-  "obra_social",
-  "sanciones_ausencias",
-  "proveedores_comercial",
-  "sin_clasificar",
-] as const;
 
 export type Estado = (typeof ESTADOS)[number];
 export type Prioridad = (typeof PRIORIDADES)[number];
-export type MotivoCategoria = (typeof MOTIVO_CATEGORIAS)[number];
+export type { MotivoCategoria } from "@workspace/ingesta";
 
 export const ticketsTable = sqliteTable(
   "tickets",
@@ -55,7 +40,9 @@ export const ticketsTable = sqliteTable(
     estado_empleado: text("estado_empleado", { enum: ESTADOS_EMPLEADO }),
     email: text("email"),
     motivo: text("motivo").notNull(),
-    motivo_categoria: text("motivo_categoria", { enum: MOTIVO_CATEGORIAS })
+    motivo_categoria: text("motivo_categoria", {
+      enum: MOTIVO_CATEGORIA_CODIGOS,
+    })
       .notNull()
       .default("sin_clasificar"),
     resumen: text("resumen"),

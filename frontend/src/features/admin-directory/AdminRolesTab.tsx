@@ -120,7 +120,7 @@ export function AdminRolesTab({
     confirmDeleteRole,
     changeRoleDialogOpen,
     changeRoleDeleteOpen,
-  } = useAdminRolesCrud({});
+  } = useAdminRolesCrud();
 
   const visibleRoles = useMemo(
     () => filterAdminRoles(listedRoles, roleSearch, roleStatusFilter),

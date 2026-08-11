@@ -168,6 +168,10 @@ importers:
         version: 7.3.6(@types/node@25.9.5)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.0)(yaml@2.9.0)
 
   frontend:
+    dependencies:
+      '@workspace/ingesta':
+        specifier: workspace:*
+        version: link:../lib/ingesta
     devDependencies:
       '@radix-ui/react-alert-dialog':
         specifier: ^1.1.7
@@ -304,6 +308,9 @@ importers:
 
   lib/db:
     dependencies:
+      '@workspace/ingesta':
+        specifier: workspace:*
+        version: link:../ingesta
       better-sqlite3:
         specifier: ^12.4.1
         version: 12.11.1

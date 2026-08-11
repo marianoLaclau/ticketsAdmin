@@ -1,3 +1,4 @@
+import { MOTIVO_CATEGORIA_CODIGOS } from "@workspace/ingesta";
 import type {
   ListTicketsEstado,
   ListTicketsPrioridad,
@@ -44,22 +45,10 @@ export const TICKET_LIST_PRIORITIES = [
   "alta",
   "urgente",
 ] as const satisfies readonly ListTicketsPrioridad[];
-export const TICKET_LIST_MOTIVE_CATEGORIES = [
-  "haberes_pagos",
-  "recibos_documentacion",
-  "vacaciones_licencias",
-  "bajas_liquidacion",
-  "empleo_postulaciones",
-  "contacto_general",
-  "reclamos",
-  "embargos",
-  "legales",
-  "prestamos_anticipos",
-  "obra_social",
-  "sanciones_ausencias",
-  "proveedores_comercial",
-  "sin_clasificar",
-] as const satisfies readonly MotivoCategoria[];
+// Deriva del catálogo compartido: agregar una categoría la habilita en el
+// filtro por URL sin tocar este archivo.
+export const TICKET_LIST_MOTIVE_CATEGORIES =
+  MOTIVO_CATEGORIA_CODIGOS satisfies readonly MotivoCategoria[];
 export const TICKET_LIST_SORT_COLUMNS = [
   "id",
   "fecha_creacion",
