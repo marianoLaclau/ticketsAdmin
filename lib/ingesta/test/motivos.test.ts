@@ -180,6 +180,70 @@ describe("categoría Legales", () => {
     );
   });
 
+  it("reconoce préstamos, anticipos y adelantos de sueldo", () => {
+    for (const motivo of [
+      "Solicitar la autorización de un préstamo",
+      "Preguntando por un préstamo personal de la empresa",
+      "Averiguar sobre la cuota y forma de pago de un préstamo",
+      "Consulta por adelanto de sueldo",
+      "Pide un anticipo",
+    ]) {
+      assert.equal(clasificarMotivo(motivo), "prestamos_anticipos");
+    }
+  });
+
+  it("reconoce obra social y aportes, en singular y plural", () => {
+    for (const motivo of [
+      "aporte obra social",
+      "Consulta sobre aportes de la obra social",
+      "Solicitud de cambio de domicilio para la obra social OSEJ",
+      "Consulta por las obras sociales disponibles",
+    ]) {
+      assert.equal(clasificarMotivo(motivo), "obra_social");
+    }
+  });
+
+  it("separa sanciones y ausencias sin capturar otros usos de 'falta'", () => {
+    for (const motivo of [
+      "Lo suspendieron tres días",
+      "Recibió un apercibimiento",
+      "Consulta por sus inasistencias",
+      "Tiene faltas sin justificar",
+      "Quiere justificar una falta",
+    ]) {
+      assert.equal(clasificarMotivo(motivo), "sanciones_ausencias");
+    }
+
+    // "falta" fuera del sentido de ausencia no debe caer acá.
+    assert.equal(
+      clasificarMotivo("Reclama por la falta de pago del sueldo"),
+      "haberes_pagos",
+    );
+    assert.equal(
+      clasificarMotivo("Le falta el recibo de sueldo"),
+      "recibos_documentacion",
+    );
+  });
+
+  it("aparta a quien llama a vender de las consultas de empleados", () => {
+    for (const motivo of [
+      "Presentar propuesta como proveedor de medicina laboral",
+      "Ofrecer cotización de seguro ART",
+    ]) {
+      assert.equal(clasificarMotivo(motivo), "proveedores_comercial");
+    }
+  });
+
+  it("una salida negociada gana sobre las faltas que la motivaron", () => {
+    // La llamada real mezcla ambos temas; la decisión de fondo es la baja.
+    assert.equal(
+      clasificarMotivo(
+        "Consulta por sus faltas y si puede llegar a un arreglo para dejar de trabajar en la empresa",
+      ),
+      "bajas_liquidacion",
+    );
+  });
+
   it("no modifica los textos originales", () => {
     const motivo = "  Consulta Jurídica: recibió una Carta Documento.  ";
     const resumen = "La persona solicita orientación.";

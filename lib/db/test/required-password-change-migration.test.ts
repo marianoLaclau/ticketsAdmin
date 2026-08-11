@@ -13,6 +13,17 @@ const migrationSql = readFileSync(
 ).replaceAll("--> statement-breakpoint", "");
 const migrationsFolder = fileURLToPath(new URL("../drizzle", import.meta.url));
 
+// Se deriva del journal en vez de fijarse a mano: agregar una migración no
+// debe romper esta prueba, que verifica la idempotencia de la cadena.
+const MIGRACIONES_EN_LA_CADENA = (
+  JSON.parse(
+    readFileSync(
+      new URL("../drizzle/meta/_journal.json", import.meta.url),
+      "utf8",
+    ),
+  ) as { entries: unknown[] }
+).entries.length;
+
 describe("migración de cambio obligatorio de contraseña", () => {
   it("preserva usuarios históricos y falla cerrado en altas futuras", () => {
     const sqlite = new Database(":memory:");
@@ -129,7 +140,7 @@ describe("migración de cambio obligatorio de contraseña", () => {
           .prepare("SELECT count(*) AS total FROM __drizzle_migrations")
           .get() as { total: number }
       ).total,
-      17,
+      MIGRACIONES_EN_LA_CADENA,
     );
     assert.deepEqual(ensureTicketQuarantineProjection(sqlite), {
       repaired: false,

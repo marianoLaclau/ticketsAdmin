@@ -44,6 +44,26 @@ export const MOTIVO_CATEGORIAS = {
     color: "#4f46e5",
     badgeClass: "border-indigo-200 bg-indigo-50 text-indigo-700",
   },
+  prestamos_anticipos: {
+    label: "Préstamos y anticipos",
+    color: "#0d9488",
+    badgeClass: "border-teal-200 bg-teal-50 text-teal-700",
+  },
+  obra_social: {
+    label: "Obra social y aportes",
+    color: "#c026d3",
+    badgeClass: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700",
+  },
+  sanciones_ausencias: {
+    label: "Sanciones y ausencias",
+    color: "#b45309",
+    badgeClass: "border-yellow-200 bg-yellow-50 text-yellow-800",
+  },
+  proveedores_comercial: {
+    label: "Proveedores y comercial",
+    color: "#475569",
+    badgeClass: "border-slate-300 bg-slate-100 text-slate-700",
+  },
   sin_clasificar: {
     label: "Sin clasificar",
     color: "#64748b",

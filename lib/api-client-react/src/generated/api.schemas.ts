@@ -408,6 +408,10 @@ export const MotivoCategoria = {
   reclamos: 'reclamos',
   embargos: 'embargos',
   legales: 'legales',
+  prestamos_anticipos: 'prestamos_anticipos',
+  obra_social: 'obra_social',
+  sanciones_ausencias: 'sanciones_ausencias',
+  proveedores_comercial: 'proveedores_comercial',
   sin_clasificar: 'sin_clasificar',
 } as const;
 

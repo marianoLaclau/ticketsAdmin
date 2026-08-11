@@ -14,6 +14,10 @@ export const MOTIVO_CATEGORIAS = [
   { codigo: "reclamos", label: "Reclamos" },
   { codigo: "embargos", label: "Embargos" },
   { codigo: "legales", label: "Legales" },
+  { codigo: "prestamos_anticipos", label: "Préstamos y anticipos" },
+  { codigo: "obra_social", label: "Obra social y aportes" },
+  { codigo: "sanciones_ausencias", label: "Sanciones y ausencias" },
+  { codigo: "proveedores_comercial", label: "Proveedores y comercial" },
   { codigo: "sin_clasificar", label: "Sin clasificar" },
 ] as const;
 
@@ -37,6 +41,10 @@ export const MOTIVO_CATEGORIA_LABELS: Record<
   reclamos: "Reclamos",
   embargos: "Embargos",
   legales: "Legales",
+  prestamos_anticipos: "Préstamos y anticipos",
+  obra_social: "Obra social y aportes",
+  sanciones_ausencias: "Sanciones y ausencias",
+  proveedores_comercial: "Proveedores y comercial",
   sin_clasificar: "Sin clasificar",
 };
 
@@ -52,6 +60,20 @@ interface ReglaClasificacionMotivo {
  */
 export const REGLAS_CLASIFICACION_MOTIVO: readonly ReglaClasificacionMotivo[] =
   [
+    // Va primero: no describe un tema sino QUIÉN llama. Si alguien se presenta
+    // como proveedor u ofrece un servicio, no es una consulta de RRHH y no
+    // debería mezclarse con las de los empleados.
+    {
+      categoria: "proveedores_comercial",
+      patrones: [
+        /\bproveedor\w*\b/,
+        /\b(?:ofrec\w*|present\w*|enviar|acercar)(?:\s+\w+){0,4}\s+(?:cotizacion|presupuesto|propuesta comercial|nuestros servicios|un servicio|productos?)\b/,
+        /\b(?:cotizacion|presupuesto)(?:\s+\w+){0,3}\s+(?:de\s+)?(?:seguro|art|medicina laboral|servicio)\b/,
+        /\bpropuesta(?:\s+\w+){0,3}\s+(?:comercial|como proveedor)\b/,
+        /\b(?:representante|asesor|ejecutiv[oa])(?:\s+\w+){0,2}\s+(?:comercial|de ventas|de cuentas)\b/,
+        /\b(?:vender|venderles|comercializar)\b/,
+      ],
+    },
     {
       categoria: "embargos",
       patrones: [
@@ -86,6 +108,8 @@ export const REGLAS_CLASIFICACION_MOTIVO: readonly ReglaClasificacionMotivo[] =
       categoria: "bajas_liquidacion",
       patrones: [
         /\bliquidacion\b/,
+        // El ASR transcribe "liquidación final" como "licenciación final".
+        /\blicenciacion\b/,
         /\b(?:baja laboral|desvinculacion|desvinculado|desvinculada|despido|renuncia)\b/,
         /\b(?:fin|finaliz\w*|termin\w*|venci\w*)(?:\s+\w+){0,4}\s+periodo de prueba\b/,
         /\bperiodo de prueba(?:\s+\w+){0,4}\s+(?:finaliz\w*|termin\w*|venci\w*)\b/,
@@ -101,6 +125,39 @@ export const REGLAS_CLASIFICACION_MOTIVO: readonly ReglaClasificacionMotivo[] =
         /\b(?:llegar|llegue|llega|lleguemos)(?:\s+\w+){0,2}\s+a\s+(?:un\s+)?(?:arreglo|acuerdo)\b/,
         /\b(?:arreglo|acuerdo|arregl\w*|acord\w*)(?:\s+\w+){0,6}\s+(?:dejar de trabajar|salida|irme|irse|retirarme|retirarse|desvincul\w*)\b/,
         /\b(?:dejar de trabajar|no trabajar mas|no seguir trabajando)\b/,
+      ],
+    },
+    // Después de bajas: una llamada que mezcla faltas con negociación de salida
+    // pertenece a la baja, que es la decisión de fondo. Una suspensión o un
+    // apercibimiento sin salida en juego cae acá.
+    {
+      categoria: "sanciones_ausencias",
+      patrones: [
+        /\b(?:suspension|suspensiones|suspendid[oa]s?|suspender|suspenden|suspendieron)\b/,
+        /\b(?:apercibimiento|sancion|sanciones|sancionad[oa]s?|amonestacion\w*|llamado de atencion)\b/,
+        /\b(?:inasistencias?|ausentismo)\b/,
+        // Solo el plural: "falta de pago" o "falta el recibo" no son ausencias.
+        /\bfaltas\b(?!\s+de\s+(?:pago|dinero|plata|stock))/,
+        /\bfalta\s+(?:injustificada|justificada)\b/,
+        /\b(?:justificar|justificacion)(?:\s+\w+){0,3}\s+(?:falta|faltas|inasistencia|ausencia)\b/,
+      ],
+    },
+    {
+      categoria: "obra_social",
+      patrones: [
+        /\bobras? social(?:es)?\b/,
+        /\b(?:osej|osde|swiss medical|galeno|omint|pami|sancor salud)\b/,
+        /\baportes?(?:\s+\w+){0,3}\s+(?:obra social|jubilat\w*|previsional\w*|sindical\w*)\b/,
+        /\b(?:credencial|carnet|cobertura|afiliacion)(?:\s+\w+){0,3}\s+(?:obra social|medic\w*)\b/,
+      ],
+    },
+    {
+      categoria: "prestamos_anticipos",
+      patrones: [
+        /\bprestamos?\b/,
+        /\banticipos?\b/,
+        /\badelanto(?:\s+\w+){0,2}\s+(?:sueldo|haberes|salario|quincena)\b/,
+        /\bcuotas?(?:\s+\w+){0,3}\s+prestamo\b/,
       ],
     },
     {
@@ -122,7 +179,8 @@ export const REGLAS_CLASIFICACION_MOTIVO: readonly ReglaClasificacionMotivo[] =
         /\bhaberes?\b/,
         /\bpago no recibido\b/,
         /\bno (?:me )?(?:pagaron|pagan|acreditaron|depositaron|cobro|cobre)\b/,
-        /\b(?:aguinaldo|anticipo|diferencia salarial|deposito|acreditacion)\b/,
+        // "anticipo" se movió a prestamos_anticipos, que se evalúa antes.
+        /\b(?:aguinaldo|diferencia salarial|deposito|acreditacion)\b/,
       ],
     },
     {
@@ -137,7 +195,7 @@ export const REGLAS_CLASIFICACION_MOTIVO: readonly ReglaClasificacionMotivo[] =
         // caía como postulación.
         /\b(?:busc\w*|solicit\w*|necesit\w*)(?:\s+(?:un|una|de))?\s+(?:empleo|trabajo|puesto)\b/,
         /\b(?:consult\w*|pregunt\w*|averigu\w*)(?:\s+\w+){0,3}\s+(?:vacantes?|puestos?|busquedas?|empleo)\b/,
-        /\b(?:oportunidad|oferta)(?:es)?(?:\s+\w+){0,2}\s+(?:laboral\w*|de trabajo|de empleo)\b/,
+        /\b(?:oportunidad(?:es)?|ofertas?)(?:\s+\w+){0,2}\s+(?:laboral\w*|de trabajo|de empleo)\b/,
         /\b(?:enviar|mandar|dejar|adjunt\w*)(?:\s+\w+){0,2}\s+(?:cv|curriculum)\b/,
       ],
     },
@@ -148,6 +206,11 @@ export const REGLAS_CLASIFICACION_MOTIVO: readonly ReglaClasificacionMotivo[] =
         /\bdevolv\w*(?:\s+\w+){0,3}\s+llamada\b/,
         /\bquien(?:\s+\w+){0,3}\s+llamo\b/,
         /\b(?:comunicar|comunicarse|contactar|contactarse)\b/,
+        // Pedido de atención humana. Va en esta categoría por estar al final:
+        // si el texto ya nombró un tema concreto, ganó la regla específica.
+        /\bhablar con\b/,
+        /\bno quiere hablar con un bot\b/,
+        /\b(?:atienda|atienda me|atiendame)(?:\s+\w+){0,2}\s+(?:una persona|alguien|un humano)\b/,
       ],
     },
     {
@@ -162,6 +225,7 @@ const TEXTOS_SIN_INFORMACION = new Set([
   "",
   "sin especificar",
   "sin informacion",
+  "sin motivo",
   "no informado",
   "no informada",
   "desconocido",

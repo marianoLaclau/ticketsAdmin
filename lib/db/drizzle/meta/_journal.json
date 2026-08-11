@@ -120,6 +120,13 @@
       "when": 1786312569543,
       "tag": "0016_admin_session_elevation",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1786457198364,
+      "tag": "0017_add_rrhh_categories",
+      "breakpoints": true
     }
   ]
 }

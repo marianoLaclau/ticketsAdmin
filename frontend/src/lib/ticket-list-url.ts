@@ -54,6 +54,10 @@ export const TICKET_LIST_MOTIVE_CATEGORIES = [
   "reclamos",
   "embargos",
   "legales",
+  "prestamos_anticipos",
+  "obra_social",
+  "sanciones_ausencias",
+  "proveedores_comercial",
   "sin_clasificar",
 ] as const satisfies readonly MotivoCategoria[];
 export const TICKET_LIST_SORT_COLUMNS = [

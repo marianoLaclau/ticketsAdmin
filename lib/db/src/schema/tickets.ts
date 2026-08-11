@@ -27,6 +27,10 @@ export const MOTIVO_CATEGORIAS = [
   "reclamos",
   "embargos",
   "legales",
+  "prestamos_anticipos",
+  "obra_social",
+  "sanciones_ausencias",
+  "proveedores_comercial",
   "sin_clasificar",
 ] as const;
 
