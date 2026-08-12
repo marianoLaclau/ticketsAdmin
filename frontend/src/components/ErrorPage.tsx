@@ -125,11 +125,11 @@ export function ErrorPage({
       aria-labelledby={titleId}
       aria-describedby={messageId}
       className={cn(
-        "flex w-full items-center justify-center bg-background px-4 py-10",
-        embedded ? "min-h-full flex-1" : "min-h-screen",
+        "flex w-full justify-center bg-background px-4 py-10",
+        embedded ? "min-h-full flex-1" : "h-full min-h-0 overflow-y-auto",
       )}
     >
-      <Card className="w-full max-w-lg border-border/80 shadow-lg">
+      <Card className="my-auto w-full max-w-lg border-border/80 shadow-lg">
         <CardContent className="px-6 py-10 text-center sm:px-10">
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
             <Icon className="h-8 w-8 text-destructive" aria-hidden="true" />

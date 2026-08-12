@@ -119,8 +119,8 @@ export default function ChangePassword() {
   };
 
   return (
-    <div className="min-h-screen bg-sidebar flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg shadow-xl">
+    <div className="flex h-full min-h-0 justify-center overflow-y-auto bg-sidebar p-4">
+      <Card className="my-auto w-full max-w-lg shadow-xl">
         <CardHeader className="items-center space-y-3 pb-3 text-center">
           <img
             src={gsbLogo}

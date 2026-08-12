@@ -111,7 +111,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-background font-sans">
+    <div className="flex h-full min-h-0 overflow-hidden bg-background font-sans">
       <a
         href={`#${MAIN_CONTENT_ID}`}
         className="fixed left-4 top-0 z-[100] -translate-y-full rounded-b-md bg-foreground px-4 py-3 text-sm font-semibold text-background shadow-lg transition-transform focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
@@ -124,7 +124,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <Sidebar />
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="flex h-16 flex-shrink-0 items-center justify-between border-b bg-background px-4 lg:hidden">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-white p-1 shadow-sm ring-1 ring-black/5">
@@ -180,7 +180,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           ref={mainContentRef}
           id={MAIN_CONTENT_ID}
           tabIndex={-1}
-          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-y-contain bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         >
           {children}
         </main>

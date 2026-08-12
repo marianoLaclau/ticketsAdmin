@@ -28,7 +28,7 @@ interface AuthGateProps extends SessionIdentityProps {
 
 export function LoadingSession() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-sidebar">
+    <main className="flex h-full min-h-0 overflow-y-auto items-center justify-center bg-sidebar">
       <Loader2
         className="h-8 w-8 animate-spin text-white/60 motion-reduce:animate-none"
         aria-hidden="true"

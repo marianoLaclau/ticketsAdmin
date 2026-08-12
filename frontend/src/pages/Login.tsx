@@ -48,8 +48,8 @@ export default function Login() {
   };
 
   return (
-    <main className="min-h-screen bg-sidebar flex items-center justify-center p-4">
-      <Card className="w-full max-w-sm shadow-xl">
+    <main className="flex h-full min-h-0 justify-center overflow-y-auto bg-sidebar p-4">
+      <Card className="my-auto w-full max-w-sm shadow-xl">
         <CardHeader className="items-center text-center space-y-3 pb-2">
           <img
             src={gsbLogo}

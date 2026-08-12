@@ -248,7 +248,7 @@ export default function Dashboard() {
       />
 
       {/* Main grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 lg:items-start gap-5">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {/* Left 2/3 */}
         <div className="lg:col-span-2 space-y-5">
           {/* Distribución + Rendimiento */}

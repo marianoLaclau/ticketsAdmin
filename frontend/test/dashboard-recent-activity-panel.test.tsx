@@ -31,23 +31,21 @@ function renderPanel(cantidad: number) {
   );
 }
 
-test("no se estira para igualar la columna izquierda", (t) => {
+test("se estira a toda la altura disponible de la grilla", (t) => {
   cleanup();
   t.after(cleanup);
 
-  // Con `h-full` la tarjeta crecía hasta la altura de la columna de tickets
-  // vencidos y quedaba con un bloque de blanco adentro. Debe tomar su alto
-  // natural y dejar que la grilla no la estire.
   const { container } = renderPanel(4);
 
   const columna = container.firstElementChild as HTMLElement;
-  assert.match(columna.className, /lg:self-start/);
+  assert.doesNotMatch(columna.className, /lg:self-start/);
 
   const tarjeta = columna.firstElementChild as HTMLElement;
-  assert.doesNotMatch(tarjeta.className, /h-full/);
+  assert.match(tarjeta.className, /h-full/);
+  assert.match(tarjeta.className, /min-h-0/);
 });
 
-test("acota la lista larga y la desplaza dentro del panel", (t) => {
+test("usa el alto disponible y desplaza internamente la actividad larga", (t) => {
   cleanup();
   t.after(cleanup);
 
@@ -55,10 +53,11 @@ test("acota la lista larga y la desplaza dentro del panel", (t) => {
 
   const lista = container.querySelector(".scroll-sutil") as HTMLElement;
   assert.ok(lista, "la lista debe tener el área desplazable");
-  assert.equal(lista.style.maxHeight, "640px");
+  assert.match(lista.className, /flex-1/);
+  assert.match(lista.className, /min-h-0/);
   assert.match(lista.className, /overflow-y-auto/);
 
-  // El tope acota el alto, no los datos.
+  // El scroll interno no recorta datos del historial.
   assert.ok(screen.getByText("Movimiento numero 0"));
   assert.ok(screen.getByText("Movimiento numero 19"));
 });
