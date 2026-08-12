@@ -18,6 +18,7 @@ import {
   normalizeRequiredText,
   readPasswordFromBody,
 } from "./admin-route-helpers";
+import { deleteAdminUser } from "./admin-user-delete-handler";
 import { resetAdminUserPassword } from "./admin-user-password-handler";
 import { listAdminUsers } from "./admin-user-list-handler";
 import { PUBLIC_ADMIN_USER_COLUMNS } from "./admin-user-public-columns";
@@ -316,5 +317,9 @@ router.patch("/:id", async (req, res) => {
 // Establecer/reestablecer la contraseña de un usuario. Revoca todas sus
 // sesiones activas: si estaba logueado, queda afuera hasta usar la clave nueva.
 router.post("/:id/password", resetAdminUserPassword);
+
+// Borrado físico con doble aprobación. La desactivación (PATCH activo:false)
+// sigue siendo el camino recomendado: conserva la identidad en el historial.
+router.delete("/:id", deleteAdminUser);
 
 export default router;

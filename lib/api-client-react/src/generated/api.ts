@@ -31,6 +31,7 @@ import type {
   AdminTruncateInput,
   AdminTruncateResult,
   AdminUser,
+  AdminUserDeleteInput,
   AdminUserInput,
   AdminUserListResponse,
   AdminUserPasswordInput,
@@ -1526,6 +1527,79 @@ export const useUpdateAdminUser = <TError = ErrorType<void | AdminAccessUnauthor
         TContext
       > => {
       return useMutation(getUpdateAdminUserMutationOptions(options));
+    }
+
+export const getDeleteAdminUserUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/users/${id}`
+}
+
+/**
+ * Borrado físico e irreversible. Exige doble aprobación en el cuerpo: confirmar en true y el nombre de usuario exacto, para que un id equivocado no elimine a otra persona. El historial se conserva: las referencias en tickets y seguimientos quedan en null y el nombre registrado en cada movimiento permanece como snapshot textual. La cuenta propia y el último SysAdmin utilizable nunca se pueden borrar; para esos casos existe la desactivación.
+ * @summary Eliminar definitivamente un usuario
+ */
+export const deleteAdminUser = async (id: number,
+    adminUserDeleteInput: AdminUserDeleteInput, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteAdminUserUrl(id),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminUserDeleteInput)
+  }
+);}
+
+
+
+
+
+export const getDeleteAdminUserMutationOptions = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminUser>>, TError,{id: number;data: BodyType<AdminUserDeleteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminUser>>, TError,{id: number;data: BodyType<AdminUserDeleteInput>}, TContext> => {
+
+const mutationKey = ['deleteAdminUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAdminUser>>, {id: number;data: BodyType<AdminUserDeleteInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  deleteAdminUser(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAdminUserMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminUser>>>
+    export type DeleteAdminUserMutationBody = BodyType<AdminUserDeleteInput>
+    export type DeleteAdminUserMutationError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse>
+
+    /**
+ * @summary Eliminar definitivamente un usuario
+ */
+export const useDeleteAdminUser = <TError = ErrorType<void | AdminAccessUnauthorized | FunctionalAccessForbiddenResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminUser>>, TError,{id: number;data: BodyType<AdminUserDeleteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAdminUser>>,
+        TError,
+        {id: number;data: BodyType<AdminUserDeleteInput>},
+        TContext
+      > => {
+      return useMutation(getDeleteAdminUserMutationOptions(options));
     }
 
 export const getResetAdminUserPasswordUrl = (id: number,) => {

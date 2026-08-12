@@ -799,6 +799,53 @@ paths:
         "409":
           description: El email/username ya existe, el rol está inactivo o el cambio eliminaría al último SysAdmin utilizable
 
+    delete:
+      operationId: deleteAdminUser
+      tags: [admin]
+      summary: Eliminar definitivamente un usuario
+      description: >
+        Borrado físico e irreversible. Exige doble aprobación en el cuerpo:
+        confirmar en true y el nombre de usuario exacto, para que un id
+        equivocado no elimine a otra persona. El historial se conserva: las
+        referencias en tickets y seguimientos quedan en null y el nombre
+        registrado en cada movimiento permanece como snapshot textual.
+        La cuenta propia y el último SysAdmin utilizable nunca se pueden borrar;
+        para esos casos existe la desactivación.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUserDeleteInput"
+      responses:
+        "204":
+          description: Usuario eliminado
+        "400":
+          description: Id o cuerpo invalido, o falta la confirmación explícita
+        "401":
+          description: Sesion invalida o ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAccessUnauthorized"
+        "403":
+          $ref: "#/components/responses/FunctionalAccessForbidden"
+        "404":
+          description: Usuario no encontrado
+        "409":
+          description: >
+            El nombre de usuario no coincide, es la cuenta propia o eliminaría
+            al último SysAdmin utilizable
+
   /admin/users/{id}/password:
     post:
       operationId: resetAdminUserPassword
@@ -1462,6 +1509,24 @@ components:
         activo:
           type: boolean
           default: true
+
+    AdminUserDeleteInput:
+      type: object
+      additionalProperties: false
+      required:
+        - confirmar
+        - username
+      properties:
+        confirmar:
+          type: boolean
+          description: Debe ser exactamente true. Primera aprobación.
+        username:
+          type: string
+          description: >
+            Nombre de usuario exacto de la cuenta a eliminar. Segunda
+            aprobación: obliga a identificar a la persona, no solo el id.
+          minLength: 1
+          maxLength: 60
 
     AdminUserUpdate:
       type: object

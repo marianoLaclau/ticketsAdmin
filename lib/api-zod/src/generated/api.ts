@@ -620,6 +620,29 @@ export const UpdateAdminUserResponse = zod.object({
 
 
 /**
+ * Borrado físico e irreversible. Exige doble aprobación en el cuerpo: confirmar en true y el nombre de usuario exacto, para que un id equivocado no elimine a otra persona. El historial se conserva: las referencias en tickets y seguimientos quedan en null y el nombre registrado en cada movimiento permanece como snapshot textual. La cuenta propia y el último SysAdmin utilizable nunca se pueden borrar; para esos casos existe la desactivación.
+ * @summary Eliminar definitivamente un usuario
+ */
+
+
+
+export const DeleteAdminUserParams = zod.object({
+  "id": zod.coerce.number().min(1)
+})
+
+export const deleteAdminUserBodyUsernameMax = 60;
+
+
+
+export const DeleteAdminUserBody = zod.object({
+  "confirmar": zod.boolean().describe('Debe ser exactamente true. Primera aprobación.'),
+  "username": zod.string().min(1).max(deleteAdminUserBodyUsernameMax).describe('Nombre de usuario exacto de la cuenta a eliminar. Segunda aprobación: obliga a identificar a la persona, no solo el id.\n')
+})
+
+export const DeleteAdminUserResponse = zod.void()
+
+
+/**
  * Asigna una contraseña nueva al usuario (hasheada con scrypt) y revoca todas sus sesiones activas: si estaba logueado en algún navegador, queda afuera y debe volver a entrar con la clave nueva.
  * @summary Establecer o reestablecer la contraseña de un usuario
  */

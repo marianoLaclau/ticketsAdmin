@@ -1,5 +1,5 @@
 import type { AdminUser } from "@workspace/api-client-react";
-import { KeyRound, Pencil } from "lucide-react";
+import { KeyRound, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -13,9 +13,11 @@ interface AdminUserTableRowProps {
   isStatusToggleDisabled: boolean;
   isEditDisabled: boolean;
   isPasswordResetDisabled: boolean;
+  isDeleteDisabled: boolean;
   onToggle: (user: AdminUser) => void;
   onEdit: (user: AdminUser) => void;
   onResetPassword: (user: AdminUser) => void;
+  onDelete: (user: AdminUser) => void;
 }
 
 export function AdminUserTableRow({
@@ -24,9 +26,11 @@ export function AdminUserTableRow({
   isStatusToggleDisabled,
   isEditDisabled,
   isPasswordResetDisabled,
+  isDeleteDisabled,
   onToggle,
   onEdit,
   onResetPassword,
+  onDelete,
 }: AdminUserTableRowProps) {
   const userLabel = user.username ?? user.email;
 
@@ -97,6 +101,18 @@ export function AdminUserTableRow({
             aria-label={`Asignar contraseña temporal a ${userLabel}`}
           >
             <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-destructive hover:text-destructive"
+            onClick={() => onDelete(user)}
+            disabled={isDeleteDisabled}
+            title="Eliminar usuario definitivamente"
+            aria-label={`Eliminar usuario ${userLabel}`}
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
           </Button>
         </div>
       </TableCell>

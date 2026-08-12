@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   getListAdminUsersQueryKey,
   useCreateAdminUser,
+  useDeleteAdminUser,
   useUpdateAdminUser,
   type AdminRole,
   type AdminUser,
@@ -33,6 +34,8 @@ export function useAdminUsersCrud({ roles }: UseAdminUsersCrudOptions) {
   const roleById = useMemo(() => createRoleNameMap(roles), [roles]);
 
   const createUser = useCreateAdminUser();
+  const deleteUser = useDeleteAdminUser();
+  const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
   const updateUser = useUpdateAdminUser();
   const passwordReset = useAdminUserPasswordReset();
 
@@ -209,8 +212,52 @@ export function useAdminUsersCrud({ roles }: UseAdminUsersCrudOptions) {
     );
   };
 
+  const openDeleteUser = (user: AdminUser) => {
+    if (!isCurrentOperation()) return;
+    setUserToDelete(user);
+  };
+
+  const changeUserDeleteOpen = (open: boolean) => {
+    if (!open) setUserToDelete(null);
+  };
+
+  // El username viaja además del id: el backend lo exige como segunda
+  // aprobación, así que un id equivocado no puede borrar a otra persona.
+  const confirmDeleteUser = (username: string) => {
+    if (!userToDelete || deleteUser.isPending) return;
+    deleteUser.mutate(
+      { id: userToDelete.id, data: { confirmar: true, username } },
+      {
+        onSuccess: () => {
+          if (!isCurrentOperation()) return;
+          setUserToDelete(null);
+          void queryClient.invalidateQueries({
+            queryKey: getListAdminUsersQueryKey(),
+          });
+          toast({
+            title: "Usuario eliminado",
+            description: `Se eliminó definitivamente a ${username}.`,
+          });
+        },
+        onError: (error: unknown) => {
+          if (!isCurrentOperation()) return;
+          toast({
+            variant: "destructive",
+            title: "No se pudo eliminar el usuario",
+            description: getAdminErrorMessage(error),
+          });
+        },
+      },
+    );
+  };
+
   return {
     roleById,
+    userToDelete,
+    isDeleteUserPending: deleteUser.isPending,
+    openDeleteUser,
+    changeUserDeleteOpen,
+    confirmDeleteUser,
     userDialogOpen,
     editingUser,
     userForm,

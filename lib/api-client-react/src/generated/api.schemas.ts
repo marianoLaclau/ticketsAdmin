@@ -217,6 +217,17 @@ export interface AdminUserInput {
   activo?: boolean;
 }
 
+export interface AdminUserDeleteInput {
+  /** Debe ser exactamente true. Primera aprobación. */
+  confirmar: boolean;
+  /**
+     * Nombre de usuario exacto de la cuenta a eliminar. Segunda aprobación: obliga a identificar a la persona, no solo el id.
+     * @minLength 1
+     * @maxLength 60
+     */
+  username: string;
+}
+
 export interface AdminUserUpdate {
   /**
      * @minLength 1

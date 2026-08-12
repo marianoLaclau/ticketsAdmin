@@ -1753,6 +1753,130 @@ describe("catálogo administrativo de roles", () => {
   });
 });
 
+describe("eliminación definitiva de usuarios", () => {
+  async function crearDescartable(
+    cookie: string,
+    username: string,
+  ): Promise<number> {
+    const creado = await adminRequest("/admin/users", cookie, {
+      method: "POST",
+      body: JSON.stringify({
+        nombre: "Descartable",
+        username,
+        password: "Clave-descartable-2026",
+        email: `${username}@example.test`,
+        role_id: 5,
+        activo: true,
+      }),
+    });
+    assert.equal(creado.status, 201);
+    return ((await creado.json()) as { id: number }).id;
+  }
+
+  it("exige las dos aprobaciones antes de borrar", async () => {
+    const cookie = await adminSession();
+    const id = await crearDescartable(cookie, "a-borrar");
+
+    // Sin confirmar.
+    const sinConfirmar = await adminRequest(`/admin/users/${id}`, cookie, {
+      method: "DELETE",
+      body: JSON.stringify({ username: "a-borrar" }),
+    });
+    assert.equal(sinConfirmar.status, 400);
+
+    // Confirmado, pero con el nombre de otra persona: no debe borrar por id.
+    const nombreDistinto = await adminRequest(`/admin/users/${id}`, cookie, {
+      method: "DELETE",
+      body: JSON.stringify({ confirmar: true, username: "otra-persona" }),
+    });
+    assert.equal(nombreDistinto.status, 409);
+    assert.equal(
+      ((await nombreDistinto.json()) as { code: string }).code,
+      "USERNAME_MISMATCH",
+    );
+
+    // Sigue existiendo tras los dos rechazos.
+    const listado = await adminRequest("/admin/users?limit=100", cookie);
+    const { users } = (await listado.json()) as {
+      users: Array<{ id: number }>;
+    };
+    assert.ok(users.some((usuario) => usuario.id === id));
+
+    // Con ambas aprobaciones sí borra.
+    const borrado = await adminRequest(`/admin/users/${id}`, cookie, {
+      method: "DELETE",
+      body: JSON.stringify({ confirmar: true, username: "a-borrar" }),
+    });
+    assert.equal(borrado.status, 204);
+
+    const despues = await adminRequest("/admin/users?limit=100", cookie);
+    const listaFinal = (await despues.json()) as {
+      users: Array<{ id: number }>;
+    };
+    assert.equal(
+      listaFinal.users.some((usuario) => usuario.id === id),
+      false,
+    );
+  });
+
+  it("cierra la sesión de la persona eliminada", async () => {
+    const cookie = await adminSession();
+    const id = await crearDescartable(cookie, "con-sesion");
+
+    const suLogin = await login("con-sesion", "Clave-descartable-2026");
+    assert.equal(suLogin.status, 200);
+    const suCookie = sessionCookie(suLogin);
+    assert.equal((await requestWithSession("/auth/me", suCookie)).status, 200);
+
+    const borrado = await adminRequest(`/admin/users/${id}`, cookie, {
+      method: "DELETE",
+      body: JSON.stringify({ confirmar: true, username: "con-sesion" }),
+    });
+    assert.equal(borrado.status, 204);
+
+    assert.equal((await requestWithSession("/auth/me", suCookie)).status, 401);
+  });
+
+  it("nunca borra la cuenta propia ni el último SysAdmin utilizable", async () => {
+    const cookie = await adminSession();
+    const yo = await requestWithSession("/auth/me", cookie);
+    const { id: miId } = (await yo.json()) as { id: number };
+
+    const propia = await adminRequest(`/admin/users/${miId}`, cookie, {
+      method: "DELETE",
+      body: JSON.stringify({ confirmar: true, username: "sysadmin" }),
+    });
+    assert.equal(propia.status, 409);
+    assert.equal(
+      ((await propia.json()) as { code: string }).code,
+      "SELF_DELETE_FORBIDDEN",
+    );
+
+    // Sigue pudiendo entrar después del rechazo.
+    assert.equal((await requestWithSession("/auth/me", cookie)).status, 200);
+  });
+
+  it("rechaza a un Operador y responde 404 para un id inexistente", async () => {
+    const operatorLogin = await login("operadora");
+    const comoOperador = await adminRequest(
+      "/admin/users/1",
+      sessionCookie(operatorLogin),
+      {
+        method: "DELETE",
+        body: JSON.stringify({ confirmar: true, username: "sysadmin" }),
+      },
+    );
+    assert.equal(comoOperador.status, 403);
+
+    const cookie = await adminSession();
+    const inexistente = await adminRequest("/admin/users/999999", cookie, {
+      method: "DELETE",
+      body: JSON.stringify({ confirmar: true, username: "fantasma" }),
+    });
+    assert.equal(inexistente.status, 404);
+  });
+});
+
 describe("catálogo administrativo de usuarios", () => {
   it("conserva el guard padre y expone el listado sin hashes", async () => {
     const sysAdminCookie = await adminSession();

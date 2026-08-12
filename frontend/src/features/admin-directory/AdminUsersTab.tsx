@@ -6,6 +6,7 @@ import {
   useListAdminUsers,
 } from "@workspace/api-client-react";
 import { AlertTriangle, Plus, Search } from "lucide-react";
+import { AdminUserDeleteDialog } from "@/features/admin-directory/AdminUserDeleteDialog";
 import { AdminUserFormDialog } from "@/features/admin-directory/AdminUserFormDialog";
 import { AdminUserPasswordDialog } from "@/features/admin-directory/AdminUserPasswordDialog";
 import { AdminUsersPagination } from "@/features/admin-directory/AdminUsersPagination";
@@ -88,6 +89,11 @@ export function AdminUsersTab({
     saveUser,
     toggleUser,
     openResetPassword,
+    userToDelete,
+    isDeleteUserPending,
+    openDeleteUser,
+    changeUserDeleteOpen,
+    confirmDeleteUser,
     closeResetPassword,
     savePassword,
   } = useAdminUsersCrud({
@@ -364,9 +370,11 @@ export function AdminUsersTab({
                       isStatusToggleDisabled={isUserStatusTogglePending}
                       isEditDisabled={userMutationPending}
                       isPasswordResetDisabled={isPasswordResetPending}
+                      isDeleteDisabled={isDeleteUserPending}
                       onToggle={toggleUser}
                       onEdit={openEditUser}
                       onResetPassword={openResetPassword}
+                      onDelete={openDeleteUser}
                     />
                   ))
                 )}
@@ -411,6 +419,13 @@ export function AdminUsersTab({
         onRepeatedPasswordChange={setRepeatedPassword}
         onClose={closeResetPassword}
         onSave={savePassword}
+      />
+
+      <AdminUserDeleteDialog
+        user={userToDelete}
+        isPending={isDeleteUserPending}
+        onOpenChange={changeUserDeleteOpen}
+        onConfirm={confirmDeleteUser}
       />
     </>
   );

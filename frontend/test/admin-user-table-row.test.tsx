@@ -56,6 +56,8 @@ function renderRow({
           onToggle={onToggle}
           onEdit={onEdit}
           onResetPassword={onResetPassword}
+          isDeleteDisabled={false}
+          onDelete={() => undefined}
         />
       </TableBody>
     </Table>,
@@ -161,6 +163,8 @@ test("mantiene los fallbacks y bloquea cada acción de forma independiente", (t)
           onToggle={() => undefined}
           onEdit={() => undefined}
           onResetPassword={() => undefined}
+          isDeleteDisabled={false}
+          onDelete={() => undefined}
         />
       </TableBody>
     </Table>,
@@ -181,6 +185,8 @@ test("mantiene los fallbacks y bloquea cada acción de forma independiente", (t)
           onToggle={() => undefined}
           onEdit={() => undefined}
           onResetPassword={() => undefined}
+          isDeleteDisabled={false}
+          onDelete={() => undefined}
         />
       </TableBody>
     </Table>,
