@@ -25,6 +25,12 @@ const PRIORIDAD_LABEL: Record<string, string> = {
   baja: "Baja",
 };
 
+// Alto del gráfico de prioridad. La columna derecha mide esto más su leyenda;
+// la izquierda crece con el catálogo de categorías, así que se la acota a la
+// misma altura y se le da scroll. Sin ese tope, catorce categorías estiraban el
+// contenedor y dejaban al gráfico flotando sobre un bloque de blanco.
+const ALTO_GRAFICO_PRIORIDAD = 180;
+
 interface DashboardMotivesPriorityPanelProps {
   motives: readonly MotivoStat[] | undefined;
   priorities: readonly PrioridadStat[] | undefined;
@@ -70,14 +76,14 @@ export function DashboardMotivesPriorityPanel({
 
   return (
     <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
-      <div className="grid grid-cols-1 divide-y lg:grid-cols-2 lg:divide-x lg:divide-y-0">
+      <div className="grid grid-cols-1 divide-y lg:grid-cols-2 lg:items-start lg:divide-x lg:divide-y-0">
         {/* Left — Motivos ranking */}
         <div className="p-5">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
             Motivos de Contacto
           </h3>
           {isMotivesLoading ? (
-            <div className="space-y-3">
+            <div className="space-y-3 lg:max-h-[212px] lg:overflow-hidden">
               {[1, 2, 3, 4].map((index) => (
                 <Skeleton key={index} className="h-7 w-full" />
               ))}
@@ -85,7 +91,10 @@ export function DashboardMotivesPriorityPanel({
           ) : sortedMotives.length === 0 ? (
             <p className="text-sm text-slate-400">Sin datos</p>
           ) : (
-            <div className="space-y-3">
+            // 212px = alto del gráfico (180) + su leyenda, para que ambas
+            // columnas terminen a la misma altura. En una sola columna no se
+            // acota: ahí no hay nada al lado que quede desalineado.
+            <div className="space-y-3 lg:max-h-[212px] lg:overflow-y-auto lg:pr-2 scroll-sutil">
               {sortedMotives.map((motive, index) => {
                 const pct = (motive.cantidad / maxMotive) * 100;
                 const color = motive.config.color;
@@ -136,11 +145,14 @@ export function DashboardMotivesPriorityPanel({
             Tickets por Prioridad
           </h3>
           {isPrioritiesLoading ? (
-            <Skeleton className="h-[180px] w-full" />
+            <Skeleton
+              className="w-full"
+              style={{ height: ALTO_GRAFICO_PRIORIDAD }}
+            />
           ) : priorityData.length === 0 ? (
             <p className="text-sm text-slate-400">Sin datos</p>
           ) : (
-            <ResponsiveContainer width="100%" height={180}>
+            <ResponsiveContainer width="100%" height={ALTO_GRAFICO_PRIORIDAD}>
               <BarChart
                 data={priorityData}
                 margin={{ top: 4, right: 8, left: -24, bottom: 0 }}

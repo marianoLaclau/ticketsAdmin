@@ -370,3 +370,38 @@
     inset: -1px;
   }
 }
+
+@layer utilities {
+  /* Scroll discreto para listas que crecen con el catálogo, como el ranking de
+     motivos del dashboard: se ve al pasar el mouse y no ocupa lugar visual
+     cuando no hace falta. */
+  .scroll-sutil {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 150ms ease;
+  }
+
+  .scroll-sutil:hover,
+  .scroll-sutil:focus-within {
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .scroll-sutil::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scroll-sutil::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scroll-sutil::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    border-radius: 9999px;
+    transition: background-color 150ms ease;
+  }
+
+  .scroll-sutil:hover::-webkit-scrollbar-thumb,
+  .scroll-sutil:focus-within::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+  }
+}
