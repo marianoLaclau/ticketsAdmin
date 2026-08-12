@@ -131,8 +131,9 @@ En **Settings → Secrets and variables → Actions** definir:
 | `WEBHOOK_API_KEY`             | Autentica el webhook de n8n.                         |
 | `BOOTSTRAP_SYSADMIN_PASSWORD` | Inicialización o compatibilidad del usuario semilla. |
 
-Las dos API keys deben ser diferentes, tener al menos 32 caracteres y respetar
-la validación del backend. El valor de bootstrap puede quedar vacío solamente si
+`WEBHOOK_API_KEY` debe tener al menos 32 caracteres y respetar la validación
+del backend: sin placeholders, controles, espacios exteriores ni un único
+carácter repetido. El valor de bootstrap puede quedar vacío solamente si
 la base ya contiene credenciales válidas y el arranque no lo requiere.
 
 Para operaciones manuales que crean o recrean contenedores, guardar los valores
@@ -230,7 +231,110 @@ docker compose --env-file "$COMPOSE_ENV" exec -T backend \
 Cualquier salida no exitosa invalida ese backup o su evidencia. No copiar el
 archivo `tickets.db` directamente mientras el backend está activo.
 
-## 5. Respuesta ante un deploy fallido
+## 5. Levantar la aplicación a mano
+
+Para cuando la aplicación está caída y no se puede o no se quiere esperar a un
+deploy: el runner no responde, GitHub no está disponible, o hace falta volver a
+la versión anterior ya mismo. **No hay rollback automático**, así que esta es la
+vía de recuperación.
+
+Todos los comandos corren en el servidor, sobre el checkout que usa el runner:
+
+```bash
+cd "$HOME/actions-runner-ticketsAdmin/_work/ticketsAdmin/ticketsAdmin"
+COMPOSE_ENV=/etc/ticketsadmin/compose.env
+```
+
+Si ese checkout no existe o quedó inservible, alcanza con clonar el repo en
+cualquier directorio del servidor: lo único que vive fuera del repo es el
+volumen con la base y el archivo de secretos.
+
+### 5.1. Reiniciar sin reconstruir
+
+Primera opción cuando los contenedores están caídos pero las imágenes actuales
+sirven. Es lo más rápido y no toca el código:
+
+```bash
+docker compose --env-file "$COMPOSE_ENV" up -d --wait --wait-timeout 180
+```
+
+### 5.2. Levantar la versión que está en main
+
+Cuando hace falta construir, por ejemplo si el runner falló a mitad del build:
+
+```bash
+git fetch origin && git checkout main && git reset --hard origin/main
+docker compose --env-file "$COMPOSE_ENV" build
+docker compose --env-file "$COMPOSE_ENV" up -d --wait --wait-timeout 180
+```
+
+El backend aplica las migraciones pendientes al arrancar, antes de escuchar.
+
+### 5.3. Volver a la versión anterior
+
+Cuando la versión nueva está rota y hay que recuperar servicio ya. Se hace un
+backup primero porque un cambio de código no revierte una migración aplicada:
+
+```bash
+# 1. Copia consistente de la base antes de tocar nada.
+docker run --rm   -v ticketsadmin_tickets_data:/data:ro   -v /var/lib/ticketsadmin/backups:/backups   alpine:3 sh -c 'apk add --no-cache sqlite >/dev/null &&
+    sqlite3 /data/tickets.db ".backup /backups/pre-rollback-$(date -u +%Y%m%d-%H%M%S).db"'
+
+# 2. Elegir el commit sano y reconstruir sobre él.
+git log --oneline -10
+git checkout <sha-del-commit-sano>
+docker compose --env-file "$COMPOSE_ENV" build
+docker compose --env-file "$COMPOSE_ENV" up -d --wait --wait-timeout 180
+```
+
+**Ojo con las migraciones**: volver el código no deshace un cambio de esquema ya
+aplicado. Una versión vieja sobre una base migrada funciona solo si la migración
+fue aditiva. Si retiró o transformó columnas, la vía correcta es corregir hacia
+adelante, o restaurar la base junto con el código (sección 7), asumiendo la
+pérdida de lo posterior al backup.
+
+### 5.4. Verificar que quedó sano
+
+```bash
+docker compose --env-file "$COMPOSE_ENV" ps
+test "$(curl -fsS --max-time 10 http://127.0.0.1:5000/api/readyz)" = '{"status":"ready"}'
+curl -fsS --max-time 10 http://127.0.0.1:3000/ | grep -Fq '<div id="root"></div>'
+test "$(curl -fsS --max-time 10 http://127.0.0.1:3000/api/readyz)" = '{"status":"ready"}'
+```
+
+Si `readyz` responde `503` de forma persistente con los contenedores arriba, el
+problema es el esquema: el backend exige poder consultar tickets, la proyección
+de cuarentena y sesiones. Los logs (`logs --tail=150 backend`) dicen qué falta.
+
+### 5.5. Qué no hacer
+
+`docker compose down -v` y `docker volume rm ticketsadmin_tickets_data`
+**borran la base de producción**. `docker image prune` puede eliminar la imagen
+anterior, que es justamente la que permite volver atrás rápido. Copiar la base
+local sobre el servidor pisa los datos reales.
+
+### 5.6. Correrlo fuera del servidor
+
+Para reproducir un problema o tener la aplicación andando en otra máquina, sin
+tocar producción:
+
+```bash
+pnpm install
+pnpm --filter @workspace/db run push          # crea el esquema en data/tickets.db
+pnpm --filter @workspace/backend run dev      # :5000
+pnpm --filter @workspace/frontend run dev     # :3000, en otra terminal
+```
+
+Requiere un `.env` en la raíz con `WEBHOOK_API_KEY` y, en una base nueva,
+`BOOTSTRAP_SYSADMIN_PASSWORD`. Arranca con la base vacía: para trabajar con
+datos reales, copiar un backup a `data/tickets.db` con los servicios detenidos.
+
+**El `dev` del backend no tiene watch**: es `build && start`, así que después de
+cambiar código hay que reiniciarlo. Un backend viejo sirviendo una build vieja
+produce resultados desconcertantes al probar un cambio; el de Vite sí recarga
+solo.
+
+## 6. Respuesta ante un deploy fallido
 
 1. No lanzar pushes, reruns ni workflows de recuperación en cadena.
 2. Leer el primer error del job y los diagnósticos de `compose ps` y logs.
@@ -246,7 +350,7 @@ Nunca usar `docker compose down -v`, `docker volume rm`, copiar la base local
 sobre producción ni restaurar SQLite como respuesta automática a un fallo de la
 aplicación.
 
-## 6. Restauración manual de SQLite
+## 7. Restauración manual de SQLite
 
 La restauración es una intervención offline y distinta del rollback de código.
 Debe existir una decisión humana sobre el punto de restauración y la pérdida de
