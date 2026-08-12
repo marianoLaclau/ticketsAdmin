@@ -129,7 +129,6 @@ En **Settings → Secrets and variables → Actions** definir:
 | Secreto                       | Uso                                                  |
 | ----------------------------- | ---------------------------------------------------- |
 | `WEBHOOK_API_KEY`             | Autentica el webhook de n8n.                         |
-| `ADMIN_API_KEY`               | Eleva temporalmente una sesión SysAdmin.             |
 | `BOOTSTRAP_SYSADMIN_PASSWORD` | Inicialización o compatibilidad del usuario semilla. |
 
 Las dos API keys deben ser diferentes, tener al menos 32 caracteres y respetar
@@ -148,7 +147,6 @@ Contenido esperado:
 
 ```dotenv
 WEBHOOK_API_KEY=<valor-real>
-ADMIN_API_KEY=<valor-real>
 BOOTSTRAP_SYSADMIN_PASSWORD=<valor-si-corresponde>
 TZ=America/Argentina/Buenos_Aires
 ```

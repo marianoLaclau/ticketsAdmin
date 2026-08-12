@@ -95,16 +95,6 @@ describe("sonda SQLite de readiness", () => {
         fecha_creacion INTEGER NOT NULL
       )
     `);
-    assert.throws(
-      () => probeSqliteReadiness(database),
-      /admin_elevacion_hasta/i,
-    );
-    database.exec("ALTER TABLE sesiones ADD admin_elevacion_hasta INTEGER");
-    assert.throws(
-      () => probeSqliteReadiness(database),
-      /admin_elevacion_clave_hash/i,
-    );
-    database.exec("ALTER TABLE sesiones ADD admin_elevacion_clave_hash TEXT");
     assert.equal(probeSqliteReadiness(database), true);
 
     database.close();

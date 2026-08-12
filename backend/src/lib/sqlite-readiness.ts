@@ -15,8 +15,7 @@ export function probeSqliteReadiness(
   database.prepare("SELECT ticket_id FROM tickets_cuarentena LIMIT 1").get();
   database
     .prepare(
-      `SELECT token, usuario_id, fecha_expiracion, fecha_creacion,
-              admin_elevacion_hasta, admin_elevacion_clave_hash
+      `SELECT token, usuario_id, fecha_expiracion, fecha_creacion
          FROM sesiones
         LIMIT 1`,
     )

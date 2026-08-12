@@ -64,13 +64,12 @@ frontend/
       ticket-list/                → filtros, orden, filas y accesibilidad del listado
     components/
       layout/AppLayout.tsx        → Sidebar + listener de eventos en vivo
-      admin/AdminHeader.tsx        → alta/revocación de elevación y navegación admin
+      admin/AdminHeader.tsx        → título y navegación entre pantallas admin
       SortableTableHead.tsx         → encabezado accesible para orden server-side
       tickets/TicketDataEditDialog.tsx → edición de datos funcionales del ticket
       ui/                            → 20 primitivas shadcn/ui efectivamente usadas
     hooks/
-      use-admin-elevation.ts       → estado server-side del grant y request fijo de intención
-      use-admin-operation-guard.ts → bloquea operaciones al cambiar la frontera de acceso
+      use-admin-operation-guard.ts → descarta respuestas de un componente ya desmontado
       use-toast.ts                   → sistema de notificaciones
     lib/
       roles.ts                       → constantes de rol + puedeCerrarTickets() (espejo del backend)
@@ -106,10 +105,9 @@ Todo se define en `App.tsx`. La raíz es la única entrada pública del lado del
 - **`PublicEntry`** atiende `/`: sin sesión muestra `<Login />`; si la sesión todavía es válida decide entre `/cambiar-contrasena` y `/dashboard` según `me.debe_cambiar_password`, con reemplazo de historial.
 - **`AuthGate`** protege `/cambiar-contrasena`, `/dashboard`, `/tickets` y `/admin`. Llama a `useGetMe()` (`GET /api/auth/me`), muestra un spinner mientras verifica y, ante un `401`, normaliza la URL a `/`. Una credencial temporal solo puede renderizar `ChangePassword`, fuera de `AppLayout`; una cuenta ya regularizada no puede volver a esa pantalla. Un fallo de red o del backend muestra una pantalla de error con opción de reintentar, no un login engañoso.
 - **`SoloSysAdmin`** envuelve `/admin`, `/admin/roles-usuarios` y `/admin/tickets/:id`: si `me.rol !== 'SysAdmin'`, muestra una pantalla `403 Acceso denegado`. El backend valida lo mismo de forma independiente; este guard visual no es la única defensa.
-- **Manejo de sesión vencida**: `QueryCache` y `MutationCache` revalidan `/auth/me` ante un `401` de sesión, lo que devuelve la aplicación a la raíz/login. La entrada pública nunca confía en `data` stale si esa revalidación falló o sigue pendiente, y un `401` confirmado elimina las queries funcionales sin recrear en loop la query activa de sesión. `ADMIN_ELEVATION_REQUIRED` sigue otra política: invalida y vuelve a consultar el estado de elevación sin expulsar al SysAdmin. Un login exitoso vuelve a limpiar las queries anteriores antes de instalar la nueva identidad.
 - **Login**: tras autenticar, actualiza el caché de `/auth/me` y navega a `/cambiar-contrasena` o `/dashboard` con la misma función pura y `replace`.
 - **Cambio obligatorio**: solicita contraseña temporal, nueva y repetición, aplica la política compartida en cliente y usa `POST /api/auth/password`. Un éxito reemplaza el usuario cacheado —incluido el flag— y continúa al dashboard; cerrar sesión sigue disponible. El guard del backend es la autoridad y evita un bypass mediante URL o llamadas directas.
-- **Logout**: tras el `204`, `queryClient.clear()` elimina los datos de la sesión y hace una recarga limpia en `/`. La recarga fuerza una nueva verificación de la cookie ya eliminada y evita que un observer conserve momentáneamente al usuario anterior. Como el grant pertenece a la fila de sesión, el backend lo revoca junto con ella; el navegador no conserva una copia de `ADMIN_API_KEY`.
+- **Logout**: tras el `204`, `queryClient.clear()` elimina los datos de la sesión y hace una recarga limpia en `/`. La recarga fuerza una nueva verificación de la cookie ya eliminada y evita que un observer conserve momentáneamente al usuario anterior.
 
 ## Roles en la UI
 
@@ -128,7 +126,7 @@ Las restricciones visibles principales son:
 
 1. **Sidebar** (`AppLayout.tsx`): el link "Administración" solo se agrega al array `links` si `me?.rol === ROL_SYSADMIN`.
 2. **TicketDetail**: en el `<Select>` de estado, la opción "CERRADO" tiene `disabled={!puedeCerrarTickets(me?.rol)}`, con una leyenda debajo ("Solo puede ser cerrado por un administrador") cuando está deshabilitada.
-3. **Edición del ticket**: cualquier usuario autenticado puede completar o corregir los datos funcionales (contacto, empresa, motivo y resumen). Los datos técnicos como hora, audio, notificación y fechas de límite/resolución no se exponen en ese formulario; cuando una operación técnica existe en modo administrativo, el backend vuelve a exigir SysAdmin, grant vigente y `x-admin-intent: 1`.
+3. **Edición del ticket**: cualquier usuario autenticado puede completar o corregir los datos funcionales (contacto, empresa, motivo y resumen). Los datos técnicos como hora, audio, notificación y fechas de límite/resolución no se exponen en ese formulario; cuando una operación técnica existe en modo administrativo, el backend vuelve a exigir rol SysAdmin.
 
 En todos los casos la restricción visual es **solo UX** — la fuente de verdad es el backend (`403`/`404` según corresponda); si la UI falla, el servidor rechaza igualmente una operación no autorizada.
 
@@ -156,7 +154,7 @@ El botón **Exportar CSV**, junto a los filtros de plazo, conserva filtros y ord
 - Reproductor `<audio>` nativo si el ticket tiene `audio_url`.
 - Timeline de seguimientos + textarea para agregar uno nuevo (el `autor` no se manda desde acá — lo pone el backend). La línea distingue cambios de estado, prioridad, asignación y campos editados. Los tickets creados por webhook con empresa real comienzan con una entrada de `Sistema` que registra el origen Serin; el backend garantiza que quede primera ordenando por fecha e ID.
 - **Fecha límite**: si el usuario no tocó el control, el campo no se reenvía en el `PATCH` (preserva segundos/milisegundos originales que `datetime-local` no puede representar). Si el control queda vacío pero antes tenía valor, se bloquea el guardado con un toast — el contrato actual no permite null-ear `fecha_limite`.
-- En `/admin/tickets/:id`, `adminMode` espera que `useAdminElevation` confirme el grant, agrega `incluir_vacios=true` y envía `x-admin-intent: 1`; así permite abrir/corregir un registro en cuarentena y volver a Administración. Mientras la elevación está ausente, pendiente o vencida no monta consultas protegidas.
+- En `/admin/tickets/:id`, `adminMode` habilita la vista administrativa: permite abrir registros en cuarentena y editar los campos técnicos. El backend exige rol SysAdmin en cada una de esas operaciones.
 - Los dos editores congelan el `Ticket.version` junto con sus valores al abrir y envían `expected_version` con un PATCH mínimo. Ante `409 TICKET_VERSION_CONFLICT` conservan el draft visible, bloquean Guardar y solo lo reemplazan cuando la persona elige explícitamente cargar la versión actual. Si la recarga falla, nada escrito se descarta.
 
 ### `Admin.tsx` (ruta `/admin`, solo SysAdmin)
@@ -169,7 +167,7 @@ Tres tabs:
 - **Importar CSV**: al elegir un archivo corre automáticamente un `dry_run` y muestra el resumen (columnas detectadas, a insertar/ya existentes/inválidos) antes de escribir nada; botón para confirmar la importación real.
 - **Zona peligrosa**: truncate de toda la base, con doble seguro — hay que tipear literalmente `BORRAR` para habilitar el botón, y el backend además exige `{ confirmar: true }`.
 
-Usa `AdminHeader` (compartido con `AdminRolesUsers.tsx`) para crear o revocar la elevación y navegar entre las pantallas de administración. Cuando no hay grant, la clave se ingresa enmascarada y puede revelarse; al enviar, el componente vacía el input y lo retira del DOM antes de iniciar `POST /api/auth/admin-elevation` con `{ admin_key }`. La credencial no entra en React Query ni en almacenamiento web. El estado confirmado muestra el vencimiento y un botón **Revocar acceso**; queries y mutaciones posteriores contienen solo `x-admin-intent: 1`.
+Usa `AdminHeader` (compartido con `AdminRolesUsers.tsx`) para el título y la navegación entre pantallas administrativas. Cuando no hay grant, la clave se ingresa enmascarada y puede revelarse; al enviar, el componente vacía el input y lo retira del DOM antes de iniciar `POST /api/auth/admin-elevation` con `{ admin_key }`. La credencial no entra en React Query ni en almacenamiento web.
 
 `main.tsx` elimina de forma preventiva las claves legadas `admin-key` y `admin-key:user:*` de `localStorage` y `sessionStorage` antes de montar React. Solo enumera y elimina nombres: nunca lee ni migra el valor anterior. Esta compatibilidad de limpieza no vuelve a convertir el almacenamiento del navegador en parte del diseño vigente.
 
@@ -208,7 +206,7 @@ es.onmessage = (e) => {
 };
 ```
 
-El payload se trata como entrada no confiable: JSON inválido, eventos sin tipo y campos con tipos inesperados se descartan sin romper el listener. Los eventos funcionales invalidan únicamente `/api/tickets` y `/api/dashboard`; la caché de sesión, estado de elevación administrativa, usuarios y roles permanece vigente.
+El payload se trata como entrada no confiable: JSON inválido, eventos sin tipo y campos con tipos inesperados se descartan sin romper el listener. Los eventos funcionales invalidan únicamente `/api/tickets` y `/api/dashboard`; la caché de sesión, usuarios y roles permanece vigente.
 
 `sesion_revocada` es terminal: cierra el stream para impedir reconexiones con una cookie revocada, purga el estado cliente, sincroniza las demás pestañas y vuelve a `/` para revalidar la sesión. Para el resto no hay reconexión manual — `EventSource` la maneja sola usando el `retry: 5000` que manda el servidor. La conexión se abre solo dentro del `AuthGate` (o sea, solo con sesión activa), y se cierra en el cleanup del `useEffect`.
 
@@ -216,13 +214,7 @@ El payload se trata como entrada no confiable: JSON inválido, eventos sin tipo 
 
 Todo `lib/api-client-react` y `lib/api-zod` se **genera** con Orval a partir de `lib/api-spec/openapi.yaml` — nunca se edita a mano. Cada operación del contrato produce un hook (`useListTickets`, `useCreateAdminTicket`, `useGetMe`, etc.) más su `QueryKey` helper (`getGetMeQueryKey()`) para poder referenciar la misma key desde otro lado (invalidación, seteo manual de caché).
 
-Los hooks aceptan una opción `request` para mandar headers extra por llamada. Tras confirmar el grant server-side, `useAdminElevation` expone exclusivamente la intención fija no secreta:
-
-```ts
-const { state, adminRequest } = useAdminElevation();
-// state === "ready" → { headers: { "x-admin-intent": "1" } }
-useCreateAdminTicket({ request: adminRequest });
-```
+Los hooks aceptan una opción `request` para mandar headers extra por llamada; las operaciones administrativas no la necesitan, porque la cookie de sesión ya identifica al SysAdmin.
 
 La clave cruda solo existe como valor del input y argumento local durante el POST directo; no forma parte de `adminRequest`, queries, mutation cache, URLs ni storage. El backend persiste un fingerprint por sesión y el frontend consulta solamente `{ active, expires_at }`. Al cerrar sesión, el sidebar limpia el caché y recarga la entrada raíz mediante `window.location.replace(import.meta.env.BASE_URL)`. No existe una ruta `/login`: el formulario vive en `/`; el Dashboard vive en `/dashboard`.
 
@@ -232,7 +224,7 @@ El transporte real (`customFetch`) vive en `lib/api-client-react/src/custom-fetc
 
 `pnpm --filter @workspace/frontend test` ejecuta las unitarias con `node:test` y los componentes con Testing Library/JSDOM. Las pruebas de componentes incluyen verificaciones con axe-core; ESLint aplica además `jsx-a11y` a las fuentes del frontend.
 
-La suite de navegador vive en [`../e2e/`](../e2e/) y se ejecuta desde la raíz con `pnpm run test:e2e` o `pnpm run test:e2e:headed`. Playwright levanta un backend real y Vite en puertos exclusivos, crea una base SQLite temporal, aplica dos veces la cadena real de migraciones para comprobar idempotencia y corre cuatro flujos seriales en Chromium: primer ingreso/cambio obligatorio, ingesta y SSE, elevación/RBAC/revocación, y cuarentena/conflicto/exportación. Verifica también que el secreto administrativo solo aparezca en el body del POST de elevación y no quede en headers, URLs ni storage.
+La suite de navegador vive en [`../e2e/`](../e2e/) y se ejecuta desde la raíz con `pnpm run test:e2e` o `pnpm run test:e2e:headed`. Playwright levanta un backend real y Vite en puertos exclusivos, crea una base SQLite temporal, aplica dos veces la cadena real de migraciones para comprobar idempotencia y corre cuatro flujos seriales en Chromium: primer ingreso/cambio obligatorio, ingesta y SSE, RBAC/revocación, y cuarentena/conflicto/exportación.
 
 Antes de la primera corrida local se instala el navegador con `pnpm --filter @workspace/e2e exec playwright install chromium`. Las trazas, screenshots y videos retenidos ante fallos quedan bajo `e2e/artifacts/`, ignorado por Git; en CI se agrega allí el reporte HTML. En GitHub, el job `e2e` depende del job `quality`, instala Chromium con sus dependencias y ejecuta esta suite como segunda etapa bloqueante del workflow Quality para pull requests. Deploy es un workflow separado; ante un fallo de navegador, Quality publica `playwright-diagnostics` durante 7 días.
 

@@ -74,7 +74,7 @@ stateDiagram-v2
     draining --> draining: señales repetidas
 ```
 
-`GET /api/healthz` es liveness: responde siempre `200 { status: "ok" }` mientras el proceso pueda atender HTTP y no toca la base. `GET /api/readyz` es readiness: fuera de `ready` devuelve 503 sin ejecutar la sonda; dentro de `ready` comprueba que el handle SQLite esté abierto y prepara lecturas acotadas sobre Tickets, cuarentena y el schema completo de sesiones requerido por runtime, incluidas `admin_elevacion_hasta` y `admin_elevacion_clave_hash` de `0016`. Un fallo se registra internamente pero la respuesta pública queda reducida a `503 { status: "unavailable" }`, sin paths, excepciones ni detalles del motor. Ambas rutas son públicas y usan `Cache-Control: no-store`.
+`GET /api/healthz` es liveness: responde siempre `200 { status: "ok" }` mientras el proceso pueda atender HTTP y no toca la base. `GET /api/readyz` es readiness: fuera de `ready` devuelve 503 sin ejecutar la sonda; dentro de `ready` comprueba que el handle SQLite esté abierto y prepara lecturas acotadas sobre Tickets, cuarentena y el schema completo de sesiones requerido por runtime. Un fallo se registra internamente pero la respuesta pública queda reducida a `503 { status: "unavailable" }`, sin paths, excepciones ni detalles del motor. Ambas rutas son públicas y usan `Cache-Control: no-store`.
 
 1. `health`: liveness y readiness públicos.
 2. `webhooks`: ingesta pública protegida por `x-api-key`.
@@ -82,7 +82,7 @@ stateDiagram-v2
 4. `requireSession`: candado global para el resto de la API.
 5. Tickets, dashboard, administración y SSE.
 
-La API valida entrada con schemas generados desde OpenAPI/Zod. Las operaciones de administración suman una elevación server-side: el SysAdmin presenta `ADMIN_API_KEY` una sola vez como body de `POST /auth/admin-elevation`, el servidor liga un grant efímero a esa sesión y las solicitudes posteriores envían solo `x-admin-intent: 1`.
+La API valida entrada con schemas generados desde OpenAPI/Zod. Las operaciones de administración exigen además rol SysAdmin, verificado por el backend en cada request de forma independiente del frontend.
 
 #### Reglas de negocio
 
@@ -172,9 +172,9 @@ Las pantallas principales son:
 - `/admin`: CRUD, importación, cuarentena y zona peligrosa.
 - `/admin/roles-usuarios`: gestión de usuarios y roles para SysAdmin.
 
-La pantalla de identidades administrativas se organiza como feature en `frontend/src/features/admin-directory`. La página conserva la elevación SysAdmin y la composición de pestañas; los paneles de usuarios y roles concentran sus respectivas consultas, filtros, formularios, diálogos y mutaciones. El request administrativo cruza esas fronteras como una única dependencia y la API key no se incorpora a query keys ni se replica en otro estado cliente. Las invalidaciones por prefijo mantienen sincronizados ambos catálogos sin acoplar sus estados locales.
+La pantalla de identidades administrativas se organiza como feature en `frontend/src/features/admin-directory`. La página conserva la composición de pestañas; los paneles de usuarios y roles concentran sus respectivas consultas, filtros, formularios, diálogos y mutaciones. El request administrativo cruza esas fronteras como una única dependencia y la API key no se incorpora a query keys ni se replica en otro estado cliente. Las invalidaciones por prefijo mantienen sincronizados ambos catálogos sin acoplar sus estados locales.
 
-La administración de tickets se modulariza en `frontend/src/features/admin-tickets`. El panel de registros concentra listado, CRUD, caché optimista y resolución de conflictos; sus diálogos son hermanos de `TabsContent` para conservar estado al alternar pestañas. El importador CSV mantiene archivo, simulación y confirmación definitiva, y la zona peligrosa concentra conteo, confirmación y truncado. Las consultas reciben una versión opaca para separar credenciales sucesivas sin exponer la API key en las query keys; la credencial sólo viaja en `RequestInit`. `Admin.tsx` mantiene la elevación, cabecera y composición de pestañas.
+La administración de tickets se modulariza en `frontend/src/features/admin-tickets`. El panel de registros concentra listado, CRUD, caché optimista y resolución de conflictos; sus diálogos son hermanos de `TabsContent` para conservar estado al alternar pestañas. El importador CSV mantiene archivo, simulación y confirmación definitiva, y la zona peligrosa concentra conteo, confirmación y truncado. Las consultas reciben una versión opaca para separar credenciales sucesivas sin exponer la API key en las query keys; la credencial sólo viaja en `RequestInit`. `Admin.tsx` mantiene la cabecera y la composición de pestañas.
 
 El detalle operativo se descompone en `frontend/src/features/ticket-detail`. Las tarjetas sin estado reciben por props fragmentos tipados del contrato `Ticket`; el historial es controlado y deja query, mutación y reset exitoso en la página. Consultas, editores y control optimista permanecen allí hasta que puedan trasladarse como unidades cohesionadas, sin repartir drafts ni mutaciones entre componentes.
 
@@ -284,8 +284,6 @@ erDiagram
         text token PK
         integer usuario_id FK
         timestamp fecha_expiracion
-        timestamp admin_elevacion_hasta
-        text admin_elevacion_clave_hash
         timestamp fecha_creacion
     }
     TICKETS {
@@ -358,7 +356,6 @@ Las lecturas cronológicas se apoyan en índices con el ID como desempate establ
 - `roles` define el catálogo de perfiles. Los nombres base `SysAdmin`, `Administrador` y `Operador` son identidades reservadas y activas; los perfiles personalizados sí admiten ciclo de vida propio.
 - `usuarios` contiene identidad, credenciales hash, rol, estado activo y el flag autoritativo `debe_cambiar_password`.
 - `sesiones` persiste el usuario, expiración absoluta y únicamente un hash versionado `sha256:<64 hex>` del bearer de `gsb_session`; permite revocar sesiones y sobrevivir reinicios sin guardar en SQLite una cookie reutilizable. El borde HTTP solo acepta el raw aleatorio emitido (64 hex), deriva el hash con separación de dominio, centraliza `HttpOnly`/`SameSite=Lax`/`Path=/`, elimina cookies malformadas, vencidas o revocadas y marca `/auth/*` como `no-store`. El hash almacenado no cumple el formato de cookie y el instante exacto de expiración ya no es válido.
-- La misma fila contiene `admin_elevacion_hasta` y `admin_elevacion_clave_hash`. El primero limita el grant a 15 minutos y nunca más allá de la sesión; el segundo es un fingerprint `v1:sha256:` con separación de dominio de la clave configurada, no una credencial reutilizable. Rotar `ADMIN_API_KEY`, cerrar la sesión o revocarla invalida también la elevación.
 - `password_hash` usa scrypt asíncrono y versionado (`scrypt$v1$N$r$p$salt$hash`); nunca se almacena la contraseña en texto plano. El lector mantiene compatibilidad con el formato legado y lo rehashea con una sal nueva tras un login válido.
 - Alta, reset y bootstrap validan con `@workspace/password-policy`: 16–128 unidades UTF-16, sin controles C0/DEL, whitespace exterior, placeholders públicos conocidos ni un único carácter repetido. OpenAPI reutiliza un único schema `NewPassword`; el paquete completa la blocklist contextual acotada. Se permiten frases con espacios interiores y no se recorta ni normaliza el secreto antes de hashearlo (NFKC/minúsculas se usan solo para comparar la blocklist y el patrón repetitivo).
 - Login acepta 1–128 unidades UTF-16 para preservar credenciales históricas y poder migrar su hash; esa compatibilidad no habilita nuevas claves fuera de política.
@@ -381,7 +378,7 @@ Antes de entrar al flujo de sesión, `POST /auth/login` crea una reserva usando 
 
 El rate limit y la compuerta de scrypt son estado deliberadamente local del proceso. Esto coincide con el backend único exigido por SQLite/SSE, evita escrituras controladas por atacantes en la base operativa y mantiene una interfaz aislada para migrar a Redis u otro store si cambia la topología.
 
-El diagrama siguiente cubre las rutas funcionales posteriores al router de autenticación. La consulta, creación y revocación de la propia elevación siguen el recorrido específico descrito inmediatamente después.
+El diagrama siguiente cubre las rutas funcionales posteriores al router de autenticación.
 
 ```mermaid
 flowchart TD
@@ -392,12 +389,8 @@ flowchart TD
     authOnly{¿me o cambio propio?}
     sensitive{¿Frontera administrativa?}
     sysadmin{¿Rol SysAdmin?}
-    configured{¿ADMIN_API_KEY disponible?}
-    intent{¿x-admin-intent = 1?}
-    grant{¿Grant vigente y fingerprint válido?}
     allow[Ejecutar operación]
     reject401[401 / SESSION_INVALID]
-    rejectElevation[401 / ADMIN_ELEVATION_REQUIRED]
     reject403[403 / acceso denegado]
     rejectPassword[403 / PASSWORD_CHANGE_REQUIRED]
     reject503[503 / configuración ausente]
@@ -414,30 +407,20 @@ flowchart TD
     sensitive -->|no| allow
     sensitive -->|sí| sysadmin
     sysadmin -->|no| reject403
-    sysadmin -->|sí| configured
-    configured -->|no| reject503
-    configured -->|sí| intent
-    intent -->|no| rejectElevation
-    intent -->|sí| grant
-    grant -->|no| rejectElevation
-    grant -->|sí| allow
 ```
-
-La elevación se crea fuera de ese recorrido protegido. `GET /auth/admin-elevation` devuelve solo `{ active, expires_at }`; `POST` recibe el body estricto `{ admin_key }`, valida la clave con comparación constante y rate limit por sesión, y persiste vencimiento + fingerprint; `DELETE` revoca el grant de forma idempotente. Las tres operaciones exigen sesión, contraseña definitiva y rol SysAdmin. La clave cruda no se acepta en headers, URLs ni rutas administrativas.
 
 La protección se aplica en dos lugares:
 
 1. El frontend oculta y bloquea pantallas según la sesión para mejorar la experiencia.
-2. El backend vuelve a validar sesión, rol, intención y grant en cada operación sensible. La UI nunca es la única barrera.
+2. El backend vuelve a validar sesión y rol en cada operación sensible. La UI nunca es la única barrera.
 
 Credenciales:
 
 - `WEBHOOK_API_KEY`: autentica a n8n.
 - Cookie `gsb_session`: autentica usuarios del panel.
-- `ADMIN_API_KEY`: credencial presentada una sola vez para elevar temporalmente una sesión SysAdmin.
 - `BOOTSTRAP_SYSADMIN_PASSWORD`: secreto exclusivo del bootstrap para crear `sysadmin` cuando no hay hashes o rotar la credencial semilla heredada; la contraseña resultante es temporal.
 
-Las API keys y el secreto bootstrap se entregan por variables de entorno o secretos del runner y no deben entrar al repositorio. `WEBHOOK_API_KEY` y `ADMIN_API_KEY` se validan juntas al arrancar: deben existir, ser diferentes, tener al menos 32 caracteres y no usar controles, espacios exteriores, un único carácter repetido ni placeholders públicos; los errores solo identifican la variable, nunca su valor. Las credenciales crudas no se persisten en la base: para una elevación se guarda solamente un fingerprint versionado ligado a la sesión, y del secreto bootstrap solo un hash scrypt. Una credencial ya asegurada se conserva: la variable bootstrap no funciona como mecanismo de reset. La rotación de compatibilidad actualiza el hash, activa el cambio obligatorio y revoca las sesiones del seed histórico en una única transacción; rotar `ADMIN_API_KEY` invalida los grants por mismatch de fingerprint.
+Las API keys y el secreto bootstrap se entregan por variables de entorno o secretos del runner y no deben entrar al repositorio. `WEBHOOK_API_KEY` se valida al arrancar: debe existir, tener al menos 32 caracteres y no usar controles, espacios exteriores, un único carácter repetido ni placeholders públicos; los errores solo identifican la variable, nunca su valor. Las credenciales crudas no se persisten en la base: del secreto bootstrap solo se guarda un hash scrypt. Una credencial ya asegurada se conserva: la variable bootstrap no funciona como mecanismo de reset. La rotación de compatibilidad actualiza el hash, activa el cambio obligatorio y revoca las sesiones del seed histórico en una única transacción.
 
 ## 7. Estados, SLA y auditoría
 
@@ -500,7 +483,7 @@ El workspace usa ESLint flat con reglas de TypeScript, promesas, hooks de React 
 
 La deuda de `any` explícito quedó eliminada del alcance analizado. `no-explicit-any` es un error y `--max-warnings 0` impide aceptar advertencias. El Dashboard trata de forma explícita la nulabilidad de `fecha_limite`, aunque la consulta de vencidos la excluya en SQL. `pnpm run quality` ejecuta lint y `format:check` antes de codegen, schema, suites no-browser, typecheck y builds. En GitHub, un segundo job `e2e` depende de ese resultado, instala Chromium y ejecuta Playwright; ambos jobs son bloqueantes en el workflow Quality para pull requests. Deploy es un workflow independiente disparado desde `main`.
 
-La suite `e2e/` usa Playwright con Desktop Chrome, un solo worker y una base SQLite efímera. Su servidor aplica dos veces la cadena real de migraciones, inicia el backend y Vite en puertos exclusivos y cubre cuatro recorridos: autenticación/cambio obligatorio, ingesta/SSE/auditoría, elevación/RBAC/revocación y cuarentena/conflicto/exportación. Una única invocación del teardown ejecuta hasta tres rondas internas: cada paso tiene deadline, los fallos no bloquean los recursos siguientes y una operación todavía activa se comparte en vez de duplicarse. Resoluciones tardías completan el paso, rechazos tardíos habilitan su reintento y los errores finales se conservan en orden. Las trazas, screenshots y videos retenidos ante fallos quedan en `e2e/artifacts/`; en CI se agrega allí el reporte HTML. GitHub publica el directorio como `playwright-diagnostics` durante 7 días cuando el job falla.
+La suite `e2e/` usa Playwright con Desktop Chrome, un solo worker y una base SQLite efímera. Su servidor aplica dos veces la cadena real de migraciones, inicia el backend y Vite en puertos exclusivos y cubre cuatro recorridos: autenticación/cambio obligatorio, ingesta/SSE/auditoría, RBAC/revocación y cuarentena/conflicto/exportación. Una única invocación del teardown ejecuta hasta tres rondas internas: cada paso tiene deadline, los fallos no bloquean los recursos siguientes y una operación todavía activa se comparte en vez de duplicarse. Resoluciones tardías completan el paso, rechazos tardíos habilitan su reintento y los errores finales se conservan en orden. Las trazas, screenshots y videos retenidos ante fallos quedan en `e2e/artifacts/`; en CI se agrega allí el reporte HTML. GitHub publica el directorio como `playwright-diagnostics` durante 7 días cuando el job falla.
 
 ## 9. Despliegue y migraciones
 
@@ -553,10 +536,12 @@ En local, `pnpm --filter @workspace/db run push` combina `drizzle-kit push` con 
 0013            → índice compuesto de pertenencia e historial de seguimientos
 0014            → proyección materializada y transaccional de cuarentena
 0015            → índices temporales medidos para lecturas operativas
-0016            → vencimiento y fingerprint nullable de elevación por sesión
+0016            → elevación por sesión (retirada por 0018)
+0017            → backfill de préstamos, obra social, sanciones y proveedores
+0018            → retira la elevación por sesión
 ```
 
-La columna física conserva el nombre histórico `sesiones.token` para permitir un rollback estructural, pero el schema la expone como `token_hash`. Desde `0011`, toda fila nueva contiene `sha256:<digest>` y el arranque elimina formatos crudos o inválidos después de validar secretos, antes del seed y antes de abrir el puerto. La migración fuerza un único re-login; no se admite un despliegue simultáneo de binarios anteriores y posteriores a este cambio. Un rollback rápido conserva el schema e invalida las sesiones creadas por la otra versión, pero el piso soportado es `06db746`, primer commit cuyo extractor rechaza todo lo que no sea raw de 64 hex. `0016` es aditiva: conserva las filas anteriores y deja sus dos columnas nuevas en `NULL`, por lo que cada sesión comienza sin elevación.
+La columna física conserva el nombre histórico `sesiones.token` para permitir un rollback estructural, pero el schema la expone como `token_hash`. Desde `0011`, toda fila nueva contiene `sha256:<digest>` y el arranque elimina formatos crudos o inválidos después de validar secretos, antes del seed y antes de abrir el puerto. La migración fuerza un único re-login; no se admite un despliegue simultáneo de binarios anteriores y posteriores a este cambio. Un rollback rápido conserva el schema e invalida las sesiones creadas por la otra versión, pero el piso soportado es `06db746`, primer commit cuyo extractor rechaza todo lo que no sea raw de 64 hex.
 
 Cada migración nueva debe:
 

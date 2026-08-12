@@ -39,8 +39,6 @@ bootstrap.exec(`
     token TEXT PRIMARY KEY,
     usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     fecha_expiracion INTEGER NOT NULL,
-    admin_elevacion_hasta INTEGER,
-    admin_elevacion_clave_hash TEXT,
     fecha_creacion INTEGER NOT NULL DEFAULT 0
   );
 `);

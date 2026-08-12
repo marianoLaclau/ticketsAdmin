@@ -90,16 +90,6 @@ test("separa liveness de readiness durante el ciclo de vida", async () => {
   assert.equal(starting.headers.get("cache-control"), "no-store");
 
   readinessControl.markReady();
-  const beforeSessionElevationMigration = await fetch(`${baseUrl}/api/readyz`);
-  assert.equal(beforeSessionElevationMigration.status, 503);
-  assert.deepEqual(await beforeSessionElevationMigration.json(), {
-    status: "unavailable",
-  });
-
-  sqlite.exec(`
-    ALTER TABLE sesiones ADD admin_elevacion_hasta INTEGER;
-    ALTER TABLE sesiones ADD admin_elevacion_clave_hash TEXT;
-  `);
   const ready = await fetch(`${baseUrl}/api/readyz`);
   assert.equal(ready.status, 200);
   assert.deepEqual(await ready.json(), { status: "ready" });
