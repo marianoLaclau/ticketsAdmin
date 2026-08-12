@@ -152,3 +152,41 @@ test("mantiene filas, enlaces y antigüedad asociados a cada ticket", (t) => {
   assert.equal(screen.queryByText("Contacto Sin límite") === null, true);
   assert.equal(screen.getAllByRole("row").length, 4);
 });
+
+test("acota la lista y fija el encabezado en vez de estirar el dashboard", (t) => {
+  cleanup();
+  t.after(cleanup);
+
+  // La API devuelve hasta veinte vencidos; sin tope el panel estiraba la página.
+  const tickets = Array.from({ length: 20 }, (_, index) =>
+    createTicket({ id: 100 + index, nombre: `Contacto${index}` }),
+  );
+
+  const location = memoryLocation({ path: "/" });
+  const view = render(
+    <Router hook={location.hook}>
+      <DashboardOverdueTicketsPanel
+        tickets={tickets}
+        overdueCount={tickets.length}
+        isLoading={false}
+        referenceTimeMs={referenceTimeMs}
+      />
+    </Router>,
+  );
+
+  const tabla = screen.getByRole("table");
+  const contenedor = tabla.parentElement;
+  assert.ok(contenedor);
+
+  // El alto está acotado y el sobrante se desplaza dentro del panel.
+  assert.equal(contenedor.style.maxHeight, "570px");
+  assert.match(contenedor.className, /overflow-y-auto/);
+
+  // El encabezado acompaña el desplazamiento: no se pierden las columnas.
+  const encabezado = view.container.querySelector("thead");
+  assert.ok(encabezado);
+  assert.match(encabezado.className, /sticky/);
+
+  // El tope acota el alto, no los datos: los veinte siguen presentes.
+  assert.equal(screen.getAllByRole("row").length, tickets.length + 1);
+});

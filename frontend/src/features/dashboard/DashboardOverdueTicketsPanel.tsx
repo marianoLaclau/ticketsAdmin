@@ -12,6 +12,15 @@ interface DashboardOverdueTicketsPanelProps {
   referenceTimeMs: number;
 }
 
+// La API devuelve hasta veinte vencidos. Mostrarlos todos estiraba el dashboard
+// y dejaba la página con un scroll largo, así que el panel acota su alto y
+// desplaza el resto adentro, con el encabezado fijo para no perder las columnas.
+//
+// El valor sale de medir en el navegador: una fila mide entre 40px (solo
+// contacto) y 56px (con empresa debajo), más 29px del encabezado. 570px deja
+// alrededor de diez filas visibles en el caso típico.
+const ALTO_MAXIMO_LISTA = "570px";
+
 function getOverdueLabel(deadline: string, referenceTimeMs: number): string {
   const diffHours = Math.floor(
     (referenceTimeMs - new Date(deadline).getTime()) / (1000 * 60 * 60),
@@ -52,12 +61,15 @@ export function DashboardOverdueTicketsPanel({
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div
+          className="overflow-x-auto overflow-y-auto scroll-sutil"
+          style={{ maxHeight: ALTO_MAXIMO_LISTA }}
+        >
           <table className="w-full text-sm text-left">
             <caption className="sr-only">
               Tickets vencidos que requieren atención inmediata
             </caption>
-            <thead className="text-[11px] uppercase text-muted-foreground bg-slate-50/60">
+            <thead className="sticky top-0 z-10 text-[11px] uppercase text-muted-foreground bg-slate-50 shadow-[0_1px_0_0_theme(colors.slate.200)]">
               <tr>
                 <th scope="col" className="px-5 py-2 font-medium">
                   Contacto
