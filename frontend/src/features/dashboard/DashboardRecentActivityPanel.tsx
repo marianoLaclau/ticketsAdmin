@@ -10,14 +10,21 @@ interface DashboardRecentActivityPanelProps {
   title: string;
 }
 
+// La actividad puede traer hasta veinte entradas. Se acota para que no estire
+// la grilla del dashboard; el resto se desplaza dentro del panel.
+const ALTO_MAXIMO_ACTIVIDAD = "640px";
+
 export function DashboardRecentActivityPanel({
   activities,
   isLoading,
   title,
 }: DashboardRecentActivityPanelProps) {
   return (
-    <div className="lg:col-span-1">
-      <div className="bg-card border rounded-xl shadow-sm flex flex-col h-full">
+    // Sin `self-start` la columna se estiraba para igualar a la izquierda, que
+    // crece con la tabla de vencidos, y la tarjeta quedaba con un bloque de
+    // blanco adentro. Ahora toma su alto natural, acotado más abajo.
+    <div className="lg:col-span-1 lg:self-start">
+      <div className="bg-card border rounded-xl shadow-sm flex flex-col">
         <div className="px-5 py-4 border-b flex items-center justify-between">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             {title}
@@ -26,7 +33,10 @@ export function DashboardRecentActivityPanel({
             en vivo
           </span>
         </div>
-        <div className="p-5 flex-1 overflow-y-auto">
+        <div
+          className="scroll-sutil overflow-y-auto p-5"
+          style={{ maxHeight: ALTO_MAXIMO_ACTIVIDAD }}
+        >
           {isLoading ? (
             <div className="space-y-5">
               {[1, 2, 3, 4, 5].map((i) => (
