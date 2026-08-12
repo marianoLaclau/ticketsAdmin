@@ -309,9 +309,79 @@ La promoción comprueba nuevamente estado, prioridad y vencimiento antes de escr
 
 La cookie `gsb_session` contiene el bearer aleatorio raw; SQLite conserva solo su hash con separación de dominio, que no puede reutilizarse como cookie.
 
-**Cambios de schema**: en desarrollo local se editan los archivos de `lib/db/src/schema/` y se corre `pnpm --filter @workspace/db run push`. Ese script encadena `drizzle-kit push` con la reconciliación de invariantes que Drizzle no representa; debe ejecutarse sin otro escritor activo. Para que el cambio llegue al servidor hay que generar y commitear su migración SQL: el contenedor aplica la cadena versionada al arrancar. La secuencia actual llega a `0016_admin_session_elevation.sql`; agrega las dos columnas nullable anteriores, por lo que conserva las sesiones existentes. Antes de escuchar requests, el backend verifica también la proyección de cuarentena; puede completar una base local legacy sin ledger, pero rechaza una base versionada incompleta.
+**Cambios de schema**: en desarrollo local se editan los archivos de `lib/db/src/schema/` y se corre `pnpm --filter @workspace/db run push`. Ese script encadena `drizzle-kit push` con la reconciliación de invariantes que Drizzle no representa; debe ejecutarse sin otro escritor activo. Para que el cambio llegue al servidor hay que generar y commitear su migración SQL: el contenedor aplica la cadena versionada al arrancar. La secuencia actual llega a `0018_drop_admin_elevation.sql`. Antes de escuchar requests, el backend verifica también la proyección de cuarentena; puede completar una base local legacy sin ledger, pero rechaza una base versionada incompleta.
 
-## 4. El importador del histórico
+## 4. Categorías de motivo
+
+Cada llamada llega con un `motivo` en texto libre, redactado por el agente de
+voz. Ese texto **nunca se modifica**: se conserva exactamente como llegó. Lo que
+el sistema calcula es una columna derivada, `motivo_categoria`, que sirve para
+agrupar, filtrar y medir sin convertir cada redacción en una categoría nueva.
+
+El catálogo vive en un solo lugar,
+[`lib/ingesta/src/motivos.ts`](../lib/ingesta/src/motivos.ts), del que derivan el
+enum de la base, las etiquetas del frontend y los filtros. El contrato OpenAPI
+es la única copia —es YAML y no puede importar TypeScript— y hay un test que
+falla si se desincroniza.
+
+| Código                  | Etiqueta                       | Qué cae acá                                                                                              |
+| ----------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `haberes_pagos`         | Haberes y pagos                | Sueldos, aguinaldo, diferencias salariales, depósitos y acreditaciones que no llegaron                   |
+| `recibos_documentacion` | Recibos y documentación        | Recibos de sueldo, duplicados, certificados y constancias laborales                                      |
+| `vacaciones_licencias`  | Vacaciones y licencias         | Vacaciones, licencias y días de descanso                                                                 |
+| `bajas_liquidacion`     | Bajas y liquidación final      | Renuncia, despido, fin del período de prueba, indemnización, entrega de uniforme y negociación de salida |
+| `empleo_postulaciones`  | Empleo y postulaciones         | Quien **todavía no trabaja** acá: postulaciones, CV, vacantes y ofertas                                  |
+| `prestamos_anticipos`   | Préstamos y anticipos          | Préstamos de la empresa, sus cuotas y adelantos de sueldo                                                |
+| `obra_social`           | Obra social y aportes          | Aportes, altas y bajas de cobertura, cambios de domicilio, obras sociales con nombre propio              |
+| `sanciones_ausencias`   | Sanciones y ausencias          | Suspensiones, apercibimientos, inasistencias y justificación de faltas                                   |
+| `embargos`              | Embargos                       | Retenciones judiciales sobre el sueldo y su levantamiento                                                |
+| `legales`               | Legales                        | Carta documento, telegrama laboral, SECLO, abogados y juicios laborales                                  |
+| `reclamos`              | Reclamos                       | Quejas y disconformidades sin un tema más específico                                                     |
+| `contacto_general`      | Contacto y consultas generales | Llamadas perdidas, pedidos de hablar con una persona, consultas sin tema                                 |
+| `proveedores_comercial` | Proveedores y comercial        | Quien llama a **vender**: no es empleado. Cotizaciones de ART, medicina laboral, servicios               |
+| `sin_clasificar`        | Sin clasificar                 | Texto ambiguo, o llamada que llegó sin motivo ni resumen                                                 |
+
+### Cómo decide
+
+Reglas de expresiones regulares deterministas, sin modelo de lenguaje: el mismo
+texto siempre da la misma categoría. Primero se evalúa el `motivo`; solo si
+ninguna regla coincide se consulta el `resumen`, para que un detalle secundario
+no pise la intención explícita. Lo que no coincide con nada queda en
+`sin_clasificar` — no se fuerza una categoría.
+
+**El orden importa: gana la primera regla que coincide.** Está elegido a
+propósito:
+
+- `proveedores_comercial` va **primero** porque no describe un tema sino _quién
+  llama_. Si alguien se presenta como proveedor, mezclarlo con las consultas de
+  los empleados ensucia el tablero de RRHH.
+- `sanciones_ausencias` va **después** de `bajas_liquidacion`: una llamada que
+  mezcla faltas con una negociación de salida pertenece a la baja, que es la
+  decisión de fondo.
+- `prestamos_anticipos` y `obra_social` van **antes** que `haberes_pagos`,
+  porque "anticipo" y "aporte" son más específicos que un tema salarial general.
+
+Dos precisiones que costaron un caso real cada una:
+
+- **`empleo_postulaciones` exige intención de buscar trabajo.** El verbo tiene
+  que pegarse al sustantivo. Una regla más laxa clasificaba _"consulta por su
+  situación de trabajo"_ —alguien que ya trabaja acá y llama por sus faltas—
+  como si fuera una postulación.
+- **`sanciones_ausencias` solo toma "faltas" en plural o con calificativo**, para
+  no capturar "falta de pago" ni "le falta el recibo".
+
+### Agregar una categoría
+
+1. Sumar el código a `MOTIVO_CATEGORIA_CODIGOS` y su etiqueta en
+   `lib/ingesta/src/motivos.ts`, con sus reglas en la posición correcta.
+2. Agregar el mismo código al enum `MotivoCategoria` de
+   `lib/api-spec/openapi.yaml` y correr `pnpm run codegen`.
+3. Elegirle un color en `frontend/src/lib/motivos.ts`. Si falta, **no compila**.
+4. Escribir la migración de backfill para los tickets ya guardados, replicando
+   con `LIKE` la precedencia del clasificador. Conviene verificarla comparando
+   su resultado contra el del clasificador TypeScript sobre una copia real.
+
+## 5. El importador del histórico
 
 [scripts/src/import-excel.ts](../scripts/src/import-excel.ts) — para cargar de una vez las llamadas viejas del Excel/CSV de n8n:
 
@@ -329,7 +399,7 @@ pnpm --filter @workspace/scripts run import-excel -- "ruta\archivo.csv"         
 - Las celdas de fecha/hora de Excel conservan sus componentes de reloj sin el corrimiento UTC propio de JavaScript.
 - Preestablece `fecha_limite` a 48 horas hábiles desde `fecha_creacion` (el mismo SLA que el webhook), sin consumir plazo durante sábado ni domingo.
 
-## 5. Configuración y operación
+## 6. Configuración y operación
 
 Archivo `.env` en la raíz (plantilla: [.env.example](../.env.example)):
 
@@ -356,7 +426,7 @@ Para validar el workspace, `pnpm run quality` ejecuta lint, formato Prettier sin
 
 Esto es para **desarrollo local**. El servidor corre los mismos dos servicios en contenedores Docker y el workflow Deploy se dispara en cada push a `main`. Quality valida pull requests en un workflow separado — ver [docs/DEPLOY.md](DEPLOY.md) para el flujo real, el runbook y los backups.
 
-## 6. Seguridad — estado actual
+## 7. Seguridad — estado actual
 
 - **Login obligatorio en toda la aplicación funcional**: sin sesión iniciada no se ve ninguna pantalla privada (cualquier URL protegida vuelve a `/`, donde está el login) ni se puede consumir ningún endpoint funcional de la API — responden 401. Las excepciones son `GET /api/healthz` (liveness), `GET /api/readyz` (readiness), `POST /api/webhooks/ticket` (n8n, autenticado con su propia `x-api-key`), `POST /api/auth/login` y `POST /api/auth/logout`; logout queda público para limpiar de forma idempotente una cookie ausente, inválida o revocada.
 - **Mismo origen en navegador**: frontend y `/api` comparten origen mediante Vite/Nginx. Express no habilita CORS ni expone `X-Powered-By`; n8n no se ve afectado porque CORS es una política exclusiva del navegador y autentica su llamada servidor-a-servidor con `x-api-key`.

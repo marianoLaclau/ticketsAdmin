@@ -330,7 +330,7 @@ Es la entidad operativa principal:
 - `conversation_id` es único y funciona como clave de idempotencia de n8n.
 - `version` comienza en 1, no admite cero o negativos y avanza con cada modificación real de la fila. Es metadato interno de concurrencia: no se importa ni exporta como dato de negocio.
 - `motivo` y `resumen` conservan el texto recibido.
-- `motivo_categoria` es una columna derivada; actualmente incluye `embargos`, `legales` y categorías operativas generales.
+- `motivo_categoria` es una columna derivada de `motivo`/`resumen` mediante reglas deterministas. El catálogo de 14 códigos, el criterio de cada uno y el orden de precedencia están documentados en [docs/FLUJO.md](FLUJO.md#4-categorías-de-motivo). El texto original nunca se reescribe.
 - `estado_empleado` admite `Activo` o `Inactivo` cuando existe una empresa asociada y proviene del dato recibido desde Serin.
 - `estado` sigue el flujo `nuevo → en_proceso → pendiente → resuelto → cerrado`.
 - `prioridad` admite `baja`, `media`, `alta` y `urgente`; el runner puede promoverla, pero nunca degradarla automáticamente.

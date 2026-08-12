@@ -3231,3 +3231,104 @@ El volumen `ticketsadmin_tickets_data` se conserva. No hay restore automático, 
 ### Pendiente
 
 - Cambios sin commitear a la espera del OK del usuario tras la prueba local.
+
+## 2026-08-12 — Categorías de RRHH, retiro de la elevación y borrado de usuarios
+
+**Agente:** Claude
+
+### Clasificador de motivos
+
+Una llamada real quedó como "Empleo y postulaciones" siendo que la persona ya
+trabajaba en la empresa: llamaba por sus faltas y por negociar una salida. La
+regla permitía cuatro palabras entre el verbo y el sustantivo y aceptaba
+"consulta", así que _"consulta por su situación de trabajo"_ coincidía con una
+búsqueda de empleo.
+
+- `empleo_postulaciones` ahora exige que el verbo de búsqueda se pegue al
+  sustantivo; las consultas solo cuentan contra vacantes, puestos o empleo.
+- `bajas_liquidacion` suma despido como verbo, "lo van a echar" (con pronombre,
+  para no capturar "echar un vistazo"), indemnización, retiro voluntario y la
+  negociación de salida.
+- Cuatro categorías nuevas, elegidas mirando los 42 tickets sin clasificar de
+  producción: `prestamos_anticipos`, `obra_social`, `sanciones_ausencias` y
+  `proveedores_comercial`. Esta última no describe un tema sino quién llama —
+  alguien que viene a vender, no un empleado— y por eso se evalúa primero.
+- Ajustes menores del mismo análisis: "hablar con" cae en `contacto_general`
+  (rescató cuatro pedidos de atención humana) y el ASR transcribe "liquidación
+  final" como "licenciación".
+
+Resultado medido sobre los 135 tickets reales: `sin_clasificar` bajó de 42 a 26,
+y de los 26 restantes 16 llegaron **sin motivo ni resumen**, así que el hueco
+real quedó en 10. La migración `0017` replica la precedencia del clasificador y
+produce un resultado idéntico al de TypeScript sobre los 135 tickets.
+
+Dos errores propios que encontró la comparación contra datos reales, no la
+lectura del código: `sociales?` en regex significa "sociale" + s opcional y
+nunca reconocía "obra social"; lo mismo con `(oferta)(es)?`.
+
+### Elevación administrativa retirada
+
+La segunda verificación con `ADMIN_API_KEY` exigía reingresar una llave que
+vencía a los 15 minutos en medio de una tarea. Para un sistema interno donde el
+panel ya está restringido por rol, agregaba fricción sin agregar defensa: el
+backend valida SysAdmin en cada request de forma independiente del frontend.
+
+Se eliminaron los tres endpoints, la librería, su rate limit, el header
+`x-admin-intent` y todo su cableado en el frontend —request administrativo,
+estado de acceso y contadores de versión— que atravesaba 25 archivos. La
+migración `0018` borra las dos columnas de `sesiones`. `ADMIN_API_KEY` dejó de
+existir en el código, el compose, el workflow y `.env.example`.
+
+`useAdminOperationGuard` se conservó, pero reducido a la comprobación de
+montaje, que es independiente de la elevación y sigue evitando aplicar
+respuestas sobre componentes desmontados.
+
+**Bug que habría roto el deploy:** `probeSqliteReadiness` seguía consultando las
+dos columnas que `0018` elimina. En producción eso dejaba `/api/readyz` en `503`
+para siempre, el contenedor nunca quedaba healthy y el deploy fallaba entero. No
+lo detectaron las pruebas porque sus fixtures creaban esas columnas a mano, o
+sea verificaban un esquema que ya no existe. Se corrigieron los fixtures y se
+validó el chequeo real contra una copia de producción migrada.
+
+### Borrado de usuarios
+
+Hasta ahora solo existía la desactivación. Se agregó el borrado físico con doble
+aprobación: `confirmar: true` y repetir el nombre de usuario exacto. Lo segundo
+es lo que importa — un id equivocado no puede eliminar a otra persona ni
+llamando la API directo. No se puede borrar la cuenta propia ni el último
+SysAdmin utilizable; se borran sus sesiones y se corta su SSE. El historial
+sobrevive porque las referencias son `ON DELETE SET NULL` y el nombre queda como
+snapshot textual.
+
+### Catálogo unificado
+
+El catálogo de categorías estaba duplicado en cinco lugares y dos de ellos se
+descubrían recién cuando fallaba un test. Ahora la fuente es
+`MOTIVO_CATEGORIA_CODIGOS` en `@workspace/ingesta`; la base, el frontend y los
+filtros lo importan, y el frontend solo agrega el color. OpenAPI es la excepción
+inevitable —es YAML— y un test compara su enum contra el catálogo; se verificó
+que falla de verdad quitándole una categoría al contrato.
+
+### Validaciones ejecutadas
+
+- 615 pruebas en verde; typecheck, lint, formato, schema y codegen limpios.
+- Cadena completa de migraciones sobre una copia de la base de producción: 51
+  campos de negocio comparados fila por fila en tickets, seguimientos, usuarios
+  y roles — **idénticos**. `integrity_check` ok y sin violaciones de FK. Los
+  únicos cambios son intencionales: 22 tickets recategorizados en la columna
+  derivada y las sesiones vaciadas.
+- Imágenes Docker construidas y levantadas antes del push anterior, con
+  `readyz`, `nginx -t`, la SPA y el proxy verificados.
+
+### Incidente propio
+
+Al limpiar un worktree temporal, el borrado siguió los symlinks de pnpm
+(`node_modules/@workspace/*` → `lib/*`) y eliminó archivos de tres paquetes.
+Estaba todo commiteado: se restauró con `git checkout` y se reinstalaron las
+dependencias, sin pérdida. No hay que crear symlinks dentro de un worktree que
+después se borra recursivamente.
+
+### Pendiente
+
+- Cinco commits sin pushear a la espera del OK. El deploy corre las migraciones
+  `0017` y `0018` sobre producción y obliga a volver a iniciar sesión.
