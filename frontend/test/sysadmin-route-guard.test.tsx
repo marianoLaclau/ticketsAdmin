@@ -3,12 +3,17 @@ import test from "node:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode, type ReactNode } from "react";
-import { Router } from "wouter";
+import { Route, Router } from "wouter";
 import { memoryLocation } from "wouter/memory-location";
-import { getGetMeQueryKey, type AuthUser } from "@workspace/api-client-react";
+import {
+  getGetMeQueryKey,
+  type AuthUser,
+  type TicketDetail as TicketDetailData,
+} from "@workspace/api-client-react";
 import { AuthGate } from "../src/features/auth/AuthGate.tsx";
 import { SysAdminRouteGuard } from "../src/features/auth/SysAdminRouteGuard.tsx";
 import { Sidebar } from "../src/components/layout/Sidebar.tsx";
+import TicketDetailPage from "../src/pages/TicketDetail.tsx";
 
 const SYSADMIN: AuthUser = {
   id: 42,
@@ -23,6 +28,34 @@ const OPERATOR: AuthUser = {
   id: 77,
   email: "operador@example.test",
   rol: "Operador",
+};
+const TICKET: TicketDetailData = {
+  id: 226,
+  version: 1,
+  conversation_id: "conversation-226",
+  hora: "10:25",
+  nombre: "Ana",
+  apellido: "Pérez",
+  telefono: "1160000226",
+  dni: "30111222",
+  empresa: "GSB",
+  estado_empleado: "Activo",
+  email: "ana@example.test",
+  motivo: "Consulta por liquidación",
+  motivo_categoria: "bajas_liquidacion",
+  resumen: "Solicita revisar su liquidación final.",
+  notificado: true,
+  estado: "en_proceso",
+  prioridad: "media",
+  asignado_usuario_id: SYSADMIN.id,
+  asignado_a: "Ada Lovelace",
+  audio_url: null,
+  notas: null,
+  fecha_creacion: "2026-08-12T13:25:00.000Z",
+  fecha_limite: "2026-08-14T13:25:00.000Z",
+  fecha_resolucion: null,
+  progreso: 50,
+  seguimientos: [],
 };
 
 function createQueryClient(): QueryClient {
@@ -88,6 +121,13 @@ function statsResponse(): Response {
   );
 }
 
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
 async function flushAsyncWork(): Promise<void> {
   await act(async () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -129,6 +169,104 @@ test("AuthGate, Sidebar y guard reutilizan /me sin ciclar al remontar", async (t
     "Administración",
   );
   assert.equal(sessionFetches, 0);
+});
+
+test("abrir un ticket reutiliza la sesión confirmada sin refetchear /me", async (t) => {
+  const queryClient = createQueryClient();
+  queryClient.setQueryData(getGetMeQueryKey(), SYSADMIN, { updatedAt: 1 });
+  const previousAddEventListener = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "addEventListener",
+  );
+  const previousRemoveEventListener = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "removeEventListener",
+  );
+  Object.defineProperties(globalThis, {
+    addEventListener: {
+      configurable: true,
+      value: window.addEventListener.bind(window),
+    },
+    removeEventListener: {
+      configurable: true,
+      value: window.removeEventListener.bind(window),
+    },
+  });
+  let sessionFetches = 0;
+  let ticketFetches = 0;
+  let seguimientoFetches = 0;
+  const unexpectedSessionRequest = new Promise<Response>(() => undefined);
+
+  t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (url.includes("/api/auth/me")) {
+      sessionFetches += 1;
+      return unexpectedSessionRequest;
+    }
+    if (url.includes("/api/tickets/226/seguimientos")) {
+      seguimientoFetches += 1;
+      return jsonResponse([]);
+    }
+    if (url.includes("/api/tickets/226")) {
+      ticketFetches += 1;
+      return jsonResponse(TICKET);
+    }
+    throw new Error(`Request inesperado: ${url}`);
+  });
+  t.after(() => {
+    cleanup();
+    queryClient.clear();
+    if (previousAddEventListener) {
+      Object.defineProperty(
+        globalThis,
+        "addEventListener",
+        previousAddEventListener,
+      );
+    } else {
+      Reflect.deleteProperty(globalThis, "addEventListener");
+    }
+    if (previousRemoveEventListener) {
+      Object.defineProperty(
+        globalThis,
+        "removeEventListener",
+        previousRemoveEventListener,
+      );
+    } else {
+      Reflect.deleteProperty(globalThis, "removeEventListener");
+    }
+  });
+
+  const location = memoryLocation({ path: "/tickets/226" });
+  render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <AuthGate
+            acceptedUserId={SYSADMIN.id}
+            onAcceptUserId={() => undefined}
+            onConfirmedSessionLoss={() => undefined}
+            passwordChangeContent={<p>Cambiar contraseña</p>}
+          >
+            <Route path="/tickets/:id">
+              <TicketDetailPage />
+            </Route>
+          </AuthGate>
+        </Router>
+      </QueryClientProvider>
+    </StrictMode>,
+  );
+
+  await waitFor(() => {
+    assert.equal(
+      screen.getByRole("heading", { name: TICKET.motivo }).textContent,
+      TICKET.motivo,
+    );
+  });
+  await flushAsyncWork();
+
+  assert.equal(sessionFetches, 0);
+  assert.ok(ticketFetches >= 1);
+  assert.ok(seguimientoFetches >= 1);
 });
 
 test("un Operador ve 403 y nunca obtiene el acceso administrativo", async (t) => {

@@ -1,10 +1,6 @@
 import { useLocation, useParams } from "wouter";
 import { useHistoryState } from "wouter/use-browser-location";
-import {
-  useGetMe,
-  useGetTicket,
-  useListSeguimientos,
-} from "@workspace/api-client-react";
+import { useGetTicket, useListSeguimientos } from "@workspace/api-client-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoadingStatus } from "@/components/ui/loading-status";
@@ -24,6 +20,7 @@ import { TicketProgressCard } from "@/features/ticket-detail/TicketProgressCard"
 import { TicketTimingCard } from "@/features/ticket-detail/TicketTimingCard";
 import { useTicketDetailEditing } from "@/features/ticket-detail/useTicketDetailEditing";
 import { useTicketSeguimiento } from "@/features/ticket-detail/useTicketSeguimiento";
+import { useProtectedSessionUser } from "@/features/auth/useProtectedSessionUser";
 import {
   getAdminTicketListReturnTo,
   getTicketListReturnTo,
@@ -41,7 +38,7 @@ interface TicketDetailContentProps {
 
 export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
   const historyState = useHistoryState<unknown>();
-  const { data: me } = useGetMe();
+  const me = useProtectedSessionUser();
   const canCloseTickets = puedeCerrarTickets(me?.rol);
 
   if (!adminMode) {
