@@ -18,6 +18,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RendimientoFiltersPanel } from "@/features/rendimiento/RendimientoFiltersPanel";
 import { RendimientoQualityView } from "@/features/rendimiento/RendimientoQualityView";
+import { ResumenEquipoView } from "@/features/rendimiento/ResumenEquipoView";
 import { useRendimientoFiltersUrl } from "@/features/rendimiento/useRendimientoFiltersUrl";
 import {
   createDefaultRendimientoUrlState,
@@ -215,7 +216,9 @@ export default function Rendimiento() {
 
         {VIEWS.map((view) => (
           <TabsContent key={view.value} value={view.value} className="mt-0">
-            {view.value === "calidad" ? (
+            {view.value === "equipo" ? (
+              <ResumenEquipoView filters={urlState} />
+            ) : view.value === "calidad" ? (
               <RendimientoQualityView
                 filters={urlState}
                 onClearFilters={resetFilters}
