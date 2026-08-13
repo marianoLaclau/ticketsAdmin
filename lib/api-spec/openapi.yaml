@@ -1407,6 +1407,9 @@ paths:
         de grupo opaca, un valor enmascarado y los ids de tickets necesarios para
         revisar el caso. Los grupos se ordenan por riesgo: primero vencidos,
         luego prioridad máxima, antigüedad del abierto, último contacto y clave.
+        Ese orden se aplica sobre el conjunto completo antes de paginar. El
+        resumen conserva los totales globales de la cohorte y `contactos` contiene
+        únicamente los grupos de la página solicitada.
       security:
         - sessionCookie: []
       parameters:
@@ -1415,6 +1418,21 @@ paths:
         - $ref: "#/components/parameters/RendimientoEmpresa"
         - $ref: "#/components/parameters/RendimientoMotivoCategoria"
         - $ref: "#/components/parameters/RendimientoPrioridad"
+        - name: pagina
+          in: query
+          description: Página de grupos luego de aplicar el orden global por riesgo.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limite
+          in: query
+          description: Cantidad máxima de grupos por página.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
       responses:
         "200":
           description: Contactos reiterados de la cohorte filtrada
@@ -2088,6 +2106,7 @@ components:
         contactos_reiterados:
           type: integer
           minimum: 0
+          description: Total global de grupos reiterados en la cohorte, no solo en la página actual.
         tickets_involucrados:
           type: integer
           minimum: 0
@@ -2239,6 +2258,9 @@ components:
         - tickets_evaluados
         - cobertura
         - resumen
+        - pagina
+        - limite
+        - total_paginas
         - contactos
       properties:
         periodo:
@@ -2250,11 +2272,25 @@ components:
           $ref: "#/components/schemas/RendimientoReiteracionesCobertura"
         resumen:
           $ref: "#/components/schemas/RendimientoReiteracionesResumen"
+        pagina:
+          type: integer
+          minimum: 1
+          description: Página solicitada; puede superar `total_paginas` y devolver `contactos` vacío.
+        limite:
+          type: integer
+          minimum: 1
+          maximum: 50
+          description: Tamaño de página aplicado.
+        total_paginas:
+          type: integer
+          minimum: 0
+          description: Techo de `resumen.contactos_reiterados / limite`; vale cero cuando no hay grupos.
         contactos:
           type: array
           description: >
-            Grupos con dos o más tickets y al menos uno abierto, ordenados por
-            riesgo operativo y nunca como una identificación civil definitiva.
+            Grupos de la página solicitada con dos o más tickets y al menos uno
+            abierto. Conservan el orden global por riesgo operativo y nunca
+            representan una identificación civil definitiva.
           items:
             $ref: "#/components/schemas/RendimientoReiteracionContacto"
 

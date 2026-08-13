@@ -415,7 +415,10 @@ export interface RendimientoReiteracionesCobertura {
 }
 
 export interface RendimientoReiteracionesResumen {
-  /** @minimum 0 */
+  /**
+     * Total global de grupos reiterados en la cohorte, no solo en la página actual.
+     * @minimum 0
+     */
   contactos_reiterados: number;
   /** @minimum 0 */
   tickets_involucrados: number;
@@ -569,7 +572,23 @@ export interface RendimientoReiteraciones {
   tickets_evaluados: number;
   cobertura: RendimientoReiteracionesCobertura;
   resumen: RendimientoReiteracionesResumen;
-  /** Grupos con dos o más tickets y al menos uno abierto, ordenados por riesgo operativo y nunca como una identificación civil definitiva. */
+  /**
+     * Página solicitada; puede superar `total_paginas` y devolver `contactos` vacío.
+     * @minimum 1
+     */
+  pagina: number;
+  /**
+     * Tamaño de página aplicado.
+     * @minimum 1
+     * @maximum 50
+     */
+  limite: number;
+  /**
+     * Techo de `resumen.contactos_reiterados / limite`; vale cero cuando no hay grupos.
+     * @minimum 0
+     */
+  total_paginas: number;
+  /** Grupos de la página solicitada con dos o más tickets y al menos uno abierto. Conservan el orden global por riesgo operativo y nunca representan una identificación civil definitiva. */
   contactos: RendimientoReiteracionContacto[];
 }
 
@@ -1657,6 +1676,17 @@ motivo_categoria?: RendimientoMotivoCategoriaParameter;
  * Prioridad actual de los tickets incluidos en la cohorte.
  */
 prioridad?: RendimientoPrioridadParameter;
+/**
+ * Página de grupos luego de aplicar el orden global por riesgo.
+ * @minimum 1
+ */
+pagina?: number;
+/**
+ * Cantidad máxima de grupos por página.
+ * @minimum 1
+ * @maximum 50
+ */
+limite?: number;
 };
 
 export type GetRendimientoReiteraciones403Code = typeof GetRendimientoReiteraciones403Code[keyof typeof GetRendimientoReiteraciones403Code];

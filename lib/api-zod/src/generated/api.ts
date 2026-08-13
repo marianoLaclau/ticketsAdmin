@@ -1372,14 +1372,26 @@ export const GetRendimientoPersonasResponse = zod.object({
  * de grupo opaca, un valor enmascarado y los ids de tickets necesarios para
  * revisar el caso. Los grupos se ordenan por riesgo: primero vencidos,
  * luego prioridad máxima, antigüedad del abierto, último contacto y clave.
+ * Ese orden se aplica sobre el conjunto completo antes de paginar. El
+ * resumen conserva los totales globales de la cohorte y `contactos` contiene
+ * únicamente los grupos de la página solicitada.
  * @summary Detectar contactos reiterados con tickets todavía abiertos
  */
+export const getRendimientoReiteracionesQueryPaginaDefault = 1;
+
+export const getRendimientoReiteracionesQueryLimiteDefault = 20;
+export const getRendimientoReiteracionesQueryLimiteMax = 50;
+
+
+
 export const GetRendimientoReiteracionesQueryParams = zod.object({
   "fecha_desde": zod.coerce.date().optional().describe('Primer día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
   "fecha_hasta": zod.coerce.date().optional().describe('Último día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
   "empresa": zod.coerce.string().optional().describe('Texto contenido en la empresa de los tickets incluidos en la cohorte.'),
   "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'prestamos_anticipos', 'obra_social', 'sanciones_ausencias', 'proveedores_comercial', 'sin_clasificar']).optional().describe('Categoría normalizada de los tickets incluidos en la cohorte.'),
-  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional().describe('Prioridad actual de los tickets incluidos en la cohorte.')
+  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional().describe('Prioridad actual de los tickets incluidos en la cohorte.'),
+  "pagina": zod.coerce.number().min(1).default(getRendimientoReiteracionesQueryPaginaDefault).describe('Página de grupos luego de aplicar el orden global por riesgo.'),
+  "limite": zod.coerce.number().min(1).max(getRendimientoReiteracionesQueryLimiteMax).default(getRendimientoReiteracionesQueryLimiteDefault).describe('Cantidad máxima de grupos por página.')
 })
 
 export const getRendimientoReiteracionesResponseTicketsEvaluadosMin = 0;
@@ -1400,6 +1412,11 @@ export const getRendimientoReiteracionesResponseResumenTicketsInvolucradosMin = 
 export const getRendimientoReiteracionesResponseResumenAbiertosMin = 0;
 
 export const getRendimientoReiteracionesResponseResumenVencidosAbiertosMin = 0;
+
+
+export const getRendimientoReiteracionesResponseLimiteMax = 50;
+
+export const getRendimientoReiteracionesResponseTotalPaginasMin = 0;
 
 
 
@@ -1438,11 +1455,14 @@ export const GetRendimientoReiteracionesResponse = zod.object({
   "criterio": zod.enum(['clave_canonica_no_transitiva'])
 }).describe('Cobertura de identidad de la cohorte. ambiguos_detectados cuenta tickets cuya identidad secundaria utilizable apunta directamente a más de un DNI; esos casos no se fusionan de forma transitiva.\n'),
   "resumen": zod.object({
-  "contactos_reiterados": zod.number().min(getRendimientoReiteracionesResponseResumenContactosReiteradosMin),
+  "contactos_reiterados": zod.number().min(getRendimientoReiteracionesResponseResumenContactosReiteradosMin).describe('Total global de grupos reiterados en la cohorte, no solo en la página actual.'),
   "tickets_involucrados": zod.number().min(getRendimientoReiteracionesResponseResumenTicketsInvolucradosMin),
   "abiertos": zod.number().min(getRendimientoReiteracionesResponseResumenAbiertosMin),
   "vencidos_abiertos": zod.number().min(getRendimientoReiteracionesResponseResumenVencidosAbiertosMin)
 }),
+  "pagina": zod.number().min(1).describe('Página solicitada; puede superar `total_paginas` y devolver `contactos` vacío.'),
+  "limite": zod.number().min(1).max(getRendimientoReiteracionesResponseLimiteMax).describe('Tamaño de página aplicado.'),
+  "total_paginas": zod.number().min(getRendimientoReiteracionesResponseTotalPaginasMin).describe('Techo de `resumen.contactos_reiterados \/ limite`; vale cero cuando no hay grupos.'),
   "contactos": zod.array(zod.object({
   "grupo_id": zod.string().min(1).describe('Identificador opaco y no reversible, estable solo dentro de la respuesta.'),
   "nombre_referencia": zod.string().min(1).describe('Nombre del contacto más reciente o `Sin nombre proporcionado`.'),
@@ -1473,7 +1493,7 @@ export const GetRendimientoReiteracionesResponse = zod.object({
   "asignado_usuario_id": zod.number().min(1).nullable(),
   "asignado_a": zod.string().nullable()
 })).min(getRendimientoReiteracionesResponseContactosItemTicketsMin).describe('Tickets del grupo ordenados desde el contacto más reciente.')
-})).describe('Grupos con dos o más tickets y al menos uno abierto, ordenados por riesgo operativo y nunca como una identificación civil definitiva.\n')
+})).describe('Grupos de la página solicitada con dos o más tickets y al menos uno abierto. Conservan el orden global por riesgo operativo y nunca representan una identificación civil definitiva.\n')
 })
 
 

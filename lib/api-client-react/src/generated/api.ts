@@ -2849,6 +2849,9 @@ export const getGetRendimientoReiteracionesUrl = (params?: GetRendimientoReitera
  * de grupo opaca, un valor enmascarado y los ids de tickets necesarios para
  * revisar el caso. Los grupos se ordenan por riesgo: primero vencidos,
  * luego prioridad máxima, antigüedad del abierto, último contacto y clave.
+ * Ese orden se aplica sobre el conjunto completo antes de paginar. El
+ * resumen conserva los totales globales de la cohorte y `contactos` contiene
+ * únicamente los grupos de la página solicitada.
  * @summary Detectar contactos reiterados con tickets todavía abiertos
  */
 export const getRendimientoReiteraciones = async (params?: GetRendimientoReiteracionesParams, options?: RequestInit): Promise<RendimientoReiteraciones> => {
