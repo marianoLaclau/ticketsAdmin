@@ -11,6 +11,7 @@ La arquitectura elegida es un **monolito modular fullstack**:
 - **Persistencia:** SQLite en modo WAL. El acceso operativo usa Drizzle ORM; el backup verificado usa directamente el driver `better-sqlite3`.
 - **Paquetes compartidos:** contrato OpenAPI, clientes generados, validadores Zod y lógica de ingesta/SLA.
 - **Actualización en vivo:** Server-Sent Events (SSE), sin un broker externo.
+- **Asistente RAG:** widget `@n8n/chat` diferido en Rendimiento y proxy autenticado desde el backend hacia n8n.
 - **Despliegue:** Docker Compose ejecutado por GitHub Actions sobre un runner self-hosted.
 
 No es una arquitectura de microservicios. El sistema se despliega como una unidad operativa —frontend, backend y una base SQLite persistente— porque el volumen, el contexto y la operación actual no justifican la complejidad de separar servicios o administrar un servidor de base de datos independiente.
@@ -18,13 +19,14 @@ No es una arquitectura de microservicios. El sistema se despliega como una unida
 ```mermaid
 flowchart LR
     caller[Persona que llama] --> voice[Agente de voz]
-    voice --> n8n[n8n: normaliza el JSON]
-    n8n -->|POST /api/webhooks/ticket + x-api-key| api[Backend Express]
+    voice --> n8nIngest[n8n: normaliza el JSON]
+    n8nIngest -->|POST /api/webhooks/ticket + x-api-key| api[Backend Express]
     browser[Navegador] --> ui[Frontend React/Vite]
-    ui -->|HTTP + cookie de sesión| api
+    ui -->|HTTP same-origin + cookie de sesión| api
     api --> db[(SQLite<br/>data/tickets.db)]
     api -->|SSE| ui
     api --> serin[Datos de Serin<br/>recibidos en el webhook]
+    api -->|POST del chat + Basic Auth server-side| rag[n8n: Chat Trigger<br/>bot RAG]
 ```
 
 ## 2. Estilo arquitectónico
@@ -57,6 +59,7 @@ flowchart TB
     backendShared[backend/src/shared<br/>infraestructura transversal]
     workspace[Paquetes compartidos<br/>api-zod, ingesta, password-policy y db]
     sqlite[(SQLite)]
+    rag[n8n Chat Trigger<br/>bot RAG]
 
     http --> composition
     composition --> auth
@@ -73,6 +76,7 @@ flowchart TB
     tickets --> backendShared
     admin --> backendShared
     ingestion --> backendShared
+    performance -->|proxy autenticado| rag
     auth --> workspace
     tickets --> workspace
     dashboard --> workspace
@@ -83,19 +87,19 @@ flowchart TB
     workspace --> sqlite
 ```
 
-| Módulo                   | Responsabilidad actual                                                                                      |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `modules/auth`           | Sesión, login, cambio de contraseña, seed, seguridad de credenciales y capacidades RBAC                     |
-| `modules/tickets`        | Consulta, detalle, edición, seguimiento, auditoría, prioridad automática, orden y exportación               |
-| `modules/dashboard`      | Períodos operativos, agregaciones SQL y endpoints del resumen operativo                                     |
-| `modules/administracion` | Usuarios, roles, operaciones masivas y CRUD administrativo protegido                                        |
-| `modules/ingestion`      | Webhook e ingreso idempotente de datos desde n8n/Serin                                                      |
-| `modules/rendimiento`    | Cohortes y agregaciones ejecutivas auditables: equipo, operadores, contactos recurrentes y calidad de datos |
-| `backend/src/shared`     | Configuración, logging, SSE, readiness, ciclo de vida del proceso y validaciones técnicas reutilizables     |
+| Módulo                   | Responsabilidad actual                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `modules/auth`           | Sesión, login, cambio de contraseña, seed, seguridad de credenciales y capacidades RBAC                 |
+| `modules/tickets`        | Consulta, detalle, edición, seguimiento, auditoría, prioridad automática, orden y exportación           |
+| `modules/dashboard`      | Períodos operativos, agregaciones SQL y endpoints del resumen operativo                                 |
+| `modules/administracion` | Usuarios, roles, operaciones masivas y CRUD administrativo protegido                                    |
+| `modules/ingestion`      | Webhook e ingreso idempotente de datos desde n8n/Serin                                                  |
+| `modules/rendimiento`    | Cohortes y agregaciones ejecutivas auditables, más el proxy protegido del asistente RAG hacia n8n       |
+| `backend/src/shared`     | Configuración, logging, SSE, readiness, ciclo de vida del proceso y validaciones técnicas reutilizables |
 
 #### Transporte y seguridad
 
-`backend/src/index.ts` carga el entorno y valida los secretos entre servicios antes del seed y antes de abrir el puerto; una configuración incompleta no puede reportarse saludable. `backend/src/app.ts` desactiva la firma `X-Powered-By` y configura logging HTTP, cookies y parseo del body. No se emiten headers CORS: React consume `/api` desde el mismo origen mediante Vite/Nginx y n8n llama al webhook como servidor-a-servidor. En producción, Nginx oculta su versión y la firma defensiva de Express, impide MIME sniffing y framing, limita el referrer cross-origin y deshabilita capacidades del navegador que la aplicación no usa. Estas cabeceras se declaran en `server`, con `always`, para cubrir SPA, API, SSE y respuestas de error. `backend/src/routes/index.ts` monta las rutas bajo `/api` en este orden:
+`backend/src/index.ts` carga el entorno y valida los secretos obligatorios de arranque antes del seed y antes de abrir el puerto; una configuración requerida incompleta no puede reportarse saludable. `backend/src/app.ts` desactiva la firma `X-Powered-By` y configura logging HTTP, cookies y parseo del body. No se emiten headers CORS: React consume `/api` desde el mismo origen mediante Vite/Nginx, incluso para el chat, mientras que la ingesta desde n8n y la salida del proxy hacia el Chat Trigger son llamadas servidor-a-servidor. n8n nunca recibe la solicitud directamente desde el navegador, por lo que CORS no forma parte de esta integración. En producción, Nginx oculta su versión y la firma defensiva de Express, impide MIME sniffing y framing, limita el referrer cross-origin y deshabilita capacidades del navegador que la aplicación no usa. Estas cabeceras se declaran en `server`, con `always`, para cubrir SPA, API, SSE y respuestas de error. `backend/src/routes/index.ts` monta las rutas bajo `/api` en este orden:
 
 El mismo composition root controla readiness y salida. El proceso comienza en `starting`, pasa a `ready` únicamente desde el evento HTTP `listening` y entra en `draining` como primera acción síncrona ante `SIGTERM`, `SIGINT` o un error del servidor. Esa transición es irreversible: una carrera entre la señal y `listening` no puede volver a publicar una instancia que ya se está apagando. Luego cancela futuras pasadas de prioridad, inicia `server.close()`, pone el registro SSE en drenaje —también rechaza altas tardías— y espera HTTP junto con el trabajo periódico ya iniciado. El controlador es idempotente frente a señales repetidas. Como un cliente abortado puede liberar su socket antes de que termine el handler async, SQLite se cierra sincrónicamente en `beforeExit`, no en el callback HTTP. El watchdog de 20 segundos queda referenciado durante el drenaje y luego pasa a `unref`: no impide la salida natural, pero fuerza sockets y código de error si otro trabajo mantiene vivo el proceso. Una vez concluidos migrador y bootstrap, Docker entrega la señal directamente a Node mediante `exec` y concede 30 segundos antes de `SIGKILL`; esa garantía todavía no cubre las fases iniciales, cuya separación queda como hardening posterior.
 
@@ -116,7 +120,7 @@ stateDiagram-v2
 4. `requireSession`: candado global para el resto de la API.
 5. Tickets, dashboard, rendimiento, administración y SSE.
 
-La API valida entrada con schemas generados desde OpenAPI/Zod. Administración exige rol SysAdmin; Rendimiento exige la capacidad reservada a SysAdmin y Controller; y Controller accede a Tickets en modo de solo lectura. Estos controles se verifican en el backend en cada request, de forma independiente del frontend.
+La API valida entrada con schemas generados desde OpenAPI/Zod. Administración exige rol SysAdmin; el prefijo completo de Rendimiento, incluido `POST /api/rendimiento/asistente/chat`, exige la capacidad reservada a SysAdmin y Controller; y Controller accede a Tickets en modo de solo lectura. Estos controles se verifican en el backend en cada request, de forma independiente del frontend.
 
 #### Reglas de negocio
 
@@ -210,6 +214,33 @@ La administración de tickets se modulariza en `frontend/src/features/admin-tick
 El detalle operativo se descompone en `frontend/src/features/ticket-detail`. Las tarjetas sin estado reciben por props fragmentos tipados del contrato `Ticket`; el historial es controlado y deja query, mutación y reset exitoso en la página. Consultas, editores y control optimista permanecen allí hasta que puedan trasladarse como unidades cohesionadas, sin repartir drafts ni mutaciones entre componentes.
 
 El estado remoto se invalida después de mutaciones y también por eventos SSE. Los errores de sesión (`401`) vuelven a la entrada; los errores de servidor muestran una pantalla recuperable.
+
+### Asistente RAG de Rendimiento
+
+El asistente se monta únicamente en `/rendimiento`, de modo que comparte la frontera visual y RBAC de SysAdmin y Controller. La aplicación aporta el botón y el panel accesibles; `@n8n/chat` y sus estilos se importan de forma diferida recién al abrirlo por primera vez y se desmontan al abandonar la pantalla. El navegador envía cada mensaje con la cookie `gsb_session` al endpoint same-origin `POST /api/rendimiento/asistente/chat`: no conoce la URL upstream ni las credenciales de n8n.
+
+Al abrir el chat se recupera un UUID v4 válido desde `sessionStorage["gsb_rag_chat_session_id"]` o se genera uno con `crypto.randomUUID()` —con un fallback criptográfico equivalente—. El mismo valor se reutiliza en todos los mensajes y al volver a Rendimiento dentro de esa pestaña; nunca se guarda en `localStorage`. **Nueva conversación** lo reemplaza por otro UUID v4 y remonta el widget. Un logout, un login exitoso o una transición/revocación de identidad purgan la sesión del chat, incluida la clave histórica que la librería intenta crear, y `loadPreviousSession: false` evita restaurarla.
+
+```mermaid
+sequenceDiagram
+    participant U as SysAdmin / Controller
+    participant UI as Widget @n8n/chat
+    participant API as Backend Rendimiento
+    participant RAG as n8n Chat Trigger
+
+    U->>UI: abre el asistente
+    UI->>UI: recupera o crea UUID v4 por pestaña
+    UI->>API: POST same-origin + cookie de sesión
+    API->>API: valida sesión, rol y body exacto
+    API->>RAG: POST HTTPS + Basic Auth server-side
+    RAG-->>API: respuesta del workflow
+    API->>API: limita y normaliza a output
+    API-->>UI: JSON privado y no-store
+```
+
+El proxy acepta únicamente el body `{ sessionId, action: "sendMessage", chatInput }`: rechaza propiedades adicionales, exige UUID v4 y limita `chatInput` no vacío a 8 KiB UTF-8. Valida que el destino sea HTTPS en producción, sin credenciales embebidas ni fragmentos, construye Basic Auth solo en memoria, no reutiliza `WEBHOOK_API_KEY` y no sigue redirects. El deadline se configura entre 1 y 120 segundos —120 segundos por defecto— y también se aborta el upstream si el cliente se desconecta.
+
+La respuesta de n8n queda limitada a 1 MiB y se decodifica como UTF-8; el backend normaliza las formas JSON/texto soportadas a `{ output }` y rechaza respuestas vacías, malformadas o con HTML estructural. Los detalles y cuerpos de errores upstream no se reflejan al cliente. Ni el UUID, ni los mensajes, ni las respuestas se persisten en SQLite o en otro almacenamiento del backend, y el proxy no agrega PII al payload.
 
 ### Lecturas ejecutivas de Rendimiento
 
@@ -505,13 +536,16 @@ La protección se aplica en dos lugares:
 1. El frontend oculta y bloquea pantallas según la sesión para mejorar la experiencia.
 2. El backend vuelve a validar sesión y rol en cada operación sensible. La UI nunca es la única barrera.
 
-Credenciales:
+Configuración y credenciales:
 
 - `WEBHOOK_API_KEY`: autentica a n8n.
 - Cookie `gsb_session`: autentica usuarios del panel.
 - `BOOTSTRAP_SYSADMIN_PASSWORD`: secreto exclusivo del bootstrap para crear `sysadmin` cuando no hay hashes o rotar la credencial semilla heredada; la contraseña resultante es temporal.
+- `N8N_CHAT_WEBHOOK_URL`: destino HTTPS del Chat Trigger, disponible únicamente para el backend.
+- `N8N_CHAT_BASIC_AUTH_USER` y `N8N_CHAT_BASIC_AUTH_PASSWORD`: credenciales Basic Auth que el backend agrega al request saliente y que nunca llegan al bundle del navegador.
+- `N8N_CHAT_TIMEOUT_MS`: deadline opcional del workflow, entre 1000 y 120000 ms y con 120000 ms por defecto.
 
-Las API keys y el secreto bootstrap se entregan por variables de entorno o secretos del runner y no deben entrar al repositorio. `WEBHOOK_API_KEY` se valida al arrancar: debe existir, tener al menos 32 caracteres y no usar controles, espacios exteriores, un único carácter repetido ni placeholders públicos; los errores solo identifican la variable, nunca su valor. Las credenciales crudas no se persisten en la base: del secreto bootstrap solo se guarda un hash scrypt. Una credencial ya asegurada se conserva: la variable bootstrap no funciona como mecanismo de reset. La rotación de compatibilidad actualiza el hash, activa el cambio obligatorio y revoca las sesiones del seed histórico en una única transacción.
+Las API keys, las credenciales Basic Auth del chat y el secreto bootstrap se entregan por variables de entorno o secretos del runner y no deben entrar al repositorio. La configuración del chat se resuelve únicamente en el backend: si falta un valor requerido o si la URL, las credenciales o el timeout no superan sus validaciones, el endpoint devuelve indisponibilidad genérica sin filtrar el valor defectuoso. `WEBHOOK_API_KEY` se valida al arrancar: debe existir, tener al menos 32 caracteres y no usar controles, espacios exteriores, un único carácter repetido ni placeholders públicos; los errores solo identifican la variable, nunca su valor. Las credenciales crudas no se persisten en la base: del secreto bootstrap solo se guarda un hash scrypt. Una credencial ya asegurada se conserva: la variable bootstrap no funciona como mecanismo de reset. La rotación de compatibilidad actualiza el hash, activa el cambio obligatorio y revoca las sesiones del seed histórico en una única transacción.
 
 ## 7. Estados, SLA y auditoría
 
@@ -653,7 +687,7 @@ backend/                 API Express y composition root del servidor
     dashboard/           agregaciones y períodos del resumen operativo
     administracion/      usuarios, roles y operaciones administrativas
     ingestion/           webhook e ingesta idempotente
-    rendimiento/         consultas, dominio y frontera HTTP de métricas ejecutivas
+    rendimiento/         métricas ejecutivas y proxy protegido del asistente RAG
   src/shared/            infraestructura transversal sin reglas de dominio
   src/routes/            composición HTTP, health y SSE aún transversales
 frontend/                SPA React, pantallas, layout y componentes

@@ -3670,3 +3670,53 @@ registró.
 - Se conservaron sin cambios los valores canónicos `personas` y
   `reiteraciones`, las rutas HTTP, los tipos y los contratos. El ajuste es de
   lenguaje de producto y no rompe enlaces guardados ni integraciones.
+
+## 2026-08-13 — Rendimiento: asistente RAG de n8n por sesión de pestaña
+
+**Agente:** Codex
+
+### Alcance y decisiones
+
+- Se incorporó `@n8n/chat@1.33.4` como asistente flotante exclusivo de
+  `/rendimiento`; no se monta ni se descarga en Dashboard, Tickets o
+  Administración. El botón, panel, cierre, reintento, foco y adaptación móvil
+  pertenecen a la aplicación y el widget externo se carga recién al abrirlo.
+- La conversación usa el contrato exacto `{ sessionId, action: "sendMessage",
+  chatInput }`. Al primer uso se recupera o genera un UUID v4 y se guarda bajo
+  `sessionStorage["gsb_rag_chat_session_id"]`; el mismo valor se reutiliza en
+  todos los mensajes y remontajes de esa pestaña. **Nueva conversación** genera
+  otro UUID y lo reemplaza. Logout, revocación y un login exitoso limpian el
+  hilo para impedir que otra identidad lo herede.
+- No se usa `localStorage` como fuente de la conversación. Como la versión del
+  paquete crea una clave histórica propia aun recibiendo un `sessionId`
+  explícito, se desactivó `loadPreviousSession` y esa clave se purga después del
+  montaje, al renovar y al cerrar sesión.
+- El navegador no llama directamente a n8n. Envía el body al proxy same-origin
+  `POST /api/rendimiento/asistente/chat`, protegido por sesión y por el guard
+  SysAdmin/Controller. El backend conserva el UUID sin persistirlo ni
+  transformarlo y agrega el Basic Auth únicamente en memoria. Así las
+  credenciales no aparecen en el bundle ni se depende de CORS.
+- El proxy exige el body sin propiedades adicionales, limita `chatInput` a
+  8 KiB, no sigue redirects, impone un deadline configurable de hasta 120 s,
+  cancela al desconectarse el cliente y limita la respuesta a 1 MiB. Respuestas
+  técnicas, HTML, credenciales rechazadas o JSON inválido se reemplazan por un
+  error funcional; una respuesta válida se normaliza a `{ output }`.
+- La configuración opcional vive en `N8N_CHAT_WEBHOOK_URL`,
+  `N8N_CHAT_BASIC_AUTH_USER`, `N8N_CHAT_BASIC_AUTH_PASSWORD` y
+  `N8N_CHAT_TIMEOUT_MS`. Si falta, solo el asistente responde `503`: no impide
+  iniciar ni usar el resto de la aplicación. Nginx espera 130 s para que el
+  timeout controlado lo entregue el backend.
+
+### Validación local
+
+- Widget y ciclo de sesión: 11/11 pruebas focales aprobadas, incluyendo
+  reutilización del UUID, renovación, logout, accesibilidad, desmontaje y
+  recuperación de carga.
+- Proxy: 7/7 pruebas aprobadas; RBAC de rutas: 69/69; contrato OpenAPI completo:
+  30/30. TypeScript, ESLint focal y builds de backend/frontend aprobaron.
+- La prueba directa, única y sin datos reales contra el Chat Trigger configurado
+  llegó a n8n pero recibió `403 Authorization data is wrong!`. La integración
+  queda lista localmente, pero la respuesta real del bot requiere corregir o
+  volver a publicar la credencial Basic Auth del workflow. No se ensayaron
+  variantes ni se registró el secreto.
+- No se realizó push.

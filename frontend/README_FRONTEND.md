@@ -1,6 +1,6 @@
 # Frontend — GSB Tickets
 
-React + Vite. Consume la API del backend por `/api/*` en el mismo origen (proxeado en dev, servido detrás de nginx en producción — ver `nginx.conf`), por lo que el navegador no necesita CORS. No hay estado global tipo Redux/Zustand: **TanStack Query es la fuente de verdad del servidor**, y `useState` local para lo que es puramente de UI (formularios abiertos, filtros no aplicados aún, etc.).
+React + Vite. Consume la API propia del backend por `/api/*` en el mismo origen (proxeado en dev, servido detrás de nginx en producción — ver `nginx.conf`), por lo que el navegador no necesita CORS. El asistente de Rendimiento también usa un proxy same-origin: únicamente el backend se comunica con el Chat Trigger externo. No hay estado global tipo Redux/Zustand: **TanStack Query es la fuente de verdad del servidor**, y `useState` local para lo que es puramente de UI (formularios abiertos, filtros no aplicados aún, etc.).
 
 > Para el panorama general del proyecto ver el [README.md](../README.md) de la raíz. Este documento es el detalle técnico de todo lo que vive en `frontend/`.
 
@@ -25,6 +25,7 @@ React + Vite. Consume la API del backend por `/api/*` en el mismo origen (proxea
 - **TanStack Query 5** para todo el estado de servidor: fetching, cache, invalidación.
 - **Tailwind 4** + **shadcn/ui** (componentes en `src/components/ui/`, generados a partir de Radix).
 - **Recharts** para los gráficos del dashboard.
+- **`@n8n/chat`** para el asistente flotante y diferido de Rendimiento.
 - **node:test**, Testing Library, axe-core y **Playwright** para pruebas unitarias, de componentes, accesibilidad y flujos críticos de navegador.
 
 ```bash
@@ -151,6 +152,21 @@ KPIs (sin revisar, en proceso, vencidos, resueltos), distribución por estado (b
 Shell ejecutivo lazy-loaded con encabezado y cuatro tabs responsive: **Resumen equipo**, **Operadores**, **Contactos recurrentes** y **Calidad de datos**. Comparten filtros canonizados en URL y muestran datos reales con muestras, cobertura y estados explícitos de carga, error o ausencia de datos. Contactos recurrentes presenta KPIs y cards de contactos con identidad enmascarada, responsables y links a tickets; expande más de tres tickets bajo demanda sin crear una tabla ancha. La ruta usa `RendimientoRouteGuard`, y el sidebar solo ofrece el acceso cuando `puedeVerRendimiento(me?.rol)` es verdadero.
 
 El backend expone `GET /api/rendimiento` con `estado: "operativo"` y endpoints independientes para las cuatro vistas, todos protegidos para SysAdmin/Controller y con caché deshabilitada.
+
+#### Asistente n8n de Rendimiento
+
+El asistente flotante existe **solo dentro de `/rendimiento`**, por lo que conserva exactamente la misma frontera visual de roles: SysAdmin y Controller. La aplicación aporta su propio botón accesible y su propio panel; `@n8n/chat` no se descarga al entrar en la ruta, sino recién con el primer clic que abre el asistente. En ese momento se monta en modo `fullscreen` dentro de un `target` explícito del panel —nunca directamente sobre `body`— y se desmonta, junto con su contenido, al salir de Rendimiento.
+
+La integración usa un UUID v4 explícito bajo `sessionStorage["gsb_rag_chat_session_id"]`. Se crea al abrir por primera vez y se reutiliza en todos los mensajes y al volver a la vista dentro de la misma pestaña; no sobrevive al cierre de la pestaña. **Nueva conversación** lo reemplaza por otro UUID y remonta el chat. `loadPreviousSession: false` impide que `@n8n/chat` restaure su clave global histórica, y al cerrar sesión se purgan ambas claves para que otra identidad no herede el hilo. El body enviado se limita exactamente a `sessionId`, `action: "sendMessage"` y `chatInput`; no incluye PII. Tampoco usa `WEBHOOK_API_KEY`: esa clave pertenece exclusivamente al webhook servidor-a-servidor de ingreso de tickets y nunca debe llegar al bundle del navegador.
+
+El navegador envía cada mensaje a `/api/rendimiento/asistente/chat`. Esa ruta conserva la sesión y el guard SysAdmin/Controller, valida el contrato y el tamaño y agrega el Basic Auth únicamente del lado servidor; no persiste el UUID ni lo reemplaza. Se configura en el `.env` raíz mediante:
+
+- `N8N_CHAT_WEBHOOK_URL`;
+- `N8N_CHAT_BASIC_AUTH_USER`;
+- `N8N_CHAT_BASIC_AUTH_PASSWORD`;
+- `N8N_CHAT_TIMEOUT_MS` (opcional, 120 segundos por defecto).
+
+Las credenciales nunca se incluyen en Vite, el bundle ni Network del navegador. Si la configuración falta o es inválida, solo el asistente responde con indisponibilidad controlada; Rendimiento y el resto de la aplicación continúan operativos. La llamada desde el backend no depende de CORS.
 
 ### `TicketList.tsx`
 
