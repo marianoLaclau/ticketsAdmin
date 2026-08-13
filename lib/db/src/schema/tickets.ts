@@ -125,6 +125,12 @@ export const seguimientosTable = sqliteTable(
       { onDelete: "set null" },
     ),
     autor: text("autor"),
+    // Vencimiento vigente al momento de entrar desde un estado abierto a uno
+    // final. Permite auditar el cumplimiento sin depender de ediciones
+    // posteriores de fecha_limite; los demás eventos permanecen en null.
+    fecha_limite_snapshot: integer("fecha_limite_snapshot", {
+      mode: "timestamp_ms",
+    }),
     fecha_creacion: integer("fecha_creacion", { mode: "timestamp_ms" })
       .notNull()
       .$defaultFn(() => new Date()),

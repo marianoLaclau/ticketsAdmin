@@ -99,6 +99,7 @@ bootstrap.exec(`
     campos_editados TEXT,
     autor_usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
     autor TEXT,
+    fecha_limite_snapshot INTEGER,
     fecha_creacion INTEGER NOT NULL
   );
 `);
@@ -654,6 +655,11 @@ describe("contrato nullable de tickets", () => {
       null,
       "un seguimiento legacy debe permanecer Sin atribuir",
     );
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(history[0], "fecha_limite_snapshot"),
+      false,
+      "el snapshot analítico interno no debe ampliar el contrato HTTP",
+    );
 
     const historyWithoutActor = [{ ...history[0] }];
     delete historyWithoutActor[0]?.autor_usuario_id;
@@ -1099,6 +1105,66 @@ describe("validación de email en PATCH", () => {
 });
 
 describe("fecha de resolución al reabrir", () => {
+  it("congela el vencimiento vigente solo al entrar a un estado final", async () => {
+    const updatedDeadline = "2026-08-19T15:30:00.000Z";
+
+    const inProgress = await jsonRequest("/tickets/1", "PATCH", {
+      estado: "en_proceso",
+    });
+    assert.equal(inProgress.status, 200);
+
+    const resolved = await jsonRequest(
+      "/tickets/1",
+      "PATCH",
+      {
+        estado: "resuelto",
+        fecha_limite: updatedDeadline,
+      },
+      {
+        role: "SysAdmin",
+        userId: 2,
+      },
+    );
+    assert.equal(resolved.status, 200);
+
+    const closed = await jsonRequest(
+      "/tickets/1",
+      "PATCH",
+      {
+        estado: "cerrado",
+      },
+      {
+        role: "SysAdmin",
+        userId: 2,
+      },
+    );
+    assert.equal(closed.status, 200);
+
+    const followups = sqlite
+      .prepare(
+        `SELECT estado_anterior, estado_nuevo, fecha_limite_snapshot
+         FROM seguimientos WHERE ticket_id = 1 ORDER BY id`,
+      )
+      .all();
+    assert.deepEqual(followups, [
+      {
+        estado_anterior: "nuevo",
+        estado_nuevo: "en_proceso",
+        fecha_limite_snapshot: null,
+      },
+      {
+        estado_anterior: "en_proceso",
+        estado_nuevo: "resuelto",
+        fecha_limite_snapshot: Date.parse(updatedDeadline),
+      },
+      {
+        estado_anterior: "resuelto",
+        estado_nuevo: "cerrado",
+        fecha_limite_snapshot: null,
+      },
+    ]);
+  });
+
   it("la limpia al reabrir y genera una nueva al resolver otra vez", async () => {
     sqlite
       .prepare(

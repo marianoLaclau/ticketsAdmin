@@ -1,0 +1,1 @@
+ALTER TABLE `seguimientos` ADD `fecha_limite_snapshot` integer;

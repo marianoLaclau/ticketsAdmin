@@ -47,6 +47,14 @@ bootstrap.exec(`
     fecha_expiracion INTEGER NOT NULL,
     fecha_creacion INTEGER NOT NULL DEFAULT 0
   );
+  CREATE TABLE tickets (
+    id INTEGER PRIMARY KEY
+  );
+  CREATE TABLE seguimientos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    autor_usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL
+  );
 `);
 bootstrap.close();
 
@@ -250,7 +258,9 @@ beforeEach(async () => {
   loginAttemptLimiter.resetAll();
   loginKdfThroughputLimiter.resetAll();
   const passwordHash = await hashPassword(password);
-  sqlite.exec("DELETE FROM sesiones; DELETE FROM usuarios; DELETE FROM roles;");
+  sqlite.exec(
+    "DELETE FROM seguimientos; DELETE FROM tickets; DELETE FROM sesiones; DELETE FROM usuarios; DELETE FROM roles;",
+  );
   sqlite
     .prepare(
       `INSERT INTO roles (id, nombre, activo) VALUES
@@ -1915,6 +1925,47 @@ describe("eliminación definitiva de usuarios", () => {
     assert.equal(borrado.status, 204);
 
     assert.equal((await requestWithSession("/auth/me", suCookie)).status, 401);
+  });
+
+  it("preserva la cuenta cuando tiene historial de auditoría atribuible", async () => {
+    const cookie = await adminSession();
+    const id = await crearDescartable(cookie, "con-historial");
+    sqlite.prepare("INSERT INTO tickets (id) VALUES (?)").run(100);
+    sqlite
+      .prepare(
+        `INSERT INTO seguimientos (ticket_id, autor_usuario_id)
+         VALUES (?, ?)`,
+      )
+      .run(100, id);
+
+    const response = await adminRequest(`/admin/users/${id}`, cookie, {
+      method: "DELETE",
+      body: JSON.stringify({ confirmar: true, username: "con-historial" }),
+    });
+    assert.equal(response.status, 409);
+    assert.deepEqual(await response.json(), {
+      code: "USER_HAS_AUDIT_HISTORY",
+      error:
+        "Este usuario tiene historial de auditoría y no puede eliminarse. Desactivalo para conservar la trazabilidad.",
+    });
+    assert.equal(
+      (
+        sqlite
+          .prepare("SELECT count(*) AS total FROM usuarios WHERE id = ?")
+          .get(id) as { total: number }
+      ).total,
+      1,
+    );
+    assert.equal(
+      (
+        sqlite
+          .prepare(
+            "SELECT autor_usuario_id FROM seguimientos WHERE ticket_id = ?",
+          )
+          .get(100) as { autor_usuario_id: number }
+      ).autor_usuario_id,
+      id,
+    );
   });
 
   it("nunca borra la cuenta propia ni el último SysAdmin utilizable", async () => {

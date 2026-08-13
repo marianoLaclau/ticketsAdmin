@@ -86,6 +86,7 @@ function createDatabase(): {
       campos_editados TEXT,
       autor_usuario_id INTEGER,
       autor TEXT,
+      fecha_limite_snapshot INTEGER,
       fecha_creacion INTEGER NOT NULL
     );
     CREATE INDEX seguimientos_ticket_fecha_id_idx

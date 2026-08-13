@@ -1,5 +1,11 @@
 import type { Request, Response } from "express";
-import { db, rolesTable, sesionesTable, usuariosTable } from "@workspace/db";
+import {
+  db,
+  rolesTable,
+  seguimientosTable,
+  sesionesTable,
+  usuariosTable,
+} from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { DeleteAdminUserBody, DeleteAdminUserParams } from "@workspace/api-zod";
 import { revokeEventClientsForUsers } from "../../../../shared/realtime/events";
@@ -52,75 +58,89 @@ export async function deleteAdminUser(
     return;
   }
 
-  const resultado = db.transaction((tx) => {
-    const actual = tx
-      .select({
-        id: usuariosTable.id,
-        username: usuariosTable.username,
-        activo: usuariosTable.activo,
-        passwordHash: usuariosTable.password_hash,
-        rol: rolesTable.nombre,
-        rolActivo: rolesTable.activo,
-      })
-      .from(usuariosTable)
-      .innerJoin(rolesTable, eq(usuariosTable.role_id, rolesTable.id))
-      .where(eq(usuariosTable.id, params.data.id))
-      .get();
-    if (!actual) return { kind: "not_found" } as const;
-
-    // Segunda aprobación: el nombre tiene que coincidir con el de esta fila.
-    if (
-      !hasLoginIdentity(actual.username) ||
-      normalizeUsername(actual.username) !==
-        normalizeUsername(body.data.username)
-    ) {
-      return { kind: "username_mismatch" } as const;
-    }
-
-    // Nunca dejar el sistema sin un SysAdmin capaz de entrar.
-    const esSysAdminAutenticable =
-      actual.activo &&
-      actual.rolActivo &&
-      actual.rol === ROL_SYSADMIN &&
-      isUsablePasswordHash(actual.passwordHash);
-    if (esSysAdminAutenticable) {
-      const reemplazos = tx
+  const resultado = db.transaction(
+    (tx) => {
+      const actual = tx
         .select({
           id: usuariosTable.id,
           username: usuariosTable.username,
+          activo: usuariosTable.activo,
           passwordHash: usuariosTable.password_hash,
+          rol: rolesTable.nombre,
+          rolActivo: rolesTable.activo,
         })
         .from(usuariosTable)
         .innerJoin(rolesTable, eq(usuariosTable.role_id, rolesTable.id))
-        .where(
-          and(
-            eq(usuariosTable.activo, true),
-            eq(rolesTable.nombre, ROL_SYSADMIN),
-            eq(rolesTable.activo, true),
-          ),
-        )
-        .all()
-        .filter((usuario) => usuario.id !== actual.id);
-      const existeReemplazo = reemplazos.some(
-        (usuario) =>
-          hasLoginIdentity(usuario.username) &&
-          isUsablePasswordHash(usuario.passwordHash),
-      );
-      if (!existeReemplazo) return { kind: "last_sysadmin" } as const;
-    }
+        .where(eq(usuariosTable.id, params.data.id))
+        .get();
+      if (!actual) return { kind: "not_found" } as const;
 
-    tx.delete(sesionesTable)
-      .where(eq(sesionesTable.usuario_id, actual.id))
-      .run();
-    const borrado = tx
-      .delete(usuariosTable)
-      .where(eq(usuariosTable.id, actual.id))
-      .returning(PUBLIC_ADMIN_USER_COLUMNS)
-      .get();
-    if (!borrado) return { kind: "not_found" } as const;
+      // Segunda aprobación: el nombre tiene que coincidir con el de esta fila.
+      if (
+        !hasLoginIdentity(actual.username) ||
+        normalizeUsername(actual.username) !==
+          normalizeUsername(body.data.username)
+      ) {
+        return { kind: "username_mismatch" } as const;
+      }
 
-    return { kind: "deleted", id: actual.id } as const;
-  });
+      // La identidad estructurada hace que estas acciones sean atribuibles de
+      // forma verificable. Un borrado físico aplicaría SET NULL y perdería esa
+      // relación, por lo que una cuenta con historial debe desactivarse.
+      const auditHistory = tx
+        .select({ id: seguimientosTable.id })
+        .from(seguimientosTable)
+        .where(eq(seguimientosTable.autor_usuario_id, actual.id))
+        .limit(1)
+        .get();
+      if (auditHistory) return { kind: "audit_history" } as const;
+
+      // Nunca dejar el sistema sin un SysAdmin capaz de entrar.
+      const esSysAdminAutenticable =
+        actual.activo &&
+        actual.rolActivo &&
+        actual.rol === ROL_SYSADMIN &&
+        isUsablePasswordHash(actual.passwordHash);
+      if (esSysAdminAutenticable) {
+        const reemplazos = tx
+          .select({
+            id: usuariosTable.id,
+            username: usuariosTable.username,
+            passwordHash: usuariosTable.password_hash,
+          })
+          .from(usuariosTable)
+          .innerJoin(rolesTable, eq(usuariosTable.role_id, rolesTable.id))
+          .where(
+            and(
+              eq(usuariosTable.activo, true),
+              eq(rolesTable.nombre, ROL_SYSADMIN),
+              eq(rolesTable.activo, true),
+            ),
+          )
+          .all()
+          .filter((usuario) => usuario.id !== actual.id);
+        const existeReemplazo = reemplazos.some(
+          (usuario) =>
+            hasLoginIdentity(usuario.username) &&
+            isUsablePasswordHash(usuario.passwordHash),
+        );
+        if (!existeReemplazo) return { kind: "last_sysadmin" } as const;
+      }
+
+      tx.delete(sesionesTable)
+        .where(eq(sesionesTable.usuario_id, actual.id))
+        .run();
+      const borrado = tx
+        .delete(usuariosTable)
+        .where(eq(usuariosTable.id, actual.id))
+        .returning(PUBLIC_ADMIN_USER_COLUMNS)
+        .get();
+      if (!borrado) return { kind: "not_found" } as const;
+
+      return { kind: "deleted", id: actual.id } as const;
+    },
+    { behavior: "immediate" },
+  );
 
   switch (resultado.kind) {
     case "not_found":
@@ -130,6 +150,13 @@ export async function deleteAdminUser(
       res.status(409).json({
         code: "USERNAME_MISMATCH",
         error: "El nombre de usuario no coincide con la cuenta a eliminar",
+      });
+      return;
+    case "audit_history":
+      res.status(409).json({
+        code: "USER_HAS_AUDIT_HISTORY",
+        error:
+          "Este usuario tiene historial de auditoría y no puede eliminarse. Desactivalo para conservar la trazabilidad.",
       });
       return;
     case "last_sysadmin":

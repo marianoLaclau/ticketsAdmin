@@ -190,6 +190,10 @@ router.patch(
         const assignmentChanged =
           current.asignado_usuario_id !== updated.asignado_usuario_id ||
           current.asignado_a !== updated.asignado_a;
+        const enteredFinalState =
+          current.estado !== "resuelto" &&
+          current.estado !== "cerrado" &&
+          (updated.estado === "resuelto" || updated.estado === "cerrado");
         const editedFields = getTicketAuditEditedFields(changedFields);
 
         tx.insert(seguimientosTable)
@@ -211,6 +215,9 @@ router.patch(
             campos_editados: editedFields.length > 0 ? editedFields : null,
             autor_usuario_id: authUser.id,
             autor,
+            fecha_limite_snapshot: enteredFinalState
+              ? updated.fecha_limite
+              : null,
             fecha_creacion: now,
           })
           .run();

@@ -10,6 +10,7 @@ import {
 } from "@workspace/api-zod";
 import type { SessionUser } from "../../auth";
 import { buildTicketAccessCondition } from "../data/access";
+import { PUBLIC_FOLLOWUP_COLUMNS } from "../data/public-followup-columns";
 import { formatTicketAuditAuthor } from "../application/audit";
 import { normalizeTicketQuery } from "./query-normalization";
 import { broadcastEvent } from "../../../shared/realtime/events";
@@ -57,7 +58,7 @@ export async function listTicketFollowups(
   }
 
   const followups = await db
-    .select()
+    .select(PUBLIC_FOLLOWUP_COLUMNS)
     .from(seguimientosTable)
     .where(eq(seguimientosTable.ticket_id, ticket.id))
     .orderBy(asc(seguimientosTable.fecha_creacion), asc(seguimientosTable.id));
@@ -119,7 +120,7 @@ export async function createTicketFollowup(
         autor_usuario_id: authUser.id,
         autor,
       })
-      .returning()
+      .returning(PUBLIC_FOLLOWUP_COLUMNS)
       .get();
   });
 

@@ -3,6 +3,7 @@ import { db, seguimientosTable, ticketsTable } from "@workspace/db";
 import { GetTicketParams, GetTicketQueryParams } from "@workspace/api-zod";
 import { asc, eq } from "drizzle-orm";
 import { buildTicketAccessCondition } from "../data/access";
+import { PUBLIC_FOLLOWUP_COLUMNS } from "../data/public-followup-columns";
 import { normalizeTicketQuery } from "./query-normalization";
 
 export async function getTicketDetail(req: Request, res: Response) {
@@ -29,7 +30,7 @@ export async function getTicketDetail(req: Request, res: Response) {
   }
 
   const seguimientos = await db
-    .select()
+    .select(PUBLIC_FOLLOWUP_COLUMNS)
     .from(seguimientosTable)
     .where(eq(seguimientosTable.ticket_id, ticket.id))
     .orderBy(asc(seguimientosTable.fecha_creacion), asc(seguimientosTable.id));
