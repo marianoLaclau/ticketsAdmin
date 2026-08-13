@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RendimientoFiltersPanel } from "@/features/rendimiento/RendimientoFiltersPanel";
+import { RendimientoPersonasView } from "@/features/rendimiento/RendimientoPersonasView";
 import { RendimientoQualityView } from "@/features/rendimiento/RendimientoQualityView";
 import { ResumenEquipoView } from "@/features/rendimiento/ResumenEquipoView";
 import { useRendimientoFiltersUrl } from "@/features/rendimiento/useRendimientoFiltersUrl";
@@ -218,6 +219,11 @@ export default function Rendimiento() {
           <TabsContent key={view.value} value={view.value} className="mt-0">
             {view.value === "equipo" ? (
               <ResumenEquipoView filters={urlState} />
+            ) : view.value === "personas" ? (
+              <RendimientoPersonasView
+                filters={urlState}
+                onClearFilters={resetFilters}
+              />
             ) : view.value === "calidad" ? (
               <RendimientoQualityView
                 filters={urlState}

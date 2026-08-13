@@ -7,6 +7,7 @@ import {
   getGetMeQueryKey,
   type AuthUser,
   type RendimientoCalidadDatos,
+  type RendimientoPersonas,
   type RendimientoResumenEquipo,
 } from "@workspace/api-client-react";
 import { Router } from "wouter";
@@ -132,6 +133,55 @@ function qualityResponse(): RendimientoCalidadDatos {
   };
 }
 
+function personasResponse(): RendimientoPersonas {
+  return {
+    periodo: {
+      fecha_desde: "2026-08-01",
+      fecha_hasta: "2026-08-13",
+      timezone: "America/Argentina/Buenos_Aires",
+      generado_en: "2026-08-13T15:00:00.000Z",
+    },
+    tickets_evaluados: 154,
+    cobertura: {
+      resoluciones_evaluadas: 20,
+      resoluciones_atribuidas: 17,
+      porcentaje_atribucion: 85,
+      atribucion_desde: "2026-08-02T14:30:00.000Z",
+      comparacion_individual_estado: "parcial",
+      minimo_resoluciones_comparables: 10,
+      umbral_cobertura_parcial_porcentaje: 80,
+      umbral_cobertura_disponible_porcentaje: 95,
+    },
+    personas: [
+      {
+        usuario: {
+          id: 1,
+          nombre: "Ada Lovelace",
+          rol: "Operador",
+          activo: true,
+        },
+        tickets_resueltos: 12,
+        resoluciones_atribuidas: 13,
+        tiempo_resolucion_atribuible: {
+          muestra: 11,
+          promedio_horas: 25.5,
+          mediana_horas: 18.25,
+        },
+        cumplimiento_plazo_auditable: {
+          muestra: 10,
+          cumplidos: 8,
+          porcentaje: 80,
+        },
+        carga_actual: {
+          abiertos_asignados: 4,
+          vencidos_asignados: 1,
+        },
+        resoluciones_reabiertas: 1,
+      },
+    ],
+  };
+}
+
 function getRequestUrl(input: RequestInfo | URL): string {
   if (typeof input === "string") return input;
   return input instanceof URL ? input.toString() : input.url;
@@ -156,7 +206,7 @@ test("autoriza Rendimiento únicamente para SysAdmin y Controller", (t) => {
   }
 });
 
-test("presenta Resumen y Calidad operativos y conserva dos vistas en preparación", async (t) => {
+test("presenta Resumen, Personas y Calidad operativos y conserva Reiteraciones en preparación", async (t) => {
   t.after(cleanup);
   const previousFetch = globalThis.fetch;
   const requestedUrls: string[] = [];
@@ -166,6 +216,12 @@ test("presenta Resumen y Calidad operativos y conserva dos vistas en preparació
 
     if (url.includes("/rendimiento/resumen-equipo")) {
       return new Response(JSON.stringify(summaryResponse()), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.includes("/rendimiento/personas")) {
+      return new Response(JSON.stringify(personasResponse()), {
         status: 200,
         headers: { "content-type": "application/json" },
       });
@@ -238,20 +294,30 @@ test("presenta Resumen y Calidad operativos y conserva dos vistas en preparació
     1,
   );
 
-  const preparationViews = [
-    ["Personas", "Rendimiento individual"],
-    ["Reiteraciones", "Contactos reiterados"],
-  ] as const;
   const user = userEvent.setup();
 
-  for (const [tabName, heading] of preparationViews) {
-    const tab = screen.getByRole("tab", { name: tabName });
-    await user.click(tab);
-    assert.equal(tab.getAttribute("aria-selected"), "true");
-    assert.ok(screen.getByRole("heading", { name: heading }));
-    assert.ok(screen.getByText("En preparación"));
-    assert.ok(screen.getByText("Próxima etapa"));
-  }
+  const peopleTab = screen.getByRole("tab", { name: "Personas" });
+  await user.click(peopleTab);
+  assert.equal(peopleTab.getAttribute("aria-selected"), "true");
+  assert.ok(
+    await screen.findByRole("heading", { name: "Rendimiento individual" }),
+  );
+  assert.ok(screen.getByRole("heading", { name: "Cobertura global parcial" }));
+  assert.ok(screen.getByRole("heading", { name: "Ada Lovelace" }));
+  assert.ok(screen.getByText("Orden alfabético A–Z"));
+  assert.equal(screen.queryByText("En preparación"), null);
+  assert.equal(screen.queryByText("Próxima etapa"), null);
+  assert.equal(
+    requestedUrls.filter((url) => url.includes("/rendimiento/personas")).length,
+    1,
+  );
+
+  const repetitionsTab = screen.getByRole("tab", { name: "Reiteraciones" });
+  await user.click(repetitionsTab);
+  assert.equal(repetitionsTab.getAttribute("aria-selected"), "true");
+  assert.ok(screen.getByRole("heading", { name: "Contactos reiterados" }));
+  assert.ok(screen.getByText("En preparación"));
+  assert.ok(screen.getByText("Próxima etapa"));
 
   const qualityTab = screen.getByRole("tab", { name: "Calidad de datos" });
   await user.click(qualityTab);
