@@ -21,6 +21,40 @@ const typedTestFiles = [
   "lib/*/test/**/*.{ts,tsx}",
 ];
 
+const backendModuleNames = [
+  "administracion",
+  "auth",
+  "dashboard",
+  "ingestion",
+  "rendimiento",
+  "tickets",
+];
+
+const backendModuleBoundaryConfigs = backendModuleNames.map((moduleName) => ({
+  files: [`backend/src/modules/${moduleName}/**/*.ts`],
+  rules: {
+    "no-restricted-imports": [
+      "error",
+      {
+        patterns: [
+          {
+            group: backendModuleNames
+              .filter((candidate) => candidate !== moduleName)
+              .map((candidate) => `**/${candidate}/**`),
+            message:
+              "Un modulo solo puede consumir el index publico de otro modulo; no sus archivos internos.",
+          },
+          {
+            group: ["**/routes", "**/routes/**"],
+            message:
+              "La dependencia debe apuntar desde la composicion de rutas hacia el modulo, nunca desde el modulo hacia routes legacy.",
+          },
+        ],
+      },
+    ],
+  },
+}));
+
 const promiseSafetyRules = {
   "@typescript-eslint/await-thenable": "error",
   "@typescript-eslint/no-floating-promises": [
@@ -165,6 +199,29 @@ export default defineConfig(
             'MemberExpression[computed=true][property.value="createRequire"]',
           message:
             "createRequire evita el inventario estático de dependencias del build.",
+        },
+      ],
+    },
+  },
+  ...backendModuleBoundaryConfigs,
+  {
+    files: ["backend/src/shared/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "**/modules",
+                "**/modules/**",
+                "**/routes",
+                "**/routes/**",
+              ],
+              message:
+                "El codigo compartido no puede depender de modulos de negocio ni de la capa HTTP.",
+            },
+          ],
         },
       ],
     },
