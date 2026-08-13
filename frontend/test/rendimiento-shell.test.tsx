@@ -339,7 +339,7 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
     },
   });
   t.after(() => queryClient.clear());
-  const location = memoryLocation({ path: "/rendimiento" });
+  const location = memoryLocation({ path: "/rendimiento", record: true });
 
   render(
     <QueryClientProvider client={queryClient}>
@@ -357,6 +357,13 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
   );
   assert.ok(screen.getByText("Acceso dirección"));
   assert.ok(screen.getByRole("form", { name: "Filtros de Rendimiento" }));
+  const companyFilter = screen.getByLabelText("Empresa");
+  assert.equal(companyFilter.getAttribute("type"), "search");
+  assert.equal(
+    companyFilter.getAttribute("aria-describedby"),
+    "rendimiento-empresa-ayuda",
+  );
+  assert.ok(screen.getByText("Busca coincidencias dentro del nombre."));
 
   const tabList = screen.getByRole("tablist");
   assert.match(tabList.className, /grid-cols-2/);
@@ -390,6 +397,7 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
   const peopleTab = screen.getByRole("tab", { name: "Personas" });
   await user.click(peopleTab);
   assert.equal(peopleTab.getAttribute("aria-selected"), "true");
+  assert.equal(location.history.at(-1), "/rendimiento?vista=personas");
   assert.ok(
     await screen.findByRole("heading", { name: "Rendimiento individual" }),
   );
@@ -406,6 +414,7 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
   const repetitionsTab = screen.getByRole("tab", { name: "Reiteraciones" });
   await user.click(repetitionsTab);
   assert.equal(repetitionsTab.getAttribute("aria-selected"), "true");
+  assert.equal(location.history.at(-1), "/rendimiento?vista=reiteraciones");
   assert.ok(
     await screen.findByRole("heading", { name: "Contactos reiterados" }),
   );
@@ -448,6 +457,10 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
 
   await user.type(screen.getByLabelText("Empresa"), "Acme");
   await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+  assert.equal(
+    location.history.at(-1),
+    "/rendimiento?empresa=Acme&vista=reiteraciones",
+  );
   assert.ok(await screen.findByText(/Página 1 de 2/));
   const filteredUrl = requestedUrls
     .filter((url) => url.includes("/rendimiento/reiteraciones"))
@@ -461,6 +474,10 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
   const qualityTab = screen.getByRole("tab", { name: "Calidad de datos" });
   await user.click(qualityTab);
   assert.equal(qualityTab.getAttribute("aria-selected"), "true");
+  assert.equal(
+    location.history.at(-1),
+    "/rendimiento?empresa=Acme&vista=calidad",
+  );
   assert.ok(
     await screen.findByRole("heading", { name: "Calidad y cobertura" }),
   );
@@ -482,4 +499,86 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
   );
   assert.equal(screen.queryByRole("button", { name: /exportar/i }), null);
   await assertNoAxeViolations();
+});
+
+test("abre y recarga un deep-link en la vista indicada sin perder filtros", async (t) => {
+  t.after(cleanup);
+  const previousFetch = globalThis.fetch;
+  const requestedUrls: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = getRequestUrl(input);
+    requestedUrls.push(url);
+
+    if (url.includes("/rendimiento/personas")) {
+      return new Response(JSON.stringify(personasResponse()), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ error: "Endpoint no simulado" }), {
+      status: 404,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+  t.after(() => {
+    globalThis.fetch = previousFetch;
+  });
+
+  const location = memoryLocation({
+    path: "/rendimiento",
+    searchPath: "periodo=semana&empresa=Acme&vista=personas",
+    record: true,
+  });
+
+  const renderDeepLink = () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, refetchOnWindowFocus: false },
+      },
+    });
+    const view = render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook} searchHook={location.searchHook}>
+          <Rendimiento />
+        </Router>
+      </QueryClientProvider>,
+    );
+    return { queryClient, view };
+  };
+
+  const firstRender = renderDeepLink();
+  assert.equal(
+    screen.getByRole("tab", { name: "Personas" }).getAttribute("aria-selected"),
+    "true",
+  );
+  assert.ok(
+    await screen.findByRole("heading", { name: "Rendimiento individual" }),
+  );
+
+  const firstRequest = requestedUrls.find((url) =>
+    url.includes("/rendimiento/personas"),
+  );
+  assert.ok(firstRequest);
+  assert.equal(
+    new URL(firstRequest, "http://localhost").searchParams.get("empresa"),
+    "Acme",
+  );
+  firstRender.view.unmount();
+  firstRender.queryClient.clear();
+
+  const reloaded = renderDeepLink();
+  assert.equal(
+    screen.getByRole("tab", { name: "Personas" }).getAttribute("aria-selected"),
+    "true",
+  );
+  assert.ok(
+    await screen.findByRole("heading", { name: "Rendimiento individual" }),
+  );
+  assert.equal(
+    location.history.at(-1),
+    "/rendimiento?periodo=semana&empresa=Acme&vista=personas",
+  );
+  reloaded.view.unmount();
+  reloaded.queryClient.clear();
 });

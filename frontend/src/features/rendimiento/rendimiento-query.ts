@@ -5,7 +5,7 @@ import type {
 } from "@workspace/api-client-react";
 import type {
   RendimientoPeriodo,
-  RendimientoUrlState,
+  RendimientoFilterState,
 } from "@/lib/rendimiento-url";
 
 export const RENDIMIENTO_TIME_ZONE = "America/Argentina/Buenos_Aires";
@@ -111,7 +111,7 @@ function getPresetRange(
 }
 
 export function getRendimientoDateRange(
-  state: RendimientoUrlState,
+  state: RendimientoFilterState,
   now = new Date(),
 ): RendimientoDateRange {
   return state.periodo === "personalizado"
@@ -120,7 +120,7 @@ export function getRendimientoDateRange(
 }
 
 export function buildRendimientoParams(
-  state: RendimientoUrlState,
+  state: RendimientoFilterState,
   now = new Date(),
 ): RendimientoQueryParams {
   const range = getRendimientoDateRange(state, now);

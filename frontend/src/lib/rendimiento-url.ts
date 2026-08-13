@@ -13,7 +13,15 @@ export const RENDIMIENTO_PERIODOS = [
   "personalizado",
 ] as const;
 
+export const RENDIMIENTO_VISTAS = [
+  "equipo",
+  "personas",
+  "reiteraciones",
+  "calidad",
+] as const;
+
 export type RendimientoPeriodo = (typeof RENDIMIENTO_PERIODOS)[number];
+export type RendimientoVista = (typeof RENDIMIENTO_VISTAS)[number];
 export type RendimientoCategoria = MotivoCategoria;
 export type RendimientoPrioridad = (typeof PRIORIDADES_VALIDAS)[number];
 
@@ -28,7 +36,7 @@ interface RendimientoFiltrosOpcionales {
   prioridad?: RendimientoPrioridad;
 }
 
-export type RendimientoUrlState = RendimientoFiltrosOpcionales &
+export type RendimientoFilterState = RendimientoFiltrosOpcionales &
   (
     | {
         periodo: RendimientoPeriodoPredefinido;
@@ -40,12 +48,17 @@ export type RendimientoUrlState = RendimientoFiltrosOpcionales &
       }
   );
 
+export type RendimientoUrlState = RendimientoFilterState & {
+  vista: RendimientoVista;
+};
+
 const PERIODOS = new Set<string>(RENDIMIENTO_PERIODOS);
+const VISTAS = new Set<string>(RENDIMIENTO_VISTAS);
 const CATEGORIAS = new Set<string>(MOTIVO_CATEGORIA_CODIGOS);
 const PRIORIDADES = new Set<string>(PRIORIDADES_VALIDAS);
 
 export function createDefaultRendimientoUrlState(): RendimientoUrlState {
-  return { periodo: "mes" };
+  return { periodo: "mes", vista: "equipo" };
 }
 
 function normalizeOptionalText(value: unknown): string | undefined {
@@ -83,6 +96,7 @@ function normalizeRendimientoUrlState(state: unknown): RendimientoUrlState {
     const empresaValue = readOwn(candidate, "empresa");
     const categoriaValue = readOwn(candidate, "categoria");
     const prioridadValue = readOwn(candidate, "prioridad");
+    const vistaValue = readOwn(candidate, "vista");
 
     const empresa = normalizeOptionalText(empresaValue);
     const categoria = normalizeAllowedValue<RendimientoCategoria>(
@@ -98,6 +112,8 @@ function normalizeRendimientoUrlState(state: unknown): RendimientoUrlState {
       ...(categoria ? { categoria } : {}),
       ...(prioridad ? { prioridad } : {}),
     };
+    const vista =
+      normalizeAllowedValue<RendimientoVista>(vistaValue, VISTAS) ?? "equipo";
 
     const periodo = normalizeAllowedValue<RendimientoPeriodo>(
       periodoValue,
@@ -116,15 +132,17 @@ function normalizeRendimientoUrlState(state: unknown): RendimientoUrlState {
           desde: desdeValue,
           hasta: hastaValue,
           ...filters,
+          vista,
         };
       }
 
-      return { periodo: "mes", ...filters };
+      return { periodo: "mes", ...filters, vista };
     }
 
     return {
       periodo: periodo ?? "mes",
       ...filters,
+      vista,
     };
   } catch {
     return createDefaultRendimientoUrlState();
@@ -143,6 +161,7 @@ export function parseRendimientoUrlState(
     empresa: params.get("empresa"),
     categoria: params.get("categoria"),
     prioridad: params.get("prioridad"),
+    vista: params.get("vista"),
   });
 }
 
@@ -162,6 +181,7 @@ export function serializeRendimientoUrlState(
   if (normalized.empresa) params.set("empresa", normalized.empresa);
   if (normalized.categoria) params.set("categoria", normalized.categoria);
   if (normalized.prioridad) params.set("prioridad", normalized.prioridad);
+  if (normalized.vista !== "equipo") params.set("vista", normalized.vista);
 
   return params;
 }

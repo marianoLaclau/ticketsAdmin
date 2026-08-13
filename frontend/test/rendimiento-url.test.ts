@@ -15,15 +15,47 @@ describe("codec URL de Rendimiento", () => {
   it("usa mes como período predeterminado y lo omite de la URL", () => {
     const defaultState = createDefaultRendimientoUrlState();
 
-    assert.deepEqual(defaultState, { periodo: "mes" });
+    assert.deepEqual(defaultState, { periodo: "mes", vista: "equipo" });
     assert.deepEqual(parseRendimientoUrlState(""), defaultState);
     assert.deepEqual(parseRendimientoUrlState("periodo=mes"), defaultState);
     assert.equal(serializeRendimientoUrlState(defaultState).toString(), "");
   });
 
+  it("valida la vista, omite equipo y conserva las vistas compartibles", () => {
+    assert.deepEqual(parseRendimientoUrlState("vista=equipo"), {
+      periodo: "mes",
+      vista: "equipo",
+    });
+    assert.equal(
+      serializeRendimientoUrlState({
+        periodo: "mes",
+        vista: "equipo",
+      }).toString(),
+      "",
+    );
+
+    for (const vista of ["personas", "reiteraciones", "calidad"] as const) {
+      const state: RendimientoUrlState = { periodo: "mes", vista };
+      assert.equal(
+        serializeRendimientoUrlState(state).toString(),
+        `vista=${vista}`,
+      );
+      assert.deepEqual(parseRendimientoUrlState(`vista=${vista}`), state);
+    }
+
+    assert.deepEqual(parseRendimientoUrlState("vista=desconocida"), {
+      periodo: "mes",
+      vista: "equipo",
+    });
+    assert.deepEqual(parseRendimientoUrlState("vista=calidad&vista=personas"), {
+      periodo: "mes",
+      vista: "calidad",
+    });
+  });
+
   it("mantiene todos los períodos predefinidos en un roundtrip", () => {
     for (const periodo of ["semana", "ultimos_30", "ultimos_90"] as const) {
-      const state: RendimientoUrlState = { periodo };
+      const state: RendimientoUrlState = { periodo, vista: "equipo" };
       const serialized = serializeRendimientoUrlState(state);
 
       assert.equal(serialized.toString(), `periodo=${periodo}`);
@@ -39,6 +71,7 @@ describe("codec URL de Rendimiento", () => {
       empresa: "GSB IT",
       categoria: "legales",
       prioridad: "urgente",
+      vista: "equipo",
     };
 
     const serialized = serializeRendimientoUrlState(state);
@@ -60,6 +93,7 @@ describe("codec URL de Rendimiento", () => {
         periodo: "personalizado",
         desde: "2026-08-13",
         hasta: "2026-08-13",
+        vista: "equipo",
       },
     );
     assert.deepEqual(
@@ -70,13 +104,14 @@ describe("codec URL de Rendimiento", () => {
         periodo: "personalizado",
         desde: "2024-02-29",
         hasta: "2024-03-01",
+        vista: "equipo",
       },
     );
     assert.deepEqual(
       parseRendimientoUrlState(
         "periodo=personalizado&desde=2026-02-29&hasta=2026-03-01",
       ),
-      { periodo: "mes" },
+      { periodo: "mes", vista: "equipo" },
     );
   });
 
@@ -90,7 +125,10 @@ describe("codec URL de Rendimiento", () => {
       "periodo=personalizado&desde=0000-01-01&hasta=2026-01-01",
       "periodo=personalizado&desde=2026-08-31&hasta=2026-08-01",
     ]) {
-      assert.deepEqual(parseRendimientoUrlState(query), { periodo: "mes" });
+      assert.deepEqual(parseRendimientoUrlState(query), {
+        periodo: "mes",
+        vista: "equipo",
+      });
     }
   });
 
@@ -100,6 +138,7 @@ describe("codec URL de Rendimiento", () => {
       empresa: "Empresa Uno",
       categoria: "embargos",
       prioridad: "alta",
+      vista: "equipo",
     };
 
     for (const query of [
@@ -123,7 +162,7 @@ describe("codec URL de Rendimiento", () => {
       "periodo=ultimos_30&desde=2026-08-01&hasta=2026-08-31",
     );
 
-    assert.deepEqual(parsed, { periodo: "ultimos_30" });
+    assert.deepEqual(parsed, { periodo: "ultimos_30", vista: "equipo" });
     assert.equal(
       serializeRendimientoUrlState(parsed).toString(),
       "periodo=ultimos_30",
@@ -133,12 +172,13 @@ describe("codec URL de Rendimiento", () => {
   it("normaliza empresa y omite texto vacío", () => {
     assert.deepEqual(
       parseRendimientoUrlState("empresa=%20%20Grupo%20Maipu%20%20"),
-      { periodo: "mes", empresa: "Grupo Maipu" },
+      { periodo: "mes", empresa: "Grupo Maipu", vista: "equipo" },
     );
     assert.equal(
       serializeRendimientoUrlState({
         periodo: "mes",
         empresa: "  Grupo Maipu  ",
+        vista: "equipo",
       }).toString(),
       "empresa=Grupo+Maipu",
     );
@@ -148,7 +188,10 @@ describe("codec URL de Rendimiento", () => {
       "empresa=+++",
       "empresa=%09%0A",
     ] as const) {
-      assert.deepEqual(parseRendimientoUrlState(query), { periodo: "mes" });
+      assert.deepEqual(parseRendimientoUrlState(query), {
+        periodo: "mes",
+        vista: "equipo",
+      });
     }
   });
 
@@ -177,7 +220,7 @@ describe("codec URL de Rendimiento", () => {
       parseRendimientoUrlState(
         "empresa=GSB&categoria=desconocida&prioridad=critica",
       ),
-      { periodo: "mes", empresa: "GSB" },
+      { periodo: "mes", empresa: "GSB", vista: "equipo" },
     );
   });
 
@@ -194,10 +237,12 @@ describe("codec URL de Rendimiento", () => {
       empresa: "Primera",
       categoria: "legales",
       prioridad: "urgente",
+      vista: "personas",
     });
     assert.equal(
       serializeRendimientoUrlState(parsed).toString(),
-      "periodo=ultimos_90&empresa=Primera&categoria=legales&prioridad=urgente",
+      "periodo=ultimos_90&empresa=Primera&categoria=legales&prioridad=urgente" +
+        "&vista=personas",
     );
   });
 
@@ -207,12 +252,14 @@ describe("codec URL de Rendimiento", () => {
       empresa: "GSB",
       periodo: "semana",
       categoria: "reclamos",
+      vista: "personas",
     } as const satisfies RendimientoUrlState;
     const second = {
       categoria: "reclamos",
       periodo: "semana",
       empresa: "GSB",
       prioridad: "media",
+      vista: "personas",
     } as const satisfies RendimientoUrlState;
 
     assert.equal(
@@ -305,6 +352,7 @@ describe("codec URL de Rendimiento", () => {
       empresa: "GSB",
       categoria: "legales",
       prioridad: "alta",
+      vista: "calidad",
     };
     const state = Object.fromEntries(
       Object.entries(values).map(([property, value]) => [
@@ -325,7 +373,7 @@ describe("codec URL de Rendimiento", () => {
         withGetters as unknown as RendimientoUrlState,
       ).toString(),
       "periodo=personalizado&desde=2026-08-01&hasta=2026-08-31" +
-        "&empresa=GSB&categoria=legales&prioridad=alta",
+        "&empresa=GSB&categoria=legales&prioridad=alta&vista=calidad",
     );
     assert.deepEqual(Object.fromEntries(reads), {
       periodo: 1,
@@ -334,6 +382,7 @@ describe("codec URL de Rendimiento", () => {
       empresa: 1,
       categoria: 1,
       prioridad: 1,
+      vista: 1,
     });
   });
 });

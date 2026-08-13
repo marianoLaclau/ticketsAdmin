@@ -16,11 +16,12 @@ import { ResumenEquipoView } from "@/features/rendimiento/ResumenEquipoView";
 import { useRendimientoFiltersUrl } from "@/features/rendimiento/useRendimientoFiltersUrl";
 import {
   createDefaultRendimientoUrlState,
-  type RendimientoUrlState,
+  type RendimientoFilterState,
+  type RendimientoVista,
 } from "@/lib/rendimiento-url";
 
 interface RendimientoView {
-  value: "equipo" | "personas" | "reiteraciones" | "calidad";
+  value: RendimientoVista;
   label: string;
   icon: LucideIcon;
 }
@@ -51,12 +52,21 @@ const VIEWS: readonly RendimientoView[] = [
 export default function Rendimiento() {
   const { urlState, updateUrlState } = useRendimientoFiltersUrl();
 
-  const applyFilters = (nextState: RendimientoUrlState) => {
-    updateUrlState(() => nextState);
+  const applyFilters = (nextState: RendimientoFilterState) => {
+    updateUrlState((current) => ({ ...nextState, vista: current.vista }));
   };
 
   const resetFilters = () => {
-    updateUrlState(() => createDefaultRendimientoUrlState());
+    updateUrlState((current) => ({
+      ...createDefaultRendimientoUrlState(),
+      vista: current.vista,
+    }));
+  };
+
+  const selectView = (nextView: string) => {
+    const view = VIEWS.find(({ value }) => value === nextView);
+    if (!view) return;
+    updateUrlState((current) => ({ ...current, vista: view.value }), "push");
   };
 
   return (
@@ -81,7 +91,11 @@ export default function Rendimiento() {
         </Badge>
       </header>
 
-      <Tabs defaultValue="equipo" className="space-y-4">
+      <Tabs
+        value={urlState.vista}
+        onValueChange={selectView}
+        className="space-y-4"
+      >
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 lg:grid-cols-4">
           {VIEWS.map((view) => {
             const Icon = view.icon;

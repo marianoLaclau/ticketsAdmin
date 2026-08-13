@@ -19,6 +19,7 @@ import { isValidCalendarDate } from "@/lib/calendar-date";
 import {
   createDefaultRendimientoUrlState,
   type RendimientoCategoria,
+  type RendimientoFilterState,
   type RendimientoPeriodo,
   type RendimientoPrioridad,
   type RendimientoUrlState,
@@ -47,7 +48,7 @@ interface RendimientoFilterDraft extends RendimientoDateRange {
 
 interface RendimientoFiltersPanelProps {
   state: RendimientoUrlState;
-  onApply: (state: RendimientoUrlState) => void;
+  onApply: (state: RendimientoFilterState) => void;
   onReset: () => void;
 }
 
@@ -194,8 +195,11 @@ export function RendimientoFiltersPanel({
             </Label>
             <Input
               id="rendimiento-empresa"
+              type="search"
               value={draft.empresa}
               placeholder="Todas las empresas"
+              autoComplete="organization"
+              aria-describedby="rendimiento-empresa-ayuda"
               onChange={(event) =>
                 setDraft((current) => ({
                   ...current,
@@ -203,6 +207,12 @@ export function RendimientoFiltersPanel({
                 }))
               }
             />
+            <p
+              id="rendimiento-empresa-ayuda"
+              className="text-[11px] leading-snug text-muted-foreground"
+            >
+              Busca coincidencias dentro del nombre.
+            </p>
           </div>
 
           <div className="space-y-1.5">
