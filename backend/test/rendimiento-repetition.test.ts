@@ -124,6 +124,7 @@ describe("consulta de contactos reiterados", () => {
       name: "Nombre viejo",
       dni: "30.111.222",
       phone: "+54 (11) 4444-5555",
+      email: "Persona@Example.COM",
       status: "en_proceso",
       priority: "urgente",
       assignedUserId: anaId,
@@ -136,6 +137,7 @@ describe("consulta de contactos reiterados", () => {
       name: "Nombre reciente",
       surname: "Apellido",
       dni: "30111222",
+      phone: "54 11 4444 5555",
       email: "Persona@Example.COM",
       status: "cerrado",
       priority: "baja",
@@ -177,9 +179,13 @@ describe("consulta de contactos reiterados", () => {
       contact.tickets.map((ticket) => ticket.id),
       [recentId, oldId],
     );
+    assert.equal(contact.tickets[1]?.asignado_a, "Ana");
     assert.equal(contact.tickets[0]?.vencido, false);
     assert.equal(contact.tickets[1]?.vencido, true);
-    assert.doesNotMatch(JSON.stringify(result), /30111222|Persona@Example/i);
+    assert.doesNotMatch(
+      JSON.stringify(result),
+      /30111222|541144445555|Persona@Example/i,
+    );
     sqlite.close();
   });
 
@@ -205,6 +211,12 @@ describe("consulta de contactos reiterados", () => {
       email: "PUENTE@example.test",
       status: "nuevo",
     });
+    insertTicket(sqlite, {
+      conversationId: "d-misma-clave-no-transitiva",
+      createdAt: "2026-08-04T10:00:00.000Z",
+      email: "puente@example.test",
+      status: "resuelto",
+    });
 
     const result = runRendimientoRepetitionQuery(
       database,
@@ -212,7 +224,7 @@ describe("consulta de contactos reiterados", () => {
       new Date("2026-08-10T00:00:00.000Z"),
     );
 
-    assert.equal(result.contactos.length, 1);
+    assert.equal(result.contactos.length, 2);
     assert.equal(result.contactos[0]?.coincidencia.tipo, "dni");
     assert.equal(result.contactos[0]?.cantidad_llamados, 2);
     assert.equal(result.contactos[0]?.nombre_referencia, "Persona");
@@ -220,6 +232,16 @@ describe("consulta de contactos reiterados", () => {
       result.contactos[0]?.tickets.map((ticket) => ticket.id),
       [2, 1],
     );
+    assert.equal(result.contactos[1]?.coincidencia.tipo, "email");
+    assert.equal(
+      result.contactos[1]?.coincidencia.valor_enmascarado,
+      "p***@example.test",
+    );
+    assert.deepEqual(
+      result.contactos[1]?.tickets.map((ticket) => ticket.id),
+      [4, 3],
+    );
+    assert.doesNotMatch(JSON.stringify(result), /puente@example\.test/i);
     sqlite.close();
   });
 
