@@ -12,11 +12,14 @@ export const RendimientoModuleStatusModulo = {
   rendimiento: 'rendimiento',
 } as const;
 
+/**
+ * Resumen de equipo y Calidad de datos operativos; Personas y Reiteraciones pendientes.
+ */
 export type RendimientoModuleStatusEstado = typeof RendimientoModuleStatusEstado[keyof typeof RendimientoModuleStatusEstado];
 
 
 export const RendimientoModuleStatusEstado = {
-  preparacion: 'preparacion',
+  operativo_parcial: 'operativo_parcial',
 } as const;
 
 export type RendimientoModuleStatusVistasItem = typeof RendimientoModuleStatusVistasItem[keyof typeof RendimientoModuleStatusVistasItem];
@@ -31,6 +34,7 @@ export const RendimientoModuleStatusVistasItem = {
 
 export interface RendimientoModuleStatus {
   modulo: RendimientoModuleStatusModulo;
+  /** Resumen de equipo y Calidad de datos operativos; Personas y Reiteraciones pendientes. */
   estado: RendimientoModuleStatusEstado;
   /**
      * @minItems 4
@@ -125,6 +129,94 @@ export interface RendimientoCalidadDatos {
   /** insuficiente impide comparar personas; parcial exige advertir cobertura incompleta; disponible indica que se alcanzó el umbral auditable del servidor. */
   comparacion_individual_estado: RendimientoCalidadDatosComparacionIndividualEstado;
   coberturas: RendimientoCoberturasCalidadDatos;
+}
+
+/**
+ * Fotografía actual de la cohorte definida por fecha_creacion. abiertos comprende nuevo, en_proceso y pendiente; finalizados comprende resuelto y cerrado; vencidos_abiertos es un subconjunto de abiertos cuyo plazo ya pasó al instante generado_en.
+ */
+export interface RendimientoEstadoActual {
+  /** @minimum 0 */
+  total: number;
+  /** @minimum 0 */
+  abiertos: number;
+  /** @minimum 0 */
+  finalizados: number;
+  /** @minimum 0 */
+  vencidos_abiertos: number;
+}
+
+/**
+ * Horas corridas desde fecha_creacion hasta fecha_resolucion para tickets actualmente finalizados de la cohorte que poseen ambas fechas válidas y una duración no negativa. Las duraciones son null cuando muestra es cero.
+ */
+export interface RendimientoResolucionConFecha {
+  /** @minimum 0 */
+  muestra: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  promedio_horas: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  mediana_horas: number | null;
+}
+
+/**
+ * Cumplimiento basado exclusivamente en transiciones no-final a final con fecha_limite_snapshot. Una resolución cumple cuando la fecha del evento no supera ese snapshot. porcentaje es null cuando muestra es cero.
+ */
+export interface RendimientoCumplimientoPlazoAuditable {
+  /** @minimum 0 */
+  muestra: number;
+  /** @minimum 0 */
+  cumplidos: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  porcentaje: number | null;
+}
+
+export interface RendimientoDistribucionEstado {
+  /** @minimum 0 */
+  nuevo: number;
+  /** @minimum 0 */
+  en_proceso: number;
+  /** @minimum 0 */
+  pendiente: number;
+  /** @minimum 0 */
+  resuelto: number;
+  /** @minimum 0 */
+  cerrado: number;
+}
+
+export interface RendimientoDistribucionPrioridad {
+  /** @minimum 0 */
+  baja: number;
+  /** @minimum 0 */
+  media: number;
+  /** @minimum 0 */
+  alta: number;
+  /** @minimum 0 */
+  urgente: number;
+}
+
+export interface RendimientoResumenEquipo {
+  periodo: RendimientoPeriodo;
+  /**
+     * Tickets visibles cuya fecha_creacion pertenece al período y satisface todos los filtros; coincide con estado_actual.total.
+     * @minimum 0
+     */
+  tickets_ingresados: number;
+  estado_actual: RendimientoEstadoActual;
+  resolucion_con_fecha: RendimientoResolucionConFecha;
+  cumplimiento_plazo_auditable: RendimientoCumplimientoPlazoAuditable;
+  /** Estado actual de la cohorte; incluye todos los estados conocidos, aun cuando su cantidad sea cero. */
+  distribucion_estado: RendimientoDistribucionEstado;
+  /** Prioridad actual de la cohorte; incluye todas las prioridades conocidas, aun cuando su cantidad sea cero. */
+  distribucion_prioridad: RendimientoDistribucionPrioridad;
 }
 
 /**
@@ -1137,6 +1229,41 @@ export const GetRendimientoCalidadDatos403Code = {
 
 export type GetRendimientoCalidadDatos403 = {
   code: GetRendimientoCalidadDatos403Code;
+  error: string;
+};
+
+export type GetRendimientoResumenEquipoParams = {
+/**
+ * Primer día incluido según fecha_creacion del ticket (YYYY-MM-DD).
+ */
+fecha_desde?: RendimientoFechaDesdeParameter;
+/**
+ * Último día incluido según fecha_creacion del ticket (YYYY-MM-DD).
+ */
+fecha_hasta?: RendimientoFechaHastaParameter;
+/**
+ * Texto contenido en la empresa de los tickets incluidos en la cohorte.
+ */
+empresa?: RendimientoEmpresaParameter;
+/**
+ * Categoría normalizada de los tickets incluidos en la cohorte.
+ */
+motivo_categoria?: RendimientoMotivoCategoriaParameter;
+/**
+ * Prioridad actual de los tickets incluidos en la cohorte.
+ */
+prioridad?: RendimientoPrioridadParameter;
+};
+
+export type GetRendimientoResumenEquipo403Code = typeof GetRendimientoResumenEquipo403Code[keyof typeof GetRendimientoResumenEquipo403Code];
+
+
+export const GetRendimientoResumenEquipo403Code = {
+  PERFORMANCE_ACCESS_REQUIRED: 'PERFORMANCE_ACCESS_REQUIRED',
+} as const;
+
+export type GetRendimientoResumenEquipo403 = {
+  code: GetRendimientoResumenEquipo403Code;
   error: string;
 };
 

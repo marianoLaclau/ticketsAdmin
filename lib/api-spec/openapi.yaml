@@ -1264,6 +1264,62 @@ paths:
                   error:
                     type: string
 
+  /rendimiento/resumen-equipo:
+    get:
+      operationId: getRendimientoResumenEquipo
+      tags: [rendimiento]
+      summary: Consultar el resumen de rendimiento del equipo
+      description: |
+        Resume tickets visibles cuya `fecha_creacion` pertenece al período
+        solicitado. `empresa`, `motivo_categoria` y `prioridad` restringen esa
+        misma cohorte antes de calcular cualquier métrica.
+
+        `estado_actual` y las distribuciones son una fotografía al instante
+        `generado_en`: describen el estado actual de la cohorte por creación, no
+        el estado que los tickets tenían dentro del período.
+
+        `cumplimiento_plazo_auditable` considera únicamente transiciones de un
+        estado no final a `resuelto` o `cerrado` que conservaron el snapshot del
+        plazo vigente al resolverse. El cambio `resuelto` a `cerrado` no cuenta
+        como otra resolución.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/RendimientoFechaDesde"
+        - $ref: "#/components/parameters/RendimientoFechaHasta"
+        - $ref: "#/components/parameters/RendimientoEmpresa"
+        - $ref: "#/components/parameters/RendimientoMotivoCategoria"
+        - $ref: "#/components/parameters/RendimientoPrioridad"
+      responses:
+        "200":
+          description: Resumen de equipo para la cohorte filtrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RendimientoResumenEquipo"
+        "400":
+          description: Filtros o período inválidos
+        "401":
+          description: Sesión inválida o ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAccessUnauthorized"
+        "403":
+          description: El rol no puede consultar Rendimiento
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [code, error]
+                properties:
+                  code:
+                    type: string
+                    enum: [PERFORMANCE_ACCESS_REQUIRED]
+                  error:
+                    type: string
+
 components:
   parameters:
     DashboardFechaDesde:
@@ -1347,7 +1403,8 @@ components:
           enum: [rendimiento]
         estado:
           type: string
-          enum: [preparacion]
+          enum: [operativo_parcial]
+          description: Resumen de equipo y Calidad de datos operativos; Personas y Reiteraciones pendientes.
         vistas:
           type: array
           minItems: 4
@@ -1489,6 +1546,165 @@ components:
             incompleta; disponible indica que se alcanzó el umbral auditable del servidor.
         coberturas:
           $ref: "#/components/schemas/RendimientoCoberturasCalidadDatos"
+
+    RendimientoEstadoActual:
+      type: object
+      additionalProperties: false
+      description: >
+        Fotografía actual de la cohorte definida por fecha_creacion. abiertos
+        comprende nuevo, en_proceso y pendiente; finalizados comprende resuelto y
+        cerrado; vencidos_abiertos es un subconjunto de abiertos cuyo plazo ya pasó
+        al instante generado_en.
+      required:
+        - total
+        - abiertos
+        - finalizados
+        - vencidos_abiertos
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        abiertos:
+          type: integer
+          minimum: 0
+        finalizados:
+          type: integer
+          minimum: 0
+        vencidos_abiertos:
+          type: integer
+          minimum: 0
+
+    RendimientoResolucionConFecha:
+      type: object
+      additionalProperties: false
+      description: >
+        Horas corridas desde fecha_creacion hasta fecha_resolucion para tickets
+        actualmente finalizados de la cohorte que poseen ambas fechas válidas y una
+        duración no negativa. Las duraciones son null cuando muestra es cero.
+      required:
+        - muestra
+        - promedio_horas
+        - mediana_horas
+      properties:
+        muestra:
+          type: integer
+          minimum: 0
+        promedio_horas:
+          type: [number, "null"]
+          minimum: 0
+        mediana_horas:
+          type: [number, "null"]
+          minimum: 0
+
+    RendimientoCumplimientoPlazoAuditable:
+      type: object
+      additionalProperties: false
+      description: >
+        Cumplimiento basado exclusivamente en transiciones no-final a final con
+        fecha_limite_snapshot. Una resolución cumple cuando la fecha del evento no
+        supera ese snapshot. porcentaje es null cuando muestra es cero.
+      required:
+        - muestra
+        - cumplidos
+        - porcentaje
+      properties:
+        muestra:
+          type: integer
+          minimum: 0
+        cumplidos:
+          type: integer
+          minimum: 0
+        porcentaje:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 100
+
+    RendimientoDistribucionEstado:
+      type: object
+      additionalProperties: false
+      required:
+        - nuevo
+        - en_proceso
+        - pendiente
+        - resuelto
+        - cerrado
+      properties:
+        nuevo:
+          type: integer
+          minimum: 0
+        en_proceso:
+          type: integer
+          minimum: 0
+        pendiente:
+          type: integer
+          minimum: 0
+        resuelto:
+          type: integer
+          minimum: 0
+        cerrado:
+          type: integer
+          minimum: 0
+
+    RendimientoDistribucionPrioridad:
+      type: object
+      additionalProperties: false
+      required:
+        - baja
+        - media
+        - alta
+        - urgente
+      properties:
+        baja:
+          type: integer
+          minimum: 0
+        media:
+          type: integer
+          minimum: 0
+        alta:
+          type: integer
+          minimum: 0
+        urgente:
+          type: integer
+          minimum: 0
+
+    RendimientoResumenEquipo:
+      type: object
+      additionalProperties: false
+      required:
+        - periodo
+        - tickets_ingresados
+        - estado_actual
+        - resolucion_con_fecha
+        - cumplimiento_plazo_auditable
+        - distribucion_estado
+        - distribucion_prioridad
+      properties:
+        periodo:
+          $ref: "#/components/schemas/RendimientoPeriodo"
+        tickets_ingresados:
+          type: integer
+          minimum: 0
+          description: >
+            Tickets visibles cuya fecha_creacion pertenece al período y satisface
+            todos los filtros; coincide con estado_actual.total.
+        estado_actual:
+          $ref: "#/components/schemas/RendimientoEstadoActual"
+        resolucion_con_fecha:
+          $ref: "#/components/schemas/RendimientoResolucionConFecha"
+        cumplimiento_plazo_auditable:
+          $ref: "#/components/schemas/RendimientoCumplimientoPlazoAuditable"
+        distribucion_estado:
+          description: >
+            Estado actual de la cohorte; incluye todos los estados conocidos, aun
+            cuando su cantidad sea cero.
+          allOf:
+            - $ref: "#/components/schemas/RendimientoDistribucionEstado"
+        distribucion_prioridad:
+          description: >
+            Prioridad actual de la cohorte; incluye todas las prioridades conocidas,
+            aun cuando su cantidad sea cero.
+          allOf:
+            - $ref: "#/components/schemas/RendimientoDistribucionPrioridad"
 
     FunctionalAccessError:
       type: object

@@ -1013,7 +1013,7 @@ export const getRendimientoStatusResponseVistasMax = 4;
 
 export const GetRendimientoStatusResponse = zod.object({
   "modulo": zod.enum(['rendimiento']),
-  "estado": zod.enum(['preparacion']),
+  "estado": zod.enum(['operativo_parcial']).describe('Resumen de equipo y Calidad de datos operativos; Personas y Reiteraciones pendientes.'),
   "vistas": zod.array(zod.enum(['resumen_equipo', 'personas', 'reiteraciones', 'calidad_datos'])).min(getRendimientoStatusResponseVistasMin).max(getRendimientoStatusResponseVistasMax)
 })
 
@@ -1131,6 +1131,112 @@ export const GetRendimientoCalidadDatosResponse = zod.object({
   "porcentaje": zod.number().min(getRendimientoCalidadDatosResponseCoberturasFechaLimiteOnePorcentajeMin).max(getRendimientoCalidadDatosResponseCoberturasFechaLimiteOnePorcentajeMax).nullable()
 }).describe('La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.').describe('Tickets con fecha_limite válida sobre todos los tickets de la cohorte.')
 })
+})
+
+
+/**
+ * Resume tickets visibles cuya `fecha_creacion` pertenece al período
+ * solicitado. `empresa`, `motivo_categoria` y `prioridad` restringen esa
+ * misma cohorte antes de calcular cualquier métrica.
+ *
+ * `estado_actual` y las distribuciones son una fotografía al instante
+ * `generado_en`: describen el estado actual de la cohorte por creación, no
+ * el estado que los tickets tenían dentro del período.
+ *
+ * `cumplimiento_plazo_auditable` considera únicamente transiciones de un
+ * estado no final a `resuelto` o `cerrado` que conservaron el snapshot del
+ * plazo vigente al resolverse. El cambio `resuelto` a `cerrado` no cuenta
+ * como otra resolución.
+ * @summary Consultar el resumen de rendimiento del equipo
+ */
+export const GetRendimientoResumenEquipoQueryParams = zod.object({
+  "fecha_desde": zod.coerce.date().optional().describe('Primer día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
+  "fecha_hasta": zod.coerce.date().optional().describe('Último día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
+  "empresa": zod.coerce.string().optional().describe('Texto contenido en la empresa de los tickets incluidos en la cohorte.'),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'prestamos_anticipos', 'obra_social', 'sanciones_ausencias', 'proveedores_comercial', 'sin_clasificar']).optional().describe('Categoría normalizada de los tickets incluidos en la cohorte.'),
+  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional().describe('Prioridad actual de los tickets incluidos en la cohorte.')
+})
+
+export const getRendimientoResumenEquipoResponseTicketsIngresadosMin = 0;
+
+export const getRendimientoResumenEquipoResponseEstadoActualTotalMin = 0;
+
+export const getRendimientoResumenEquipoResponseEstadoActualAbiertosMin = 0;
+
+export const getRendimientoResumenEquipoResponseEstadoActualFinalizadosMin = 0;
+
+export const getRendimientoResumenEquipoResponseEstadoActualVencidosAbiertosMin = 0;
+
+export const getRendimientoResumenEquipoResponseResolucionConFechaMuestraMin = 0;
+
+export const getRendimientoResumenEquipoResponseResolucionConFechaPromedioHorasMin = 0;
+
+export const getRendimientoResumenEquipoResponseResolucionConFechaMedianaHorasMin = 0;
+
+export const getRendimientoResumenEquipoResponseCumplimientoPlazoAuditableMuestraMin = 0;
+
+export const getRendimientoResumenEquipoResponseCumplimientoPlazoAuditableCumplidosMin = 0;
+
+export const getRendimientoResumenEquipoResponseCumplimientoPlazoAuditablePorcentajeMin = 0;
+export const getRendimientoResumenEquipoResponseCumplimientoPlazoAuditablePorcentajeMax = 100;
+
+export const getRendimientoResumenEquipoResponseDistribucionEstadoOneNuevoMin = 0;
+
+export const getRendimientoResumenEquipoResponseDistribucionEstadoOneEnProcesoMin = 0;
+
+export const getRendimientoResumenEquipoResponseDistribucionEstadoOnePendienteMin = 0;
+
+export const getRendimientoResumenEquipoResponseDistribucionEstadoOneResueltoMin = 0;
+
+export const getRendimientoResumenEquipoResponseDistribucionEstadoOneCerradoMin = 0;
+
+export const getRendimientoResumenEquipoResponseDistribucionPrioridadOneBajaMin = 0;
+
+export const getRendimientoResumenEquipoResponseDistribucionPrioridadOneMediaMin = 0;
+
+export const getRendimientoResumenEquipoResponseDistribucionPrioridadOneAltaMin = 0;
+
+export const getRendimientoResumenEquipoResponseDistribucionPrioridadOneUrgenteMin = 0;
+
+
+
+export const GetRendimientoResumenEquipoResponse = zod.object({
+  "periodo": zod.object({
+  "fecha_desde": zod.coerce.date().nullable().describe('Primer día incluido por fecha_creacion, o null si no se limitó el inicio.'),
+  "fecha_hasta": zod.coerce.date().nullable().describe('Último día incluido por fecha_creacion, o null si no se limitó el fin.'),
+  "timezone": zod.enum(['America/Argentina/Buenos_Aires']),
+  "generado_en": zod.coerce.date().describe('Instante del snapshot consistente usado para calcular la respuesta.')
+}),
+  "tickets_ingresados": zod.number().min(getRendimientoResumenEquipoResponseTicketsIngresadosMin).describe('Tickets visibles cuya fecha_creacion pertenece al período y satisface todos los filtros; coincide con estado_actual.total.\n'),
+  "estado_actual": zod.object({
+  "total": zod.number().min(getRendimientoResumenEquipoResponseEstadoActualTotalMin),
+  "abiertos": zod.number().min(getRendimientoResumenEquipoResponseEstadoActualAbiertosMin),
+  "finalizados": zod.number().min(getRendimientoResumenEquipoResponseEstadoActualFinalizadosMin),
+  "vencidos_abiertos": zod.number().min(getRendimientoResumenEquipoResponseEstadoActualVencidosAbiertosMin)
+}).describe('Fotografía actual de la cohorte definida por fecha_creacion. abiertos comprende nuevo, en_proceso y pendiente; finalizados comprende resuelto y cerrado; vencidos_abiertos es un subconjunto de abiertos cuyo plazo ya pasó al instante generado_en.\n'),
+  "resolucion_con_fecha": zod.object({
+  "muestra": zod.number().min(getRendimientoResumenEquipoResponseResolucionConFechaMuestraMin),
+  "promedio_horas": zod.number().min(getRendimientoResumenEquipoResponseResolucionConFechaPromedioHorasMin).nullable(),
+  "mediana_horas": zod.number().min(getRendimientoResumenEquipoResponseResolucionConFechaMedianaHorasMin).nullable()
+}).describe('Horas corridas desde fecha_creacion hasta fecha_resolucion para tickets actualmente finalizados de la cohorte que poseen ambas fechas válidas y una duración no negativa. Las duraciones son null cuando muestra es cero.\n'),
+  "cumplimiento_plazo_auditable": zod.object({
+  "muestra": zod.number().min(getRendimientoResumenEquipoResponseCumplimientoPlazoAuditableMuestraMin),
+  "cumplidos": zod.number().min(getRendimientoResumenEquipoResponseCumplimientoPlazoAuditableCumplidosMin),
+  "porcentaje": zod.number().min(getRendimientoResumenEquipoResponseCumplimientoPlazoAuditablePorcentajeMin).max(getRendimientoResumenEquipoResponseCumplimientoPlazoAuditablePorcentajeMax).nullable()
+}).describe('Cumplimiento basado exclusivamente en transiciones no-final a final con fecha_limite_snapshot. Una resolución cumple cuando la fecha del evento no supera ese snapshot. porcentaje es null cuando muestra es cero.\n'),
+  "distribucion_estado": zod.object({
+  "nuevo": zod.number().min(getRendimientoResumenEquipoResponseDistribucionEstadoOneNuevoMin),
+  "en_proceso": zod.number().min(getRendimientoResumenEquipoResponseDistribucionEstadoOneEnProcesoMin),
+  "pendiente": zod.number().min(getRendimientoResumenEquipoResponseDistribucionEstadoOnePendienteMin),
+  "resuelto": zod.number().min(getRendimientoResumenEquipoResponseDistribucionEstadoOneResueltoMin),
+  "cerrado": zod.number().min(getRendimientoResumenEquipoResponseDistribucionEstadoOneCerradoMin)
+}).describe('Estado actual de la cohorte; incluye todos los estados conocidos, aun cuando su cantidad sea cero.\n'),
+  "distribucion_prioridad": zod.object({
+  "baja": zod.number().min(getRendimientoResumenEquipoResponseDistribucionPrioridadOneBajaMin),
+  "media": zod.number().min(getRendimientoResumenEquipoResponseDistribucionPrioridadOneMediaMin),
+  "alta": zod.number().min(getRendimientoResumenEquipoResponseDistribucionPrioridadOneAltaMin),
+  "urgente": zod.number().min(getRendimientoResumenEquipoResponseDistribucionPrioridadOneUrgenteMin)
+}).describe('Prioridad actual de la cohorte; incluye todas las prioridades conocidas, aun cuando su cantidad sea cero.\n')
 })
 
 

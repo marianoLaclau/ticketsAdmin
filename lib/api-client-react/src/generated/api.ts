@@ -46,6 +46,8 @@ import type {
   GetMotivoStatsParams,
   GetRendimientoCalidadDatos403,
   GetRendimientoCalidadDatosParams,
+  GetRendimientoResumenEquipo403,
+  GetRendimientoResumenEquipoParams,
   GetRendimientoStatus403,
   GetTicketParams,
   GetTicketsVencidosParams,
@@ -64,6 +66,7 @@ import type {
   ReadinessUnavailable,
   RendimientoCalidadDatos,
   RendimientoModuleStatus,
+  RendimientoResumenEquipo,
   Seguimiento,
   SeguimientoInput,
   Ticket,
@@ -2595,6 +2598,102 @@ export function useGetRendimientoCalidadDatos<TData = Awaited<ReturnType<typeof 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetRendimientoCalidadDatosQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetRendimientoResumenEquipoUrl = (params?: GetRendimientoResumenEquipoParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/rendimiento/resumen-equipo?${stringifiedParams}` : `/api/rendimiento/resumen-equipo`
+}
+
+/**
+ * Resume tickets visibles cuya `fecha_creacion` pertenece al período
+ * solicitado. `empresa`, `motivo_categoria` y `prioridad` restringen esa
+ * misma cohorte antes de calcular cualquier métrica.
+ *
+ * `estado_actual` y las distribuciones son una fotografía al instante
+ * `generado_en`: describen el estado actual de la cohorte por creación, no
+ * el estado que los tickets tenían dentro del período.
+ *
+ * `cumplimiento_plazo_auditable` considera únicamente transiciones de un
+ * estado no final a `resuelto` o `cerrado` que conservaron el snapshot del
+ * plazo vigente al resolverse. El cambio `resuelto` a `cerrado` no cuenta
+ * como otra resolución.
+ * @summary Consultar el resumen de rendimiento del equipo
+ */
+export const getRendimientoResumenEquipo = async (params?: GetRendimientoResumenEquipoParams, options?: RequestInit): Promise<RendimientoResumenEquipo> => {
+
+  return customFetch<RendimientoResumenEquipo>(getGetRendimientoResumenEquipoUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRendimientoResumenEquipoQueryKey = (params?: GetRendimientoResumenEquipoParams,) => {
+    return [
+    `/api/rendimiento/resumen-equipo`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetRendimientoResumenEquipoQueryOptions = <TData = Awaited<ReturnType<typeof getRendimientoResumenEquipo>>, TError = ErrorType<void | AdminAccessUnauthorized | GetRendimientoResumenEquipo403>>(params?: GetRendimientoResumenEquipoParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRendimientoResumenEquipo>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRendimientoResumenEquipoQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRendimientoResumenEquipo>>> = ({ signal }) => getRendimientoResumenEquipo(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRendimientoResumenEquipo>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRendimientoResumenEquipoQueryResult = NonNullable<Awaited<ReturnType<typeof getRendimientoResumenEquipo>>>
+export type GetRendimientoResumenEquipoQueryError = ErrorType<void | AdminAccessUnauthorized | GetRendimientoResumenEquipo403>
+
+
+/**
+ * @summary Consultar el resumen de rendimiento del equipo
+ */
+
+export function useGetRendimientoResumenEquipo<TData = Awaited<ReturnType<typeof getRendimientoResumenEquipo>>, TError = ErrorType<void | AdminAccessUnauthorized | GetRendimientoResumenEquipo403>>(
+ params?: GetRendimientoResumenEquipoParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRendimientoResumenEquipo>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRendimientoResumenEquipoQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
