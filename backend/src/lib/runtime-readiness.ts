@@ -1,17 +1,2 @@
-import { sqlite } from "@workspace/db";
-import { logger } from "./logger";
-import { createReadinessControl } from "./readiness";
-import { probeSqliteReadiness } from "./sqlite-readiness";
-
-function reportProbeFailure(error: unknown): void {
-  try {
-    logger.warn({ err: error }, "La sonda de readiness de SQLite fallo");
-  } catch {
-    // El diagnostico nunca debe alterar la respuesta cerrada de readiness.
-  }
-}
-
-export const readinessControl = createReadinessControl(
-  () => probeSqliteReadiness(sqlite),
-  reportProbeFailure,
-);
+// Shim legacy: reexporta el control singleton de readiness.
+export * from "../shared/runtime/runtime-readiness";
