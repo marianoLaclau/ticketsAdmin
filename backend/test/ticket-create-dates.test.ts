@@ -87,6 +87,7 @@ bootstrap.exec(`
     campos_editados TEXT,
     autor_usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
     autor TEXT,
+    fecha_limite_snapshot INTEGER,
     fecha_creacion INTEGER NOT NULL
   );
 `);

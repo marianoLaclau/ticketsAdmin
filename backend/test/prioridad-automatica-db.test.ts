@@ -38,6 +38,7 @@ function crearBase(opciones: { forzarFalloAuditoria?: boolean } = {}) {
       campos_editados TEXT,
       autor_usuario_id INTEGER,
       autor TEXT NOT NULL${opciones.forzarFalloAuditoria ? " CHECK (autor <> 'Sistema')" : ""},
+      fecha_limite_snapshot INTEGER,
       fecha_creacion INTEGER NOT NULL
     );
   `);
