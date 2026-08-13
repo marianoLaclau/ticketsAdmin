@@ -131,7 +131,7 @@ test("presenta riesgo, cobertura, identidad enmascarada y expande tickets", asyn
     </Router>,
   );
 
-  assert.ok(screen.getByRole("heading", { name: "Contactos reiterados" }));
+  assert.ok(screen.getByRole("heading", { name: "Contactos recurrentes" }));
   assert.ok(screen.getByRole("heading", { name: "Cobertura de identidad" }));
   assert.ok(screen.getByText(/30 de 40 tickets/));
   assert.ok(screen.getByText(/2 tickets ambiguos/));
@@ -258,7 +258,7 @@ test("distingue cohorte vacía, falta de identidad y ausencia de grupos", async 
   );
   assert.ok(
     screen.getByRole("heading", {
-      name: "No se detectaron contactos reiterados con gestiones abiertas",
+      name: "No se detectaron contactos recurrentes con gestiones abiertas",
     }),
   );
 });
@@ -291,7 +291,7 @@ test("pagina contactos y bloquea la navegacion mientras carga", async (t) => {
   );
 
   const pagination = screen.getByRole("navigation", {
-    name: "Paginación de contactos reiterados",
+    name: "Paginación de contactos recurrentes",
   });
   assert.ok(within(pagination).getByText(/Página 1 de 2/));
   assert.equal(
@@ -329,7 +329,7 @@ test("pagina contactos y bloquea la navegacion mientras carga", async (t) => {
   );
 
   const busyPagination = screen.getByRole("navigation", {
-    name: "Paginación de contactos reiterados",
+    name: "Paginación de contactos recurrentes",
   });
   assert.equal(busyPagination.getAttribute("aria-busy"), "true");
   assert.equal(
@@ -432,7 +432,7 @@ test("los estados loading y error son anunciados y permiten reintentar", async (
   const loading = render(<RendimientoReiteracionesLoadingState />);
   assert.equal(
     screen
-      .getByLabelText("Cargando contactos reiterados")
+      .getByLabelText("Cargando contactos recurrentes")
       .getAttribute("aria-busy"),
     "true",
   );

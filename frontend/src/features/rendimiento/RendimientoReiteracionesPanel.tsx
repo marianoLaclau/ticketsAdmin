@@ -463,7 +463,7 @@ function RepetitionsPagination({
   return (
     <nav
       className="flex flex-col items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 sm:flex-row"
-      aria-label="Paginación de contactos reiterados"
+      aria-label="Paginación de contactos recurrentes"
       aria-busy={isLoading}
     >
       <p
@@ -573,7 +573,7 @@ export function RendimientoReiteracionesPanel({
                   id="rendimiento-reiteraciones-heading"
                   className="text-lg font-semibold tracking-tight sm:text-xl"
                 >
-                  Contactos reiterados
+                  Contactos recurrentes
                 </h2>
                 <CardDescription className="mt-1 max-w-3xl leading-relaxed">
                   Coincidencias operativas con múltiples llamados y al menos una
@@ -589,7 +589,7 @@ export function RendimientoReiteracionesPanel({
         <CardContent className="p-5 sm:p-6">
           <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <SummaryFact
-              title="Contactos reiterados"
+              title="Contactos recurrentes"
               value={data.resumen.contactos_reiterados}
               detail="grupos con al menos un ticket abierto"
             />
@@ -642,7 +642,7 @@ export function RendimientoReiteracionesPanel({
         <>
           <CoverageNotice data={data} />
           <NoResultsState
-            title="No se detectaron contactos reiterados con gestiones abiertas"
+            title="No se detectaron contactos recurrentes con gestiones abiertas"
             description="Hay tickets identificables, pero ningún grupo reúne al menos dos llamados y conserva un ticket actualmente abierto."
           />
         </>

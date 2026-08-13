@@ -148,7 +148,7 @@ KPIs (sin revisar, en proceso, vencidos, resueltos), distribución por estado (b
 
 ### `Rendimiento.tsx` (ruta `/rendimiento`, SysAdmin y Controller)
 
-Shell ejecutivo lazy-loaded con encabezado y cuatro tabs responsive: **Resumen equipo**, **Personas**, **Reiteraciones** y **Calidad de datos**. Comparten filtros canonizados en URL y muestran datos reales con muestras, cobertura y estados explícitos de carga, error o ausencia de datos. Reiteraciones presenta KPIs y cards de contactos con identidad enmascarada, responsables y links a tickets; expande más de tres tickets bajo demanda sin crear una tabla ancha. La ruta usa `RendimientoRouteGuard`, y el sidebar solo ofrece el acceso cuando `puedeVerRendimiento(me?.rol)` es verdadero.
+Shell ejecutivo lazy-loaded con encabezado y cuatro tabs responsive: **Resumen equipo**, **Operadores**, **Contactos recurrentes** y **Calidad de datos**. Comparten filtros canonizados en URL y muestran datos reales con muestras, cobertura y estados explícitos de carga, error o ausencia de datos. Contactos recurrentes presenta KPIs y cards de contactos con identidad enmascarada, responsables y links a tickets; expande más de tres tickets bajo demanda sin crear una tabla ancha. La ruta usa `RendimientoRouteGuard`, y el sidebar solo ofrece el acceso cuando `puedeVerRendimiento(me?.rol)` es verdadero.
 
 El backend expone `GET /api/rendimiento` con `estado: "operativo"` y endpoints independientes para las cuatro vistas, todos protegidos para SysAdmin/Controller y con caché deshabilitada.
 

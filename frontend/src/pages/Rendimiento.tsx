@@ -34,12 +34,12 @@ const VIEWS: readonly RendimientoView[] = [
   },
   {
     value: "personas",
-    label: "Personas",
+    label: "Operadores",
     icon: UsersRound,
   },
   {
     value: "reiteraciones",
-    label: "Reiteraciones",
+    label: "Contactos recurrentes",
     icon: Repeat2,
   },
   {

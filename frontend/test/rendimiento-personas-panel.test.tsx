@@ -102,7 +102,7 @@ test("muestra hechos y muestras aun con cobertura insuficiente, sin ranking", as
     }),
   );
   assert.ok(screen.getByText("Orden alfabético A–Z"));
-  assert.ok(!screen.queryByText(/mejor persona/i));
+  assert.ok(!screen.queryByText(/mejor operador/i));
   assert.ok(!screen.queryByRole("columnheader", { name: /posición|puntaje/i }));
   assert.ok(!screen.queryByRole("button", { name: /ordenar/i }));
 
@@ -179,7 +179,7 @@ test("el estado vacío explica la cohorte y permite limpiar filtros", async (t) 
     screen.getByRole("heading", { name: "No hay datos para estos filtros" }),
   );
   assert.equal(
-    screen.queryByRole("heading", { name: "Actividad por persona" }),
+    screen.queryByRole("heading", { name: "Actividad por operador" }),
     null,
   );
   await user.click(screen.getByRole("button", { name: "Limpiar filtros" }));

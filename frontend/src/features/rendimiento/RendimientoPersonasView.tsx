@@ -90,7 +90,7 @@ export function RendimientoPersonasView({
   });
   const errorMessage = getUserErrorMessage(
     query.error,
-    "No fue posible obtener la actividad por persona. Reintentá en unos segundos.",
+    "No fue posible obtener la actividad por operador. Reintentá en unos segundos.",
   );
 
   if (query.isLoading) return <RendimientoPersonasLoadingState />;

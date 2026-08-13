@@ -26,10 +26,10 @@ export function RendimientoReiteracionesLoadingState() {
   return (
     <section
       className="space-y-4"
-      aria-label="Cargando contactos reiterados"
+      aria-label="Cargando contactos recurrentes"
       aria-busy="true"
     >
-      <LoadingStatus>Cargando contactos reiterados</LoadingStatus>
+      <LoadingStatus>Cargando contactos recurrentes</LoadingStatus>
       <Skeleton className="h-52 w-full rounded-xl" />
       <Skeleton className="h-28 w-full rounded-xl" />
       <div className="space-y-4">
@@ -58,7 +58,7 @@ export function RendimientoReiteracionesErrorState({
       <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-semibold">
-            No pudimos cargar los contactos reiterados
+            No pudimos cargar los contactos recurrentes
           </p>
           <p className="mt-1">{message}</p>
         </div>

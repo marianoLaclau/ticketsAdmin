@@ -72,7 +72,7 @@ const COVERAGE_DEFINITIONS: readonly CoverageDefinition[] = [
     key: "identidad_contacto",
     title: "Identidad del contacto",
     description:
-      "Tickets con DNI, teléfono o email utilizable para detectar reiteraciones.",
+      "Tickets con DNI, teléfono o email utilizable para detectar contactos recurrentes.",
     icon: ContactRound,
   },
   {
@@ -193,7 +193,7 @@ function getComparisonNoticeConfig(
       return {
         title: "Comparación individual con cobertura parcial",
         description:
-          "Los indicadores por persona deben interpretarse con cautela porque parte de las resoluciones no tiene autor estructurado." +
+          "Los indicadores por operador deben interpretarse con cautela porque parte de las resoluciones no tiene autor estructurado." +
           historicalContext,
         icon: ShieldAlert,
         className: "border-amber-200 bg-amber-50 text-amber-950",
@@ -203,7 +203,7 @@ function getComparisonNoticeConfig(
       return {
         title: "Comparación individual no disponible",
         description:
-          "La muestra o la cobertura de autoría todavía no permite comparar personas sin inducir conclusiones incompletas." +
+          "La muestra o la cobertura de autoría todavía no permite comparar operadores sin inducir conclusiones incompletas." +
           historicalContext,
         icon: CircleAlert,
         className: "border-red-200 bg-red-50 text-red-950",

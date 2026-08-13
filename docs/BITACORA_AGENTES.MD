@@ -3656,3 +3656,17 @@ de ampliar los indicadores, Dirección debe definir expresamente:
 Hasta resolver esas decisiones se exponen solo eventos y snapshots auditables;
 no se reconstruyen respuestas, responsables ni tramos temporales que la base no
 registró.
+
+## 2026-08-13 — Rendimiento: terminología operativa
+
+**Agente:** Codex
+
+- La pestaña visible **Personas** pasó a llamarse **Operadores** y toda su copia
+  funcional usa esa denominación.
+- La pestaña visible **Reiteraciones** pasó a llamarse **Contactos recurrentes**.
+  El nombre describe que un mismo contacto registra múltiples llamados sin
+  afirmar que nunca recibió respuesta, dato que la historia actual no permite
+  demostrar.
+- Se conservaron sin cambios los valores canónicos `personas` y
+  `reiteraciones`, las rutas HTTP, los tipos y los contratos. El ajuste es de
+  lenguaje de producto y no rompe enlaces guardados ni integraciones.

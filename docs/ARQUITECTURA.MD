@@ -83,15 +83,15 @@ flowchart TB
     workspace --> sqlite
 ```
 
-| Módulo                   | Responsabilidad actual                                                                                  |
-| ------------------------ | ------------------------------------------------------------------------------------------------------- |
-| `modules/auth`           | Sesión, login, cambio de contraseña, seed, seguridad de credenciales y capacidades RBAC                 |
-| `modules/tickets`        | Consulta, detalle, edición, seguimiento, auditoría, prioridad automática, orden y exportación           |
-| `modules/dashboard`      | Períodos operativos, agregaciones SQL y endpoints del resumen operativo                                 |
-| `modules/administracion` | Usuarios, roles, operaciones masivas y CRUD administrativo protegido                                    |
-| `modules/ingestion`      | Webhook e ingreso idempotente de datos desde n8n/Serin                                                  |
-| `modules/rendimiento`    | Cohortes y agregaciones ejecutivas auditables: equipo, personas, reiteraciones y calidad de datos       |
-| `backend/src/shared`     | Configuración, logging, SSE, readiness, ciclo de vida del proceso y validaciones técnicas reutilizables |
+| Módulo                   | Responsabilidad actual                                                                                      |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `modules/auth`           | Sesión, login, cambio de contraseña, seed, seguridad de credenciales y capacidades RBAC                     |
+| `modules/tickets`        | Consulta, detalle, edición, seguimiento, auditoría, prioridad automática, orden y exportación               |
+| `modules/dashboard`      | Períodos operativos, agregaciones SQL y endpoints del resumen operativo                                     |
+| `modules/administracion` | Usuarios, roles, operaciones masivas y CRUD administrativo protegido                                        |
+| `modules/ingestion`      | Webhook e ingreso idempotente de datos desde n8n/Serin                                                      |
+| `modules/rendimiento`    | Cohortes y agregaciones ejecutivas auditables: equipo, operadores, contactos recurrentes y calidad de datos |
+| `backend/src/shared`     | Configuración, logging, SSE, readiness, ciclo de vida del proceso y validaciones técnicas reutilizables     |
 
 #### Transporte y seguridad
 
@@ -199,7 +199,7 @@ Las pantallas principales son:
 - `/dashboard`: KPIs, estados, prioridades, motivos y actividad.
 - `/tickets`: listado filtrable, paginado, ordenable y exportable.
 - `/tickets/:id`: detalle, edición, audio y seguimiento.
-- `/rendimiento`: espacio ejecutivo visible únicamente para SysAdmin y Controller; comparte filtros y una cohorte visible entre equipo, personas, reiteraciones y calidad de datos.
+- `/rendimiento`: espacio ejecutivo visible únicamente para SysAdmin y Controller; comparte filtros y una cohorte visible entre equipo, operadores, contactos recurrentes y calidad de datos.
 - `/admin`: CRUD, importación, cuarentena y zona peligrosa.
 - `/admin/roles-usuarios`: gestión de usuarios y roles para SysAdmin.
 
@@ -223,8 +223,8 @@ snapshot de lectura SQLite y usa un único instante `generado_en` inyectable.
 flowchart LR
     filters[Filtros validados] --> cohort[Cohorte visible común]
     cohort --> team[Resumen del equipo]
-    cohort --> people[Personas]
-    cohort --> repeats[Reiteraciones]
+    cohort --> people[Operadores]
+    cohort --> repeats[Contactos recurrentes]
     cohort --> quality[Calidad de datos]
     history[(seguimientos)] --> team
     history --> people
@@ -237,13 +237,13 @@ flowchart LR
     contract --> ui[Cards y estados React]
 ```
 
-Resumen y Personas distinguen la fotografía actual de los eventos históricos.
+Resumen y Operadores distinguen la fotografía actual de los eventos históricos.
 Una resolución solo es atribuible cuando un seguimiento prueba una transición
 de estado no final a final y posee `autor_usuario_id`; el SLA histórico usa el
 `fecha_limite_snapshot` preservado en ese evento. Las muestras y coberturas son
 parte del contrato para no presentar estimaciones incompletas como hechos.
 
-Reiteraciones asigna exactamente una clave canónica por ticket, con precedencia
+Contactos recurrentes asignan exactamente una clave canónica por ticket, con precedencia
 DNI, teléfono y email. Una identidad secundaria sin DNI solo hereda uno cuando
 la asociación directa en la cohorte es unívoca. Se rechazan formatos inválidos,
 secuencias numéricas repetidas y valores centinela como “sin correo”; no se

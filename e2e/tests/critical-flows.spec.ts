@@ -229,6 +229,7 @@ test("Controller consulta Rendimiento de extremo a extremo sin permisos de escri
   expect(resolved.ok()).toBe(true);
 
   await page.getByRole("button", { name: "Cerrar sesión" }).click();
+  await expect(page.getByRole("button", { name: "Ingresar" })).toBeVisible();
   await login(page, controllerUsername, E2E_AGENT_TEMP_PASSWORD);
   await completeRequiredPasswordChange(
     page,
@@ -261,16 +262,16 @@ test("Controller consulta Rendimiento de extremo a extremo sin permisos de escri
     page.getByRole("heading", { name: "Resumen del equipo" }),
   ).toBeVisible();
 
-  await page.getByRole("tab", { name: "Personas" }).click();
+  await page.getByRole("tab", { name: "Operadores" }).click();
   await expect(page).toHaveURL(/vista=personas/);
   await expect(
     page.getByRole("heading", { name: "Rendimiento individual" }),
   ).toBeVisible();
 
-  await page.getByRole("tab", { name: "Reiteraciones" }).click();
+  await page.getByRole("tab", { name: "Contactos recurrentes" }).click();
   await expect(page).toHaveURL(/vista=reiteraciones/);
   await expect(
-    page.getByRole("heading", { name: "Contactos reiterados" }),
+    page.getByRole("heading", { name: "Contactos recurrentes" }),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Contacto Reiterado" }),
@@ -290,7 +291,10 @@ test("Controller consulta Rendimiento de extremo a extremo sin permisos de escri
   await page.goBack();
   await expect(page).toHaveURL(/vista=reiteraciones/);
   await expect(
-    page.getByRole("tab", { name: "Reiteraciones", selected: true }),
+    page.getByRole("tab", {
+      name: "Contactos recurrentes",
+      selected: true,
+    }),
   ).toBeVisible();
 
   await page.getByLabel("Empresa").fill(company);
@@ -299,7 +303,10 @@ test("Controller consulta Rendimiento de extremo a extremo sin permisos de escri
   await expect(page).toHaveURL(/empresa=Direcci%C3%B3n\+E2E/);
   await page.reload();
   await expect(
-    page.getByRole("tab", { name: "Reiteraciones", selected: true }),
+    page.getByRole("tab", {
+      name: "Contactos recurrentes",
+      selected: true,
+    }),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Contacto Reiterado" }),

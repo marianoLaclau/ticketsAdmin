@@ -106,7 +106,7 @@ function getCoverageConfig(
       return {
         title: "Cobertura insuficiente para comparar",
         description:
-          "La muestra global no permite comparar personas de forma responsable. Se conservan visibles los hechos descriptivos y la carga actual, siempre con sus muestras.",
+          "La muestra global no permite comparar operadores de forma responsable. Se conservan visibles los hechos descriptivos y la carga actual, siempre con sus muestras.",
         icon: CircleAlert,
         className: "border-slate-300 bg-slate-50 text-slate-950",
         iconClassName: "text-slate-600",
@@ -355,7 +355,7 @@ function PeopleList({ people }: { people: readonly RendimientoPersona[] }) {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <UserRound className="h-4 w-4 text-primary" aria-hidden="true" />
-              <h2 className="font-semibold">Actividad por persona</h2>
+              <h2 className="font-semibold">Actividad por operador</h2>
             </div>
             <CardDescription className="mt-1 max-w-3xl leading-relaxed">
               Hechos auditables presentados por nombre. Cada indicador conserva
@@ -425,7 +425,7 @@ export function RendimientoPersonasPanel({
                 </h2>
                 <CardDescription className="mt-1 max-w-3xl leading-relaxed">
                   Resoluciones atribuibles, tiempos, cumplimiento y carga actual
-                  por persona, sin completar datos faltantes ni construir
+                  por operador, sin completar datos faltantes ni construir
                   clasificaciones.
                 </CardDescription>
               </div>
@@ -457,7 +457,7 @@ export function RendimientoPersonasPanel({
               detail={coveragePercentage + " con autor identificado"}
             />
             <SummaryFact
-              label="Personas informadas"
+              label="Operadores informados"
               value={numberFormatter.format(data.personas.length)}
               detail="usuarios persistidos, activos o inactivos"
             />
@@ -505,7 +505,7 @@ export function RendimientoPersonasPanel({
                   aria-hidden="true"
                 />
                 <h3 className="mt-3 text-base font-semibold">
-                  No hay personas registradas
+                  No hay operadores registrados
                 </h3>
                 <p className="mt-1 max-w-lg text-sm text-muted-foreground">
                   Existen tickets en la cohorte, pero no hay usuarios

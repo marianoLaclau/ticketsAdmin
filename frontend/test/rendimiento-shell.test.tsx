@@ -394,7 +394,7 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
 
   const user = userEvent.setup();
 
-  const peopleTab = screen.getByRole("tab", { name: "Personas" });
+  const peopleTab = screen.getByRole("tab", { name: "Operadores" });
   await user.click(peopleTab);
   assert.equal(peopleTab.getAttribute("aria-selected"), "true");
   assert.equal(location.history.at(-1), "/rendimiento?vista=personas");
@@ -411,12 +411,14 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
     1,
   );
 
-  const repetitionsTab = screen.getByRole("tab", { name: "Reiteraciones" });
+  const repetitionsTab = screen.getByRole("tab", {
+    name: "Contactos recurrentes",
+  });
   await user.click(repetitionsTab);
   assert.equal(repetitionsTab.getAttribute("aria-selected"), "true");
   assert.equal(location.history.at(-1), "/rendimiento?vista=reiteraciones");
   assert.ok(
-    await screen.findByRole("heading", { name: "Contactos reiterados" }),
+    await screen.findByRole("heading", { name: "Contactos recurrentes" }),
   );
   assert.ok(screen.getByRole("heading", { name: "Cobertura de identidad" }));
   assert.ok(screen.getByRole("heading", { name: "Grace Hopper" }));
@@ -549,7 +551,9 @@ test("abre y recarga un deep-link en la vista indicada sin perder filtros", asyn
 
   const firstRender = renderDeepLink();
   assert.equal(
-    screen.getByRole("tab", { name: "Personas" }).getAttribute("aria-selected"),
+    screen
+      .getByRole("tab", { name: "Operadores" })
+      .getAttribute("aria-selected"),
     "true",
   );
   assert.ok(
@@ -569,7 +573,9 @@ test("abre y recarga un deep-link en la vista indicada sin perder filtros", asyn
 
   const reloaded = renderDeepLink();
   assert.equal(
-    screen.getByRole("tab", { name: "Personas" }).getAttribute("aria-selected"),
+    screen
+      .getByRole("tab", { name: "Operadores" })
+      .getAttribute("aria-selected"),
     "true",
   );
   assert.ok(
