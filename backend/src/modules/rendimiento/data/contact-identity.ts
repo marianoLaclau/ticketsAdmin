@@ -9,7 +9,7 @@ export function normalizedContactDigits(column: AnyColumn): SQL<string> {
     ${normalizedContactText(column)}, ' ', ''), '.', ''), '-', ''), '(', ''), ')', ''), '+', ''), '/', '')`;
 }
 
-export function usableNumericContactIdentity(
+function usableNumericContactIdentity(
   column: AnyColumn,
   minimumLength: number,
   maximumLength: number,

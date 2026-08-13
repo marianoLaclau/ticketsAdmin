@@ -33,8 +33,8 @@ export function createRendimientoRepetitionHandler({
       return;
     }
     if (
-      !Number.isInteger(parsed.data.pagina) ||
-      !Number.isInteger(parsed.data.limite)
+      !Number.isSafeInteger(parsed.data.pagina) ||
+      !Number.isSafeInteger(parsed.data.limite)
     ) {
       respondInvalidRendimientoFilters(res);
       return;

@@ -1820,6 +1820,7 @@ describe("módulo de Rendimiento", () => {
     for (const query of [
       "pagina=0",
       "pagina=1.5",
+      "pagina=9007199254740992",
       "limite=0",
       "limite=51",
       "pagina=1&pagina=2",
