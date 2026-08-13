@@ -23,8 +23,9 @@ import {
 } from "./cohort";
 import {
   nonBlankContactText,
+  usableDniContactIdentity,
   usableEmailContactIdentity,
-  usableNumericContactIdentity,
+  usablePhoneContactIdentity,
 } from "./contact-identity";
 
 type PerformanceDatabase<TSchema extends Record<string, unknown>> =
@@ -78,8 +79,8 @@ export function consultarCalidadRendimiento<
   const cohort = buildPerformanceCohortConditions(filters);
   const finalStatus = inArray(ticketsTable.estado, ["resuelto", "cerrado"]);
   const hasContactIdentity = or(
-    usableNumericContactIdentity(ticketsTable.dni, 7, 11),
-    usableNumericContactIdentity(ticketsTable.telefono, 7, 15),
+    usableDniContactIdentity(ticketsTable.dni),
+    usablePhoneContactIdentity(ticketsTable.telefono),
     usableEmailContactIdentity(ticketsTable.email),
   )!;
   const hasAnyAssignment = or(

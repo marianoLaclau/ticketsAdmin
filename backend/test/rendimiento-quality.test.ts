@@ -228,7 +228,7 @@ describe("calidad de datos de Rendimiento", () => {
     insertTicket(sqlite, {
       conversationId: "telefono",
       createdAt: "2026-08-05T12:00:00.000Z",
-      phone: "11 5555 5555",
+      phone: "11 5555 1234",
       deadline,
     });
     insertTicket(sqlite, {
@@ -346,7 +346,7 @@ describe("calidad de datos de Rendimiento", () => {
     insertTicket(sqlite, {
       conversationId: "telefono-formateado",
       createdAt: "2026-08-03T13:00:00.000Z",
-      phone: "+54 (11) 5555-5555",
+      phone: "+54 (11) 5555-1234",
     });
     insertTicket(sqlite, {
       conversationId: "email-normalizado",
@@ -360,13 +360,20 @@ describe("calidad de datos de Rendimiento", () => {
       phone: "No informado",
       email: "sin correo",
     });
+    insertTicket(sqlite, {
+      conversationId: "placeholders-con-formato",
+      createdAt: "2026-08-03T16:00:00.000Z",
+      dni: "00.000.000",
+      phone: "+54 11 1111-1111",
+      email: "sin.email@example.com",
+    });
 
     const result = consultarCalidadRendimiento(database, {});
 
     assert.deepEqual(result.coberturas.identidad_contacto, {
       numerador: 3,
-      denominador: 4,
-      porcentaje: 75,
+      denominador: 5,
+      porcentaje: 60,
     });
     sqlite.close();
   });
