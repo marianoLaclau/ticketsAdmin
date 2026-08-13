@@ -13,7 +13,7 @@ export const RendimientoModuleStatusModulo = {
 } as const;
 
 /**
- * Resumen de equipo y Calidad de datos operativos; Personas y Reiteraciones pendientes.
+ * Resumen, Personas y Calidad de datos operativos; Reiteraciones pendiente.
  */
 export type RendimientoModuleStatusEstado = typeof RendimientoModuleStatusEstado[keyof typeof RendimientoModuleStatusEstado];
 
@@ -34,7 +34,7 @@ export const RendimientoModuleStatusVistasItem = {
 
 export interface RendimientoModuleStatus {
   modulo: RendimientoModuleStatusModulo;
-  /** Resumen de equipo y Calidad de datos operativos; Personas y Reiteraciones pendientes. */
+  /** Resumen, Personas y Calidad de datos operativos; Reiteraciones pendiente. */
   estado: RendimientoModuleStatusEstado;
   /**
      * @minItems 4
@@ -217,6 +217,184 @@ export interface RendimientoResumenEquipo {
   distribucion_estado: RendimientoDistribucionEstado;
   /** Prioridad actual de la cohorte; incluye todas las prioridades conocidas, aun cuando su cantidad sea cero. */
   distribucion_prioridad: RendimientoDistribucionPrioridad;
+}
+
+/**
+ * insuficiente cuando hay menos de 10 resoluciones evaluadas o menos de 80% de autoría; parcial desde 80% y antes de 95%; disponible a partir de 95%. disponible acredita cobertura global, no una muestra individual suficiente ni permiso para construir un ranking.
+ */
+export type RendimientoPersonasCoberturaComparacionIndividualEstado = typeof RendimientoPersonasCoberturaComparacionIndividualEstado[keyof typeof RendimientoPersonasCoberturaComparacionIndividualEstado];
+
+
+export const RendimientoPersonasCoberturaComparacionIndividualEstado = {
+  insuficiente: 'insuficiente',
+  parcial: 'parcial',
+  disponible: 'disponible',
+} as const;
+
+/**
+ * Muestra global mínima exigida antes de comparar personas.
+ */
+export type RendimientoPersonasCoberturaMinimoResolucionesComparables = typeof RendimientoPersonasCoberturaMinimoResolucionesComparables[keyof typeof RendimientoPersonasCoberturaMinimoResolucionesComparables];
+
+
+export const RendimientoPersonasCoberturaMinimoResolucionesComparables = {
+  NUMBER_10: 10,
+} as const;
+
+/**
+ * Cobertura de autoría desde la cual el estado puede ser parcial.
+ */
+export type RendimientoPersonasCoberturaUmbralCoberturaParcialPorcentaje = typeof RendimientoPersonasCoberturaUmbralCoberturaParcialPorcentaje[keyof typeof RendimientoPersonasCoberturaUmbralCoberturaParcialPorcentaje];
+
+
+export const RendimientoPersonasCoberturaUmbralCoberturaParcialPorcentaje = {
+  NUMBER_80: 80,
+} as const;
+
+/**
+ * Cobertura de autoría desde la cual el estado puede ser disponible.
+ */
+export type RendimientoPersonasCoberturaUmbralCoberturaDisponiblePorcentaje = typeof RendimientoPersonasCoberturaUmbralCoberturaDisponiblePorcentaje[keyof typeof RendimientoPersonasCoberturaUmbralCoberturaDisponiblePorcentaje];
+
+
+export const RendimientoPersonasCoberturaUmbralCoberturaDisponiblePorcentaje = {
+  NUMBER_95: 95,
+} as const;
+
+/**
+ * Cobertura global de autoría para las resoluciones de la cohorte. El estado de comparación usa el mismo criterio auditable que Calidad de datos; aun cuando sea disponible, cada muestra individual debe quedar visible y la respuesta no constituye un ranking.
+ */
+export interface RendimientoPersonasCobertura {
+  /**
+     * Total de transiciones no-final a final de la cohorte.
+     * @minimum 0
+     */
+  resoluciones_evaluadas: number;
+  /**
+     * Resoluciones evaluadas con autor_usuario_id que referencia un usuario persistido.
+     * @minimum 0
+     */
+  resoluciones_atribuidas: number;
+  /**
+     * Porcentaje de resoluciones atribuidas; null cuando resoluciones_evaluadas es cero.
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  porcentaje_atribucion: number | null;
+  /**
+     * Primera resolución atribuible de la cohorte, o null cuando no hay ninguna.
+     * @nullable
+     */
+  atribucion_desde: string | null;
+  /** insuficiente cuando hay menos de 10 resoluciones evaluadas o menos de 80% de autoría; parcial desde 80% y antes de 95%; disponible a partir de 95%. disponible acredita cobertura global, no una muestra individual suficiente ni permiso para construir un ranking. */
+  comparacion_individual_estado: RendimientoPersonasCoberturaComparacionIndividualEstado;
+  /** Muestra global mínima exigida antes de comparar personas. */
+  minimo_resoluciones_comparables: RendimientoPersonasCoberturaMinimoResolucionesComparables;
+  /** Cobertura de autoría desde la cual el estado puede ser parcial. */
+  umbral_cobertura_parcial_porcentaje: RendimientoPersonasCoberturaUmbralCoberturaParcialPorcentaje;
+  /** Cobertura de autoría desde la cual el estado puede ser disponible. */
+  umbral_cobertura_disponible_porcentaje: RendimientoPersonasCoberturaUmbralCoberturaDisponiblePorcentaje;
+}
+
+/**
+ * Identidad actual de un usuario persistido. No expone email, username ni credenciales. activo conserva contexto para actividad histórica de cuentas hoy desactivadas.
+ */
+export interface RendimientoPersonaUsuario {
+  /** @minimum 1 */
+  id: number;
+  /**
+     * Nombre y apellido actuales, normalizados para presentación.
+     * @minLength 1
+     */
+  nombre: string;
+  /**
+     * Nombre actual del rol asociado al usuario.
+     * @minLength 1
+     */
+  rol: string;
+  activo: boolean;
+}
+
+/**
+ * Horas corridas desde fecha_creacion del ticket hasta cada transición no-final a final atribuida a la persona. Solo incluye duraciones válidas y no negativas. No mide tiempo exclusivo de trabajo. promedio_horas y mediana_horas son null cuando muestra es cero.
+ */
+export interface RendimientoTiempoResolucionAtribuible {
+  /** @minimum 0 */
+  muestra: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  promedio_horas: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  mediana_horas: number | null;
+}
+
+/**
+ * Resoluciones atribuibles a la persona que conservaron fecha_limite_snapshot. Cumple cuando la fecha del evento no supera el snapshot; porcentaje es null cuando muestra es cero.
+ */
+export interface RendimientoCumplimientoPersonaAuditable {
+  /** @minimum 0 */
+  muestra: number;
+  /** @minimum 0 */
+  cumplidos: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  porcentaje: number | null;
+}
+
+/**
+ * Fotografía de la cohorte al instante generado_en. Solo cuenta tickets actualmente no finales cuyo asignado_usuario_id coincide con la persona; vencidos_asignados es un subconjunto de abiertos_asignados.
+ */
+export interface RendimientoCargaActualPersona {
+  /** @minimum 0 */
+  abiertos_asignados: number;
+  /** @minimum 0 */
+  vencidos_asignados: number;
+}
+
+/**
+ * Indicadores auditables de una persona. Las cantidades son hechos independientes; no se combinan en un puntaje ni determinan una posición.
+ */
+export interface RendimientoPersona {
+  usuario: RendimientoPersonaUsuario;
+  /**
+     * Tickets distintos con al menos una resolución atribuida a la persona. Puede ser menor que resoluciones_atribuidas cuando el mismo ticket fue reabierto y resuelto nuevamente por ella.
+     * @minimum 0
+     */
+  tickets_resueltos: number;
+  /**
+     * Eventos no-final a final cuyo autor_usuario_id coincide con el usuario. Un ticket puede aportar más de uno si fue reabierto y resuelto nuevamente.
+     * @minimum 0
+     */
+  resoluciones_atribuidas: number;
+  tiempo_resolucion_atribuible: RendimientoTiempoResolucionAtribuible;
+  cumplimiento_plazo_auditable: RendimientoCumplimientoPersonaAuditable;
+  carga_actual: RendimientoCargaActualPersona;
+  /**
+     * Resoluciones atribuibles de la persona tras las que ocurrió al menos una transición final a no-final y antes de la siguiente resolución del mismo ticket. Cada resolución se cuenta como máximo una vez; no atribuye la acción de reabrir y no implica una evaluación negativa.
+     * @minimum 0
+     */
+  resoluciones_reabiertas: number;
+}
+
+export interface RendimientoPersonas {
+  periodo: RendimientoPeriodo;
+  /**
+     * Tickets visibles de la cohorte luego de aplicar todos los filtros.
+     * @minimum 0
+     */
+  tickets_evaluados: number;
+  cobertura: RendimientoPersonasCobertura;
+  /** Todos los usuarios persistidos, activos o inactivos, ordenados por nombre y luego por id. El orden es alfabético, no un ranking. */
+  personas: RendimientoPersona[];
 }
 
 /**
@@ -1264,6 +1442,41 @@ export const GetRendimientoResumenEquipo403Code = {
 
 export type GetRendimientoResumenEquipo403 = {
   code: GetRendimientoResumenEquipo403Code;
+  error: string;
+};
+
+export type GetRendimientoPersonasParams = {
+/**
+ * Primer día incluido según fecha_creacion del ticket (YYYY-MM-DD).
+ */
+fecha_desde?: RendimientoFechaDesdeParameter;
+/**
+ * Último día incluido según fecha_creacion del ticket (YYYY-MM-DD).
+ */
+fecha_hasta?: RendimientoFechaHastaParameter;
+/**
+ * Texto contenido en la empresa de los tickets incluidos en la cohorte.
+ */
+empresa?: RendimientoEmpresaParameter;
+/**
+ * Categoría normalizada de los tickets incluidos en la cohorte.
+ */
+motivo_categoria?: RendimientoMotivoCategoriaParameter;
+/**
+ * Prioridad actual de los tickets incluidos en la cohorte.
+ */
+prioridad?: RendimientoPrioridadParameter;
+};
+
+export type GetRendimientoPersonas403Code = typeof GetRendimientoPersonas403Code[keyof typeof GetRendimientoPersonas403Code];
+
+
+export const GetRendimientoPersonas403Code = {
+  PERFORMANCE_ACCESS_REQUIRED: 'PERFORMANCE_ACCESS_REQUIRED',
+} as const;
+
+export type GetRendimientoPersonas403 = {
+  code: GetRendimientoPersonas403Code;
   error: string;
 };
 

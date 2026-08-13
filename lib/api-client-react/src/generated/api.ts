@@ -46,6 +46,8 @@ import type {
   GetMotivoStatsParams,
   GetRendimientoCalidadDatos403,
   GetRendimientoCalidadDatosParams,
+  GetRendimientoPersonas403,
+  GetRendimientoPersonasParams,
   GetRendimientoResumenEquipo403,
   GetRendimientoResumenEquipoParams,
   GetRendimientoStatus403,
@@ -66,6 +68,7 @@ import type {
   ReadinessUnavailable,
   RendimientoCalidadDatos,
   RendimientoModuleStatus,
+  RendimientoPersonas,
   RendimientoResumenEquipo,
   Seguimiento,
   SeguimientoInput,
@@ -2446,7 +2449,7 @@ export const getGetRendimientoStatusUrl = () => {
 }
 
 /**
- * Confirma la disponibilidad y las vistas previstas del módulo ejecutivo. No expone métricas hasta que la instrumentación sea auditable.
+ * Confirma la disponibilidad y las vistas del módulo ejecutivo. Las vistas operativas exponen únicamente métricas con alcance y muestra explícitos.
  * @summary Get performance module status
  */
 export const getRendimientoStatus = async ( options?: RequestInit): Promise<RendimientoModuleStatus> => {
@@ -2694,6 +2697,111 @@ export function useGetRendimientoResumenEquipo<TData = Awaited<ReturnType<typeof
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetRendimientoResumenEquipoQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetRendimientoPersonasUrl = (params?: GetRendimientoPersonasParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/rendimiento/personas?${stringifiedParams}` : `/api/rendimiento/personas`
+}
+
+/**
+ * Usa la misma cohorte de tickets visibles por `fecha_creacion` que las
+ * demás vistas de Rendimiento. `empresa`, `motivo_categoria` y `prioridad`
+ * se aplican antes de calcular cualquier indicador.
+ *
+ * Una resolución se atribuye exclusivamente al `autor_usuario_id` de una
+ * transición desde un estado no final hacia `resuelto` o `cerrado`. El
+ * cambio posterior de `resuelto` a `cerrado` no crea otra resolución. El
+ * tiempo atribuible son horas corridas desde la creación del ticket hasta
+ * ese evento; no representa tiempo exclusivo de trabajo de la persona.
+ *
+ * El cumplimiento solo usa eventos atribuibles que conservaron
+ * `fecha_limite_snapshot`. La carga es una fotografía al instante
+ * `generado_en` de tickets abiertos con `asignado_usuario_id` estructurado.
+ * `resoluciones_reabiertas` observa el resultado de una resolución
+ * atribuible: cuenta esa resolución una sola vez si luego existe una
+ * transición de estado final a no final antes de la siguiente resolución
+ * del mismo ticket. Es contexto operativo, no una calificación negativa.
+ *
+ * Las personas se devuelven alfabéticamente, nunca como ranking. La API no
+ * calcula puntajes ni posiciones y explicita la cobertura global para que
+ * una muestra pequeña o incompleta no se presente como comparable.
+ * @summary Consultar indicadores auditables por persona
+ */
+export const getRendimientoPersonas = async (params?: GetRendimientoPersonasParams, options?: RequestInit): Promise<RendimientoPersonas> => {
+
+  return customFetch<RendimientoPersonas>(getGetRendimientoPersonasUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRendimientoPersonasQueryKey = (params?: GetRendimientoPersonasParams,) => {
+    return [
+    `/api/rendimiento/personas`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetRendimientoPersonasQueryOptions = <TData = Awaited<ReturnType<typeof getRendimientoPersonas>>, TError = ErrorType<void | AdminAccessUnauthorized | GetRendimientoPersonas403>>(params?: GetRendimientoPersonasParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRendimientoPersonas>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRendimientoPersonasQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRendimientoPersonas>>> = ({ signal }) => getRendimientoPersonas(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRendimientoPersonas>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRendimientoPersonasQueryResult = NonNullable<Awaited<ReturnType<typeof getRendimientoPersonas>>>
+export type GetRendimientoPersonasQueryError = ErrorType<void | AdminAccessUnauthorized | GetRendimientoPersonas403>
+
+
+/**
+ * @summary Consultar indicadores auditables por persona
+ */
+
+export function useGetRendimientoPersonas<TData = Awaited<ReturnType<typeof getRendimientoPersonas>>, TError = ErrorType<void | AdminAccessUnauthorized | GetRendimientoPersonas403>>(
+ params?: GetRendimientoPersonasParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRendimientoPersonas>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRendimientoPersonasQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

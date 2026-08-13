@@ -1179,8 +1179,8 @@ paths:
       tags: [rendimiento]
       summary: Get performance module status
       description: >
-        Confirma la disponibilidad y las vistas previstas del módulo ejecutivo.
-        No expone métricas hasta que la instrumentación sea auditable.
+        Confirma la disponibilidad y las vistas del módulo ejecutivo. Las vistas
+        operativas exponen únicamente métricas con alcance y muestra explícitos.
       responses:
         "200":
           description: Performance module status
@@ -1320,6 +1320,71 @@ paths:
                   error:
                     type: string
 
+  /rendimiento/personas:
+    get:
+      operationId: getRendimientoPersonas
+      tags: [rendimiento]
+      summary: Consultar indicadores auditables por persona
+      description: |
+        Usa la misma cohorte de tickets visibles por `fecha_creacion` que las
+        demás vistas de Rendimiento. `empresa`, `motivo_categoria` y `prioridad`
+        se aplican antes de calcular cualquier indicador.
+
+        Una resolución se atribuye exclusivamente al `autor_usuario_id` de una
+        transición desde un estado no final hacia `resuelto` o `cerrado`. El
+        cambio posterior de `resuelto` a `cerrado` no crea otra resolución. El
+        tiempo atribuible son horas corridas desde la creación del ticket hasta
+        ese evento; no representa tiempo exclusivo de trabajo de la persona.
+
+        El cumplimiento solo usa eventos atribuibles que conservaron
+        `fecha_limite_snapshot`. La carga es una fotografía al instante
+        `generado_en` de tickets abiertos con `asignado_usuario_id` estructurado.
+        `resoluciones_reabiertas` observa el resultado de una resolución
+        atribuible: cuenta esa resolución una sola vez si luego existe una
+        transición de estado final a no final antes de la siguiente resolución
+        del mismo ticket. Es contexto operativo, no una calificación negativa.
+
+        Las personas se devuelven alfabéticamente, nunca como ranking. La API no
+        calcula puntajes ni posiciones y explicita la cobertura global para que
+        una muestra pequeña o incompleta no se presente como comparable.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/RendimientoFechaDesde"
+        - $ref: "#/components/parameters/RendimientoFechaHasta"
+        - $ref: "#/components/parameters/RendimientoEmpresa"
+        - $ref: "#/components/parameters/RendimientoMotivoCategoria"
+        - $ref: "#/components/parameters/RendimientoPrioridad"
+      responses:
+        "200":
+          description: Indicadores individuales de la cohorte filtrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RendimientoPersonas"
+        "400":
+          description: Filtros o período inválidos
+        "401":
+          description: Sesión inválida o ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAccessUnauthorized"
+        "403":
+          description: El rol no puede consultar Rendimiento
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [code, error]
+                properties:
+                  code:
+                    type: string
+                    enum: [PERFORMANCE_ACCESS_REQUIRED]
+                  error:
+                    type: string
+
 components:
   parameters:
     DashboardFechaDesde:
@@ -1404,7 +1469,7 @@ components:
         estado:
           type: string
           enum: [operativo_parcial]
-          description: Resumen de equipo y Calidad de datos operativos; Personas y Reiteraciones pendientes.
+          description: Resumen, Personas y Calidad de datos operativos; Reiteraciones continúa pendiente.
         vistas:
           type: array
           minItems: 4
@@ -1705,6 +1770,230 @@ components:
             aun cuando su cantidad sea cero.
           allOf:
             - $ref: "#/components/schemas/RendimientoDistribucionPrioridad"
+
+    RendimientoPersonasCobertura:
+      type: object
+      additionalProperties: false
+      description: >
+        Cobertura global de autoría para las resoluciones de la cohorte. El
+        estado de comparación usa el mismo criterio auditable que Calidad de
+        datos; aun cuando sea disponible, cada muestra individual debe quedar
+        visible y la respuesta no constituye un ranking.
+      required:
+        - resoluciones_evaluadas
+        - resoluciones_atribuidas
+        - porcentaje_atribucion
+        - atribucion_desde
+        - comparacion_individual_estado
+        - minimo_resoluciones_comparables
+        - umbral_cobertura_parcial_porcentaje
+        - umbral_cobertura_disponible_porcentaje
+      properties:
+        resoluciones_evaluadas:
+          type: integer
+          minimum: 0
+          description: Total de transiciones no-final a final de la cohorte.
+        resoluciones_atribuidas:
+          type: integer
+          minimum: 0
+          description: >
+            Resoluciones evaluadas con autor_usuario_id que referencia un
+            usuario persistido.
+        porcentaje_atribucion:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 100
+          description: >
+            Porcentaje de resoluciones atribuidas; null cuando
+            resoluciones_evaluadas es cero.
+        atribucion_desde:
+          type: [string, "null"]
+          format: date-time
+          description: >
+            Primera resolución atribuible de la cohorte, o null cuando no hay
+            ninguna.
+        comparacion_individual_estado:
+          type: string
+          enum: [insuficiente, parcial, disponible]
+          description: >
+            insuficiente cuando hay menos de 10 resoluciones evaluadas o menos
+            de 80% de autoría; parcial desde 80% y antes de 95%; disponible a
+            partir de 95%. disponible acredita cobertura global, no una muestra
+            individual suficiente ni permiso para construir un ranking.
+        minimo_resoluciones_comparables:
+          type: integer
+          enum: [10]
+          description: Muestra global mínima exigida antes de comparar personas.
+        umbral_cobertura_parcial_porcentaje:
+          type: number
+          enum: [80]
+          description: Cobertura de autoría desde la cual el estado puede ser parcial.
+        umbral_cobertura_disponible_porcentaje:
+          type: number
+          enum: [95]
+          description: Cobertura de autoría desde la cual el estado puede ser disponible.
+
+    RendimientoPersonaUsuario:
+      type: object
+      additionalProperties: false
+      description: >
+        Identidad actual de un usuario persistido. No expone email, username ni
+        credenciales. activo conserva contexto para actividad histórica de
+        cuentas hoy desactivadas.
+      required:
+        - id
+        - nombre
+        - rol
+        - activo
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        nombre:
+          type: string
+          minLength: 1
+          description: Nombre y apellido actuales, normalizados para presentación.
+        rol:
+          type: string
+          minLength: 1
+          description: Nombre actual del rol asociado al usuario.
+        activo:
+          type: boolean
+
+    RendimientoTiempoResolucionAtribuible:
+      type: object
+      additionalProperties: false
+      description: >
+        Horas corridas desde fecha_creacion del ticket hasta cada transición
+        no-final a final atribuida a la persona. Solo incluye duraciones válidas
+        y no negativas. No mide tiempo exclusivo de trabajo. promedio_horas y
+        mediana_horas son null cuando muestra es cero.
+      required:
+        - muestra
+        - promedio_horas
+        - mediana_horas
+      properties:
+        muestra:
+          type: integer
+          minimum: 0
+        promedio_horas:
+          type: [number, "null"]
+          minimum: 0
+        mediana_horas:
+          type: [number, "null"]
+          minimum: 0
+
+    RendimientoCumplimientoPersonaAuditable:
+      type: object
+      additionalProperties: false
+      description: >
+        Resoluciones atribuibles a la persona que conservaron
+        fecha_limite_snapshot. Cumple cuando la fecha del evento no supera el
+        snapshot; porcentaje es null cuando muestra es cero.
+      required:
+        - muestra
+        - cumplidos
+        - porcentaje
+      properties:
+        muestra:
+          type: integer
+          minimum: 0
+        cumplidos:
+          type: integer
+          minimum: 0
+        porcentaje:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 100
+
+    RendimientoCargaActualPersona:
+      type: object
+      additionalProperties: false
+      description: >
+        Fotografía de la cohorte al instante generado_en. Solo cuenta tickets
+        actualmente no finales cuyo asignado_usuario_id coincide con la persona;
+        vencidos_asignados es un subconjunto de abiertos_asignados.
+      required:
+        - abiertos_asignados
+        - vencidos_asignados
+      properties:
+        abiertos_asignados:
+          type: integer
+          minimum: 0
+        vencidos_asignados:
+          type: integer
+          minimum: 0
+
+    RendimientoPersona:
+      type: object
+      additionalProperties: false
+      description: >
+        Indicadores auditables de una persona. Las cantidades son hechos
+        independientes; no se combinan en un puntaje ni determinan una posición.
+      required:
+        - usuario
+        - tickets_resueltos
+        - resoluciones_atribuidas
+        - tiempo_resolucion_atribuible
+        - cumplimiento_plazo_auditable
+        - carga_actual
+        - resoluciones_reabiertas
+      properties:
+        usuario:
+          $ref: "#/components/schemas/RendimientoPersonaUsuario"
+        tickets_resueltos:
+          type: integer
+          minimum: 0
+          description: >
+            Tickets distintos con al menos una resolución atribuida a la
+            persona. Puede ser menor que resoluciones_atribuidas cuando el mismo
+            ticket fue reabierto y resuelto nuevamente por ella.
+        resoluciones_atribuidas:
+          type: integer
+          minimum: 0
+          description: >
+            Eventos no-final a final cuyo autor_usuario_id coincide con el
+            usuario. Un ticket puede aportar más de uno si fue reabierto y
+            resuelto nuevamente.
+        tiempo_resolucion_atribuible:
+          $ref: "#/components/schemas/RendimientoTiempoResolucionAtribuible"
+        cumplimiento_plazo_auditable:
+          $ref: "#/components/schemas/RendimientoCumplimientoPersonaAuditable"
+        carga_actual:
+          $ref: "#/components/schemas/RendimientoCargaActualPersona"
+        resoluciones_reabiertas:
+          type: integer
+          minimum: 0
+          description: >
+            Resoluciones atribuibles de la persona tras las que ocurrió al menos
+            una transición final a no-final y antes de la siguiente resolución
+            del mismo ticket. Cada resolución se cuenta como máximo una vez; no
+            atribuye la acción de reabrir y no implica una evaluación negativa.
+
+    RendimientoPersonas:
+      type: object
+      additionalProperties: false
+      required:
+        - periodo
+        - tickets_evaluados
+        - cobertura
+        - personas
+      properties:
+        periodo:
+          $ref: "#/components/schemas/RendimientoPeriodo"
+        tickets_evaluados:
+          type: integer
+          minimum: 0
+          description: Tickets visibles de la cohorte luego de aplicar todos los filtros.
+        cobertura:
+          $ref: "#/components/schemas/RendimientoPersonasCobertura"
+        personas:
+          type: array
+          description: >
+            Todos los usuarios persistidos, activos o inactivos, ordenados por
+            nombre y luego por id. El orden es alfabético, no un ranking.
+          items:
+            $ref: "#/components/schemas/RendimientoPersona"
 
     FunctionalAccessError:
       type: object

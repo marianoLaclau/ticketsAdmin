@@ -1003,7 +1003,7 @@ export const GetMotivoStatsResponse = zod.array(GetMotivoStatsResponseItem)
 
 
 /**
- * Confirma la disponibilidad y las vistas previstas del módulo ejecutivo. No expone métricas hasta que la instrumentación sea auditable.
+ * Confirma la disponibilidad y las vistas del módulo ejecutivo. Las vistas operativas exponen únicamente métricas con alcance y muestra explícitos.
  * @summary Get performance module status
  */
 export const getRendimientoStatusResponseVistasMin = 4;
@@ -1013,7 +1013,7 @@ export const getRendimientoStatusResponseVistasMax = 4;
 
 export const GetRendimientoStatusResponse = zod.object({
   "modulo": zod.enum(['rendimiento']),
-  "estado": zod.enum(['operativo_parcial']).describe('Resumen de equipo y Calidad de datos operativos; Personas y Reiteraciones pendientes.'),
+  "estado": zod.enum(['operativo_parcial']).describe('Resumen, Personas y Calidad de datos operativos; Reiteraciones pendiente.'),
   "vistas": zod.array(zod.enum(['resumen_equipo', 'personas', 'reiteraciones', 'calidad_datos'])).min(getRendimientoStatusResponseVistasMin).max(getRendimientoStatusResponseVistasMax)
 })
 
@@ -1237,6 +1237,121 @@ export const GetRendimientoResumenEquipoResponse = zod.object({
   "alta": zod.number().min(getRendimientoResumenEquipoResponseDistribucionPrioridadOneAltaMin),
   "urgente": zod.number().min(getRendimientoResumenEquipoResponseDistribucionPrioridadOneUrgenteMin)
 }).describe('Prioridad actual de la cohorte; incluye todas las prioridades conocidas, aun cuando su cantidad sea cero.\n')
+})
+
+
+/**
+ * Usa la misma cohorte de tickets visibles por `fecha_creacion` que las
+ * demás vistas de Rendimiento. `empresa`, `motivo_categoria` y `prioridad`
+ * se aplican antes de calcular cualquier indicador.
+ *
+ * Una resolución se atribuye exclusivamente al `autor_usuario_id` de una
+ * transición desde un estado no final hacia `resuelto` o `cerrado`. El
+ * cambio posterior de `resuelto` a `cerrado` no crea otra resolución. El
+ * tiempo atribuible son horas corridas desde la creación del ticket hasta
+ * ese evento; no representa tiempo exclusivo de trabajo de la persona.
+ *
+ * El cumplimiento solo usa eventos atribuibles que conservaron
+ * `fecha_limite_snapshot`. La carga es una fotografía al instante
+ * `generado_en` de tickets abiertos con `asignado_usuario_id` estructurado.
+ * `resoluciones_reabiertas` observa el resultado de una resolución
+ * atribuible: cuenta esa resolución una sola vez si luego existe una
+ * transición de estado final a no final antes de la siguiente resolución
+ * del mismo ticket. Es contexto operativo, no una calificación negativa.
+ *
+ * Las personas se devuelven alfabéticamente, nunca como ranking. La API no
+ * calcula puntajes ni posiciones y explicita la cobertura global para que
+ * una muestra pequeña o incompleta no se presente como comparable.
+ * @summary Consultar indicadores auditables por persona
+ */
+export const GetRendimientoPersonasQueryParams = zod.object({
+  "fecha_desde": zod.coerce.date().optional().describe('Primer día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
+  "fecha_hasta": zod.coerce.date().optional().describe('Último día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
+  "empresa": zod.coerce.string().optional().describe('Texto contenido en la empresa de los tickets incluidos en la cohorte.'),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'prestamos_anticipos', 'obra_social', 'sanciones_ausencias', 'proveedores_comercial', 'sin_clasificar']).optional().describe('Categoría normalizada de los tickets incluidos en la cohorte.'),
+  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional().describe('Prioridad actual de los tickets incluidos en la cohorte.')
+})
+
+export const getRendimientoPersonasResponseTicketsEvaluadosMin = 0;
+
+export const getRendimientoPersonasResponseCoberturaResolucionesEvaluadasMin = 0;
+
+export const getRendimientoPersonasResponseCoberturaResolucionesAtribuidasMin = 0;
+
+export const getRendimientoPersonasResponseCoberturaPorcentajeAtribucionMin = 0;
+export const getRendimientoPersonasResponseCoberturaPorcentajeAtribucionMax = 100;
+
+
+
+
+export const getRendimientoPersonasResponsePersonasItemTicketsResueltosMin = 0;
+
+export const getRendimientoPersonasResponsePersonasItemResolucionesAtribuidasMin = 0;
+
+export const getRendimientoPersonasResponsePersonasItemTiempoResolucionAtribuibleMuestraMin = 0;
+
+export const getRendimientoPersonasResponsePersonasItemTiempoResolucionAtribuiblePromedioHorasMin = 0;
+
+export const getRendimientoPersonasResponsePersonasItemTiempoResolucionAtribuibleMedianaHorasMin = 0;
+
+export const getRendimientoPersonasResponsePersonasItemCumplimientoPlazoAuditableMuestraMin = 0;
+
+export const getRendimientoPersonasResponsePersonasItemCumplimientoPlazoAuditableCumplidosMin = 0;
+
+export const getRendimientoPersonasResponsePersonasItemCumplimientoPlazoAuditablePorcentajeMin = 0;
+export const getRendimientoPersonasResponsePersonasItemCumplimientoPlazoAuditablePorcentajeMax = 100;
+
+export const getRendimientoPersonasResponsePersonasItemCargaActualAbiertosAsignadosMin = 0;
+
+export const getRendimientoPersonasResponsePersonasItemCargaActualVencidosAsignadosMin = 0;
+
+export const getRendimientoPersonasResponsePersonasItemResolucionesReabiertasMin = 0;
+
+
+
+export const GetRendimientoPersonasResponse = zod.object({
+  "periodo": zod.object({
+  "fecha_desde": zod.coerce.date().nullable().describe('Primer día incluido por fecha_creacion, o null si no se limitó el inicio.'),
+  "fecha_hasta": zod.coerce.date().nullable().describe('Último día incluido por fecha_creacion, o null si no se limitó el fin.'),
+  "timezone": zod.enum(['America/Argentina/Buenos_Aires']),
+  "generado_en": zod.coerce.date().describe('Instante del snapshot consistente usado para calcular la respuesta.')
+}),
+  "tickets_evaluados": zod.number().min(getRendimientoPersonasResponseTicketsEvaluadosMin).describe('Tickets visibles de la cohorte luego de aplicar todos los filtros.'),
+  "cobertura": zod.object({
+  "resoluciones_evaluadas": zod.number().min(getRendimientoPersonasResponseCoberturaResolucionesEvaluadasMin).describe('Total de transiciones no-final a final de la cohorte.'),
+  "resoluciones_atribuidas": zod.number().min(getRendimientoPersonasResponseCoberturaResolucionesAtribuidasMin).describe('Resoluciones evaluadas con autor_usuario_id que referencia un usuario persistido.\n'),
+  "porcentaje_atribucion": zod.number().min(getRendimientoPersonasResponseCoberturaPorcentajeAtribucionMin).max(getRendimientoPersonasResponseCoberturaPorcentajeAtribucionMax).nullable().describe('Porcentaje de resoluciones atribuidas; null cuando resoluciones_evaluadas es cero.\n'),
+  "atribucion_desde": zod.coerce.date().nullable().describe('Primera resolución atribuible de la cohorte, o null cuando no hay ninguna.\n'),
+  "comparacion_individual_estado": zod.enum(['insuficiente', 'parcial', 'disponible']).describe('insuficiente cuando hay menos de 10 resoluciones evaluadas o menos de 80% de autoría; parcial desde 80% y antes de 95%; disponible a partir de 95%. disponible acredita cobertura global, no una muestra individual suficiente ni permiso para construir un ranking.\n'),
+  "minimo_resoluciones_comparables": zod.literal(10).describe('Muestra global mínima exigida antes de comparar personas.'),
+  "umbral_cobertura_parcial_porcentaje": zod.literal(80).describe('Cobertura de autoría desde la cual el estado puede ser parcial.'),
+  "umbral_cobertura_disponible_porcentaje": zod.literal(95).describe('Cobertura de autoría desde la cual el estado puede ser disponible.')
+}).describe('Cobertura global de autoría para las resoluciones de la cohorte. El estado de comparación usa el mismo criterio auditable que Calidad de datos; aun cuando sea disponible, cada muestra individual debe quedar visible y la respuesta no constituye un ranking.\n'),
+  "personas": zod.array(zod.object({
+  "usuario": zod.object({
+  "id": zod.number().min(1),
+  "nombre": zod.string().min(1).describe('Nombre y apellido actuales, normalizados para presentación.'),
+  "rol": zod.string().min(1).describe('Nombre actual del rol asociado al usuario.'),
+  "activo": zod.boolean()
+}).describe('Identidad actual de un usuario persistido. No expone email, username ni credenciales. activo conserva contexto para actividad histórica de cuentas hoy desactivadas.\n'),
+  "tickets_resueltos": zod.number().min(getRendimientoPersonasResponsePersonasItemTicketsResueltosMin).describe('Tickets distintos con al menos una resolución atribuida a la persona. Puede ser menor que resoluciones_atribuidas cuando el mismo ticket fue reabierto y resuelto nuevamente por ella.\n'),
+  "resoluciones_atribuidas": zod.number().min(getRendimientoPersonasResponsePersonasItemResolucionesAtribuidasMin).describe('Eventos no-final a final cuyo autor_usuario_id coincide con el usuario. Un ticket puede aportar más de uno si fue reabierto y resuelto nuevamente.\n'),
+  "tiempo_resolucion_atribuible": zod.object({
+  "muestra": zod.number().min(getRendimientoPersonasResponsePersonasItemTiempoResolucionAtribuibleMuestraMin),
+  "promedio_horas": zod.number().min(getRendimientoPersonasResponsePersonasItemTiempoResolucionAtribuiblePromedioHorasMin).nullable(),
+  "mediana_horas": zod.number().min(getRendimientoPersonasResponsePersonasItemTiempoResolucionAtribuibleMedianaHorasMin).nullable()
+}).describe('Horas corridas desde fecha_creacion del ticket hasta cada transición no-final a final atribuida a la persona. Solo incluye duraciones válidas y no negativas. No mide tiempo exclusivo de trabajo. promedio_horas y mediana_horas son null cuando muestra es cero.\n'),
+  "cumplimiento_plazo_auditable": zod.object({
+  "muestra": zod.number().min(getRendimientoPersonasResponsePersonasItemCumplimientoPlazoAuditableMuestraMin),
+  "cumplidos": zod.number().min(getRendimientoPersonasResponsePersonasItemCumplimientoPlazoAuditableCumplidosMin),
+  "porcentaje": zod.number().min(getRendimientoPersonasResponsePersonasItemCumplimientoPlazoAuditablePorcentajeMin).max(getRendimientoPersonasResponsePersonasItemCumplimientoPlazoAuditablePorcentajeMax).nullable()
+}).describe('Resoluciones atribuibles a la persona que conservaron fecha_limite_snapshot. Cumple cuando la fecha del evento no supera el snapshot; porcentaje es null cuando muestra es cero.\n'),
+  "carga_actual": zod.object({
+  "abiertos_asignados": zod.number().min(getRendimientoPersonasResponsePersonasItemCargaActualAbiertosAsignadosMin),
+  "vencidos_asignados": zod.number().min(getRendimientoPersonasResponsePersonasItemCargaActualVencidosAsignadosMin)
+}).describe('Fotografía de la cohorte al instante generado_en. Solo cuenta tickets actualmente no finales cuyo asignado_usuario_id coincide con la persona; vencidos_asignados es un subconjunto de abiertos_asignados.\n'),
+  "resoluciones_reabiertas": zod.number().min(getRendimientoPersonasResponsePersonasItemResolucionesReabiertasMin).describe('Resoluciones atribuibles de la persona tras las que ocurrió al menos una transición final a no-final y antes de la siguiente resolución del mismo ticket. Cada resolución se cuenta como máximo una vez; no atribuye la acción de reabrir y no implica una evaluación negativa.\n')
+}).describe('Indicadores auditables de una persona. Las cantidades son hechos independientes; no se combinan en un puntaje ni determinan una posición.\n')).describe('Todos los usuarios persistidos, activos o inactivos, ordenados por nombre y luego por id. El orden es alfabético, no un ranking.\n')
 })
 
 
