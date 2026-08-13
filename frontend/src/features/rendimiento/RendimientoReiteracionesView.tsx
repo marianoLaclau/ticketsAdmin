@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 import {
   getGetRendimientoReiteracionesQueryKey,
   useGetRendimientoReiteraciones,
@@ -17,6 +18,8 @@ interface RendimientoReiteracionesViewProps {
   filters: RendimientoUrlState;
   onClearFilters: () => void;
 }
+
+const REITERACIONES_PAGE_SIZE = 10;
 
 export function RendimientoReiteracionesLoadingState() {
   return (
@@ -77,20 +80,62 @@ export function RendimientoReiteracionesView({
   onClearFilters,
 }: RendimientoReiteracionesViewProps) {
   const [referenceDate] = useState(() => new Date());
-  const params = useMemo(
+  const baseParams = useMemo(
     () => buildRendimientoParams(filters, referenceDate),
     [filters, referenceDate],
   );
+  const filterSignature = useMemo(
+    () => JSON.stringify(baseParams),
+    [baseParams],
+  );
+  const [pagination, setPagination] = useState(() => ({
+    filterSignature,
+    page: 1,
+  }));
+  const page =
+    pagination.filterSignature === filterSignature ? pagination.page : 1;
+  const params = useMemo(
+    () => ({
+      ...baseParams,
+      pagina: page,
+      limite: REITERACIONES_PAGE_SIZE,
+    }),
+    [baseParams, page],
+  );
+
+  useEffect(() => {
+    setPagination((current) =>
+      current.filterSignature === filterSignature
+        ? current
+        : { filterSignature, page: 1 },
+    );
+  }, [filterSignature]);
+
   const query = useGetRendimientoReiteraciones(params, {
     query: {
       queryKey: getGetRendimientoReiteracionesQueryKey(params),
       refetchOnWindowFocus: true,
+      placeholderData: keepPreviousData,
     },
   });
   const errorMessage = getUserErrorMessage(
     query.error,
     "No fue posible obtener las coincidencias. Reintentá en unos segundos.",
   );
+
+  useEffect(() => {
+    if (!query.data || query.isPlaceholderData) return;
+    const lastAvailablePage = Math.max(1, query.data.total_paginas);
+    if (page <= lastAvailablePage) return;
+    setPagination({ filterSignature, page: lastAvailablePage });
+  }, [filterSignature, page, query.data, query.isPlaceholderData]);
+
+  const goToPage = (nextPage: number) => {
+    setPagination({
+      filterSignature,
+      page: Math.max(1, nextPage),
+    });
+  };
 
   if (query.isLoading) return <RendimientoReiteracionesLoadingState />;
 
@@ -126,6 +171,9 @@ export function RendimientoReiteracionesView({
       <RendimientoReiteracionesPanel
         data={query.data}
         onClearFilters={onClearFilters}
+        isPageLoading={query.isFetching}
+        onPreviousPage={() => goToPage(page - 1)}
+        onNextPage={() => goToPage(page + 1)}
       />
     </div>
   );

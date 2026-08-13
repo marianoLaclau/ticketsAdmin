@@ -8,7 +8,10 @@ import type {
 } from "@workspace/api-client-react";
 import { Router } from "wouter";
 import { memoryLocation } from "wouter/memory-location";
-import { RendimientoReiteracionesPanel } from "../src/features/rendimiento/RendimientoReiteracionesPanel.tsx";
+import {
+  buildRepetitionContactTicketSignature,
+  RendimientoReiteracionesPanel,
+} from "../src/features/rendimiento/RendimientoReiteracionesPanel.tsx";
 import {
   RendimientoReiteracionesErrorState,
   RendimientoReiteracionesLoadingState,
@@ -57,6 +60,9 @@ function reiteracionesData(): RendimientoReiteraciones {
       abiertos: 3,
       vencidos_abiertos: 1,
     },
+    pagina: 1,
+    limite: 10,
+    total_paginas: 1,
     contactos: [
       {
         grupo_id: "grupo-opaco-1",
@@ -196,6 +202,7 @@ test("distingue cohorte vacía, falta de identidad y ausencia de grupos", async 
           abiertos: 0,
           vencidos_abiertos: 0,
         },
+        total_paginas: 0,
         contactos: [],
       }}
       onClearFilters={() => {
@@ -222,6 +229,7 @@ test("distingue cohorte vacía, falta de identidad y ausencia de grupos", async 
             porcentaje: 0,
           },
         },
+        total_paginas: 0,
         contactos: [],
       }}
       onClearFilters={() => {}}
@@ -242,6 +250,7 @@ test("distingue cohorte vacía, falta de identidad y ausencia de grupos", async 
           abiertos: 0,
           vencidos_abiertos: 0,
         },
+        total_paginas: 0,
         contactos: [],
       }}
       onClearFilters={() => {}}
@@ -251,6 +260,169 @@ test("distingue cohorte vacía, falta de identidad y ausencia de grupos", async 
     screen.getByRole("heading", {
       name: "No se detectaron contactos reiterados con gestiones abiertas",
     }),
+  );
+});
+
+test("pagina contactos y bloquea la navegacion mientras carga", async (t) => {
+  t.after(cleanup);
+  const user = userEvent.setup();
+  const base = reiteracionesData();
+  const location = memoryLocation({ path: "/rendimiento" });
+  let previousPages = 0;
+  let nextPages = 0;
+
+  const view = render(
+    <Router hook={location.hook} searchHook={location.searchHook}>
+      <RendimientoReiteracionesPanel
+        data={{
+          ...base,
+          resumen: { ...base.resumen, contactos_reiterados: 11 },
+          total_paginas: 2,
+        }}
+        onClearFilters={() => {}}
+        onPreviousPage={() => {
+          previousPages += 1;
+        }}
+        onNextPage={() => {
+          nextPages += 1;
+        }}
+      />
+    </Router>,
+  );
+
+  const pagination = screen.getByRole("navigation", {
+    name: "Paginación de contactos reiterados",
+  });
+  assert.ok(within(pagination).getByText(/Página 1 de 2/));
+  assert.equal(
+    (
+      within(pagination).getByRole("button", {
+        name: "Anterior",
+      }) as HTMLButtonElement
+    ).disabled,
+    true,
+  );
+  await user.click(
+    within(pagination).getByRole("button", { name: "Siguiente" }),
+  );
+  assert.equal(nextPages, 1);
+
+  view.rerender(
+    <Router hook={location.hook} searchHook={location.searchHook}>
+      <RendimientoReiteracionesPanel
+        data={{
+          ...base,
+          resumen: { ...base.resumen, contactos_reiterados: 11 },
+          pagina: 2,
+          total_paginas: 2,
+        }}
+        isPageLoading
+        onClearFilters={() => {}}
+        onPreviousPage={() => {
+          previousPages += 1;
+        }}
+        onNextPage={() => {
+          nextPages += 1;
+        }}
+      />
+    </Router>,
+  );
+
+  const busyPagination = screen.getByRole("navigation", {
+    name: "Paginación de contactos reiterados",
+  });
+  assert.equal(busyPagination.getAttribute("aria-busy"), "true");
+  assert.equal(
+    (
+      within(busyPagination).getByRole("button", {
+        name: "Anterior",
+      }) as HTMLButtonElement
+    ).disabled,
+    true,
+  );
+  assert.equal(
+    (
+      within(busyPagination).getByRole("button", {
+        name: "Siguiente",
+      }) as HTMLButtonElement
+    ).disabled,
+    true,
+  );
+  assert.equal(previousPages, 0);
+});
+
+test("mantiene expandido el contacto correcto al reordenar resultados", async (t) => {
+  t.after(cleanup);
+  const user = userEvent.setup();
+  const base = reiteracionesData();
+  const primaryContact = base.contactos[0];
+  assert.ok(primaryContact);
+  const secondaryContact = {
+    ...primaryContact,
+    grupo_id: "grupo-opaco-2",
+    nombre_referencia: "Bruno Díaz",
+    coincidencia: {
+      tipo: "telefono" as const,
+      valor_enmascarado: "***456",
+    },
+    tickets: [ticket(200), ticket(199)],
+  };
+  const signature = buildRepetitionContactTicketSignature(primaryContact);
+  assert.equal(
+    signature,
+    buildRepetitionContactTicketSignature({
+      tickets: [...primaryContact.tickets].reverse(),
+    }),
+  );
+
+  const location = memoryLocation({ path: "/rendimiento" });
+  const view = render(
+    <Router hook={location.hook} searchHook={location.searchHook}>
+      <RendimientoReiteracionesPanel
+        data={{
+          ...base,
+          resumen: { ...base.resumen, contactos_reiterados: 2 },
+          contactos: [primaryContact, secondaryContact],
+        }}
+        onClearFilters={() => {}}
+      />
+    </Router>,
+  );
+
+  const primaryCard = screen
+    .getByRole("heading", { name: primaryContact.nombre_referencia })
+    .closest<HTMLElement>("article");
+  assert.ok(primaryCard);
+  await user.click(
+    within(primaryCard).getByRole("button", { name: /Ver 1 ticket/ }),
+  );
+  assert.ok(within(primaryCard).getByText("Ticket #97"));
+
+  view.rerender(
+    <Router hook={location.hook} searchHook={location.searchHook}>
+      <RendimientoReiteracionesPanel
+        data={{
+          ...base,
+          resumen: { ...base.resumen, contactos_reiterados: 2 },
+          contactos: [secondaryContact, primaryContact],
+        }}
+        onClearFilters={() => {}}
+      />
+    </Router>,
+  );
+
+  const reorderedPrimaryCard = screen
+    .getByRole("heading", { name: primaryContact.nombre_referencia })
+    .closest<HTMLElement>("article");
+  assert.ok(reorderedPrimaryCard);
+  assert.ok(within(reorderedPrimaryCard).getByText("Ticket #97"));
+  assert.equal(
+    within(reorderedPrimaryCard)
+      .getByRole("button", {
+        name: /Mostrar solo los 3/,
+      })
+      .getAttribute("aria-expanded"),
+    "true",
   );
 });
 

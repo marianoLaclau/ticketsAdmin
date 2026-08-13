@@ -183,7 +183,7 @@ function personasResponse(): RendimientoPersonas {
   };
 }
 
-function reiteracionesResponse(): RendimientoReiteraciones {
+function reiteracionesResponse(page = 1): RendimientoReiteraciones {
   return {
     periodo: {
       fecha_desde: "2026-08-01",
@@ -202,11 +202,14 @@ function reiteracionesResponse(): RendimientoReiteraciones {
       criterio: "clave_canonica_no_transitiva",
     },
     resumen: {
-      contactos_reiterados: 1,
-      tickets_involucrados: 2,
+      contactos_reiterados: 11,
+      tickets_involucrados: 12,
       abiertos: 1,
       vencidos_abiertos: 1,
     },
+    pagina: page,
+    limite: 10,
+    total_paginas: 2,
     contactos: [
       {
         grupo_id: "grupo-opaco-shell",
@@ -303,10 +306,16 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
       });
     }
     if (url.includes("/rendimiento/reiteraciones")) {
-      return new Response(JSON.stringify(reiteracionesResponse()), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
+      const requestedPage = Number(
+        new URL(url, "http://localhost").searchParams.get("pagina") ?? "1",
+      );
+      return new Response(
+        JSON.stringify(reiteracionesResponse(requestedPage)),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
     }
     if (url.includes("/rendimiento/calidad-datos")) {
       return new Response(JSON.stringify(qualityResponse()), {
@@ -407,6 +416,7 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
       name: "Abrir ticket #202 de Grace Hopper",
     }),
   );
+  assert.ok(screen.getByText(/Página 1 de 2/));
   assert.equal(screen.queryByText("En preparación"), null);
   assert.equal(screen.queryByText("Próxima etapa"), null);
   assert.equal(
@@ -414,6 +424,39 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
       .length,
     1,
   );
+
+  const initialRepetitionsUrl = requestedUrls.find((url) =>
+    url.includes("/rendimiento/reiteraciones"),
+  );
+  assert.ok(initialRepetitionsUrl);
+  const initialRepetitionsParams = new URL(
+    initialRepetitionsUrl,
+    "http://localhost",
+  ).searchParams;
+  assert.equal(initialRepetitionsParams.get("pagina"), "1");
+  assert.equal(initialRepetitionsParams.get("limite"), "10");
+
+  await user.click(screen.getByRole("button", { name: "Siguiente" }));
+  assert.ok(await screen.findByText(/Página 2 de 2/));
+  const pageTwoUrl = requestedUrls
+    .filter((url) => url.includes("/rendimiento/reiteraciones"))
+    .at(-1);
+  assert.ok(pageTwoUrl);
+  const pageTwoParams = new URL(pageTwoUrl, "http://localhost").searchParams;
+  assert.equal(pageTwoParams.get("pagina"), "2");
+  assert.equal(pageTwoParams.get("limite"), "10");
+
+  await user.type(screen.getByLabelText("Empresa"), "Acme");
+  await user.click(screen.getByRole("button", { name: "Aplicar filtros" }));
+  assert.ok(await screen.findByText(/Página 1 de 2/));
+  const filteredUrl = requestedUrls
+    .filter((url) => url.includes("/rendimiento/reiteraciones"))
+    .at(-1);
+  assert.ok(filteredUrl);
+  const filteredParams = new URL(filteredUrl, "http://localhost").searchParams;
+  assert.equal(filteredParams.get("pagina"), "1");
+  assert.equal(filteredParams.get("limite"), "10");
+  assert.equal(filteredParams.get("empresa"), "Acme");
 
   const qualityTab = screen.getByRole("tab", { name: "Calidad de datos" });
   await user.click(qualityTab);

@@ -7,7 +7,9 @@ import type {
 import {
   AlertTriangle,
   CalendarClock,
+  ChevronLeft,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Inbox,
   Repeat2,
@@ -31,6 +33,9 @@ import { EstadoBadge, PrioridadBadge } from "@/lib/utils-tickets";
 interface RendimientoReiteracionesPanelProps {
   data: RendimientoReiteraciones;
   onClearFilters: () => void;
+  isPageLoading?: boolean;
+  onPreviousPage?: () => void;
+  onNextPage?: () => void;
 }
 
 const INITIAL_VISIBLE_TICKETS = 3;
@@ -99,6 +104,18 @@ function matchTypeLabel(type: string): string {
     default:
       return "Identificador";
   }
+}
+
+// Firma estable basada únicamente en ids públicos de tickets. Conserva el
+// estado expandido si el servidor reordena los grupos por riesgo, sin depender
+// del grupo_id opaco ni de la posición del contacto.
+export function buildRepetitionContactTicketSignature(
+  contact: Pick<RendimientoReiteracionContacto, "tickets">,
+): string {
+  return [...contact.tickets]
+    .map(({ id }) => id)
+    .sort((left, right) => left - right)
+    .join("-");
 }
 
 function SummaryFact({
@@ -258,15 +275,16 @@ function TicketRow({
 
 function ContactCard({
   contact,
-  index,
+  signature,
   timezone,
 }: {
   contact: RendimientoReiteracionContacto;
-  index: number;
+  signature: string;
   timezone: string;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const ticketsId = `rendimiento-reiteracion-tickets-${index}`;
+  const headingId = `rendimiento-reiteracion-contacto-${signature}`;
+  const ticketsId = `rendimiento-reiteracion-tickets-${signature}`;
   const hasMore = contact.tickets.length > INITIAL_VISIBLE_TICKETS;
   const visibleTickets = expanded
     ? contact.tickets
@@ -276,14 +294,14 @@ function ContactCard({
   return (
     <article
       className="overflow-hidden rounded-xl border border-slate-200 bg-card shadow-sm"
-      aria-labelledby={`rendimiento-reiteracion-contacto-${index}`}
+      aria-labelledby={headingId}
     >
       <div className="border-b border-slate-100 bg-slate-50/70 p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h3
-                id={`rendimiento-reiteracion-contacto-${index}`}
+                id={headingId}
                 className="min-w-0 break-words text-base font-semibold text-foreground"
               >
                 {contact.nombre_referencia}
@@ -395,13 +413,11 @@ function ContactCard({
           </div>
         </dl>
 
-        <section
-          aria-labelledby={`rendimiento-reiteracion-tickets-heading-${index}`}
-        >
+        <section aria-labelledby={`rendimiento-tickets-heading-${signature}`}>
           <div className="mb-3 flex items-center gap-2">
             <TicketCheck className="h-4 w-4 text-primary" aria-hidden="true" />
             <h4
-              id={`rendimiento-reiteracion-tickets-heading-${index}`}
+              id={`rendimiento-tickets-heading-${signature}`}
               className="text-sm font-semibold"
             >
               Tickets relacionados
@@ -445,6 +461,83 @@ function ContactCard({
   );
 }
 
+function RepetitionsPagination({
+  data,
+  isLoading,
+  onPreviousPage,
+  onNextPage,
+}: {
+  data: RendimientoReiteraciones;
+  isLoading: boolean;
+  onPreviousPage: (() => void) | undefined;
+  onNextPage: (() => void) | undefined;
+}) {
+  if (data.resumen.contactos_reiterados === 0 || data.total_paginas === 0) {
+    return null;
+  }
+
+  const firstResult = (data.pagina - 1) * data.limite + 1;
+  const lastResult = Math.min(
+    data.pagina * data.limite,
+    data.resumen.contactos_reiterados,
+  );
+  const pageIsInRange = data.pagina <= data.total_paginas;
+
+  return (
+    <nav
+      className="flex flex-col items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 sm:flex-row"
+      aria-label="Paginación de contactos reiterados"
+      aria-busy={isLoading}
+    >
+      <p
+        className="text-center text-xs leading-relaxed text-muted-foreground sm:text-left"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <span className="font-semibold text-foreground">
+          Página {numberFormatter.format(data.pagina)} de{" "}
+          {numberFormatter.format(data.total_paginas)}
+        </span>
+        {pageIsInRange ? (
+          <>
+            {" "}
+            · Contactos {numberFormatter.format(firstResult)}–
+            {numberFormatter.format(lastResult)} de{" "}
+            {numberFormatter.format(data.resumen.contactos_reiterados)}
+          </>
+        ) : null}
+      </p>
+      <div className="flex w-full gap-2 sm:w-auto">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="flex-1 bg-white sm:flex-none"
+          disabled={isLoading || data.pagina <= 1 || !onPreviousPage}
+          onClick={onPreviousPage}
+        >
+          <ChevronLeft className="mr-1 h-4 w-4" aria-hidden="true" />
+          Anterior
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="flex-1 bg-white sm:flex-none"
+          disabled={
+            isLoading || data.pagina >= data.total_paginas || !onNextPage
+          }
+          onClick={onNextPage}
+        >
+          Siguiente
+          <ChevronRight className="ml-1 h-4 w-4" aria-hidden="true" />
+        </Button>
+      </div>
+    </nav>
+  );
+}
+
 function NoResultsState({
   title,
   description,
@@ -480,6 +573,9 @@ function NoResultsState({
 export function RendimientoReiteracionesPanel({
   data,
   onClearFilters,
+  isPageLoading = false,
+  onPreviousPage,
+  onNextPage,
 }: RendimientoReiteracionesPanelProps) {
   const identity = data.cobertura.identidad_utilizable;
 
@@ -565,12 +661,26 @@ export function RendimientoReiteracionesPanel({
             description="Los tickets del período no contienen un DNI, teléfono o email válido para detectar coincidencias sin usar el nombre como supuesto."
           />
         </>
-      ) : data.contactos.length === 0 ? (
+      ) : data.resumen.contactos_reiterados === 0 ? (
         <>
           <CoverageNotice data={data} />
           <NoResultsState
             title="No se detectaron contactos reiterados con gestiones abiertas"
             description="Hay tickets identificables, pero ningún grupo reúne al menos dos llamados y conserva un ticket actualmente abierto."
+          />
+        </>
+      ) : data.contactos.length === 0 ? (
+        <>
+          <CoverageNotice data={data} />
+          <NoResultsState
+            title="Esta página no contiene contactos"
+            description="La página solicitada quedó fuera del rango disponible. Volvé a la página anterior para continuar revisando los casos."
+          />
+          <RepetitionsPagination
+            data={data}
+            isLoading={isPageLoading}
+            onPreviousPage={onPreviousPage}
+            onNextPage={onNextPage}
           />
         </>
       ) : (
@@ -596,16 +706,26 @@ export function RendimientoReiteracionesPanel({
               </div>
             </div>
             <div className="space-y-4">
-              {data.contactos.map((contact, index) => (
-                <ContactCard
-                  key={contact.grupo_id}
-                  contact={contact}
-                  index={index}
-                  timezone={data.periodo.timezone}
-                />
-              ))}
+              {data.contactos.map((contact) => {
+                const signature =
+                  buildRepetitionContactTicketSignature(contact);
+                return (
+                  <ContactCard
+                    key={signature}
+                    contact={contact}
+                    signature={signature}
+                    timezone={data.periodo.timezone}
+                  />
+                );
+              })}
             </div>
           </section>
+          <RepetitionsPagination
+            data={data}
+            isLoading={isPageLoading}
+            onPreviousPage={onPreviousPage}
+            onNextPage={onNextPage}
+          />
         </>
       )}
     </section>
