@@ -9,6 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RendimientoFiltersPanel } from "@/features/rendimiento/RendimientoFiltersPanel";
+import { RendimientoChatWidget } from "@/features/rendimiento/RendimientoChatWidget";
 import { RendimientoPersonasView } from "@/features/rendimiento/RendimientoPersonasView";
 import { RendimientoQualityView } from "@/features/rendimiento/RendimientoQualityView";
 import { RendimientoReiteracionesView } from "@/features/rendimiento/RendimientoReiteracionesView";
@@ -144,6 +145,8 @@ export default function Rendimiento() {
           </TabsContent>
         ))}
       </Tabs>
+
+      <RendimientoChatWidget />
     </div>
   );
 }

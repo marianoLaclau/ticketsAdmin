@@ -14,6 +14,7 @@ import { AlertCircle, KeyRound, LogIn, User } from "lucide-react";
 import { getLoginErrorMessage } from "@/lib/error-messages";
 import { clearIdentityScopedCache } from "@/lib/session-state";
 import { publishSessionTransition } from "@/lib/session-sync";
+import { clearRendimientoChatSession } from "@/lib/rendimiento-chat-session";
 
 const gsbLogo = new URL("../assets/gsb-logo.jpg", import.meta.url).href;
 
@@ -31,6 +32,7 @@ export default function Login() {
       { data: { usuario, password } },
       {
         onSuccess: (user) => {
+          clearRendimientoChatSession();
           // Ninguna query o mutación de una sesión anterior puede sobrevivir
           // al login, incluso si vuelve a entrar el mismo usuario. /auth/me se
           // preserva para reemplazarla sin recrear el observer de la entrada.

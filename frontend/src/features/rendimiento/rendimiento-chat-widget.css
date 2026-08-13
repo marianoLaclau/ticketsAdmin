@@ -1,0 +1,271 @@
+.rendimiento-chat-widget {
+  --chat--color--primary: hsl(104 37% 37%);
+  --chat--color--primary-shade-50: hsl(104 37% 32%);
+  --chat--color--primary--shade-100: hsl(104 37% 27%);
+  --chat--color--secondary: hsl(104 37% 37%);
+  --chat--color-secondary-shade-50: hsl(104 37% 32%);
+  --chat--color-dark: hsl(220 20% 14%);
+  --chat--color-light: hsl(220 14% 96%);
+  --chat--color-light-shade-50: hsl(220 13% 92%);
+  --chat--color-light-shade-100: hsl(220 13% 87%);
+  --chat--body--background: hsl(220 14% 96%);
+  --chat--font-family: var(--app-font-sans, "Inter", sans-serif);
+  --chat--border-radius: 0.75rem;
+  --chat--header--padding: 1.25rem 6.25rem 1.125rem 1.25rem;
+  --chat--header--background: hsl(104 37% 29%);
+  --chat--heading--font-size: 1.125rem;
+  --chat--subtitle--font-size: 0.8125rem;
+  --chat--subtitle--line-height: 1.45;
+  --chat--message--font-size: 0.875rem;
+  --chat--message--padding: 0.75rem 0.875rem;
+  --chat--message--border-radius: 0.75rem;
+  --chat--message--user--background: hsl(104 37% 37%);
+  --chat--message--bot--border: 1px solid hsl(220 13% 88%);
+  --chat--input--button--border-radius: 0.625rem;
+  --chat--input--send--button--color: hsl(104 37% 37%);
+  --chat--footer--background: white;
+  --chat--footer--padding: 0.25rem;
+}
+
+.rendimiento-chat-panel {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 5.5rem;
+  z-index: 40;
+  width: min(25rem, calc(100vw - 2rem));
+  height: min(38.75rem, calc(100dvh - 7rem));
+  overflow: hidden;
+  border: 1px solid hsl(220 13% 84%);
+  border-radius: 1rem;
+  background: white;
+  box-shadow:
+    0 24px 50px -20px rgb(15 23 42 / 35%),
+    0 10px 20px -12px rgb(15 23 42 / 20%);
+}
+
+.rendimiento-chat-panel[hidden],
+.rendimiento-chat-trigger[hidden] {
+  display: none;
+}
+
+.rendimiento-chat-target,
+.rendimiento-chat-target > .n8n-chat {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.rendimiento-chat-target > .n8n-chat {
+  display: flex;
+}
+
+.rendimiento-chat-target .chat-layout {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.rendimiento-chat-target .chat-header {
+  gap: 0.25rem;
+  border-bottom: 1px solid rgb(255 255 255 / 12%);
+}
+
+.rendimiento-chat-target .chat-header h1,
+.rendimiento-chat-target .chat-header p {
+  margin: 0;
+}
+
+.rendimiento-chat-target .chat-message {
+  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
+}
+
+.rendimiento-chat-target .chat-inputs textarea:focus-visible {
+  outline: 2px solid hsl(104 37% 37%);
+  outline-offset: -2px;
+}
+
+.rendimiento-chat-close,
+.rendimiento-chat-new,
+.rendimiento-chat-trigger,
+.rendimiento-chat-retry {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.rendimiento-chat-close {
+  position: absolute;
+  top: 0.875rem;
+  right: 0.875rem;
+  z-index: 2;
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.625rem;
+  color: rgb(255 255 255 / 85%);
+  background: rgb(255 255 255 / 10%);
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    transform 150ms ease;
+}
+
+.rendimiento-chat-new {
+  position: absolute;
+  top: 0.875rem;
+  right: 3.5rem;
+  z-index: 2;
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.625rem;
+  color: rgb(255 255 255 / 85%);
+  background: rgb(255 255 255 / 10%);
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    transform 150ms ease;
+}
+
+.rendimiento-chat-new:hover:not(:disabled) {
+  color: white;
+  background: rgb(255 255 255 / 18%);
+}
+
+.rendimiento-chat-new:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.rendimiento-chat-close:hover {
+  color: white;
+  background: rgb(255 255 255 / 18%);
+}
+
+.rendimiento-chat-close:active,
+.rendimiento-chat-new:active,
+.rendimiento-chat-trigger:active {
+  transform: scale(0.96);
+}
+
+.rendimiento-chat-close svg,
+.rendimiento-chat-new svg,
+.rendimiento-chat-trigger svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.rendimiento-chat-trigger {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 40;
+  display: inline-flex;
+  width: 3.5rem;
+  height: 3.5rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid hsl(104 37% 29%);
+  border-radius: 9999px;
+  color: white;
+  background: hsl(104 37% 37%);
+  box-shadow:
+    0 14px 28px -10px rgb(45 80 34 / 55%),
+    0 4px 10px -5px rgb(15 23 42 / 30%);
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.rendimiento-chat-trigger:hover {
+  background: hsl(104 37% 32%);
+  box-shadow:
+    0 18px 34px -12px rgb(45 80 34 / 65%),
+    0 5px 12px -5px rgb(15 23 42 / 35%);
+  transform: translateY(-1px);
+}
+
+.rendimiento-chat-status {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 2rem;
+  color: hsl(220 14% 32%);
+  background: hsl(220 14% 96%);
+  text-align: center;
+  font: 500 0.875rem/1.5 var(--app-font-sans, "Inter", sans-serif);
+}
+
+.rendimiento-chat-status p {
+  margin: 0;
+}
+
+.rendimiento-chat-spinner {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: hsl(104 37% 37%);
+  animation: rendimiento-chat-spin 0.8s linear infinite;
+}
+
+.rendimiento-chat-retry {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid hsl(104 37% 30%);
+  border-radius: 0.5rem;
+  color: white;
+  background: hsl(104 37% 37%);
+}
+
+.rendimiento-chat-retry:hover {
+  background: hsl(104 37% 32%);
+}
+
+.rendimiento-chat-retry svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+@keyframes rendimiento-chat-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .rendimiento-chat-panel {
+    right: 0.5rem;
+    bottom: 4.75rem;
+    width: calc(100vw - 1rem);
+    height: min(38.75rem, calc(100dvh - 5.25rem));
+    border-radius: 0.875rem;
+  }
+
+  .rendimiento-chat-trigger {
+    right: 0.75rem;
+    bottom: 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rendimiento-chat-close,
+  .rendimiento-chat-new,
+  .rendimiento-chat-trigger,
+  .rendimiento-chat-spinner {
+    animation: none;
+    transition: none;
+  }
+}

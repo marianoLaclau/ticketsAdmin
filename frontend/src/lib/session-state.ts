@@ -3,6 +3,7 @@ import {
   type FetchStatus,
   type QueryClient,
 } from "@tanstack/react-query";
+import { clearRendimientoChatSession } from "@/lib/rendimiento-chat-session";
 
 /**
  * La entrada pública verifica la cookie al montar, pero no mientras el usuario
@@ -110,6 +111,7 @@ function destroySessionMutations(queryClient: QueryClient): void {
  * actual desde la entrada pública.
  */
 export function clearRevokedSessionState(queryClient: QueryClient): void {
+  clearRendimientoChatSession();
   destroySessionMutations(queryClient);
   queryClient.clear();
 }

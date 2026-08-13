@@ -54,6 +54,7 @@
     "wouter": "^3.3.5"
   },
   "dependencies": {
+    "@n8n/chat": "1.33.4",
     "@workspace/ingesta": "workspace:*"
   }
 }
