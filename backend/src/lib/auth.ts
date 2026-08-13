@@ -2,7 +2,13 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
 import { db, sesionesTable, usuariosTable, rolesTable } from "@workspace/db";
 import { eq, lte } from "drizzle-orm";
-import { ROL_SYSADMIN } from "./rbac";
+import {
+  CAPACIDAD_GESTIONAR_TICKETS,
+  CAPACIDAD_VER_RENDIMIENTO,
+  ROL_SYSADMIN,
+  tieneCapacidad,
+  type Capacidad,
+} from "./rbac";
 import {
   clearSessionCookie,
   getSessionToken,
@@ -13,9 +19,12 @@ import {
 
 export {
   ROL_SYSADMIN,
+  ROL_CONTROLLER,
   ROL_ADMINISTRADOR,
   ROL_OPERADOR,
   puedeCerrarTickets,
+  puedeGestionarTickets,
+  puedeVerRendimiento,
 } from "./rbac";
 
 export function safeEquals(a: string, b: string): boolean {
@@ -185,3 +194,40 @@ export function requireSysAdmin(
   }
   next();
 }
+
+type CapabilityError = {
+  code: string;
+  error: string;
+};
+
+function buildCapabilityMiddleware(
+  capacidad: Capacidad,
+  forbidden: CapabilityError,
+) {
+  return (_req: Request, res: Response, next: NextFunction): void => {
+    const user = res.locals.authUser as SessionUser | undefined;
+    if (!user || !tieneCapacidad(user.rol, capacidad)) {
+      res.status(403).json(forbidden);
+      return;
+    }
+    next();
+  };
+}
+
+/** Impide que perfiles de consulta, como Controller, muten tickets. */
+export const requireTicketWriteAccess = buildCapabilityMiddleware(
+  CAPACIDAD_GESTIONAR_TICKETS,
+  {
+    code: "TICKET_WRITE_FORBIDDEN",
+    error: "El rol actual solo puede consultar tickets",
+  },
+);
+
+/** Frontera reutilizable para el futuro módulo ejecutivo de Rendimiento. */
+export const requirePerformanceAccess = buildCapabilityMiddleware(
+  CAPACIDAD_VER_RENDIMIENTO,
+  {
+    code: "PERFORMANCE_ACCESS_REQUIRED",
+    error: "Requiere rol SysAdmin o Controller",
+  },
+);

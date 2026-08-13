@@ -258,7 +258,8 @@ beforeEach(async () => {
        (2, 'Administrador', 1),
        (3, 'Operador', 1),
        (4, 'Rol inactivo', 0),
-       (5, 'Mesa personalizada', 1)`,
+       (5, 'Mesa personalizada', 1),
+       (7, 'Controller', 1)`,
     )
     .run();
   const insertUser = sqlite.prepare(
@@ -1637,6 +1638,30 @@ describe("catálogo administrativo de roles", () => {
       code: "SYSADMIN_REQUIRED",
       error: "Requiere rol SysAdmin",
     });
+
+    const controllerHash = (
+      sqlite
+        .prepare("SELECT password_hash FROM usuarios WHERE id = 1")
+        .get() as { password_hash: string }
+    ).password_hash;
+    sqlite
+      .prepare(
+        `INSERT INTO usuarios
+         (id, nombre, username, email, password_hash, debe_cambiar_password, role_id, activo)
+         VALUES (4, 'Control', 'controller', 'controller@example.test', ?, 0, 7, 1)`,
+      )
+      .run(controllerHash);
+    const controllerLogin = await login("controller");
+    assert.equal(controllerLogin.status, 200);
+    const asController = await adminRequest(
+      "/admin/roles",
+      sessionCookie(controllerLogin),
+    );
+    assert.equal(asController.status, 403);
+    assert.deepEqual(await asController.json(), {
+      code: "SYSADMIN_REQUIRED",
+      error: "Requiere rol SysAdmin",
+    });
   });
 
   it("conserva el alta y el catálogo filtrado y paginado", async () => {
@@ -2069,7 +2094,7 @@ describe("roles base protegidos", () => {
   it("impide renombrar, desactivar o eliminar cada rol del sistema", async () => {
     const cookie = await adminSession();
 
-    for (const id of [1, 2, 3]) {
+    for (const id of [1, 2, 3, 7]) {
       const rename = await adminRequest(`/admin/roles/${id}`, cookie, {
         method: "PATCH",
         body: JSON.stringify({ nombre: `Renombrado ${id}` }),
@@ -2089,12 +2114,15 @@ describe("roles base protegidos", () => {
     }
 
     const roles = sqlite
-      .prepare("SELECT nombre, activo FROM roles WHERE id <= 3 ORDER BY id")
+      .prepare(
+        "SELECT nombre, activo FROM roles WHERE id IN (1, 2, 3, 7) ORDER BY id",
+      )
       .all();
     assert.deepEqual(roles, [
       { nombre: "SysAdmin", activo: 1 },
       { nombre: "Administrador", activo: 1 },
       { nombre: "Operador", activo: 1 },
+      { nombre: "Controller", activo: 1 },
     ]);
   });
 
@@ -2102,13 +2130,13 @@ describe("roles base protegidos", () => {
     const cookie = await adminSession();
     const create = await adminRequest("/admin/roles", cookie, {
       method: "POST",
-      body: JSON.stringify({ nombre: " sysadmin ", activo: true }),
+      body: JSON.stringify({ nombre: " controller ", activo: true }),
     });
     assert.equal(create.status, 409);
 
     const rename = await adminRequest("/admin/roles/5", cookie, {
       method: "PATCH",
-      body: JSON.stringify({ nombre: "oPeRaDoR" }),
+      body: JSON.stringify({ nombre: "CoNtRoLlEr" }),
     });
     assert.equal(rename.status, 409);
   });

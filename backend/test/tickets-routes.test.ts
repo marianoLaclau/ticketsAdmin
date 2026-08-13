@@ -380,6 +380,106 @@ describe("listado y exportación de tickets", () => {
   });
 });
 
+describe("Controller opera tickets en modo de solo lectura", () => {
+  const controllerOptions = { role: "Controller", userId: 1 } as const;
+
+  it("puede consultar listado, detalle, historial y exportación operativa", async () => {
+    const responses = await Promise.all([
+      request("/tickets", controllerOptions),
+      request("/tickets/1", controllerOptions),
+      request("/tickets/1/seguimientos", controllerOptions),
+      request("/tickets/export.csv", controllerOptions),
+    ]);
+
+    assert.deepEqual(
+      responses.map(({ status }) => status),
+      [200, 200, 200, 200],
+    );
+  });
+
+  it("rechaza PATCH antes de validar o persistir el cuerpo", async () => {
+    const before = sqlite
+      .prepare("SELECT estado, version FROM tickets WHERE id = 1")
+      .get();
+
+    const response = await request("/tickets/1", {
+      ...controllerOptions,
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        expected_version: 1,
+        estado: "en_proceso",
+      }),
+    });
+
+    assert.equal(response.status, 403);
+    assert.deepEqual(await response.json(), {
+      code: "TICKET_WRITE_FORBIDDEN",
+      error: "El rol actual solo puede consultar tickets",
+    });
+    assert.deepEqual(
+      sqlite.prepare("SELECT estado, version FROM tickets WHERE id = 1").get(),
+      before,
+    );
+    assert.equal(
+      (
+        sqlite
+          .prepare(
+            "SELECT count(*) AS total FROM seguimientos WHERE ticket_id = 1",
+          )
+          .get() as { total: number }
+      ).total,
+      0,
+    );
+  });
+
+  it("rechaza seguimientos manuales, borrado y acceso a cuarentena", async () => {
+    const followup = await jsonRequest(
+      "/tickets/1/seguimientos",
+      "POST",
+      { nota: "Intento de escritura de Controller" },
+      controllerOptions,
+    );
+    assert.equal(followup.status, 403);
+    assert.deepEqual(await followup.json(), {
+      code: "TICKET_WRITE_FORBIDDEN",
+      error: "El rol actual solo puede consultar tickets",
+    });
+
+    const remove = await request("/tickets/1", {
+      ...controllerOptions,
+      method: "DELETE",
+    });
+    assert.equal(remove.status, 403);
+
+    const quarantinedList = await request(
+      "/tickets?incluir_vacios=true",
+      controllerOptions,
+    );
+    const quarantinedDetail = await request(
+      "/tickets/3?incluir_vacios=true",
+      controllerOptions,
+    );
+    assert.equal(quarantinedList.status, 403);
+    assert.equal(quarantinedDetail.status, 403);
+
+    assert.ok(
+      sqlite.prepare("SELECT id FROM tickets WHERE id = 1").get(),
+      "el ticket debe conservarse",
+    );
+    assert.equal(
+      (
+        sqlite
+          .prepare(
+            "SELECT count(*) AS total FROM seguimientos WHERE ticket_id = 1",
+          )
+          .get() as { total: number }
+      ).total,
+      0,
+    );
+  });
+});
+
 describe("acceso a registros en cuarentena", () => {
   it("exige rol SysAdmin en listado, detalle, PATCH y seguimientos", async () => {
     // Un Operador nunca ve los registros en cuarentena.

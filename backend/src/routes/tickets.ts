@@ -18,6 +18,7 @@ import {
 } from "@workspace/api-zod";
 import {
   puedeCerrarTickets,
+  requireTicketWriteAccess,
   requireSysAdmin,
   type SessionUser,
 } from "../lib/auth";
@@ -98,6 +99,7 @@ router.get("/tickets/:id", requireAdminForEmptyTickets, getTicketDetail);
 
 router.patch(
   "/tickets/:id",
+  requireTicketWriteAccess,
   requireAdminForEmptyTickets,
   requireTechnicalTicketUpdate,
   async (req, res) => {
@@ -285,6 +287,7 @@ router.get(
 
 router.post(
   "/tickets/:id/seguimientos",
+  requireTicketWriteAccess,
   requireAdminForEmptyTickets,
   createTicketFollowup,
 );
