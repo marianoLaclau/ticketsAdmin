@@ -25,7 +25,7 @@ export type RendimientoRouterOptions = RendimientoQualityHandlerOptions &
 
 export const RENDIMIENTO_MODULE_STATUS = Object.freeze({
   modulo: "rendimiento",
-  estado: "operativo_parcial",
+  estado: "operativo",
   vistas: Object.freeze([
     "resumen_equipo",
     "personas",

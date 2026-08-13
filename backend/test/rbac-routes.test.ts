@@ -1692,7 +1692,7 @@ describe("módulo de Rendimiento", () => {
     );
     assert.deepEqual(await sysAdminResponse.json(), {
       modulo: "rendimiento",
-      estado: "operativo_parcial",
+      estado: "operativo",
       vistas: ["resumen_equipo", "personas", "reiteraciones", "calidad_datos"],
     });
 

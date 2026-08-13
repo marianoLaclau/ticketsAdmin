@@ -1013,7 +1013,7 @@ export const getRendimientoStatusResponseVistasMax = 4;
 
 export const GetRendimientoStatusResponse = zod.object({
   "modulo": zod.enum(['rendimiento']),
-  "estado": zod.enum(['operativo_parcial']).describe('Resumen, Personas, Reiteraciones y Calidad de datos operativos; el módulo continúa en validación integral.'),
+  "estado": zod.enum(['operativo']).describe('Resumen, Personas, Reiteraciones y Calidad de datos están operativos.'),
   "vistas": zod.array(zod.enum(['resumen_equipo', 'personas', 'reiteraciones', 'calidad_datos'])).min(getRendimientoStatusResponseVistasMin).max(getRendimientoStatusResponseVistasMax)
 })
 

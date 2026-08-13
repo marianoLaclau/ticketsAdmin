@@ -1528,8 +1528,8 @@ components:
           enum: [rendimiento]
         estado:
           type: string
-          enum: [operativo_parcial]
-          description: Resumen, Personas, Reiteraciones y Calidad de datos operativos; el módulo continúa en validación integral.
+          enum: [operativo]
+          description: Resumen, Personas, Reiteraciones y Calidad de datos están operativos.
         vistas:
           type: array
           minItems: 4

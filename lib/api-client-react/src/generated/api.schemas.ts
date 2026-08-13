@@ -13,13 +13,13 @@ export const RendimientoModuleStatusModulo = {
 } as const;
 
 /**
- * Resumen, Personas, Reiteraciones y Calidad de datos operativos; el módulo continúa en validación integral.
+ * Resumen, Personas, Reiteraciones y Calidad de datos están operativos.
  */
 export type RendimientoModuleStatusEstado = typeof RendimientoModuleStatusEstado[keyof typeof RendimientoModuleStatusEstado];
 
 
 export const RendimientoModuleStatusEstado = {
-  operativo_parcial: 'operativo_parcial',
+  operativo: 'operativo',
 } as const;
 
 export type RendimientoModuleStatusVistasItem = typeof RendimientoModuleStatusVistasItem[keyof typeof RendimientoModuleStatusVistasItem];
@@ -34,7 +34,7 @@ export const RendimientoModuleStatusVistasItem = {
 
 export interface RendimientoModuleStatus {
   modulo: RendimientoModuleStatusModulo;
-  /** Resumen, Personas, Reiteraciones y Calidad de datos operativos; el módulo continúa en validación integral. */
+  /** Resumen, Personas, Reiteraciones y Calidad de datos están operativos. */
   estado: RendimientoModuleStatusEstado;
   /**
      * @minItems 4
