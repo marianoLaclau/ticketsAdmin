@@ -13,13 +13,26 @@ describe("invalidación del dominio de tickets", () => {
     assert.equal(isTicketDomainQueryKey(["/api/tickets/17"]), true);
     assert.equal(isTicketDomainQueryKey(["/api/dashboard/stats"]), true);
     assert.equal(isTicketDomainQueryKey(["/api/dashboard"]), true);
+    assert.equal(isTicketDomainQueryKey(["/api/rendimiento"]), true);
+    assert.equal(
+      isTicketDomainQueryKey(["/api/rendimiento/resumen-equipo"]),
+      true,
+    );
+    assert.equal(
+      isTicketDomainQueryKey(["/api/rendimiento/reiteraciones", { pagina: 2 }]),
+      true,
+    );
 
     assert.equal(isTicketDomainQueryKey(["/api/tickets-archive"]), false);
     assert.equal(isTicketDomainQueryKey(["/api/dashboarding"]), false);
+    assert.equal(isTicketDomainQueryKey(["/api/rendimientos"]), false);
+    assert.equal(isTicketDomainQueryKey(["/api/rendimiento-extra"]), false);
+    assert.equal(isTicketDomainQueryKey(["/api/rendimientoPrivado"]), false);
+    assert.equal(isTicketDomainQueryKey(["/api/admin/rendimiento"]), false);
     assert.equal(isTicketDomainQueryKey([42, "/api/tickets"]), false);
   });
 
-  it("invalida tickets y dashboard sin tocar sesión ni administración", async () => {
+  it("invalida tickets, dashboard y rendimiento sin tocar sesión ni administración", async () => {
     const queryClient = new QueryClient();
     const domainKeys = [
       ["/api/tickets"],
@@ -27,6 +40,10 @@ describe("invalidación del dominio de tickets", () => {
       ["/api/tickets", 17, "operativo", "seguimientos"],
       ["/api/dashboard/stats", { fecha_desde: "2026-08-01" }],
       ["/api/dashboard/actividad-reciente"],
+      ["/api/rendimiento/resumen-equipo", { periodo: "mes" }],
+      ["/api/rendimiento/personas", { empresa: "Acme" }],
+      ["/api/rendimiento/calidad-datos"],
+      ["/api/rendimiento/reiteraciones", { pagina: 2, limite: 10 }],
     ] as const;
     const unrelatedKeys = [
       ["/api/auth/me"],
@@ -34,6 +51,8 @@ describe("invalidación del dominio de tickets", () => {
       ["/api/auth/admin-elevation", "user", 3],
       ["/api/admin/roles"],
       ["/api/admin/users", { page: 1 }],
+      ["/api/rendimientos"],
+      ["/api/rendimiento-legacy"],
     ] as const;
 
     for (const queryKey of [...domainKeys, ...unrelatedKeys]) {

@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 
 const TICKETS_QUERY_ROOT = "/api/tickets";
 const DASHBOARD_QUERY_ROOT = "/api/dashboard";
+const PERFORMANCE_QUERY_ROOT = "/api/rendimiento";
 
 function isPathWithin(path: string, root: string): boolean {
   return path === root || path.startsWith(`${root}/`);
@@ -12,7 +13,8 @@ export function isTicketDomainQueryKey(queryKey: readonly unknown[]): boolean {
   return (
     typeof root === "string" &&
     (isPathWithin(root, TICKETS_QUERY_ROOT) ||
-      isPathWithin(root, DASHBOARD_QUERY_ROOT))
+      isPathWithin(root, DASHBOARD_QUERY_ROOT) ||
+      isPathWithin(root, PERFORMANCE_QUERY_ROOT))
   );
 }
 
