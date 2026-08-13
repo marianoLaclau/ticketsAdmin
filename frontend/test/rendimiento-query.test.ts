@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  buildRendimientoQualityParams,
+  buildRendimientoParams,
   createDefaultRendimientoCustomRange,
   getRendimientoDateRange,
 } from "../src/features/rendimiento/rendimiento-query.ts";
@@ -15,7 +15,7 @@ describe("parámetros de Calidad de datos", () => {
       hasta: "2026-08-13",
     });
     assert.deepEqual(
-      buildRendimientoQualityParams({ periodo: "mes" }, REFERENCE_DATE),
+      buildRendimientoParams({ periodo: "mes" }, REFERENCE_DATE),
       { fecha_desde: "2026-08-01", fecha_hasta: "2026-08-13" },
     );
   });
@@ -37,7 +37,7 @@ describe("parámetros de Calidad de datos", () => {
 
   it("respeta el rango personalizado sin recalcularlo", () => {
     assert.deepEqual(
-      buildRendimientoQualityParams(
+      buildRendimientoParams(
         {
           periodo: "personalizado",
           desde: "2024-02-29",
@@ -51,7 +51,7 @@ describe("parámetros de Calidad de datos", () => {
 
   it("mapea filtros del codec al contrato generado sin propiedades vacías", () => {
     assert.deepEqual(
-      buildRendimientoQualityParams(
+      buildRendimientoParams(
         {
           periodo: "ultimos_30",
           empresa: "GSB IT",

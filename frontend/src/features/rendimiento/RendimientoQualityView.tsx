@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getUserErrorMessage } from "@/lib/error-messages";
 import type { RendimientoUrlState } from "@/lib/rendimiento-url";
 import { RendimientoQualityPanel } from "./RendimientoQualityPanel";
-import { buildRendimientoQualityParams } from "./rendimiento-query";
+import { buildRendimientoParams } from "./rendimiento-query";
 
 interface RendimientoQualityViewProps {
   filters: RendimientoUrlState;
@@ -75,7 +75,7 @@ export function RendimientoQualityView({
 }: RendimientoQualityViewProps) {
   const [referenceDate] = useState(() => new Date());
   const params = useMemo(
-    () => buildRendimientoQualityParams(filters, referenceDate),
+    () => buildRendimientoParams(filters, referenceDate),
     [filters, referenceDate],
   );
   const query = useGetRendimientoCalidadDatos(params, {

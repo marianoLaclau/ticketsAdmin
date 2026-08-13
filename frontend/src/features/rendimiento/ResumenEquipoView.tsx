@@ -10,7 +10,7 @@ import { LoadingStatus } from "@/components/ui/loading-status";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUserErrorMessage } from "@/lib/error-messages";
 import type { RendimientoUrlState } from "@/lib/rendimiento-url";
-import { buildRendimientoQualityParams } from "./rendimiento-query";
+import { buildRendimientoParams } from "./rendimiento-query";
 import { ResumenEquipoPanel } from "./ResumenEquipoPanel";
 
 interface ResumenEquipoViewProps {
@@ -77,7 +77,7 @@ export function ResumenEquipoErrorState({
 export function ResumenEquipoView({ filters }: ResumenEquipoViewProps) {
   const [referenceDate] = useState(() => new Date());
   const params = useMemo(
-    () => buildRendimientoQualityParams(filters, referenceDate),
+    () => buildRendimientoParams(filters, referenceDate),
     [filters, referenceDate],
   );
   const query = useGetRendimientoResumenEquipo(params, {

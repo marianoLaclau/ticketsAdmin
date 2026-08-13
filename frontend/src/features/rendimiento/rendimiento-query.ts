@@ -1,4 +1,8 @@
-import type { GetRendimientoCalidadDatosParams } from "@workspace/api-client-react";
+import type {
+  GetRendimientoCalidadDatosParams,
+  GetRendimientoPersonasParams,
+  GetRendimientoResumenEquipoParams,
+} from "@workspace/api-client-react";
 import type {
   RendimientoPeriodo,
   RendimientoUrlState,
@@ -10,6 +14,10 @@ export interface RendimientoDateRange {
   desde: string;
   hasta: string;
 }
+
+export type RendimientoQueryParams = GetRendimientoCalidadDatosParams &
+  GetRendimientoPersonasParams &
+  GetRendimientoResumenEquipoParams;
 
 interface CalendarDateParts {
   year: number;
@@ -111,10 +119,10 @@ export function getRendimientoDateRange(
     : getPresetRange(state.periodo, now);
 }
 
-export function buildRendimientoQualityParams(
+export function buildRendimientoParams(
   state: RendimientoUrlState,
   now = new Date(),
-): GetRendimientoCalidadDatosParams {
+): RendimientoQueryParams {
   const range = getRendimientoDateRange(state, now);
   return {
     fecha_desde: range.desde,
