@@ -68,8 +68,8 @@ test("presenta cuatro vistas honestas, accesibles y adaptables", async (t) => {
     screen.getByRole("heading", { name: "Rendimiento" }).tagName,
     "H1",
   );
-  assert.ok(screen.getByText("Módulo en preparación"));
-  assert.ok(screen.getByText("Sin métricas provisorias"));
+  assert.ok(screen.getByText("Acceso dirección · En preparación"));
+  assert.equal(screen.queryByText("Sin métricas provisorias"), null);
 
   const tabList = screen.getByRole("tablist");
   assert.match(tabList.className, /grid-cols-2/);

@@ -1,9 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  Activity,
   BarChart3,
   CheckCircle2,
-  ClipboardCheck,
   Clock3,
   DatabaseZap,
   Repeat2,
@@ -154,57 +152,26 @@ function PreparationView({ view }: { view: RendimientoView }) {
 
 export default function Rendimiento() {
   return (
-    <div className="mx-auto w-full max-w-[1600px] space-y-5 p-4 sm:p-6 lg:p-8">
-      <header className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 px-5 py-6 text-white shadow-sm sm:px-7 sm:py-8">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-              <Badge className="border border-white/15 bg-white/10 text-white hover:bg-white/10">
-                <ShieldCheck
-                  className="mr-1.5 h-3.5 w-3.5"
-                  aria-hidden="true"
-                />
-                Espacio de dirección
-              </Badge>
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-300">
-                <Activity className="h-3.5 w-3.5" aria-hidden="true" />
-                Módulo en preparación
-              </span>
-            </div>
-            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              Rendimiento
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-300 sm:text-base">
-              Una vista ejecutiva para comprender la capacidad del equipo, la
-              calidad de atención y las situaciones que necesitan seguimiento.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-xs text-slate-300 sm:flex sm:flex-wrap lg:max-w-md lg:justify-end">
-            <span className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center">
-              Sin métricas provisorias
-            </span>
-            <span className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center">
-              Acceso restringido
-            </span>
-          </div>
+    <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col space-y-4 p-4 md:p-8">
+      <header className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="max-w-3xl">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            Rendimiento
+          </h1>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+            Una vista ejecutiva para comprender la capacidad del equipo, la
+            calidad de atención y las situaciones que necesitan seguimiento.
+          </p>
         </div>
-      </header>
 
-      <section
-        aria-label="Estado de preparación del módulo"
-        className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"
-      >
-        <ClipboardCheck
-          className="mt-0.5 h-5 w-5 shrink-0 text-blue-700"
-          aria-hidden="true"
-        />
-        <p className="leading-relaxed">
-          La navegación y las vistas ya están definidas. Los indicadores se
-          incorporarán después de validar su trazabilidad y sus reglas de
-          cálculo.
-        </p>
-      </section>
+        <Badge
+          variant="outline"
+          className="w-fit shrink-0 border-slate-200 bg-white px-3 py-1.5 text-slate-700 shadow-sm"
+        >
+          <ShieldCheck className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+          Acceso dirección · En preparación
+        </Badge>
+      </header>
 
       <Tabs defaultValue="equipo" className="space-y-4">
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 lg:grid-cols-4">
