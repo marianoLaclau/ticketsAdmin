@@ -432,10 +432,10 @@ describe("consulta de rendimiento individual", () => {
   it("incluye usuarios activos e inactivos ordenados A-Z con ceros explicitos", () => {
     const { sqlite, database } = createDatabase();
     const roleId = insertRole(sqlite, "Operador");
-    const zoeId = insertUser(sqlite, {
+    const alvaroId = insertUser(sqlite, {
       roleId,
-      name: "Zoe",
-      surname: "Zeta",
+      name: "Álvaro",
+      surname: "Zárate",
     });
     const anaId = insertUser(sqlite, {
       roleId,
@@ -453,10 +453,10 @@ describe("consulta de rendimiento individual", () => {
     assert.deepEqual(result.personas, [
       {
         usuario: {
-          id: anaId,
-          nombre: "Ana Alvarez",
+          id: alvaroId,
+          nombre: "Álvaro Zárate",
           rol: "Operador",
-          activo: false,
+          activo: true,
         },
         tickets_resueltos: 0,
         resoluciones_atribuidas: 0,
@@ -478,10 +478,10 @@ describe("consulta de rendimiento individual", () => {
       },
       {
         usuario: {
-          id: zoeId,
-          nombre: "Zoe Zeta",
+          id: anaId,
+          nombre: "Ana Alvarez",
           rol: "Operador",
-          activo: true,
+          activo: false,
         },
         tickets_resueltos: 0,
         resoluciones_atribuidas: 0,

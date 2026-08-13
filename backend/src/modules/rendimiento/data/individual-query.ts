@@ -90,6 +90,11 @@ type RawIndividualMetric = {
 };
 
 const MILLISECONDS_PER_HOUR = 3_600_000;
+const spanishNameCollator = new Intl.Collator("es-AR", {
+  usage: "sort",
+  sensitivity: "base",
+  numeric: true,
+});
 
 function numberOf(value: number): number {
   return Number(value);
@@ -359,6 +364,44 @@ export function consultarRendimientoPersonas<
       evaluatedResolutions,
     );
 
+    const people = rows.map((row) => {
+      const deadlineSample = numberOf(row.plazo_muestra);
+      const deadlinesMet = numberOf(row.plazo_cumplidos);
+
+      return {
+        usuario: {
+          id: numberOf(row.usuario_id),
+          nombre: row.usuario_nombre,
+          rol: row.usuario_rol,
+          activo: Boolean(row.usuario_activo),
+        },
+        tickets_resueltos: numberOf(row.tickets_resueltos),
+        resoluciones_atribuidas: numberOf(row.resoluciones_atribuidas),
+        tiempo_resolucion_atribuible: {
+          muestra: numberOf(row.duracion_muestra),
+          promedio_horas: millisecondsToRoundedHours(row.duracion_promedio_ms),
+          mediana_horas: millisecondsToRoundedHours(row.duracion_mediana_ms),
+        },
+        cumplimiento_plazo_auditable: {
+          muestra: deadlineSample,
+          cumplidos: deadlinesMet,
+          porcentaje: percentage(deadlinesMet, deadlineSample),
+        },
+        carga_actual: {
+          abiertos_asignados: numberOf(row.abiertos_asignados),
+          vencidos_asignados: numberOf(row.vencidos_asignados),
+        },
+        resoluciones_reabiertas: numberOf(row.resoluciones_reabiertas),
+      };
+    });
+    people.sort(
+      (left, right) =>
+        spanishNameCollator.compare(
+          left.usuario.nombre,
+          right.usuario.nombre,
+        ) || left.usuario.id - right.usuario.id,
+    );
+
     return {
       tickets_evaluados: numberOf(coverage.tickets_evaluados),
       cobertura: {
@@ -377,38 +420,7 @@ export function consultarRendimientoPersonas<
         umbral_cobertura_disponible_porcentaje:
           INDIVIDUAL_COMPARISON_READY_COVERAGE,
       },
-      personas: rows.map((row) => {
-        const deadlineSample = numberOf(row.plazo_muestra);
-        const deadlinesMet = numberOf(row.plazo_cumplidos);
-
-        return {
-          usuario: {
-            id: numberOf(row.usuario_id),
-            nombre: row.usuario_nombre,
-            rol: row.usuario_rol,
-            activo: Boolean(row.usuario_activo),
-          },
-          tickets_resueltos: numberOf(row.tickets_resueltos),
-          resoluciones_atribuidas: numberOf(row.resoluciones_atribuidas),
-          tiempo_resolucion_atribuible: {
-            muestra: numberOf(row.duracion_muestra),
-            promedio_horas: millisecondsToRoundedHours(
-              row.duracion_promedio_ms,
-            ),
-            mediana_horas: millisecondsToRoundedHours(row.duracion_mediana_ms),
-          },
-          cumplimiento_plazo_auditable: {
-            muestra: deadlineSample,
-            cumplidos: deadlinesMet,
-            porcentaje: percentage(deadlinesMet, deadlineSample),
-          },
-          carga_actual: {
-            abiertos_asignados: numberOf(row.abiertos_asignados),
-            vencidos_asignados: numberOf(row.vencidos_asignados),
-          },
-          resoluciones_reabiertas: numberOf(row.resoluciones_reabiertas),
-        };
-      }),
+      personas: people,
     };
   });
 }
