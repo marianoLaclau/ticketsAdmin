@@ -5,3 +5,4 @@ export {
 } from "./http/router";
 export { createRendimientoQualityHandler } from "./http/quality-handler";
 export { createRendimientoTeamSummaryHandler } from "./http/team-summary-handler";
+export { createRendimientoIndividualHandler } from "./http/individual-handler";

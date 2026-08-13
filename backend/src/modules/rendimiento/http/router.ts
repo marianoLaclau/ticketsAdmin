@@ -9,9 +9,14 @@ import {
   createRendimientoTeamSummaryHandler,
   type RendimientoTeamSummaryHandlerOptions,
 } from "./team-summary-handler";
+import {
+  createRendimientoIndividualHandler,
+  type RendimientoIndividualHandlerOptions,
+} from "./individual-handler";
 
 export type RendimientoRouterOptions = RendimientoQualityHandlerOptions &
-  RendimientoTeamSummaryHandlerOptions;
+  RendimientoTeamSummaryHandlerOptions &
+  RendimientoIndividualHandlerOptions;
 
 export const RENDIMIENTO_MODULE_STATUS = Object.freeze({
   modulo: "rendimiento",
@@ -47,6 +52,10 @@ export function createRendimientoRouter(
   router.get(
     "/rendimiento/resumen-equipo",
     createRendimientoTeamSummaryHandler(options),
+  );
+  router.get(
+    "/rendimiento/personas",
+    createRendimientoIndividualHandler(options),
   );
 
   return router;

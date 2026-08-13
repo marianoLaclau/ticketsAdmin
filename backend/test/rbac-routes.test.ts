@@ -1730,10 +1730,11 @@ describe("módulo de Rendimiento", () => {
     });
   });
 
-  it("protege Calidad y Resumen para SysAdmin y Controller", async () => {
+  it("protege Calidad, Resumen y Personas para SysAdmin y Controller", async () => {
     const endpoints = [
       "/api/rendimiento/calidad-datos",
       "/api/rendimiento/resumen-equipo",
+      "/api/rendimiento/personas",
     ];
     for (const endpoint of endpoints) {
       const withoutSession = await fetch(`${baseUrl}${endpoint}`);
@@ -1783,7 +1784,7 @@ describe("módulo de Rendimiento", () => {
 
   it("valida filtros y el orden cronológico del período", async () => {
     const cookie = await adminSession();
-    for (const endpoint of ["calidad-datos", "resumen-equipo"]) {
+    for (const endpoint of ["calidad-datos", "resumen-equipo", "personas"]) {
       for (const query of [
         "fecha_desde=2026-08-14&fecha_hasta=2026-08-13",
         "fecha_desde=2026-8-01",
@@ -1933,6 +1934,112 @@ describe("módulo de Rendimiento", () => {
         alta: 1,
         urgente: 0,
       },
+    });
+
+    const individualResponse = await requestWithSession(
+      "/clocked-api/rendimiento/personas?fecha_desde=2026-08-01&fecha_hasta=2026-08-13&empresa=Acme&motivo_categoria=legales&prioridad=alta",
+      await adminSession(),
+    );
+    assert.equal(individualResponse.status, 200);
+    assert.equal(
+      individualResponse.headers.get("cache-control"),
+      "private, no-store",
+    );
+    assert.deepEqual(await individualResponse.json(), {
+      periodo: {
+        fecha_desde: "2026-08-01",
+        fecha_hasta: "2026-08-13",
+        timezone: "America/Argentina/Buenos_Aires",
+        generado_en: "2026-08-13T15:30:00.000Z",
+      },
+      tickets_evaluados: 1,
+      cobertura: {
+        resoluciones_evaluadas: 1,
+        resoluciones_atribuidas: 1,
+        porcentaje_atribucion: 100,
+        atribucion_desde: "2026-08-06T16:00:00.000Z",
+        comparacion_individual_estado: "insuficiente",
+        minimo_resoluciones_comparables: 10,
+        umbral_cobertura_parcial_porcentaje: 80,
+        umbral_cobertura_disponible_porcentaje: 95,
+      },
+      personas: [
+        {
+          usuario: {
+            id: 2,
+            nombre: "Operadora",
+            rol: "Mesa personalizada",
+            activo: true,
+          },
+          tickets_resueltos: 0,
+          resoluciones_atribuidas: 0,
+          tiempo_resolucion_atribuible: {
+            muestra: 0,
+            promedio_horas: null,
+            mediana_horas: null,
+          },
+          cumplimiento_plazo_auditable: {
+            muestra: 0,
+            cumplidos: 0,
+            porcentaje: null,
+          },
+          carga_actual: {
+            abiertos_asignados: 0,
+            vencidos_asignados: 0,
+          },
+          resoluciones_reabiertas: 0,
+        },
+        {
+          usuario: {
+            id: 1,
+            nombre: "Sistema",
+            rol: "SysAdmin",
+            activo: true,
+          },
+          tickets_resueltos: 1,
+          resoluciones_atribuidas: 1,
+          tiempo_resolucion_atribuible: {
+            muestra: 1,
+            promedio_horas: 25,
+            mediana_horas: 25,
+          },
+          cumplimiento_plazo_auditable: {
+            muestra: 1,
+            cumplidos: 1,
+            porcentaje: 100,
+          },
+          carga_actual: {
+            abiertos_asignados: 0,
+            vencidos_asignados: 0,
+          },
+          resoluciones_reabiertas: 0,
+        },
+        {
+          usuario: {
+            id: 3,
+            nombre: "Suspendida",
+            rol: "Rol inactivo",
+            activo: true,
+          },
+          tickets_resueltos: 0,
+          resoluciones_atribuidas: 0,
+          tiempo_resolucion_atribuible: {
+            muestra: 0,
+            promedio_horas: null,
+            mediana_horas: null,
+          },
+          cumplimiento_plazo_auditable: {
+            muestra: 0,
+            cumplidos: 0,
+            porcentaje: null,
+          },
+          carga_actual: {
+            abiertos_asignados: 0,
+            vencidos_asignados: 0,
+          },
+          resoluciones_reabiertas: 0,
+        },
+      ],
     });
   });
 });
