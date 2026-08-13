@@ -17,9 +17,12 @@ export type RequestedRendimientoPeriod = {
 export function hasNonSingletonRendimientoFilter(
   query: Request["query"],
 ): boolean {
-  return RENDIMIENTO_FILTER_NAMES.some(
-    (filter) =>
-      query[filter] !== undefined && typeof query[filter] !== "string",
+  return Object.entries(query).some(
+    ([key, value]) =>
+      RENDIMIENTO_FILTER_NAMES.some(
+        (filter) => key === filter || key.startsWith(`${filter}[`),
+      ) &&
+      (key.includes("[") || typeof value !== "string"),
   );
 }
 

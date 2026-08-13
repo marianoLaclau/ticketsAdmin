@@ -1790,6 +1790,9 @@ describe("módulo de Rendimiento", () => {
         "motivo_categoria=inventada",
         "prioridad=alta&prioridad=baja",
         "empresa=Acme&empresa=Otra",
+        "empresa[]=Acme",
+        "empresa[0]=Acme",
+        "fecha_desde[]=2026-08-01",
       ]) {
         const response = await requestWithSession(
           `/clocked-api/rendimiento/${endpoint}?${query}`,
