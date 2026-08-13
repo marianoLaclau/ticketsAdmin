@@ -3536,3 +3536,54 @@ SQL individuales y 6/6 pruebas de interfaz e integración. La base local mantuvo
 `integrity_check=ok`; sus registros históricos no poseen autor estructurado
 suficiente, por lo que la vista informa correctamente cobertura insuficiente.
 No se realizó push.
+
+## 2026-08-13 — Rendimiento etapa 4: contactos reiterados y cierre del módulo
+
+**Agente:** Codex
+
+Se habilitó `GET /api/rendimiento/reiteraciones` y la cuarta pestaña real del
+módulo para SysAdmin y Controller. El estado contract-first pasó a `operativo`:
+Resumen, Personas, Reiteraciones y Calidad de datos comparten la misma cohorte
+visible por fecha de creación y los filtros de período, empresa, categoría y
+prioridad. Ninguna de estas lecturas modifica tickets ni materializa métricas.
+
+### Identidad conservadora y privacidad
+
+Cada ticket recibe como máximo una clave canónica con precedencia DNI, teléfono
+y email. Un dato secundario sin DNI solo hereda uno cuando la relación directa
+dentro de la cohorte es unívoca. Los mapas de teléfono y email se calculan por
+separado, el teléfono conserva su precedencia y nunca se construyen componentes
+conexas: un puente A ↔ B ↔ C no fusiona automáticamente a A con C. Las
+relaciones ambiguas se mantienen separadas y se informan como cobertura.
+
+Solo se publica un grupo cuando reúne dos tickets distintos o más y al menos
+uno sigue abierto. La respuesta contiene una clave opaca, DNI/teléfono/email
+enmascarado, nombre de referencia, primer y último contacto, antigüedad,
+prioridad, responsables y links a los tickets. No salen identificadores de
+contacto completos ni se afirma que la coincidencia pruebe identidad civil o
+falta de respuesta. Los grupos se ordenan por vencimiento, prioridad,
+antigüedad y contacto reciente.
+
+### Interfaz y operación
+
+La vista presenta cuatro KPIs, cobertura y ambigüedades, cards responsive sin
+scroll horizontal, responsables múltiples y tres tickets iniciales con
+expansión accesible. Distingue cohorte vacía, ausencia de identidad y ausencia
+de reiteraciones abiertas, además de loading, error, reintento y refetch con el
+último dato conservado. Se eliminó el placeholder `En preparación`.
+
+Los cuatro handlers reutilizan una única validación de filtros y construcción
+del período contractual. El endpoint aplica el guard común de Rendimiento,
+Zod estricto y `Cache-Control: private, no-store`; serializa todas las fechas
+en ISO sin desplazar los días calendario solicitados.
+
+### Validación local
+
+- Contrato OpenAPI de Rendimiento: 26/26 pruebas.
+- Consulta, Calidad y RBAC focales: 80/80 pruebas; componentes y shell: 5/5.
+- La SQLite local conservó 137 tickets visibles. Reiteraciones detectó 6 grupos
+  con 15 tickets, 7 abiertos vencidos y 66,4 % de identidad utilizable en unos
+  24 ms; la inspección de la respuesta confirmó ausencia de campos PII crudos.
+- TypeScript y ESLint focales aprobaron. El quality gate integral se ejecutó al
+  cerrar esta etapa.
+- Todo quedó en commits locales pequeños sobre `main`. No se realizó push.

@@ -90,7 +90,7 @@ flowchart TB
 | `modules/dashboard`      | Períodos operativos, agregaciones SQL y endpoints del resumen operativo                                 |
 | `modules/administracion` | Usuarios, roles, operaciones masivas y CRUD administrativo protegido                                    |
 | `modules/ingestion`      | Webhook e ingreso idempotente de datos desde n8n/Serin                                                  |
-| `modules/rendimiento`    | Frontera ejecutiva protegida y estado de preparación de sus vistas; aún no publica indicadores          |
+| `modules/rendimiento`    | Cohortes y agregaciones ejecutivas auditables: equipo, personas, reiteraciones y calidad de datos       |
 | `backend/src/shared`     | Configuración, logging, SSE, readiness, ciclo de vida del proceso y validaciones técnicas reutilizables |
 
 #### Transporte y seguridad
@@ -199,7 +199,7 @@ Las pantallas principales son:
 - `/dashboard`: KPIs, estados, prioridades, motivos y actividad.
 - `/tickets`: listado filtrable, paginado, ordenable y exportable.
 - `/tickets/:id`: detalle, edición, audio y seguimiento.
-- `/rendimiento`: espacio ejecutivo visible únicamente para SysAdmin y Controller; actualmente presenta la navegación y las vistas básicas en estado de preparación.
+- `/rendimiento`: espacio ejecutivo visible únicamente para SysAdmin y Controller; comparte filtros y una cohorte visible entre equipo, personas, reiteraciones y calidad de datos.
 - `/admin`: CRUD, importación, cuarentena y zona peligrosa.
 - `/admin/roles-usuarios`: gestión de usuarios y roles para SysAdmin.
 
@@ -210,6 +210,47 @@ La administración de tickets se modulariza en `frontend/src/features/admin-tick
 El detalle operativo se descompone en `frontend/src/features/ticket-detail`. Las tarjetas sin estado reciben por props fragmentos tipados del contrato `Ticket`; el historial es controlado y deja query, mutación y reset exitoso en la página. Consultas, editores y control optimista permanecen allí hasta que puedan trasladarse como unidades cohesionadas, sin repartir drafts ni mutaciones entre componentes.
 
 El estado remoto se invalida después de mutaciones y también por eventos SSE. Los errores de sesión (`401`) vuelven a la entrada; los errores de servidor muestran una pantalla recuperable.
+
+### Lecturas ejecutivas de Rendimiento
+
+Rendimiento es un módulo de lectura: no persiste tablas derivadas ni modifica
+tickets. Sus cuatro endpoints comparten `buildPerformanceCohortConditions`, que
+define una cohorte de tickets visibles por `fecha_creacion` después de aplicar
+período, empresa, categoría y prioridad. Cada respuesta se calcula dentro de un
+snapshot de lectura SQLite y usa un único instante `generado_en` inyectable.
+
+```mermaid
+flowchart LR
+    filters[Filtros validados] --> cohort[Cohorte visible común]
+    cohort --> team[Resumen del equipo]
+    cohort --> people[Personas]
+    cohort --> repeats[Reiteraciones]
+    cohort --> quality[Calidad de datos]
+    history[(seguimientos)] --> team
+    history --> people
+    users[(usuarios y roles)] --> people
+    users --> repeats
+    team --> contract[OpenAPI + Zod]
+    people --> contract
+    repeats --> contract
+    quality --> contract
+    contract --> ui[Cards y estados React]
+```
+
+Resumen y Personas distinguen la fotografía actual de los eventos históricos.
+Una resolución solo es atribuible cuando un seguimiento prueba una transición
+de estado no final a final y posee `autor_usuario_id`; el SLA histórico usa el
+`fecha_limite_snapshot` preservado en ese evento. Las muestras y coberturas son
+parte del contrato para no presentar estimaciones incompletas como hechos.
+
+Reiteraciones asigna exactamente una clave canónica por ticket, con precedencia
+DNI, teléfono y email. Una identidad secundaria sin DNI solo hereda uno cuando
+la asociación directa en la cohorte es unívoca. No se calculan componentes
+conexos ni se encadenan coincidencias, porque eso podría fusionar personas por
+un dato compartido o incorrecto. Solo se publican grupos con dos tickets o más y
+al menos uno abierto; el identificador completo nunca sale de la capa de datos,
+la API entrega una máscara y un `grupo_id` opaco. Por tanto, el resultado es una
+señal para revisión operativa y no una identidad civil inferida.
 
 ## 3. Contrato y paquetes compartidos
 
@@ -605,7 +646,7 @@ backend/                 API Express y composition root del servidor
     dashboard/           agregaciones y períodos del resumen operativo
     administracion/      usuarios, roles y operaciones administrativas
     ingestion/           webhook e ingesta idempotente
-    rendimiento/         frontera y vistas ejecutivas en preparación
+    rendimiento/         consultas, dominio y frontera HTTP de métricas ejecutivas
   src/shared/            infraestructura transversal sin reglas de dominio
   src/routes/            composición HTTP, health y SSE aún transversales
 frontend/                SPA React, pantallas, layout y componentes

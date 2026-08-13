@@ -50,7 +50,7 @@ frontend/
       Login.tsx                    → pantalla de login
       ChangePassword.tsx             → reemplazo obligatorio de credenciales temporales
       Dashboard.tsx                 → KPIs, gráficos, actividad reciente
-      Rendimiento.tsx                → shell ejecutivo protegido, sin métricas provisorias
+      Rendimiento.tsx                → shell ejecutivo protegido con cuatro vistas auditables
       TicketList.tsx                 → listado con filtros, orden y paginación
       TicketDetail.tsx                → detalle, edición, seguimientos, audio
       Admin.tsx                        → panel: CRUD de tickets, import CSV, truncate
@@ -148,9 +148,9 @@ KPIs (sin revisar, en proceso, vencidos, resueltos), distribución por estado (b
 
 ### `Rendimiento.tsx` (ruta `/rendimiento`, SysAdmin y Controller)
 
-Shell ejecutivo lazy-loaded con encabezado y cuatro tabs responsive: **Resumen equipo**, **Personas**, **Reiteraciones** y **Calidad de datos**. Todas las vistas indican `En preparación` y explican qué información se incorporará; no consultan datos ni muestran totales, rankings o conclusiones provisorias. La ruta usa `RendimientoRouteGuard`, y el sidebar solo ofrece el acceso cuando `puedeVerRendimiento(me?.rol)` es verdadero.
+Shell ejecutivo lazy-loaded con encabezado y cuatro tabs responsive: **Resumen equipo**, **Personas**, **Reiteraciones** y **Calidad de datos**. Comparten filtros canonizados en URL y muestran datos reales con muestras, cobertura y estados explícitos de carga, error o ausencia de datos. Reiteraciones presenta KPIs y cards de contactos con identidad enmascarada, responsables y links a tickets; expande más de tres tickets bajo demanda sin crear una tabla ancha. La ruta usa `RendimientoRouteGuard`, y el sidebar solo ofrece el acceso cuando `puedeVerRendimiento(me?.rol)` es verdadero.
 
-El backend expone `GET /api/rendimiento` como contrato mínimo de disponibilidad (`estado: "preparacion"` y las cuatro vistas), protegido para SysAdmin/Controller y con caché deshabilitada. El shell no necesita consumirlo todavía: los futuros indicadores tendrán endpoints propios cuando sus reglas y trazabilidad estén listas.
+El backend expone `GET /api/rendimiento` con `estado: "operativo"` y endpoints independientes para las cuatro vistas, todos protegidos para SysAdmin/Controller y con caché deshabilitada.
 
 ### `TicketList.tsx`
 
