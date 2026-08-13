@@ -12,14 +12,15 @@ import {
   clasificarMotivo,
   crearSeguimientoOrigenSerin,
 } from "@workspace/ingesta";
-import { requireWebhookKey } from "../lib/auth";
-import { broadcastEvent } from "../lib/events";
-import { findInvalidRfc3339DateTimeField } from "../lib/rfc3339";
+import { requireWebhookKey } from "../../auth";
+import { broadcastEvent } from "../../../shared/realtime/events";
+import { findInvalidRfc3339DateTimeField } from "../../../shared/validation/rfc3339";
 
 const router = Router();
 
-// Ingesta de llamadas: n8n envía el JSON que arma ElevenLabs al terminar la llamada.
-// Idempotente por conversation_id — un reintento de n8n devuelve el ticket existente.
+// Ingesta de llamadas: n8n envía el JSON que arma ElevenLabs al terminar la
+// llamada. Es idempotente por conversation_id: un reintento devuelve el ticket
+// existente sin duplicar su seguimiento de origen.
 router.post("/webhooks/ticket", requireWebhookKey, async (req, res) => {
   if (req.body && typeof req.body === "object" && !Array.isArray(req.body)) {
     const invalidDateField = findInvalidRfc3339DateTimeField(req.body, [

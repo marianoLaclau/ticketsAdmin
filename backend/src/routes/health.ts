@@ -3,7 +3,7 @@ import {
   HealthCheckResponse,
   ReadinessCheckResponse,
 } from "@workspace/api-zod";
-import { readinessControl } from "../lib/runtime-readiness";
+import { readinessControl } from "../shared/runtime/runtime-readiness";
 
 interface HealthRouterOptions {
   isReady: () => boolean;

@@ -1,8 +1,8 @@
-import "./lib/load-env";
+import "./shared/runtime/load-env";
 import path from "node:path";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { db, sqlite } from "@workspace/db";
-import { logger } from "./lib/logger";
+import { logger } from "./shared/observability/logger";
 
 // Corre las migraciones SQL generadas (lib/db/drizzle) contra el archivo
 // SQLite en uso. Idempotente: drizzle registra las ya aplicadas. Pensado

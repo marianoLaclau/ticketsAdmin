@@ -6,11 +6,11 @@ import {
   PRIORIDAD_AUTOMATICA_INTERVALO_PREDETERMINADO_MS,
   resolverIntervaloPrioridadAutomatica,
   type TimerPrioridadAutomatica,
-} from "../src/lib/prioridad-automatica-runner.ts";
+} from "../src/modules/tickets/jobs/automatic-priority-runner.ts";
 import type {
   ResultadoPrioridadAutomatica,
   ServicioPrioridadAutomatica,
-} from "../src/lib/prioridad-automatica.ts";
+} from "../src/modules/tickets/application/automatic-priority.ts";
 
 function resultado(promociones = 0): ResultadoPrioridadAutomatica {
   return {

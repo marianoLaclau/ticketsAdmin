@@ -46,9 +46,9 @@ bootstrap.close();
 
 const [{ ensureAdminSeed }, { sqlite }, { hashPassword, verifyPassword }] =
   await Promise.all([
-    import("../src/lib/seed.ts"),
+    import("../src/modules/auth/application/seed.ts"),
     import("@workspace/db"),
-    import("../src/lib/passwords.ts"),
+    import("../src/modules/auth/security/passwords.ts"),
   ]);
 
 const passwordInicial = "Bootstrap-2026-muy-seguro";

@@ -21,7 +21,7 @@ import {
   requireTicketWriteAccess,
   requireSysAdmin,
   type SessionUser,
-} from "../../../lib/auth";
+} from "../../auth";
 import {
   normalizeTicketQuery,
   parseBooleanQueryParam,
@@ -36,7 +36,7 @@ import {
   parseTicketUpdateBody,
 } from "../application/update-validation";
 import { buildTicketUpdateChanges } from "../application/update-changes";
-import { broadcastEvent } from "../../../lib/events";
+import { broadcastEvent } from "../../../shared/realtime/events";
 import { buildTicketAccessCondition } from "../data/access";
 import { exportTicketsCsv } from "./csv-route";
 import { createTicketFollowup, listTicketFollowups } from "./followup-handlers";

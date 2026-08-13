@@ -4,8 +4,8 @@ import {
   calcularPrioridadPorSla,
   type PrioridadSla,
 } from "@workspace/ingesta";
-import { broadcastEvent } from "../../../lib/events";
-import { logger } from "../../../lib/logger";
+import { logger } from "../../../shared/observability/logger";
+import { broadcastEvent } from "../../../shared/realtime/events";
 
 export const ESTADOS_FINALIZADOS_PRIORIDAD = ["resuelto", "cerrado"] as const;
 

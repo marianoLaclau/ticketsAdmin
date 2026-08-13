@@ -8,7 +8,7 @@ import {
 } from "@workspace/db";
 import { ImportCsvBody, TruncateTicketsBody } from "@workspace/api-zod";
 import { detectarColumnas, filaATicket, parseCsv } from "@workspace/ingesta";
-import { broadcastEvent } from "../../../lib/events";
+import { broadcastEvent } from "../../../shared/realtime/events";
 
 const router = Router();
 

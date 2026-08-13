@@ -1,5 +1,5 @@
 import { UpdateTicketBody } from "@workspace/api-zod";
-import { findInvalidRfc3339DateTimeField } from "../../../lib/rfc3339";
+import { findInvalidRfc3339DateTimeField } from "../../../shared/validation/rfc3339";
 
 const TECHNICAL_TICKET_UPDATE_FIELDS = [
   "hora",

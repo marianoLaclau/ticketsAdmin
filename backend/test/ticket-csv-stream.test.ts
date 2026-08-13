@@ -5,7 +5,7 @@ import { Writable } from "node:stream";
 import {
   serializeTicketsCsv,
   type TicketCsvRecord,
-} from "../src/lib/ticket-csv.ts";
+} from "../src/modules/tickets/data/csv.ts";
 import {
   createTicketCsvExportDeadline,
   isTicketCsvClientDisconnect,
@@ -16,7 +16,7 @@ import {
   TICKET_CSV_EXPORT_TIMEOUT_ENV,
   TICKET_CSV_EXPORT_TIMEOUT_MIN_MS,
   TicketCsvExportDeadlineError,
-} from "../src/lib/ticket-csv-stream.ts";
+} from "../src/modules/tickets/data/csv-stream.ts";
 
 type DatabaseTicket = Omit<TicketCsvRecord, "notificado"> & {
   notificado: number;

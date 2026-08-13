@@ -7,8 +7,8 @@ import {
   UpdateAdminRoleBody,
   UpdateAdminRoleParams,
 } from "@workspace/api-zod";
-import { revokeEventClientsForUsers } from "../../../lib/events";
-import { esNombreRolReservado, esRolSistema } from "../../../lib/rbac";
+import { revokeEventClientsForUsers } from "../../../shared/realtime/events";
+import { esNombreRolReservado, esRolSistema } from "../../auth";
 import {
   hasOwn,
   hasSqliteConstraint,

@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import {
   SERVICE_SECRET_MIN_LENGTH,
   validateServiceSecrets,
-} from "../src/lib/service-secrets";
+} from "../src/shared/config/service-secrets";
 
 const validEnvironment = {
   WEBHOOK_API_KEY: "webhook-7c99c3408ac44d2197d8f6d4",

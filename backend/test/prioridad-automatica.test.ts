@@ -7,7 +7,7 @@ import {
   type CambioPrioridadCondicional,
   type RepositorioPrioridadAutomatica,
   type TicketCandidatoPrioridad,
-} from "../src/lib/prioridad-automatica.ts";
+} from "../src/modules/tickets/application/automatic-priority.ts";
 
 function ahoraLaborable(): Date {
   // Miercoles 22/07/2026 a las 10:00 de Buenos Aires.

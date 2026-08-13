@@ -8,7 +8,7 @@ import {
   closeEventClientsForSessionHash,
   closeEventClientsForUsers,
   revokeEventClientsForUsers,
-} from "../src/lib/events.ts";
+} from "../src/shared/realtime/events.ts";
 
 function fakeResponse(write: (payload: string) => void): Response {
   let closeListener: (() => void) | undefined;

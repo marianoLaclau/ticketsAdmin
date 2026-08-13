@@ -1,7 +1,11 @@
 import { Router } from "express";
-import { addEventClient } from "../lib/events";
-import { getSessionUser, type SessionUser } from "../lib/auth";
-import { getSessionToken, hashSessionToken } from "../lib/session-cookie";
+import {
+  getSessionToken,
+  getSessionUser,
+  hashSessionToken,
+  type SessionUser,
+} from "../modules/auth";
+import { addEventClient } from "../shared/realtime/events";
 
 const router = Router();
 

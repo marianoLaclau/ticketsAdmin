@@ -108,9 +108,9 @@ bootstrap.close();
 
 const [{ default: ticketsRouter }, { sqlite }, { addEventClient }] =
   await Promise.all([
-    import("../src/routes/tickets.ts"),
+    import("../src/modules/tickets/index.ts"),
     import("@workspace/db"),
-    import("../src/lib/events.ts"),
+    import("../src/shared/realtime/events.ts"),
   ]);
 
 const app = express();

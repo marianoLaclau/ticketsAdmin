@@ -1,4 +1,4 @@
-import { logger as loggerPredeterminado } from "../../../lib/logger";
+import { logger as loggerPredeterminado } from "../../../shared/observability/logger";
 import {
   servicioPrioridadAutomatica,
   type ResultadoPrioridadAutomatica,

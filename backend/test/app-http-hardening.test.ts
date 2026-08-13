@@ -27,7 +27,7 @@ after(async () => {
 const [{ default: app }, { sqlite }, { readinessControl }] = await Promise.all([
   import("../src/app.ts"),
   import("@workspace/db"),
-  import("../src/lib/runtime-readiness.ts"),
+  import("../src/shared/runtime/runtime-readiness.ts"),
 ]);
 closeDatabase = () => {
   if (sqlite.open) sqlite.close();

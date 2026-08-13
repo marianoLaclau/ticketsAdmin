@@ -8,11 +8,11 @@ import {
   ListSeguimientosParams,
   ListSeguimientosQueryParams,
 } from "@workspace/api-zod";
-import type { SessionUser } from "../../../lib/auth";
+import type { SessionUser } from "../../auth";
 import { buildTicketAccessCondition } from "../data/access";
 import { formatTicketAuditAuthor } from "../application/audit";
 import { normalizeTicketQuery } from "./query-normalization";
-import { broadcastEvent } from "../../../lib/events";
+import { broadcastEvent } from "../../../shared/realtime/events";
 
 function isObjectBody(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);

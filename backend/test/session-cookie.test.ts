@@ -13,7 +13,7 @@ import {
   hasSessionCookie,
   isSessionExpired,
   setSessionCookie,
-} from "../src/lib/session-cookie";
+} from "../src/modules/auth/security/session-cookie";
 
 function requestWithCookie(value?: unknown): Request {
   return {

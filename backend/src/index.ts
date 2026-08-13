@@ -1,19 +1,20 @@
-import "./lib/load-env";
+import "./shared/runtime/load-env";
 import { ensureTicketQuarantineProjection, sqlite } from "@workspace/db";
 import app from "./app";
-import { beginEventClientShutdown } from "./lib/events";
-import { logger } from "./lib/logger";
-import { ensureAdminSeed } from "./lib/seed";
-import { crearRunnerPrioridadAutomatica } from "./lib/prioridad-automatica-runner";
-import { reconciliarCategoriasMotivo } from "./lib/reclasificar-motivos";
-import { validateServiceSecrets } from "./lib/service-secrets";
-import { purgeUnsafeStoredSessions } from "./lib/session-store";
-import { readinessControl } from "./lib/runtime-readiness";
+import { beginEventClientShutdown } from "./shared/realtime/events";
+import { logger } from "./shared/observability/logger";
+import { ensureAdminSeed, purgeUnsafeStoredSessions } from "./modules/auth";
+import {
+  crearRunnerPrioridadAutomatica,
+  reconciliarCategoriasMotivo,
+} from "./modules/tickets";
+import { validateServiceSecrets } from "./shared/config/service-secrets";
+import { readinessControl } from "./shared/runtime/runtime-readiness";
 import {
   crearApagadoControlado,
   registrarCierreAntesDeSalir,
   registrarSenalesApagado,
-} from "./lib/server-lifecycle";
+} from "./shared/runtime/server-lifecycle";
 
 const port = Number(process.env["PORT"] ?? 5000);
 const listenHost = process.env["LISTEN_HOST"]?.trim() || undefined;

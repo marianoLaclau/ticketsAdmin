@@ -6,7 +6,7 @@ import * as schema from "@workspace/db/schema";
 import {
   reconciliarCategoriasMotivo,
   type CargarModuloDbCategorias,
-} from "../src/lib/reclasificar-motivos.ts";
+} from "../src/modules/tickets/application/reclassify-reasons.ts";
 
 describe("reconciliación de categorías derivadas", () => {
   it("promueve solo Embargos sin modificar textos ni otras categorías", async () => {

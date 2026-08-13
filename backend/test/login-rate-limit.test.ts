@@ -4,7 +4,7 @@ import {
   LoginAttemptLimiter,
   LoginKdfGate,
   LoginThroughputLimiter,
-} from "../src/lib/login-rate-limit";
+} from "../src/modules/auth/security/login-rate-limit";
 
 function confirmFailure(limiter: LoginAttemptLimiter, identity: string): void {
   const decision = limiter.reserve(identity);

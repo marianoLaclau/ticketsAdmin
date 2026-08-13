@@ -9,7 +9,7 @@ import {
   TICKET_CSV_DELIMITER,
   TICKET_CSV_HEADERS,
   type TicketCsvRecord,
-} from "../src/lib/ticket-csv.ts";
+} from "../src/modules/tickets/data/csv.ts";
 
 const ticket: TicketCsvRecord = {
   id: 7,

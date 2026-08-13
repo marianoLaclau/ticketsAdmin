@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { GetRendimientoStatusResponse } from "@workspace/api-zod";
-import { requirePerformanceAccess } from "../../../lib/auth";
+import { requirePerformanceAccess } from "../../auth";
 
 export const RENDIMIENTO_MODULE_STATUS = Object.freeze({
   modulo: "rendimiento",

@@ -1,13 +1,15 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
-import ticketsRouter from "./tickets";
-import dashboardRouter from "./dashboard";
-import webhooksRouter from "./webhooks";
-import adminRouter from "./admin";
+import ticketsRouter from "../modules/tickets";
+import dashboardRouter from "../modules/dashboard";
+import webhooksRouter from "../modules/ingestion";
+import adminRouter from "../modules/administracion";
 import eventsRouter from "./events";
-import authRouter from "./auth";
+import authRouter, {
+  requirePasswordChangeCompleted,
+  requireSession,
+} from "../modules/auth";
 import rendimientoRouter from "../modules/rendimiento";
-import { requirePasswordChangeCompleted, requireSession } from "../lib/auth";
 
 const router: IRouter = Router();
 

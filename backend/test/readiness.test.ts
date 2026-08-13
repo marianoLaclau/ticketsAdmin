@@ -5,8 +5,8 @@ import {
   ReadinessCheckResponse,
 } from "@workspace/api-zod";
 import Database from "better-sqlite3";
-import { createReadinessControl } from "../src/lib/readiness.ts";
-import { probeSqliteReadiness } from "../src/lib/sqlite-readiness.ts";
+import { createReadinessControl } from "../src/shared/runtime/readiness-control.ts";
+import { probeSqliteReadiness } from "../src/shared/runtime/sqlite-readiness.ts";
 
 describe("control de readiness", () => {
   it("avanza de starting a ready y nunca abandona draining", () => {

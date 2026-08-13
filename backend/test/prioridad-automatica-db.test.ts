@@ -11,7 +11,7 @@ import {
   ejecutarCicloPrioridadAutomatica,
   type CargarModuloDbPrioridad,
   type RepositorioPrioridadAutomatica,
-} from "../src/lib/prioridad-automatica.ts";
+} from "../src/modules/tickets/application/automatic-priority.ts";
 
 function crearBase(opciones: { forzarFalloAuditoria?: boolean } = {}) {
   const sqlite = new Database(":memory:");

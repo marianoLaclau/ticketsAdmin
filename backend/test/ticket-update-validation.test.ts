@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import {
   hasTechnicalTicketUpdateFields,
   parseTicketUpdateBody,
-} from "../src/lib/ticket-update-validation.ts";
+} from "../src/modules/tickets/application/update-validation.ts";
 
 function assertParseError(value: unknown, expectedError: string): void {
   const result = parseTicketUpdateBody(value);

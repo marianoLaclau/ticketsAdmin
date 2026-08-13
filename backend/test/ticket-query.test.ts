@@ -7,14 +7,14 @@ import { ticketsTable } from "@workspace/db/schema";
 import {
   buildTicketFilterConditions,
   buildTicketWhere,
-} from "../src/lib/ticket-query.ts";
+} from "../src/modules/tickets/data/query.ts";
 import {
   buildTicketOrderBy,
   MAX_TICKET_SORT_CRITERIA,
   normalizeTicketSort,
   parseTicketSortQuery,
   TICKET_SORT_BY_VALUES,
-} from "../src/lib/ticket-sort.ts";
+} from "../src/modules/tickets/data/sort.ts";
 
 interface Fixture {
   id: number;

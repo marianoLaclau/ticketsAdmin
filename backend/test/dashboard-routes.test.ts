@@ -9,7 +9,7 @@ import {
   GetDashboardStatsResponse,
   GetMotivoStatsResponse,
 } from "@workspace/api-zod";
-import { businessDayWindow } from "../src/lib/dashboard-date-range";
+import { businessDayWindow } from "../src/modules/dashboard/application/date-range";
 
 const testDirectory = join(process.cwd(), "tmp", "dashboard-route-tests");
 const databasePath = join(testDirectory, `dashboard-${process.pid}.db`);
@@ -75,7 +75,7 @@ bootstrap.close();
 
 const [{ crearDashboardStatsHandler, default: dashboardRouter }, { sqlite }] =
   await Promise.all([
-    import("../src/routes/dashboard.ts"),
+    import("../src/modules/dashboard/index.ts"),
     import("@workspace/db"),
   ]);
 

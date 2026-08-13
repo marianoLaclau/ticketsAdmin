@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { Ticket } from "@workspace/db/schema";
-import { buildTicketUpdateChanges } from "../src/lib/ticket-update-changes.ts";
+import { buildTicketUpdateChanges } from "../src/modules/tickets/application/update-changes.ts";
 import {
   parseTicketUpdateBody,
   type ParsedTicketUpdateBody,
-} from "../src/lib/ticket-update-validation.ts";
+} from "../src/modules/tickets/application/update-validation.ts";
 
 const NOW = new Date("2026-08-07T15:00:00.000Z");
 

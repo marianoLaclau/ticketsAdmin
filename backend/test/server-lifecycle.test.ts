@@ -6,14 +6,17 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import express from "express";
-import { addEventClient, beginEventClientShutdown } from "../src/lib/events.ts";
+import {
+  addEventClient,
+  beginEventClientShutdown,
+} from "../src/shared/realtime/events.ts";
 import {
   APAGADO_TIMEOUT_PREDETERMINADO_MS,
   crearApagadoControlado,
   registrarCierreAntesDeSalir,
   registrarSenalesApagado,
   type MotivoApagado,
-} from "../src/lib/server-lifecycle.ts";
+} from "../src/shared/runtime/server-lifecycle.ts";
 
 function diferida<T>() {
   let resolver!: (value: T | PromiseLike<T>) => void;

@@ -4,7 +4,7 @@ import type { Request } from "express";
 import {
   normalizeTicketQuery,
   parseBooleanQueryParam,
-} from "../src/lib/ticket-query-normalization.ts";
+} from "../src/modules/tickets/http/query-normalization.ts";
 
 function asRequestQuery(query: Record<string, unknown>): Request["query"] {
   return query as Request["query"];

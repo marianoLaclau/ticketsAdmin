@@ -5,10 +5,12 @@ import {
   ResetAdminUserPasswordParams,
 } from "@workspace/api-zod";
 import { eq } from "drizzle-orm";
-import { revokeEventClientsForUsers } from "../../../../lib/events";
-import { loginAttemptLimiter } from "../../../../lib/login-rate-limit";
-import { getNewPasswordPolicyError } from "../../../../lib/new-password-policy";
-import { hashPassword } from "../../../../lib/passwords";
+import { revokeEventClientsForUsers } from "../../../../shared/realtime/events";
+import {
+  getNewPasswordPolicyError,
+  hashPassword,
+  loginAttemptLimiter,
+} from "../../../auth";
 import { readPasswordFromBody } from "../route-helpers";
 
 export async function resetAdminUserPassword(

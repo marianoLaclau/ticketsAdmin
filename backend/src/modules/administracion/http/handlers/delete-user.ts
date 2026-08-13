@@ -2,10 +2,12 @@ import type { Request, Response } from "express";
 import { db, rolesTable, sesionesTable, usuariosTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { DeleteAdminUserBody, DeleteAdminUserParams } from "@workspace/api-zod";
-import { revokeEventClientsForUsers } from "../../../../lib/events";
-import { isUsablePasswordHash } from "../../../../lib/passwords";
-import { ROL_SYSADMIN } from "../../../../lib/rbac";
-import type { SessionUser } from "../../../../lib/auth";
+import { revokeEventClientsForUsers } from "../../../../shared/realtime/events";
+import {
+  isUsablePasswordHash,
+  ROL_SYSADMIN,
+  type SessionUser,
+} from "../../../auth";
 import { PUBLIC_ADMIN_USER_COLUMNS } from "../../data/public-user-columns";
 
 const hasLoginIdentity = (value: string | null): value is string =>

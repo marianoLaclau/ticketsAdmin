@@ -2,10 +2,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import {
-  requirePerformanceAccess,
-  requireTicketWriteAccess,
-} from "../src/lib/auth.ts";
-import {
   CAPACIDAD_ADMINISTRAR,
   CAPACIDAD_CERRAR_TICKETS,
   CAPACIDAD_GESTIONAR_TICKETS,
@@ -19,8 +15,10 @@ import {
   ROLES_SISTEMA,
   esNombreRolReservado,
   esRolSistema,
+  requirePerformanceAccess,
+  requireTicketWriteAccess,
   tieneCapacidad,
-} from "../src/lib/rbac.ts";
+} from "../src/modules/auth/index.ts";
 
 const TODAS_LAS_CAPACIDADES = [
   CAPACIDAD_VER_DASHBOARD,

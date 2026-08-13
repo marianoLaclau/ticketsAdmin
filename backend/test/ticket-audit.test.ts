@@ -4,7 +4,7 @@ import {
   buildTicketAuditNote,
   formatTicketAuditAuthor,
   getTicketAuditEditedFields,
-} from "../src/lib/ticket-audit.ts";
+} from "../src/modules/tickets/application/audit.ts";
 
 const current = {
   estado: "nuevo",

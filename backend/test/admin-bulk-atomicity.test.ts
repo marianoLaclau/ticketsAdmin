@@ -100,11 +100,11 @@ const [
   { requirePasswordChangeCompleted, requireSession },
   { hashPassword },
 ] = await Promise.all([
-  import("../src/routes/auth.ts"),
-  import("../src/routes/admin.ts"),
+  import("../src/modules/auth/index.ts"),
+  import("../src/modules/administracion/index.ts"),
   import("@workspace/db"),
-  import("../src/lib/auth.ts"),
-  import("../src/lib/passwords.ts"),
+  import("../src/modules/auth/application/session.ts"),
+  import("../src/modules/auth/security/passwords.ts"),
 ]);
 ensureTicketQuarantineProjection(sqlite);
 

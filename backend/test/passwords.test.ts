@@ -7,7 +7,7 @@ import {
   needsPasswordRehash,
   verifyPassword,
   verifyPasswordOrDummy,
-} from "../src/lib/passwords.ts";
+} from "../src/modules/auth/security/passwords.ts";
 
 const password = "Clave-de-prueba-2026";
 

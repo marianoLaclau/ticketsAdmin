@@ -6,11 +6,14 @@ import {
   UpdateAdminUserBody,
   UpdateAdminUserParams,
 } from "@workspace/api-zod";
-import { revokeEventClientsForUsers } from "../../../lib/events";
-import { loginAttemptLimiter } from "../../../lib/login-rate-limit";
-import { getNewPasswordPolicyError } from "../../../lib/new-password-policy";
-import { hashPassword, isUsablePasswordHash } from "../../../lib/passwords";
-import { ROL_SYSADMIN } from "../../../lib/rbac";
+import { revokeEventClientsForUsers } from "../../../shared/realtime/events";
+import {
+  getNewPasswordPolicyError,
+  hashPassword,
+  isUsablePasswordHash,
+  loginAttemptLimiter,
+  ROL_SYSADMIN,
+} from "../../auth";
 import {
   hasOwn,
   hasSqliteConstraint,

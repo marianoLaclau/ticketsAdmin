@@ -14,11 +14,11 @@ import {
 import {
   consultarDashboardStats,
   consultarMotivosDashboard,
-} from "../src/lib/dashboard-queries";
+} from "../src/modules/dashboard/data/queries";
 import {
   businessDayWindow,
   normalizeDashboardDateQuery,
-} from "../src/lib/dashboard-date-range";
+} from "../src/modules/dashboard/application/date-range";
 
 const indexMigrationSql = readFileSync(
   new URL(

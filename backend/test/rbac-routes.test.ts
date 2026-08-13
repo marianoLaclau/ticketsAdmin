@@ -7,7 +7,7 @@ import { scryptSync } from "node:crypto";
 import Database from "better-sqlite3";
 import cookieParser from "cookie-parser";
 import express from "express";
-import { hashSessionToken } from "../src/lib/session-cookie.ts";
+import { hashSessionToken } from "../src/modules/auth/security/session-cookie.ts";
 
 const testDirectory = join(process.cwd(), "tmp", "backend-rbac-tests");
 const databasePath = join(testDirectory, `rbac-${process.pid}.db`);
@@ -72,14 +72,14 @@ const [
   { sqlite },
   { purgeUnsafeStoredSessions },
 ] = await Promise.all([
-  import("../src/routes/auth.ts"),
-  import("../src/routes/admin.ts"),
+  import("../src/modules/auth/index.ts"),
+  import("../src/modules/administracion/index.ts"),
   import("../src/routes/index.ts"),
-  import("../src/lib/auth.ts"),
-  import("../src/lib/passwords.ts"),
-  import("../src/lib/login-rate-limit.ts"),
+  import("../src/modules/auth/application/session.ts"),
+  import("../src/modules/auth/security/passwords.ts"),
+  import("../src/modules/auth/security/login-rate-limit.ts"),
   import("@workspace/db"),
-  import("../src/lib/session-store.ts"),
+  import("../src/modules/auth/data/session-store.ts"),
 ]);
 
 const password = "Clave-RBAC-2026-segura";
