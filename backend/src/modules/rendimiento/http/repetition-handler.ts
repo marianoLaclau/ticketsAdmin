@@ -32,6 +32,13 @@ export function createRendimientoRepetitionHandler({
       respondInvalidRendimientoFilters(res);
       return;
     }
+    if (
+      !Number.isInteger(parsed.data.pagina) ||
+      !Number.isInteger(parsed.data.limite)
+    ) {
+      respondInvalidRendimientoFilters(res);
+      return;
+    }
 
     const generatedAt = now();
     const repetition = runRendimientoRepetitionQuery(

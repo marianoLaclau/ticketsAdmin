@@ -1816,6 +1816,25 @@ describe("módulo de Rendimiento", () => {
         });
       }
     }
+
+    for (const query of [
+      "pagina=0",
+      "pagina=1.5",
+      "limite=0",
+      "limite=51",
+      "pagina=1&pagina=2",
+      "limite[]=20",
+    ]) {
+      const response = await requestWithSession(
+        `/clocked-api/rendimiento/reiteraciones?${query}`,
+        cookie,
+      );
+      assert.equal(response.status, 400, query);
+      assert.deepEqual(await response.json(), {
+        error:
+          "Los filtros indicados no son válidos. Revisá las fechas desde y hasta.",
+      });
+    }
   });
 
   it("devuelve los shapes contractuales y conserva las fechas calendario", async () => {
@@ -2081,6 +2100,9 @@ describe("módulo de Rendimiento", () => {
       generado_en: "2026-08-13T15:30:00.000Z",
     });
     assert.equal(repetition.tickets_evaluados, 2);
+    assert.equal(repetition.pagina, 1);
+    assert.equal(repetition.limite, 20);
+    assert.equal(repetition.total_paginas, 1);
     assert.deepEqual(repetition.cobertura, {
       identidad_utilizable: {
         numerador: 2,

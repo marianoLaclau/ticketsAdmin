@@ -12,6 +12,8 @@ export const RENDIMIENTO_FILTER_NAMES = [
   "empresa",
   "motivo_categoria",
   "prioridad",
+  "pagina",
+  "limite",
 ] as const;
 
 export type RequestedRendimientoPeriod = {
