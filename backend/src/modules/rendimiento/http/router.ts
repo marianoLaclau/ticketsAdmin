@@ -1,6 +1,10 @@
 import { Router, type IRouter } from "express";
 import { GetRendimientoStatusResponse } from "@workspace/api-zod";
 import { requirePerformanceAccess } from "../../auth";
+import {
+  createRendimientoQualityHandler,
+  type RendimientoQualityHandlerOptions,
+} from "./quality-handler";
 
 export const RENDIMIENTO_MODULE_STATUS = Object.freeze({
   modulo: "rendimiento",
@@ -17,7 +21,9 @@ export const RENDIMIENTO_MODULE_STATUS = Object.freeze({
  * Frontera HTTP del módulo ejecutivo. El middleware se aplica al prefijo
  * completo para que los próximos indicadores nazcan protegidos por defecto.
  */
-export function createRendimientoRouter(): IRouter {
+export function createRendimientoRouter(
+  options: RendimientoQualityHandlerOptions = {},
+): IRouter {
   const router: IRouter = Router();
 
   router.use("/rendimiento", requirePerformanceAccess);
@@ -27,6 +33,10 @@ export function createRendimientoRouter(): IRouter {
     );
     res.set("Cache-Control", "private, no-store").json(status);
   });
+  router.get(
+    "/rendimiento/calidad-datos",
+    createRendimientoQualityHandler(options),
+  );
 
   return router;
 }

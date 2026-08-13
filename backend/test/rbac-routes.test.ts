@@ -48,12 +48,52 @@ bootstrap.exec(`
     fecha_creacion INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE tickets (
-    id INTEGER PRIMARY KEY
+    id INTEGER PRIMARY KEY,
+    version INTEGER NOT NULL DEFAULT 1,
+    conversation_id TEXT NOT NULL DEFAULT '',
+    hora TEXT NOT NULL DEFAULT '',
+    nombre TEXT NOT NULL DEFAULT '',
+    apellido TEXT NOT NULL DEFAULT '',
+    telefono TEXT,
+    dni TEXT,
+    empresa TEXT,
+    estado_empleado TEXT,
+    email TEXT,
+    motivo TEXT NOT NULL DEFAULT '',
+    motivo_categoria TEXT NOT NULL DEFAULT 'sin_clasificar',
+    resumen TEXT,
+    notificado INTEGER NOT NULL DEFAULT 0,
+    estado TEXT NOT NULL DEFAULT 'nuevo',
+    prioridad TEXT NOT NULL DEFAULT 'media',
+    asignado_usuario_id INTEGER,
+    asignado_a TEXT,
+    audio_url TEXT,
+    notas TEXT,
+    progreso INTEGER NOT NULL DEFAULT 0,
+    fecha_creacion INTEGER NOT NULL DEFAULT 0,
+    fecha_limite INTEGER,
+    fecha_resolucion INTEGER
+  );
+  CREATE TABLE tickets_cuarentena (
+    ticket_id INTEGER PRIMARY KEY REFERENCES tickets(id) ON DELETE CASCADE
   );
   CREATE TABLE seguimientos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
-    autor_usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL
+    nota TEXT NOT NULL DEFAULT '',
+    estado_anterior TEXT,
+    estado_nuevo TEXT,
+    prioridad_anterior TEXT,
+    prioridad_nueva TEXT,
+    asignado_anterior_usuario_id INTEGER,
+    asignado_anterior TEXT,
+    asignado_nuevo_usuario_id INTEGER,
+    asignado_nuevo TEXT,
+    campos_editados TEXT,
+    autor_usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+    autor TEXT,
+    fecha_limite_snapshot INTEGER,
+    fecha_creacion INTEGER NOT NULL DEFAULT 0
   );
 `);
 bootstrap.close();
@@ -79,6 +119,7 @@ const [
   },
   { sqlite },
   { purgeUnsafeStoredSessions },
+  { createRendimientoRouter },
 ] = await Promise.all([
   import("../src/modules/auth/index.ts"),
   import("../src/modules/administracion/index.ts"),
@@ -88,6 +129,7 @@ const [
   import("../src/modules/auth/security/login-rate-limit.ts"),
   import("@workspace/db"),
   import("../src/modules/auth/data/session-store.ts"),
+  import("../src/modules/rendimiento/index.ts"),
 ]);
 
 const password = "Clave-RBAC-2026-segura";
@@ -110,6 +152,12 @@ app.get("/session-context-test", (_req, res) => {
   }
   res.json(session);
 });
+app.use(
+  "/clocked-api",
+  createRendimientoRouter({
+    now: () => new Date("2026-08-13T15:30:00.000Z"),
+  }),
+);
 app.use(adminRouter);
 app.use("/api", productionRouter);
 app.use(
@@ -1679,6 +1727,148 @@ describe("módulo de Rendimiento", () => {
     assert.deepEqual(await forbidden.json(), {
       code: "PERFORMANCE_ACCESS_REQUIRED",
       error: "Requiere rol SysAdmin o Controller",
+    });
+  });
+
+  it("protege calidad de datos para SysAdmin y Controller", async () => {
+    const withoutSession = await fetch(
+      `${baseUrl}/api/rendimiento/calidad-datos`,
+    );
+    assert.equal(withoutSession.status, 401);
+
+    const asSysAdmin = await requestWithSession(
+      "/api/rendimiento/calidad-datos",
+      await adminSession(),
+    );
+    assert.equal(asSysAdmin.status, 200);
+
+    const passwordHash = (
+      sqlite
+        .prepare("SELECT password_hash FROM usuarios WHERE id = 1")
+        .get() as { password_hash: string }
+    ).password_hash;
+    sqlite
+      .prepare(
+        `INSERT INTO usuarios
+         (id, nombre, username, email, password_hash, debe_cambiar_password, role_id, activo)
+         VALUES (4, 'Control', 'controller', 'controller@example.test', ?, 0, 7, 1)`,
+      )
+      .run(passwordHash);
+    const controllerLogin = await login("controller");
+    const asController = await requestWithSession(
+      "/api/rendimiento/calidad-datos",
+      sessionCookie(controllerLogin),
+    );
+    assert.equal(asController.status, 200);
+
+    const operatorLogin = await login("operadora");
+    const asOperator = await requestWithSession(
+      "/api/rendimiento/calidad-datos",
+      sessionCookie(operatorLogin),
+    );
+    assert.equal(asOperator.status, 403);
+    assert.deepEqual(await asOperator.json(), {
+      code: "PERFORMANCE_ACCESS_REQUIRED",
+      error: "Requiere rol SysAdmin o Controller",
+    });
+  });
+
+  it("valida filtros y el orden cronológico del período", async () => {
+    const cookie = await adminSession();
+    for (const query of [
+      "fecha_desde=2026-08-14&fecha_hasta=2026-08-13",
+      "fecha_desde=2026-8-01",
+      "motivo_categoria=inventada",
+      "prioridad=alta&prioridad=baja",
+      "empresa=Acme&empresa=Otra",
+    ]) {
+      const response = await requestWithSession(
+        `/clocked-api/rendimiento/calidad-datos?${query}`,
+        cookie,
+      );
+      assert.equal(response.status, 400, query);
+      assert.equal(response.headers.get("cache-control"), "private, no-store");
+      assert.deepEqual(await response.json(), {
+        error:
+          "Los filtros indicados no son válidos. Revisá las fechas desde y hasta.",
+      });
+    }
+  });
+
+  it("devuelve el shape contractual y conserva las fechas calendario", async () => {
+    const createdAt = Date.parse("2026-08-05T15:00:00.000Z");
+    const deadline = Date.parse("2026-08-07T15:00:00.000Z");
+    const resolvedAt = Date.parse("2026-08-06T16:00:00.000Z");
+    sqlite
+      .prepare(
+        `INSERT INTO tickets (
+          id, conversation_id, hora, nombre, apellido, dni, empresa, motivo,
+          motivo_categoria, estado, prioridad, asignado_usuario_id,
+          asignado_a, fecha_creacion, fecha_limite, fecha_resolucion
+        ) VALUES (
+          101, 'calidad-101', '12:00', 'Ana', 'Pérez', '30111222', 'Acme',
+          'Consulta legal', 'legales', 'resuelto', 'alta', 1, 'Sistema', ?, ?, ?
+        )`,
+      )
+      .run(createdAt, deadline, resolvedAt);
+    sqlite
+      .prepare(
+        `INSERT INTO seguimientos (
+          ticket_id, nota, estado_anterior, estado_nuevo, autor_usuario_id,
+          autor, fecha_limite_snapshot, fecha_creacion
+        ) VALUES (101, 'Resolución', 'en_proceso', 'resuelto', 1, 'Sistema', ?, ?)`,
+      )
+      .run(deadline, resolvedAt);
+
+    const response = await requestWithSession(
+      "/clocked-api/rendimiento/calidad-datos?fecha_desde=2026-08-01&fecha_hasta=2026-08-13&empresa=Acme&motivo_categoria=legales&prioridad=alta",
+      await adminSession(),
+    );
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cache-control"), "private, no-store");
+    assert.deepEqual(await response.json(), {
+      periodo: {
+        fecha_desde: "2026-08-01",
+        fecha_hasta: "2026-08-13",
+        timezone: "America/Argentina/Buenos_Aires",
+        generado_en: "2026-08-13T15:30:00.000Z",
+      },
+      tickets_evaluados: 1,
+      resoluciones_evaluadas: 1,
+      atribucion_desde: "2026-08-06T16:00:00.000Z",
+      comparacion_individual_estado: "insuficiente",
+      coberturas: {
+        actor_resolucion: {
+          numerador: 1,
+          denominador: 1,
+          porcentaje: 100,
+        },
+        fecha_resolucion: {
+          numerador: 1,
+          denominador: 1,
+          porcentaje: 100,
+        },
+        plazo_resolucion: {
+          numerador: 1,
+          denominador: 1,
+          porcentaje: 100,
+        },
+        asignacion_estructurada: {
+          numerador: 1,
+          denominador: 1,
+          porcentaje: 100,
+        },
+        identidad_contacto: {
+          numerador: 1,
+          denominador: 1,
+          porcentaje: 100,
+        },
+        fecha_limite: {
+          numerador: 1,
+          denominador: 1,
+          porcentaje: 100,
+        },
+      },
     });
   });
 });

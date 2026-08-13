@@ -1,0 +1,234 @@
+import {
+  seguimientosTable,
+  ticketsTable,
+  type MotivoCategoria,
+  type Prioridad,
+} from "@workspace/db/schema";
+import { ticketVisibleCondition } from "@workspace/db/ticket-visibility";
+import {
+  and,
+  count,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  like,
+  lte,
+  not,
+  or,
+  sql,
+  type AnyColumn,
+  type SQL,
+} from "drizzle-orm";
+import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import type { BusinessDateRange } from "../../../shared/time/business-date-range";
+import {
+  buildQualityProportion,
+  getIndividualComparisonStatus,
+  type IndividualComparisonStatus,
+  type QualityProportion,
+} from "../domain/quality";
+
+type PerformanceDatabase<TSchema extends Record<string, unknown>> =
+  BetterSQLite3Database<TSchema>;
+
+export type PerformanceQualityFilters = BusinessDateRange & {
+  empresa?: string;
+  motivo_categoria?: MotivoCategoria;
+  prioridad?: Prioridad;
+};
+
+export type PerformanceQualityResult = {
+  tickets_evaluados: number;
+  resoluciones_evaluadas: number;
+  atribucion_desde: Date | null;
+  comparacion_individual_estado: IndividualComparisonStatus;
+  coberturas: {
+    actor_resolucion: QualityProportion;
+    fecha_resolucion: QualityProportion;
+    plazo_resolucion: QualityProportion;
+    asignacion_estructurada: QualityProportion;
+    identidad_contacto: QualityProportion;
+    fecha_limite: QualityProportion;
+  };
+};
+
+const numericDecoder = {
+  mapFromDriverValue(value: unknown): number {
+    return Number(value);
+  },
+};
+
+const nullableNumericDecoder = {
+  mapFromDriverValue(value: unknown): number | null {
+    return value === null ? null : Number(value);
+  },
+};
+
+function countWhen(condition: SQL): SQL<number> {
+  return sql<number>`coalesce(sum(case when ${condition} then 1 else 0 end), 0)`.mapWith(
+    numericDecoder,
+  );
+}
+
+const normalizedText = (column: AnyColumn): SQL<string> =>
+  sql<string>`lower(trim(coalesce(${column}, '')))`;
+
+const nonBlank = (column: AnyColumn): SQL<boolean> =>
+  sql<boolean>`${normalizedText(column)} <> ''`;
+
+function normalizedDigits(column: AnyColumn): SQL<string> {
+  return sql<string>`replace(replace(replace(replace(replace(replace(replace(
+    ${normalizedText(column)}, ' ', ''), '.', ''), '-', ''), '(', ''), ')', ''), '+', ''), '/', '')`;
+}
+
+function usableNumericIdentity(
+  column: AnyColumn,
+  minimumLength: number,
+  maximumLength: number,
+): SQL<boolean> {
+  const normalized = normalizedDigits(column);
+  return sql<boolean>`length(${normalized}) between ${minimumLength} and ${maximumLength}
+    and ${normalized} not glob '*[^0-9]*'`;
+}
+
+function usableEmail(column: AnyColumn): SQL<boolean> {
+  const normalized = normalizedText(column);
+  const domain = sql<string>`substr(${normalized}, instr(${normalized}, '@') + 1)`;
+  return sql<boolean>`length(${normalized}) between 5 and 254
+    and instr(${normalized}, ' ') = 0
+    and instr(${normalized}, char(9)) = 0
+    and instr(${normalized}, char(10)) = 0
+    and instr(${normalized}, char(13)) = 0
+    and instr(${normalized}, '@') > 1
+    and instr(${domain}, '@') = 0
+    and instr(${domain}, '.') > 1
+    and substr(${domain}, -1) <> '.'`;
+}
+
+function cohortConditions(filters: PerformanceQualityFilters): SQL[] {
+  const conditions: SQL[] = [ticketVisibleCondition];
+  if (filters.fecha_desde) {
+    conditions.push(gte(ticketsTable.fecha_creacion, filters.fecha_desde));
+  }
+  if (filters.fecha_hasta) {
+    conditions.push(lte(ticketsTable.fecha_creacion, filters.fecha_hasta));
+  }
+  const company = filters.empresa?.trim();
+  if (company) conditions.push(like(ticketsTable.empresa, `%${company}%`));
+  if (filters.motivo_categoria) {
+    conditions.push(
+      eq(ticketsTable.motivo_categoria, filters.motivo_categoria),
+    );
+  }
+  if (filters.prioridad) {
+    conditions.push(eq(ticketsTable.prioridad, filters.prioridad));
+  }
+  return conditions;
+}
+
+/**
+ * Mide cobertura sin materializar filas. Todas las consultas comparten un
+ * snapshot diferido y la misma cohorte de tickets visibles por creación.
+ */
+export function consultarCalidadRendimiento<
+  TSchema extends Record<string, unknown>,
+>(
+  database: PerformanceDatabase<TSchema>,
+  filters: PerformanceQualityFilters,
+): PerformanceQualityResult {
+  const cohort = cohortConditions(filters);
+  const finalStatus = inArray(ticketsTable.estado, ["resuelto", "cerrado"]);
+  const hasContactIdentity = or(
+    usableNumericIdentity(ticketsTable.dni, 7, 11),
+    usableNumericIdentity(ticketsTable.telefono, 7, 15),
+    usableEmail(ticketsTable.email),
+  )!;
+  const hasAnyAssignment = or(
+    isNotNull(ticketsTable.asignado_usuario_id),
+    nonBlank(ticketsTable.asignado_a),
+  )!;
+  const isVerifiedResolution = and(
+    isNotNull(seguimientosTable.estado_anterior),
+    not(inArray(seguimientosTable.estado_anterior, ["resuelto", "cerrado"])),
+    inArray(seguimientosTable.estado_nuevo, ["resuelto", "cerrado"]),
+  )!;
+
+  return database.transaction((tx): PerformanceQualityResult => {
+    const ticketCoverage = tx
+      .select({
+        total: count(),
+        finalizados: countWhen(finalStatus),
+        finalizadosConFecha: countWhen(
+          and(finalStatus, isNotNull(ticketsTable.fecha_resolucion))!,
+        ),
+        conFechaLimite: countWhen(isNotNull(ticketsTable.fecha_limite)),
+        conIdentidad: countWhen(hasContactIdentity),
+        conAsignacion: countWhen(hasAnyAssignment),
+        conAsignacionEstructurada: countWhen(
+          isNotNull(ticketsTable.asignado_usuario_id),
+        ),
+      })
+      .from(ticketsTable)
+      .where(and(...cohort))
+      .get()!;
+
+    const resolutionCoverage = tx
+      .select({
+        total: count(),
+        conActor: countWhen(isNotNull(seguimientosTable.autor_usuario_id)),
+        conPlazo: countWhen(isNotNull(seguimientosTable.fecha_limite_snapshot)),
+        atribucionDesde: sql<
+          number | null
+        >`min(case when ${seguimientosTable.autor_usuario_id} is not null then ${seguimientosTable.fecha_creacion} else null end)`.mapWith(
+          nullableNumericDecoder,
+        ),
+      })
+      .from(seguimientosTable)
+      .innerJoin(
+        ticketsTable,
+        and(eq(seguimientosTable.ticket_id, ticketsTable.id), ...cohort),
+      )
+      .where(isVerifiedResolution)
+      .get()!;
+
+    const actorResolution = buildQualityProportion(
+      resolutionCoverage.conActor,
+      resolutionCoverage.total,
+    );
+
+    return {
+      tickets_evaluados: ticketCoverage.total,
+      resoluciones_evaluadas: resolutionCoverage.total,
+      atribucion_desde:
+        resolutionCoverage.atribucionDesde === null
+          ? null
+          : new Date(resolutionCoverage.atribucionDesde),
+      comparacion_individual_estado:
+        getIndividualComparisonStatus(actorResolution),
+      coberturas: {
+        actor_resolucion: actorResolution,
+        fecha_resolucion: buildQualityProportion(
+          ticketCoverage.finalizadosConFecha,
+          ticketCoverage.finalizados,
+        ),
+        plazo_resolucion: buildQualityProportion(
+          resolutionCoverage.conPlazo,
+          resolutionCoverage.total,
+        ),
+        asignacion_estructurada: buildQualityProportion(
+          ticketCoverage.conAsignacionEstructurada,
+          ticketCoverage.conAsignacion,
+        ),
+        identidad_contacto: buildQualityProportion(
+          ticketCoverage.conIdentidad,
+          ticketCoverage.total,
+        ),
+        fecha_limite: buildQualityProportion(
+          ticketCoverage.conFechaLimite,
+          ticketCoverage.total,
+        ),
+      },
+    };
+  });
+}
