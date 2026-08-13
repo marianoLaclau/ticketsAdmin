@@ -1,19 +1,10 @@
-import {
-  seguimientosTable,
-  ticketsTable,
-  type MotivoCategoria,
-  type Prioridad,
-} from "@workspace/db/schema";
-import { ticketVisibleCondition } from "@workspace/db/ticket-visibility";
+import { seguimientosTable, ticketsTable } from "@workspace/db/schema";
 import {
   and,
   count,
   eq,
-  gte,
   inArray,
   isNotNull,
-  like,
-  lte,
   not,
   or,
   sql,
@@ -21,22 +12,21 @@ import {
   type SQL,
 } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import type { BusinessDateRange } from "../../../shared/time/business-date-range";
 import {
   buildQualityProportion,
   getIndividualComparisonStatus,
   type IndividualComparisonStatus,
   type QualityProportion,
 } from "../domain/quality";
+import {
+  buildPerformanceCohortConditions,
+  type PerformanceFilters,
+} from "./cohort";
 
 type PerformanceDatabase<TSchema extends Record<string, unknown>> =
   BetterSQLite3Database<TSchema>;
 
-export type PerformanceQualityFilters = BusinessDateRange & {
-  empresa?: string;
-  motivo_categoria?: MotivoCategoria;
-  prioridad?: Prioridad;
-};
+export type PerformanceQualityFilters = PerformanceFilters;
 
 export type PerformanceQualityResult = {
   tickets_evaluados: number;
@@ -106,27 +96,6 @@ function usableEmail(column: AnyColumn): SQL<boolean> {
     and substr(${domain}, -1) <> '.'`;
 }
 
-function cohortConditions(filters: PerformanceQualityFilters): SQL[] {
-  const conditions: SQL[] = [ticketVisibleCondition];
-  if (filters.fecha_desde) {
-    conditions.push(gte(ticketsTable.fecha_creacion, filters.fecha_desde));
-  }
-  if (filters.fecha_hasta) {
-    conditions.push(lte(ticketsTable.fecha_creacion, filters.fecha_hasta));
-  }
-  const company = filters.empresa?.trim();
-  if (company) conditions.push(like(ticketsTable.empresa, `%${company}%`));
-  if (filters.motivo_categoria) {
-    conditions.push(
-      eq(ticketsTable.motivo_categoria, filters.motivo_categoria),
-    );
-  }
-  if (filters.prioridad) {
-    conditions.push(eq(ticketsTable.prioridad, filters.prioridad));
-  }
-  return conditions;
-}
-
 /**
  * Mide cobertura sin materializar filas. Todas las consultas comparten un
  * snapshot diferido y la misma cohorte de tickets visibles por creación.
@@ -137,7 +106,7 @@ export function consultarCalidadRendimiento<
   database: PerformanceDatabase<TSchema>,
   filters: PerformanceQualityFilters,
 ): PerformanceQualityResult {
-  const cohort = cohortConditions(filters);
+  const cohort = buildPerformanceCohortConditions(filters);
   const finalStatus = inArray(ticketsTable.estado, ["resuelto", "cerrado"]);
   const hasContactIdentity = or(
     usableNumericIdentity(ticketsTable.dni, 7, 11),
