@@ -280,6 +280,35 @@ describe("consulta de contactos reiterados", () => {
     sqlite.close();
   });
 
+  it("no agrupa contactos por valores centinela con formato válido", () => {
+    const { sqlite, database } = createDatabase();
+    for (const [index, status] of ["cerrado", "nuevo"].entries()) {
+      insertTicket(sqlite, {
+        conversationId: `centinela-${index}`,
+        createdAt: `2026-08-0${index + 1}T10:00:00.000Z`,
+        dni: "00.000.000",
+        phone: "+54 11 1111-1111",
+        email: "sin.email@example.com",
+        status,
+      });
+    }
+
+    const result = runRendimientoRepetitionQuery(
+      database,
+      {},
+      new Date("2026-08-10T00:00:00.000Z"),
+    );
+
+    assert.deepEqual(result.cobertura.identidad_utilizable, {
+      numerador: 0,
+      denominador: 2,
+      porcentaje: 0,
+    });
+    assert.equal(result.contactos.length, 0);
+    assert.equal(result.resumen.contactos_reiterados, 0);
+    sqlite.close();
+  });
+
   it("prioriza la herencia univoca por telefono aunque el email apunte a otro DNI", () => {
     const { sqlite, database } = createDatabase();
     insertTicket(sqlite, {
