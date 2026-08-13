@@ -3,16 +3,11 @@ import {
   GetRendimientoCalidadDatosQueryParams,
   GetRendimientoCalidadDatosResponse,
 } from "@workspace/api-zod";
-import { SLA_TIME_ZONE } from "@workspace/ingesta";
 import type { RequestHandler } from "express";
-import {
-  isBusinessDateRangeValid,
-  normalizeBusinessDateQuery,
-} from "../../../shared/time/business-date-range";
 import { consultarCalidadRendimiento } from "../data/quality-query";
 import {
-  hasNonSingletonRendimientoFilter,
-  requestedRendimientoPeriod,
+  buildRendimientoPeriodo,
+  parseRendimientoQueryParams,
   respondInvalidRendimientoFilters,
 } from "./request-filters";
 
@@ -32,15 +27,11 @@ export function createRendimientoQualityHandler({
   return (req, res) => {
     res.set("Cache-Control", "private, no-store");
 
-    if (hasNonSingletonRendimientoFilter(req.query)) {
-      respondInvalidRendimientoFilters(res);
-      return;
-    }
-    const requestedPeriod = requestedRendimientoPeriod(req.query);
-    const parsed = GetRendimientoCalidadDatosQueryParams.safeParse(
-      normalizeBusinessDateQuery(req.query),
+    const parsed = parseRendimientoQueryParams(
+      req.query,
+      GetRendimientoCalidadDatosQueryParams,
     );
-    if (!parsed.success || !isBusinessDateRangeValid(parsed.data)) {
+    if (!parsed.success) {
       respondInvalidRendimientoFilters(res);
       return;
     }
@@ -48,12 +39,7 @@ export function createRendimientoQualityHandler({
     const generatedAt = now();
     const quality = consultarCalidadRendimiento(database, parsed.data);
     const validated = GetRendimientoCalidadDatosResponse.parse({
-      periodo: {
-        fecha_desde: parsed.data.fecha_desde ?? null,
-        fecha_hasta: parsed.data.fecha_hasta ?? null,
-        timezone: SLA_TIME_ZONE,
-        generado_en: generatedAt,
-      },
+      periodo: buildRendimientoPeriodo(parsed.data, generatedAt),
       ...quality,
     });
 
@@ -63,7 +49,7 @@ export function createRendimientoQualityHandler({
       ...validated,
       periodo: {
         ...validated.periodo,
-        ...requestedPeriod,
+        ...parsed.requestedPeriod,
         generado_en: validated.periodo.generado_en.toISOString(),
       },
       atribucion_desde: validated.atribucion_desde?.toISOString() ?? null,
