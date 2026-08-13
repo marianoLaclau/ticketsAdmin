@@ -1,34 +1,34 @@
-import { db } from "@workspace/db";
 import {
-  GetRendimientoCalidadDatosQueryParams,
-  GetRendimientoCalidadDatosResponse,
+  GetRendimientoResumenEquipoQueryParams,
+  GetRendimientoResumenEquipoResponse,
 } from "@workspace/api-zod";
+import { db } from "@workspace/db";
 import { SLA_TIME_ZONE } from "@workspace/ingesta";
 import type { RequestHandler } from "express";
 import {
   isBusinessDateRangeValid,
   normalizeBusinessDateQuery,
 } from "../../../shared/time/business-date-range";
-import { consultarCalidadRendimiento } from "../data/quality-query";
+import { consultarResumenEquipo } from "../data/team-summary-query";
 import {
   hasNonSingletonRendimientoFilter,
   requestedRendimientoPeriod,
   respondInvalidRendimientoFilters,
 } from "./request-filters";
 
-export type RendimientoQualityHandlerOptions = {
+export type RendimientoTeamSummaryHandlerOptions = {
   database?: typeof db;
   now?: () => Date;
 };
 
 /**
- * Construye la frontera HTTP con dependencias inyectables para que la cohorte
- * y el instante informado puedan probarse sin alterar el reloj ni la DB global.
+ * Frontera HTTP del resumen de equipo. El reloj y la DB son inyectables para
+ * probar el snapshot completo sin depender del tiempo ni del estado global.
  */
-export function createRendimientoQualityHandler({
+export function createRendimientoTeamSummaryHandler({
   database = db,
   now = () => new Date(),
-}: RendimientoQualityHandlerOptions = {}): RequestHandler {
+}: RendimientoTeamSummaryHandlerOptions = {}): RequestHandler {
   return (req, res) => {
     res.set("Cache-Control", "private, no-store");
 
@@ -36,8 +36,9 @@ export function createRendimientoQualityHandler({
       respondInvalidRendimientoFilters(res);
       return;
     }
+
     const requestedPeriod = requestedRendimientoPeriod(req.query);
-    const parsed = GetRendimientoCalidadDatosQueryParams.safeParse(
+    const parsed = GetRendimientoResumenEquipoQueryParams.safeParse(
       normalizeBusinessDateQuery(req.query),
     );
     if (!parsed.success || !isBusinessDateRangeValid(parsed.data)) {
@@ -46,19 +47,19 @@ export function createRendimientoQualityHandler({
     }
 
     const generatedAt = now();
-    const quality = consultarCalidadRendimiento(database, parsed.data);
-    const validated = GetRendimientoCalidadDatosResponse.parse({
+    const summary = consultarResumenEquipo(database, parsed.data, generatedAt);
+    const validated = GetRendimientoResumenEquipoResponse.parse({
       periodo: {
         fecha_desde: parsed.data.fecha_desde ?? null,
         fecha_hasta: parsed.data.fecha_hasta ?? null,
         timezone: SLA_TIME_ZONE,
         generado_en: generatedAt,
       },
-      ...quality,
+      ...summary,
     });
 
-    // Orval representa `format: date` como Date durante la validación. La
-    // frontera vuelve a la representación JSON declarada por OpenAPI.
+    // Orval valida `format: date` como Date. En JSON se preservan exactamente
+    // los días calendario solicitados para evitar corrimientos por zona horaria.
     res.json({
       ...validated,
       periodo: {
@@ -66,7 +67,6 @@ export function createRendimientoQualityHandler({
         ...requestedPeriod,
         generado_en: validated.periodo.generado_en.toISOString(),
       },
-      atribucion_desde: validated.atribucion_desde?.toISOString() ?? null,
     });
   };
 }

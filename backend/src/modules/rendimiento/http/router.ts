@@ -5,10 +5,17 @@ import {
   createRendimientoQualityHandler,
   type RendimientoQualityHandlerOptions,
 } from "./quality-handler";
+import {
+  createRendimientoTeamSummaryHandler,
+  type RendimientoTeamSummaryHandlerOptions,
+} from "./team-summary-handler";
+
+export type RendimientoRouterOptions = RendimientoQualityHandlerOptions &
+  RendimientoTeamSummaryHandlerOptions;
 
 export const RENDIMIENTO_MODULE_STATUS = Object.freeze({
   modulo: "rendimiento",
-  estado: "preparacion",
+  estado: "operativo_parcial",
   vistas: Object.freeze([
     "resumen_equipo",
     "personas",
@@ -22,7 +29,7 @@ export const RENDIMIENTO_MODULE_STATUS = Object.freeze({
  * completo para que los próximos indicadores nazcan protegidos por defecto.
  */
 export function createRendimientoRouter(
-  options: RendimientoQualityHandlerOptions = {},
+  options: RendimientoRouterOptions = {},
 ): IRouter {
   const router: IRouter = Router();
 
@@ -36,6 +43,10 @@ export function createRendimientoRouter(
   router.get(
     "/rendimiento/calidad-datos",
     createRendimientoQualityHandler(options),
+  );
+  router.get(
+    "/rendimiento/resumen-equipo",
+    createRendimientoTeamSummaryHandler(options),
   );
 
   return router;

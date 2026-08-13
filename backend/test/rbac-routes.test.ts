@@ -1677,7 +1677,7 @@ describe("política de contraseñas nuevas", () => {
 });
 
 describe("módulo de Rendimiento", () => {
-  it("expone solo el estado auditable a SysAdmin y Controller", async () => {
+  it("expone el estado operativo a SysAdmin y Controller", async () => {
     const withoutSession = await fetch(`${baseUrl}/api/rendimiento`);
     assert.equal(withoutSession.status, 401);
 
@@ -1692,7 +1692,7 @@ describe("módulo de Rendimiento", () => {
     );
     assert.deepEqual(await sysAdminResponse.json(), {
       modulo: "rendimiento",
-      estado: "preparacion",
+      estado: "operativo_parcial",
       vistas: ["resumen_equipo", "personas", "reiteraciones", "calidad_datos"],
     });
 
@@ -1730,17 +1730,21 @@ describe("módulo de Rendimiento", () => {
     });
   });
 
-  it("protege calidad de datos para SysAdmin y Controller", async () => {
-    const withoutSession = await fetch(
-      `${baseUrl}/api/rendimiento/calidad-datos`,
-    );
-    assert.equal(withoutSession.status, 401);
-
-    const asSysAdmin = await requestWithSession(
+  it("protege Calidad y Resumen para SysAdmin y Controller", async () => {
+    const endpoints = [
       "/api/rendimiento/calidad-datos",
-      await adminSession(),
-    );
-    assert.equal(asSysAdmin.status, 200);
+      "/api/rendimiento/resumen-equipo",
+    ];
+    for (const endpoint of endpoints) {
+      const withoutSession = await fetch(`${baseUrl}${endpoint}`);
+      assert.equal(withoutSession.status, 401, endpoint);
+
+      const asSysAdmin = await requestWithSession(
+        endpoint,
+        await adminSession(),
+      );
+      assert.equal(asSysAdmin.status, 200, endpoint);
+    }
 
     const passwordHash = (
       sqlite
@@ -1755,47 +1759,56 @@ describe("módulo de Rendimiento", () => {
       )
       .run(passwordHash);
     const controllerLogin = await login("controller");
-    const asController = await requestWithSession(
-      "/api/rendimiento/calidad-datos",
-      sessionCookie(controllerLogin),
-    );
-    assert.equal(asController.status, 200);
+    for (const endpoint of endpoints) {
+      const asController = await requestWithSession(
+        endpoint,
+        sessionCookie(controllerLogin),
+      );
+      assert.equal(asController.status, 200, endpoint);
+    }
 
     const operatorLogin = await login("operadora");
-    const asOperator = await requestWithSession(
-      "/api/rendimiento/calidad-datos",
-      sessionCookie(operatorLogin),
-    );
-    assert.equal(asOperator.status, 403);
-    assert.deepEqual(await asOperator.json(), {
-      code: "PERFORMANCE_ACCESS_REQUIRED",
-      error: "Requiere rol SysAdmin o Controller",
-    });
-  });
-
-  it("valida filtros y el orden cronológico del período", async () => {
-    const cookie = await adminSession();
-    for (const query of [
-      "fecha_desde=2026-08-14&fecha_hasta=2026-08-13",
-      "fecha_desde=2026-8-01",
-      "motivo_categoria=inventada",
-      "prioridad=alta&prioridad=baja",
-      "empresa=Acme&empresa=Otra",
-    ]) {
-      const response = await requestWithSession(
-        `/clocked-api/rendimiento/calidad-datos?${query}`,
-        cookie,
+    for (const endpoint of endpoints) {
+      const asOperator = await requestWithSession(
+        endpoint,
+        sessionCookie(operatorLogin),
       );
-      assert.equal(response.status, 400, query);
-      assert.equal(response.headers.get("cache-control"), "private, no-store");
-      assert.deepEqual(await response.json(), {
-        error:
-          "Los filtros indicados no son válidos. Revisá las fechas desde y hasta.",
+      assert.equal(asOperator.status, 403, endpoint);
+      assert.deepEqual(await asOperator.json(), {
+        code: "PERFORMANCE_ACCESS_REQUIRED",
+        error: "Requiere rol SysAdmin o Controller",
       });
     }
   });
 
-  it("devuelve el shape contractual y conserva las fechas calendario", async () => {
+  it("valida filtros y el orden cronológico del período", async () => {
+    const cookie = await adminSession();
+    for (const endpoint of ["calidad-datos", "resumen-equipo"]) {
+      for (const query of [
+        "fecha_desde=2026-08-14&fecha_hasta=2026-08-13",
+        "fecha_desde=2026-8-01",
+        "motivo_categoria=inventada",
+        "prioridad=alta&prioridad=baja",
+        "empresa=Acme&empresa=Otra",
+      ]) {
+        const response = await requestWithSession(
+          `/clocked-api/rendimiento/${endpoint}?${query}`,
+          cookie,
+        );
+        assert.equal(response.status, 400, `${endpoint}: ${query}`);
+        assert.equal(
+          response.headers.get("cache-control"),
+          "private, no-store",
+        );
+        assert.deepEqual(await response.json(), {
+          error:
+            "Los filtros indicados no son válidos. Revisá las fechas desde y hasta.",
+        });
+      }
+    }
+  });
+
+  it("devuelve los shapes contractuales y conserva las fechas calendario", async () => {
     const createdAt = Date.parse("2026-08-05T15:00:00.000Z");
     const deadline = Date.parse("2026-08-07T15:00:00.000Z");
     const resolvedAt = Date.parse("2026-08-06T16:00:00.000Z");
@@ -1868,6 +1881,54 @@ describe("módulo de Rendimiento", () => {
           denominador: 1,
           porcentaje: 100,
         },
+      },
+    });
+
+    const summaryResponse = await requestWithSession(
+      "/clocked-api/rendimiento/resumen-equipo?fecha_desde=2026-08-01&fecha_hasta=2026-08-13&empresa=Acme&motivo_categoria=legales&prioridad=alta",
+      await adminSession(),
+    );
+    assert.equal(summaryResponse.status, 200);
+    assert.equal(
+      summaryResponse.headers.get("cache-control"),
+      "private, no-store",
+    );
+    assert.deepEqual(await summaryResponse.json(), {
+      periodo: {
+        fecha_desde: "2026-08-01",
+        fecha_hasta: "2026-08-13",
+        timezone: "America/Argentina/Buenos_Aires",
+        generado_en: "2026-08-13T15:30:00.000Z",
+      },
+      tickets_ingresados: 1,
+      estado_actual: {
+        total: 1,
+        abiertos: 0,
+        finalizados: 1,
+        vencidos_abiertos: 0,
+      },
+      resolucion_con_fecha: {
+        muestra: 1,
+        promedio_horas: 25,
+        mediana_horas: 25,
+      },
+      cumplimiento_plazo_auditable: {
+        muestra: 1,
+        cumplidos: 1,
+        porcentaje: 100,
+      },
+      distribucion_estado: {
+        nuevo: 0,
+        en_proceso: 0,
+        pendiente: 0,
+        resuelto: 1,
+        cerrado: 0,
+      },
+      distribucion_prioridad: {
+        baja: 0,
+        media: 0,
+        alta: 1,
+        urgente: 0,
       },
     });
   });
