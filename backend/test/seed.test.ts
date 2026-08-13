@@ -188,6 +188,15 @@ describe("bootstrap seguro del SysAdmin", () => {
       await verifyPassword(passwordInicial, usuario.password_hash),
       true,
     );
+    assert.deepEqual(
+      sqlite.prepare("SELECT nombre, activo FROM roles ORDER BY nombre").all(),
+      [
+        { nombre: "Administrador", activo: 1 },
+        { nombre: "Controller", activo: 1 },
+        { nombre: "Operador", activo: 1 },
+        { nombre: "SysAdmin", activo: 1 },
+      ],
+    );
   });
 
   it("no exige la variable ni sobrescribe una credencial existente", async () => {
@@ -608,6 +617,7 @@ describe("bootstrap seguro del SysAdmin", () => {
       .all();
     assert.deepEqual(roles, [
       { nombre: "Administrador", activo: 1 },
+      { nombre: "Controller", activo: 1 },
       { nombre: "Operador", activo: 1 },
       { nombre: "SysAdmin", activo: 1 },
     ]);

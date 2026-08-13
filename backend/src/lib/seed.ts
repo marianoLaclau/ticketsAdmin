@@ -7,12 +7,22 @@ import {
 import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "./passwords";
 import { logger } from "./logger";
-import { ROL_SYSADMIN, ROL_ADMINISTRADOR, ROL_OPERADOR } from "./rbac";
+import {
+  ROL_SYSADMIN,
+  ROL_CONTROLLER,
+  ROL_ADMINISTRADOR,
+  ROL_OPERADOR,
+} from "./rbac";
 
 const ROLES_BASE: Array<{ nombre: string; descripcion: string }> = [
   {
     nombre: ROL_SYSADMIN,
     descripcion: "Usuario Dios: acceso total al sistema",
+  },
+  {
+    nombre: ROL_CONTROLLER,
+    descripcion:
+      "Consulta ejecutiva de Dashboard, Tickets y Rendimiento; sin acceso administrativo ni edición de tickets",
   },
   {
     nombre: ROL_ADMINISTRADOR,
