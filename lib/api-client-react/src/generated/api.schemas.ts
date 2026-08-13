@@ -13,7 +13,7 @@ export const RendimientoModuleStatusModulo = {
 } as const;
 
 /**
- * Resumen, Personas y Calidad de datos operativos; Reiteraciones pendiente.
+ * Resumen, Personas y Calidad de datos operativos; Reiteraciones continúa pendiente.
  */
 export type RendimientoModuleStatusEstado = typeof RendimientoModuleStatusEstado[keyof typeof RendimientoModuleStatusEstado];
 
@@ -34,7 +34,7 @@ export const RendimientoModuleStatusVistasItem = {
 
 export interface RendimientoModuleStatus {
   modulo: RendimientoModuleStatusModulo;
-  /** Resumen, Personas y Calidad de datos operativos; Reiteraciones pendiente. */
+  /** Resumen, Personas y Calidad de datos operativos; Reiteraciones continúa pendiente. */
   estado: RendimientoModuleStatusEstado;
   /**
      * @minItems 4
