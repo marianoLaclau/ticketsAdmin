@@ -11,10 +11,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getUserErrorMessage } from "@/lib/error-messages";
 import type { RendimientoUrlState } from "@/lib/rendimiento-url";
 import { buildRendimientoParams } from "./rendimiento-query";
+import { RendimientoRefreshStatus } from "./RendimientoRefreshStatus";
 import { ResumenEquipoPanel } from "./ResumenEquipoPanel";
 
 interface ResumenEquipoViewProps {
   filters: RendimientoUrlState;
+  onClearFilters: () => void;
 }
 
 export function ResumenEquipoLoadingState() {
@@ -74,7 +76,10 @@ export function ResumenEquipoErrorState({
   );
 }
 
-export function ResumenEquipoView({ filters }: ResumenEquipoViewProps) {
+export function ResumenEquipoView({
+  filters,
+  onClearFilters,
+}: ResumenEquipoViewProps) {
   const [referenceDate] = useState(() => new Date());
   const params = useMemo(
     () => buildRendimientoParams(filters, referenceDate),
@@ -115,6 +120,9 @@ export function ResumenEquipoView({ filters }: ResumenEquipoViewProps) {
 
   return (
     <div className="space-y-4" aria-busy={query.isFetching}>
+      <RendimientoRefreshStatus
+        visible={query.isFetching && !query.isRefetchError}
+      />
       {query.isRefetchError ? (
         <ResumenEquipoErrorState
           message="Conservamos el último resultado mientras reintentás la actualización."
@@ -122,7 +130,7 @@ export function ResumenEquipoView({ filters }: ResumenEquipoViewProps) {
           onRetry={() => void query.refetch()}
         />
       ) : null}
-      <ResumenEquipoPanel {...query.data} />
+      <ResumenEquipoPanel {...query.data} onClearFilters={onClearFilters} />
     </div>
   );
 }

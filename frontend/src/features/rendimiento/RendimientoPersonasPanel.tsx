@@ -21,6 +21,10 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import {
+  formatRendimientoDateTime,
+  formatRendimientoPeriod,
+} from "./rendimiento-format";
 
 interface RendimientoPersonasPanelProps {
   data: RendimientoPersonas;
@@ -32,37 +36,8 @@ const percentageFormatter = new Intl.NumberFormat("es-AR", {
   maximumFractionDigits: 1,
 });
 
-function formatCalendarDate(value: string | null): string | null {
-  if (!value) return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  return match ? match[3] + "/" + match[2] + "/" + match[1] : value;
-}
-
-function formatPeriod(data: RendimientoPersonas): string {
-  const from = formatCalendarDate(data.periodo.fecha_desde);
-  const to = formatCalendarDate(data.periodo.fecha_hasta);
-  if (from && to) return from + " al " + to;
-  if (from) return "Desde " + from;
-  if (to) return "Hasta " + to;
-  return "Todo el historial";
-}
-
 function formatDateTime(value: string, timezone: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "fecha no disponible";
-
-  try {
-    return new Intl.DateTimeFormat("es-AR", {
-      timeZone: timezone,
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(date);
-  } catch {
-    return new Intl.DateTimeFormat("es-AR", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(date);
-  }
+  return formatRendimientoDateTime(value, timezone) ?? "fecha no disponible";
 }
 
 function formatHours(value: number | null): string {
@@ -456,7 +431,7 @@ export function RendimientoPersonasPanel({
               </div>
             </div>
             <Badge variant="outline" className="w-fit shrink-0 bg-white">
-              {formatPeriod(data)}
+              {formatRendimientoPeriod(data.periodo)}
             </Badge>
           </div>
         </CardHeader>

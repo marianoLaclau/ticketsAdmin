@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getUserErrorMessage } from "@/lib/error-messages";
 import type { RendimientoUrlState } from "@/lib/rendimiento-url";
 import { buildRendimientoParams } from "./rendimiento-query";
+import { RendimientoRefreshStatus } from "./RendimientoRefreshStatus";
 import { RendimientoReiteracionesPanel } from "./RendimientoReiteracionesPanel";
 
 interface RendimientoReiteracionesViewProps {
@@ -161,6 +162,9 @@ export function RendimientoReiteracionesView({
 
   return (
     <div className="space-y-4" aria-busy={query.isFetching}>
+      <RendimientoRefreshStatus
+        visible={query.isFetching && !query.isRefetchError}
+      />
       {query.isRefetchError ? (
         <RendimientoReiteracionesErrorState
           message="Conservamos el último resultado mientras reintentás la actualización."

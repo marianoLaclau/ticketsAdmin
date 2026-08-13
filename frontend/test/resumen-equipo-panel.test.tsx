@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ResumenEquipoPanelProps } from "../src/features/rendimiento/ResumenEquipoPanel.tsx";
 import { ResumenEquipoPanel } from "../src/features/rendimiento/ResumenEquipoPanel.tsx";
+import {
+  ResumenEquipoErrorState,
+  ResumenEquipoLoadingState,
+} from "../src/features/rendimiento/ResumenEquipoView.tsx";
 import { assertNoAxeViolations } from "./axe.ts";
 
 const BASE_PROPS: ResumenEquipoPanelProps = {
@@ -42,6 +47,7 @@ const BASE_PROPS: ResumenEquipoPanelProps = {
     alta: 40,
     urgente: 18,
   },
+  onClearFilters: () => {},
 };
 
 test("presenta KPIs, distribuciones, tiempos y SLA con sus muestras", async (t) => {
@@ -166,8 +172,10 @@ test("presenta estados analíticos vacíos sin inventar valores", (t) => {
   assert.equal(screen.queryByText("0%"), null);
 });
 
-test("presenta un estado vacío general cuando la cohorte no tiene actividad", (t) => {
+test("presenta un estado vacío general y permite limpiar filtros", async (t) => {
   t.after(cleanup);
+  const user = userEvent.setup();
+  let cleared = 0;
   render(
     <ResumenEquipoPanel
       periodo={BASE_PROPS.periodo}
@@ -201,6 +209,9 @@ test("presenta un estado vacío general cuando la cohorte no tiene actividad", (
         alta: 0,
         urgente: 0,
       }}
+      onClearFilters={() => {
+        cleared += 1;
+      }}
     />,
   );
 
@@ -211,4 +222,35 @@ test("presenta un estado vacío general cuando la cohorte no tiene actividad", (
     screen.queryByRole("heading", { name: "Tickets ingresados" }),
     null,
   );
+  await user.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+  assert.equal(cleared, 1);
+});
+
+test("anuncia carga y error del resumen y permite reintentar", async (t) => {
+  t.after(cleanup);
+  const user = userEvent.setup();
+  const loading = render(<ResumenEquipoLoadingState />);
+
+  assert.equal(
+    screen
+      .getByLabelText("Cargando resumen del equipo")
+      .getAttribute("aria-busy"),
+    "true",
+  );
+  loading.unmount();
+
+  let retries = 0;
+  render(
+    <ResumenEquipoErrorState
+      message="No fue posible obtener las métricas."
+      isRetrying={false}
+      onRetry={() => {
+        retries += 1;
+      }}
+    />,
+  );
+
+  assert.ok(screen.getByRole("alert"));
+  await user.click(screen.getByRole("button", { name: "Reintentar" }));
+  assert.equal(retries, 1);
 });

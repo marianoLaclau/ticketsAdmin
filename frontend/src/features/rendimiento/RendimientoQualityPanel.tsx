@@ -25,7 +25,10 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { RENDIMIENTO_TIME_ZONE } from "./rendimiento-query";
+import {
+  formatRendimientoDateTime,
+  formatRendimientoPeriod,
+} from "./rendimiento-format";
 
 type CoverageKey = keyof RendimientoCoberturasCalidadDatos;
 
@@ -86,40 +89,16 @@ const percentageFormatter = new Intl.NumberFormat("es-AR", {
   minimumFractionDigits: 0,
   maximumFractionDigits: 1,
 });
-const generatedAtFormatter = new Intl.DateTimeFormat("es-AR", {
-  timeZone: RENDIMIENTO_TIME_ZONE,
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+function formatGeneratedAt(value: string, timezone: string): string {
+  return formatRendimientoDateTime(value, timezone) ?? "hora no disponible";
+}
 
-function formatCalendarDate(value: string | null): string | null {
+function formatAttributionStart(
+  value: string | null,
+  timezone: string,
+): string | null {
   if (!value) return null;
-  const [year, month, day] = value.split("-");
-  return year && month && day ? `${day}/${month}/${year}` : value;
-}
-
-function formatPeriod(data: RendimientoCalidadDatos): string {
-  const from = formatCalendarDate(data.periodo.fecha_desde);
-  const to = formatCalendarDate(data.periodo.fecha_hasta);
-  if (from && to) return `${from} al ${to}`;
-  if (from) return `Desde ${from}`;
-  if (to) return `Hasta ${to}`;
-  return "Todo el historial";
-}
-
-function formatGeneratedAt(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "hora no disponible"
-    : generatedAtFormatter.format(date);
-}
-
-function formatAttributionStart(value: string | null): string | null {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? null
-    : generatedAtFormatter.format(date);
+  return formatRendimientoDateTime(value, timezone);
 }
 
 function CoverageCard({
@@ -191,7 +170,10 @@ interface ComparisonNoticeConfig {
 function getComparisonNoticeConfig(
   data: RendimientoCalidadDatos,
 ): ComparisonNoticeConfig {
-  const attributionStart = formatAttributionStart(data.atribucion_desde);
+  const attributionStart = formatAttributionStart(
+    data.atribucion_desde,
+    data.periodo.timezone,
+  );
   const historicalContext = attributionStart
     ? ` La atribución estructurada se observa desde ${attributionStart}.`
     : " Todavía no hay una resolución con autor estructurado en esta cohorte.";
@@ -268,7 +250,10 @@ export function RendimientoQualityPanel({
   onClearFilters,
 }: RendimientoQualityPanelProps) {
   return (
-    <div className="space-y-4">
+    <section
+      className="space-y-4"
+      aria-labelledby="rendimiento-calidad-heading"
+    >
       <Card className="overflow-hidden border-slate-200 shadow-sm">
         <CardHeader className="border-b border-slate-100 bg-slate-50/70 p-5 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -277,7 +262,10 @@ export function RendimientoQualityPanel({
                 <DatabaseZap className="h-5 w-5" aria-hidden="true" />
               </div>
               <div className="min-w-0 space-y-1.5">
-                <h2 className="text-lg font-semibold leading-tight tracking-tight text-slate-950 sm:text-xl">
+                <h2
+                  id="rendimiento-calidad-heading"
+                  className="text-lg font-semibold leading-tight tracking-tight text-slate-950 sm:text-xl"
+                >
                   Calidad y cobertura
                 </h2>
                 <CardDescription className="max-w-3xl leading-relaxed">
@@ -315,8 +303,9 @@ export function RendimientoQualityPanel({
             </div>
           </div>
           <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-            Período: {formatPeriod(data)} · Snapshot generado el{" "}
-            {formatGeneratedAt(data.periodo.generado_en)}
+            Período: {formatRendimientoPeriod(data.periodo)} · Snapshot generado
+            el{" "}
+            {formatGeneratedAt(data.periodo.generado_en, data.periodo.timezone)}
           </p>
         </CardContent>
       </Card>
@@ -375,7 +364,7 @@ export function RendimientoQualityPanel({
           </section>
         </>
       )}
-    </div>
+    </section>
   );
 }
 

@@ -10,6 +10,7 @@ import {
   Timer,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -19,6 +20,10 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { getEstadoLabel } from "@/lib/estados";
 import { cn } from "@/lib/utils";
+import {
+  formatRendimientoDateTime,
+  formatRendimientoPeriod,
+} from "./rendimiento-format";
 
 export interface ResumenEquipoPeriodo {
   fecha_desde: string | null;
@@ -69,6 +74,7 @@ export interface ResumenEquipoPanelProps {
   cumplimiento_plazo_auditable: ResumenEquipoCumplimiento;
   distribucion_estado: ResumenEquipoEstadoDistribucion;
   distribucion_prioridad: ResumenEquipoPrioridadDistribucion;
+  onClearFilters: () => void;
 }
 
 interface VisualConfig {
@@ -143,37 +149,8 @@ function normalizePercentage(value: number | null): number | null {
     : Math.min(100, Math.max(0, value));
 }
 
-function formatCalendarDate(value: string | null): string | null {
-  if (!value) return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
-}
-
-function formatPeriod(periodo: ResumenEquipoPeriodo): string {
-  const from = formatCalendarDate(periodo.fecha_desde);
-  const to = formatCalendarDate(periodo.fecha_hasta);
-  if (from && to) return `${from} al ${to}`;
-  if (from) return `Desde ${from}`;
-  if (to) return `Hasta ${to}`;
-  return "Todo el historial";
-}
-
 function formatGeneratedAt(value: string, timezone: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "hora no disponible";
-
-  try {
-    return new Intl.DateTimeFormat("es-AR", {
-      timeZone: timezone,
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(date);
-  } catch {
-    return new Intl.DateTimeFormat("es-AR", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(date);
-  }
+  return formatRendimientoDateTime(value, timezone) ?? "hora no disponible";
 }
 
 function formatHours(value: number | null): string {
@@ -496,6 +473,7 @@ export function ResumenEquipoPanel({
   cumplimiento_plazo_auditable,
   distribucion_estado,
   distribucion_prioridad,
+  onClearFilters,
 }: ResumenEquipoPanelProps) {
   const total = normalizeCount(estado_actual.total);
   const opened = normalizeCount(estado_actual.abiertos);
@@ -538,7 +516,7 @@ export function ResumenEquipoPanel({
               </CardDescription>
             </div>
             <Badge variant="outline" className="w-fit bg-white text-slate-700">
-              {formatPeriod(periodo)}
+              {formatRendimientoPeriod(periodo)}
             </Badge>
           </div>
         </CardHeader>
@@ -561,6 +539,14 @@ export function ResumenEquipoPanel({
               La cohorte no contiene tickets para construir un resumen del
               equipo. Probá ampliar el período o quitar filtros.
             </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-4"
+              onClick={onClearFilters}
+            >
+              Limpiar filtros
+            </Button>
           </CardContent>
         </Card>
       ) : (

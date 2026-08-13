@@ -121,7 +121,10 @@ export default function Rendimiento() {
         {VIEWS.map((view) => (
           <TabsContent key={view.value} value={view.value} className="mt-0">
             {view.value === "equipo" ? (
-              <ResumenEquipoView filters={urlState} />
+              <ResumenEquipoView
+                filters={urlState}
+                onClearFilters={resetFilters}
+              />
             ) : view.value === "personas" ? (
               <RendimientoPersonasView
                 filters={urlState}

@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getUserErrorMessage } from "@/lib/error-messages";
 import type { RendimientoUrlState } from "@/lib/rendimiento-url";
 import { RendimientoQualityPanel } from "./RendimientoQualityPanel";
+import { RendimientoRefreshStatus } from "./RendimientoRefreshStatus";
 import { buildRendimientoParams } from "./rendimiento-query";
 
 interface RendimientoQualityViewProps {
@@ -113,6 +114,9 @@ export function RendimientoQualityView({
 
   return (
     <div className="space-y-4" aria-busy={query.isFetching}>
+      <RendimientoRefreshStatus
+        visible={query.isFetching && !query.isRefetchError}
+      />
       {query.isRefetchError ? (
         <RendimientoQualityErrorState
           message="Conservamos el último resultado disponible mientras reintentás la actualización."

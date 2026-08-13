@@ -12,6 +12,7 @@ import { getUserErrorMessage } from "@/lib/error-messages";
 import type { RendimientoUrlState } from "@/lib/rendimiento-url";
 import { buildRendimientoParams } from "./rendimiento-query";
 import { RendimientoPersonasPanel } from "./RendimientoPersonasPanel";
+import { RendimientoRefreshStatus } from "./RendimientoRefreshStatus";
 
 interface RendimientoPersonasViewProps {
   filters: RendimientoUrlState;
@@ -116,6 +117,9 @@ export function RendimientoPersonasView({
 
   return (
     <div className="space-y-4" aria-busy={query.isFetching}>
+      <RendimientoRefreshStatus
+        visible={query.isFetching && !query.isRefetchError}
+      />
       {query.isRefetchError ? (
         <RendimientoPersonasErrorState
           message="Conservamos el último resultado mientras reintentás la actualización."
