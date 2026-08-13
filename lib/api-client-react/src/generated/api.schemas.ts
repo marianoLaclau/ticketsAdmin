@@ -5,6 +5,35 @@
  * GSB Ticket Management System API
  * OpenAPI spec version: 0.5.0
  */
+export type RendimientoChatMessageAction = typeof RendimientoChatMessageAction[keyof typeof RendimientoChatMessageAction];
+
+
+export const RendimientoChatMessageAction = {
+  sendMessage: 'sendMessage',
+} as const;
+
+export interface RendimientoChatMessage {
+  action: RendimientoChatMessageAction;
+  /** @pattern ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ */
+  sessionId: string;
+  /**
+     * Mensaje no vacio de hasta 8192 bytes UTF-8.
+     * @minLength 1
+     * @maxLength 8192
+     */
+  chatInput: string;
+}
+
+export interface RendimientoChatResponse {
+  output: string;
+}
+
+export interface RendimientoChatError {
+  code: string;
+  error: string;
+  output: string;
+}
+
 export type RendimientoModuleStatusModulo = typeof RendimientoModuleStatusModulo[keyof typeof RendimientoModuleStatusModulo];
 
 
@@ -1583,6 +1612,19 @@ export const GetRendimientoCalidadDatos403Code = {
 export type GetRendimientoCalidadDatos403 = {
   code: GetRendimientoCalidadDatos403Code;
   error: string;
+};
+
+export type SendRendimientoChatMessage403Code = typeof SendRendimientoChatMessage403Code[keyof typeof SendRendimientoChatMessage403Code];
+
+
+export const SendRendimientoChatMessage403Code = {
+  PERFORMANCE_ACCESS_REQUIRED: 'PERFORMANCE_ACCESS_REQUIRED',
+} as const;
+
+export type SendRendimientoChatMessage403 = {
+  code: SendRendimientoChatMessage403Code;
+  error: string;
+  output: string;
 };
 
 export type GetRendimientoResumenEquipoParams = {

@@ -1264,6 +1264,78 @@ paths:
                   error:
                     type: string
 
+  /rendimiento/asistente/chat:
+    post:
+      operationId: sendRendimientoChatMessage
+      tags: [rendimiento]
+      summary: Enviar un mensaje al asistente ejecutivo
+      description: >
+        Proxy same-origin protegido para el Chat Trigger de n8n. El servidor
+        valida la sesion y el rol, agrega Basic Auth y no reenvia credenciales,
+        cookies ni metadata personal del navegador. El sessionId opaco se
+        conserva sin persistirlo ni reemplazarlo.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RendimientoChatMessage"
+      responses:
+        "200":
+          description: Respuesta del asistente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RendimientoChatResponse"
+        "400":
+          description: Mensaje invalido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RendimientoChatError"
+        "401":
+          description: Sesion invalida o ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAccessUnauthorized"
+        "403":
+          description: El rol no puede usar el asistente de Rendimiento
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [code, error, output]
+                properties:
+                  code:
+                    type: string
+                    enum: [PERFORMANCE_ACCESS_REQUIRED]
+                  error:
+                    type: string
+                  output:
+                    type: string
+        "502":
+          description: n8n rechazo o no pudo completar la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RendimientoChatError"
+        "503":
+          description: La integracion no esta configurada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RendimientoChatError"
+        "504":
+          description: El workflow excedio su tiempo maximo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RendimientoChatError"
+
   /rendimiento/resumen-equipo:
     get:
       operationId: getRendimientoResumenEquipo
@@ -1533,6 +1605,44 @@ components:
       name: x-api-key
 
   schemas:
+    RendimientoChatMessage:
+      type: object
+      additionalProperties: false
+      required: [action, sessionId, chatInput]
+      properties:
+        action:
+          type: string
+          enum: [sendMessage]
+        sessionId:
+          type: string
+          format: uuid
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        chatInput:
+          type: string
+          minLength: 1
+          maxLength: 8192
+          description: Mensaje no vacio de hasta 8192 bytes UTF-8.
+
+    RendimientoChatResponse:
+      type: object
+      additionalProperties: false
+      required: [output]
+      properties:
+        output:
+          type: string
+
+    RendimientoChatError:
+      type: object
+      additionalProperties: false
+      required: [code, error, output]
+      properties:
+        code:
+          type: string
+        error:
+          type: string
+        output:
+          type: string
+
     RendimientoModuleStatus:
       type: object
       additionalProperties: false

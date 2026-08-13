@@ -12,6 +12,8 @@ backups
 tmp
 .env
 .env.example
+**/.env
+**/.env.*
 *.md
 docker-compose.yml
 Dockerfile.*

@@ -1135,6 +1135,26 @@ export const GetRendimientoCalidadDatosResponse = zod.object({
 
 
 /**
+ * Proxy same-origin protegido para el Chat Trigger de n8n. El servidor valida la sesion y el rol, agrega Basic Auth y no reenvia credenciales, cookies ni metadata personal del navegador. El sessionId opaco se conserva sin persistirlo ni reemplazarlo.
+ * @summary Enviar un mensaje al asistente ejecutivo
+ */
+export const sendRendimientoChatMessageBodySessionIdRegExp = new RegExp('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$');
+export const sendRendimientoChatMessageBodyChatInputMax = 8192;
+
+
+
+export const SendRendimientoChatMessageBody = zod.object({
+  "action": zod.enum(['sendMessage']),
+  "sessionId": zod.string().uuid().regex(sendRendimientoChatMessageBodySessionIdRegExp),
+  "chatInput": zod.string().min(1).max(sendRendimientoChatMessageBodyChatInputMax).describe('Mensaje no vacio de hasta 8192 bytes UTF-8.')
+})
+
+export const SendRendimientoChatMessageResponse = zod.object({
+  "output": zod.string()
+})
+
+
+/**
  * Resume tickets visibles cuya `fecha_creacion` pertenece al período
  * solicitado. `empresa`, `motivo_categoria` y `prioridad` restringen esa
  * misma cohorte antes de calcular cualquier métrica.

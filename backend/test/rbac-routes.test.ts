@@ -303,6 +303,9 @@ async function readStreamUntilClosed(
 
 beforeEach(async () => {
   process.env.ADMIN_API_KEY = "rbac-admin-key";
+  delete process.env.N8N_CHAT_WEBHOOK_URL;
+  delete process.env.N8N_CHAT_BASIC_AUTH_USER;
+  delete process.env.N8N_CHAT_BASIC_AUTH_PASSWORD;
   loginAttemptLimiter.resetAll();
   loginKdfThroughputLimiter.resetAll();
   const passwordHash = await hashPassword(password);
@@ -1677,6 +1680,61 @@ describe("política de contraseñas nuevas", () => {
 });
 
 describe("módulo de Rendimiento", () => {
+  it("protege el asistente para SysAdmin y Controller", async () => {
+    const endpoint = "/api/rendimiento/asistente/chat";
+    const request = {
+      method: "POST",
+      body: JSON.stringify({
+        action: "sendMessage",
+        sessionId: "a21d3df1-3414-43d5-b1c2-d6aeeecf6c95",
+        chatInput: "Resumen ejecutivo",
+      }),
+    } satisfies RequestInit;
+
+    assert.equal((await fetch(`${baseUrl}${endpoint}`, request)).status, 401);
+
+    const asSysAdmin = await requestWithSession(
+      endpoint,
+      await adminSession(),
+      request,
+    );
+    assert.equal(asSysAdmin.status, 503);
+
+    const operatorLogin = await login("operadora");
+    assert.equal(operatorLogin.status, 200);
+    const asOperator = await requestWithSession(
+      endpoint,
+      sessionCookie(operatorLogin),
+      request,
+    );
+    assert.equal(asOperator.status, 403);
+    assert.deepEqual(await asOperator.json(), {
+      code: "PERFORMANCE_ACCESS_REQUIRED",
+      error: "Requiere rol SysAdmin o Controller",
+    });
+
+    const passwordHash = (
+      sqlite
+        .prepare("SELECT password_hash FROM usuarios WHERE id = 1")
+        .get() as { password_hash: string }
+    ).password_hash;
+    sqlite
+      .prepare(
+        `INSERT INTO usuarios
+         (id, nombre, username, email, password_hash, debe_cambiar_password, role_id, activo)
+         VALUES (4, 'Control', 'controller', 'controller@example.test', ?, 0, 7, 1)`,
+      )
+      .run(passwordHash);
+    const controllerLogin = await login("controller");
+    assert.equal(controllerLogin.status, 200);
+    const asController = await requestWithSession(
+      endpoint,
+      sessionCookie(controllerLogin),
+      request,
+    );
+    assert.equal(asController.status, 503);
+  });
+
   it("expone el estado operativo a SysAdmin y Controller", async () => {
     const withoutSession = await fetch(`${baseUrl}/api/rendimiento`);
     assert.equal(withoutSession.status, 401);

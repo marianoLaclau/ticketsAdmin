@@ -69,12 +69,16 @@ import type {
   ReadinessStatus,
   ReadinessUnavailable,
   RendimientoCalidadDatos,
+  RendimientoChatError,
+  RendimientoChatMessage,
+  RendimientoChatResponse,
   RendimientoModuleStatus,
   RendimientoPersonas,
   RendimientoReiteraciones,
   RendimientoResumenEquipo,
   Seguimiento,
   SeguimientoInput,
+  SendRendimientoChatMessage403,
   Ticket,
   TicketDetail,
   TicketIngestResult,
@@ -2615,6 +2619,78 @@ export function useGetRendimientoCalidadDatos<TData = Awaited<ReturnType<typeof 
 
 
 
+
+export const getSendRendimientoChatMessageUrl = () => {
+
+
+
+
+  return `/api/rendimiento/asistente/chat`
+}
+
+/**
+ * Proxy same-origin protegido para el Chat Trigger de n8n. El servidor valida la sesion y el rol, agrega Basic Auth y no reenvia credenciales, cookies ni metadata personal del navegador. El sessionId opaco se conserva sin persistirlo ni reemplazarlo.
+ * @summary Enviar un mensaje al asistente ejecutivo
+ */
+export const sendRendimientoChatMessage = async (rendimientoChatMessage: RendimientoChatMessage, options?: RequestInit): Promise<RendimientoChatResponse> => {
+
+  return customFetch<RendimientoChatResponse>(getSendRendimientoChatMessageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(rendimientoChatMessage)
+  }
+);}
+
+
+
+
+
+export const getSendRendimientoChatMessageMutationOptions = <TError = ErrorType<RendimientoChatError | AdminAccessUnauthorized | SendRendimientoChatMessage403>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendRendimientoChatMessage>>, TError,{data: BodyType<RendimientoChatMessage>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendRendimientoChatMessage>>, TError,{data: BodyType<RendimientoChatMessage>}, TContext> => {
+
+const mutationKey = ['sendRendimientoChatMessage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendRendimientoChatMessage>>, {data: BodyType<RendimientoChatMessage>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendRendimientoChatMessage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendRendimientoChatMessageMutationResult = NonNullable<Awaited<ReturnType<typeof sendRendimientoChatMessage>>>
+    export type SendRendimientoChatMessageMutationBody = BodyType<RendimientoChatMessage>
+    export type SendRendimientoChatMessageMutationError = ErrorType<RendimientoChatError | AdminAccessUnauthorized | SendRendimientoChatMessage403>
+
+    /**
+ * @summary Enviar un mensaje al asistente ejecutivo
+ */
+export const useSendRendimientoChatMessage = <TError = ErrorType<RendimientoChatError | AdminAccessUnauthorized | SendRendimientoChatMessage403>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendRendimientoChatMessage>>, TError,{data: BodyType<RendimientoChatMessage>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendRendimientoChatMessage>>,
+        TError,
+        {data: BodyType<RendimientoChatMessage>},
+        TContext
+      > => {
+      return useMutation(getSendRendimientoChatMessageMutationOptions(options));
+    }
 
 export const getGetRendimientoResumenEquipoUrl = (params?: GetRendimientoResumenEquipoParams,) => {
   const normalizedParams = new URLSearchParams();

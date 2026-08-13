@@ -17,11 +17,16 @@ import {
   createRendimientoRepetitionHandler,
   type RendimientoRepetitionHandlerOptions,
 } from "./repetition-handler";
+import {
+  createRendimientoChatProxyHandler,
+  type RendimientoChatProxyHandlerOptions,
+} from "./chat-proxy-handler";
 
 export type RendimientoRouterOptions = RendimientoQualityHandlerOptions &
   RendimientoTeamSummaryHandlerOptions &
   RendimientoIndividualHandlerOptions &
-  RendimientoRepetitionHandlerOptions;
+  RendimientoRepetitionHandlerOptions &
+  RendimientoChatProxyHandlerOptions;
 
 export const RENDIMIENTO_MODULE_STATUS = Object.freeze({
   modulo: "rendimiento",
@@ -65,6 +70,10 @@ export function createRendimientoRouter(
   router.get(
     "/rendimiento/reiteraciones",
     createRendimientoRepetitionHandler(options),
+  );
+  router.post(
+    "/rendimiento/asistente/chat",
+    createRendimientoChatProxyHandler(options),
   );
 
   return router;
