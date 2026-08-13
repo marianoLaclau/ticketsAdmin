@@ -3332,3 +3332,64 @@ después se borra recursivamente.
 
 - Cinco commits sin pushear a la espera del OK. El deploy corre las migraciones
   `0017` y `0018` sobre producción y obliga a volver a iniciar sesión.
+
+## 2026-08-13 — Preparación modular y base de Rendimiento
+
+**Agente:** Codex
+
+### Objetivo
+
+Preparar el sistema para desarrollar el módulo ejecutivo Rendimiento sin mezclar
+reglas nuevas con el monolito existente, incorporar el perfil directivo
+Controller y conservar todos los contratos y flujos productivos actuales.
+
+### Diez bloques implementados
+
+1. Se definieron fronteras verificables para el monolito modular. Los módulos de
+   negocio no pueden depender de `routes` y `shared` no puede depender de
+   módulos; ESLint hace fallar el quality gate si reaparece ese acoplamiento.
+2. `Controller` pasó a ser el cuarto rol base canónico y protegido. El seed lo
+   crea o reactiva, pero no asigna usuarios automáticamente ni altera cuentas
+   existentes.
+3. El backend aplica sus capacidades reales: Controller puede consultar
+   Dashboard, listado, detalle, historial y CSV de Tickets, pero recibe `403` en
+   PATCH, DELETE, seguimientos manuales, cuarentena y Administración.
+4. El frontend refleja esa política sin reemplazar la autorización del servidor:
+   muestra Dashboard, Tickets y Rendimiento; oculta acciones de escritura y no
+   ofrece Administración.
+5. Dashboard se trasladó a `backend/src/modules/dashboard`, separando rango
+   temporal, consultas SQL y transporte HTTP.
+6. Tickets se trasladó a `backend/src/modules/tickets`, con capas de aplicación,
+   datos, HTTP y jobs para consulta, auditoría, CSV y prioridad automática.
+7. Se creó el esqueleto de Rendimiento: ruta lazy `/rendimiento`, acceso desde el
+   sidebar para SysAdmin/Controller, guard dedicado y cuatro vistas responsive
+   —Resumen equipo, Personas, Reiteraciones y Calidad de datos—. Todas indican
+   explícitamente `En preparación`; no presentan métricas, rankings ni datos
+   simulados. El backend expone `GET /api/rendimiento` protegido y sin caché con
+   un contrato mínimo de disponibilidad.
+8. Administración e Ingesta quedaron en `modules/administracion` y
+   `modules/ingestion`; el webhook conserva URL, API key, idempotencia,
+   transacción, cuarentena y eventos existentes.
+9. Autenticación y RBAC quedaron en `modules/auth`; configuración, observabilidad,
+   SSE, readiness, ciclo de vida y validaciones transversales quedaron en
+   `backend/src/shared`.
+10. Los seguimientos humanos nuevos guardan `autor_usuario_id` como FK nullable
+    con `ON DELETE SET NULL`, además del snapshot textual `autor`. La migración
+    `0019` no inventa autores para el historial anterior y agrega un índice para
+    futura actividad por persona. Finalmente se retiraron los adaptadores
+    temporales de `backend/src/lib` y las rutas legacy, dejando un único camino
+    canónico por módulo.
+
+### Validación
+
+- `pnpm run quality`: correcto. Incluyó ESLint, Prettier, contrato OpenAPI y
+  artefactos generados, schema Drizzle, todas las suites del workspace,
+  TypeScript estricto y builds de frontend/backend.
+- Backend: 232 pruebas aprobadas, incluidas RBAC de Controller, rutas de Tickets,
+  migración/índice del actor y compatibilidad de Ingesta.
+- Playwright: 10/10 flujos E2E aprobados en entorno aislado, incluidos shell,
+  autenticación, ingesta, gestión, RBAC/SSE, cuarentena, concurrencia y CSV.
+- `git diff --check` y búsqueda de imports legacy: correctos.
+- Trabajo dividido en commits locales pequeños sobre `main`. No se realizó push;
+  el desarrollo del cálculo real de Rendimiento queda para la siguiente etapa,
+  después de la prueba manual del usuario.

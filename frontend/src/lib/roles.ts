@@ -1,4 +1,4 @@
-// Espejo de backend/src/lib/auth.ts. Cuando exista el sistema de permisos
+// Espejo de backend/src/modules/auth/domain/rbac.ts. Cuando exista el sistema de permisos
 // con checkboxes, estas verificaciones pasarán a ser por permiso y no por
 // nombre de rol.
 // - SysAdmin: usuario Dios — todo, incluido el panel de administración.

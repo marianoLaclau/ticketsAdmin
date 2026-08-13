@@ -38,26 +38,60 @@ El repositorio contiene varios paquetes, pero la aplicación se ejecuta como dos
 
 Los paquetes de `lib/` son módulos reutilizables dentro del mismo workspace; no son servicios independientes. Esta separación permite mantener límites claros sin introducir llamadas de red entre módulos internos.
 
-### Capas del backend
+### Módulos y capas del backend
 
-El backend tiene una separación por responsabilidades **parcial y en evolución**. Las reglas reutilizables ya están extraídas, pero varios handlers todavía combinan transporte HTTP, consultas y coordinación transaccional. El diagrama representa las dependencias actuales, no una separación ideal ya terminada:
+El backend está organizado por funcionalidades en `backend/src/modules`. Cada módulo expone un `index.ts` como API pública y crea únicamente las capas que necesita: `http` para rutas y adaptación, `application` para casos de uso y reglas de orquestación, `data` para consultas y persistencia, y `jobs` para procesos programados. `backend/src/routes/index.ts` actúa como composition root de Express; ya no contiene las implementaciones de Tickets, Dashboard, Administración o Ingesta.
+
+Las capacidades técnicas reutilizables viven en `backend/src/shared` —configuración, observabilidad, eventos, readiness, ciclo de vida y validaciones transversales— y no contienen reglas de un dominio. Los módulos pueden depender de esta capa y de los paquetes compartidos del workspace, mientras que `shared` no depende de módulos de negocio.
 
 ```mermaid
 flowchart TB
     http[HTTP / Express]
-    routes[Rutas y middlewares<br/>backend/src/routes]
-    app[Servicios y reglas extraídas<br/>SLA, prioridad, clasificación, visibilidad]
-    shared[Paquetes compartidos<br/>@workspace/ingesta<br/>@workspace/api-zod<br/>@workspace/password-policy]
-    persistence[Persistencia<br/>@workspace/db + Drizzle]
+    composition[Composition root<br/>backend/src/routes/index.ts]
+    auth[modules/auth]
+    tickets[modules/tickets]
+    dashboard[modules/dashboard]
+    admin[modules/administracion]
+    ingestion[modules/ingestion]
+    performance[modules/rendimiento]
+    backendShared[backend/src/shared<br/>infraestructura transversal]
+    workspace[Paquetes compartidos<br/>api-zod, ingesta, password-policy y db]
     sqlite[(SQLite)]
 
-    http --> routes
-    routes --> app
-    routes --> persistence
-    app --> shared
-    app --> persistence
-    persistence --> sqlite
+    http --> composition
+    composition --> auth
+    composition --> tickets
+    composition --> dashboard
+    composition --> admin
+    composition --> ingestion
+    composition --> performance
+    tickets --> auth
+    admin --> auth
+    ingestion --> auth
+    performance --> auth
+    auth --> backendShared
+    tickets --> backendShared
+    admin --> backendShared
+    ingestion --> backendShared
+    auth --> workspace
+    tickets --> workspace
+    dashboard --> workspace
+    admin --> workspace
+    ingestion --> workspace
+    performance --> workspace
+    backendShared --> workspace
+    workspace --> sqlite
 ```
+
+| Módulo                   | Responsabilidad actual                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `modules/auth`           | Sesión, login, cambio de contraseña, seed, seguridad de credenciales y capacidades RBAC                 |
+| `modules/tickets`        | Consulta, detalle, edición, seguimiento, auditoría, prioridad automática, orden y exportación           |
+| `modules/dashboard`      | Períodos operativos, agregaciones SQL y endpoints del resumen operativo                                 |
+| `modules/administracion` | Usuarios, roles, operaciones masivas y CRUD administrativo protegido                                    |
+| `modules/ingestion`      | Webhook e ingreso idempotente de datos desde n8n/Serin                                                  |
+| `modules/rendimiento`    | Frontera ejecutiva protegida y estado de preparación de sus vistas; aún no publica indicadores          |
+| `backend/src/shared`     | Configuración, logging, SSE, readiness, ciclo de vida del proceso y validaciones técnicas reutilizables |
 
 #### Transporte y seguridad
 
@@ -80,9 +114,9 @@ stateDiagram-v2
 2. `webhooks`: ingesta pública protegida por `x-api-key`.
 3. `auth`: login y logout idempotente son públicos; sesión actual y cambio propio validan la cookie dentro del router.
 4. `requireSession`: candado global para el resto de la API.
-5. Tickets, dashboard, administración y SSE.
+5. Tickets, dashboard, rendimiento, administración y SSE.
 
-La API valida entrada con schemas generados desde OpenAPI/Zod. Las operaciones de administración exigen además rol SysAdmin, verificado por el backend en cada request de forma independiente del frontend.
+La API valida entrada con schemas generados desde OpenAPI/Zod. Administración exige rol SysAdmin; Rendimiento exige la capacidad reservada a SysAdmin y Controller; y Controller accede a Tickets en modo de solo lectura. Estos controles se verifican en el backend en cada request, de forma independiente del frontend.
 
 #### Reglas de negocio
 
@@ -91,17 +125,13 @@ Las reglas importantes viven fuera de los handlers cuando pueden reutilizarse:
 - `lib/ingesta/src/motivos.ts`: clasificación estable del motivo.
 - `lib/ingesta/src/sla.ts`: 48 horas hábiles, pausando sábados y domingos.
 - `lib/password-policy`: política única de credenciales nuevas para servidor y UI.
-- `backend/src/lib/prioridad-automatica.ts`: promoción de prioridad a `alta`/`urgente`.
-- `backend/src/lib/prioridad-automatica-runner.ts`: ejecución al arranque y periódica.
-- `backend/src/lib/ticket-query.ts`: filtros SQL y composición del `WHERE` compartido.
-- `backend/src/lib/ticket-sort.ts`: validación y expresiones de orden server-side para listado y CSV.
-- `backend/src/lib/ticket-audit.ts`: autor, campos editados y texto estable de los seguimientos de auditoría.
-- `backend/src/lib/dashboard-queries.ts`: agregaciones SQL de KPIs y motivos, separadas del transporte HTTP.
-- `backend/src/lib/dashboard-date-range.ts`: períodos y día operativo en la zona estable de Buenos Aires.
-- `backend/src/lib/reclasificar-motivos.ts`: reconciliación conservadora de Embargos.
-- `backend/src/routes/admin-roles.ts`: catálogo y CRUD de roles, montado detrás del doble guard del router administrativo padre.
-- `backend/src/routes/admin-users.ts`: listado, alta, edición y reset de usuarios con transacciones y revocación posterior al commit.
-- `backend/src/routes/admin-route-helpers.ts`: normalizadores y detección de restricciones compartidos por roles y usuarios.
+- `backend/src/modules/tickets/application`: prioridad automática, auditoría, validación de cambios y reconciliación conservadora de Embargos.
+- `backend/src/modules/tickets/data`: acceso, filtros SQL, orden y serialización/streaming de CSV.
+- `backend/src/modules/tickets/jobs`: ejecución al arranque y periódica de la promoción de prioridad.
+- `backend/src/modules/dashboard`: períodos en la zona estable de Buenos Aires y agregaciones SQL separadas del transporte HTTP.
+- `backend/src/modules/administracion`: catálogo y CRUD de usuarios/roles, operaciones masivas y restricciones administrativas.
+- `backend/src/modules/auth`: capacidades RBAC, sesiones, credenciales y protecciones del login.
+- `backend/src/modules/ingestion`: adaptación HTTP de la ingesta idempotente; clasificación y SLA permanecen en `@workspace/ingesta`.
 - `lib/db/src/ticket-visibility.ts`: regla compartida para cuarentena de registros vacíos.
 
 El Dashboard no carga filas completas para volver a contarlas en memoria. Sus KPIs principales se calculan con agregaciones condicionales y los motivos con `GROUP BY`; las lecturas que componen un mismo resultado se ejecutan en una transacción diferida para compartir snapshot. La cohorte del período se determina por `fecha_creacion`, mientras que “nuevos hoy” y “resueltos hoy” conservan su alcance diario global. Todo límite calendario usa `America/Argentina/Buenos_Aires` y no la zona local del host.
@@ -169,6 +199,7 @@ Las pantallas principales son:
 - `/dashboard`: KPIs, estados, prioridades, motivos y actividad.
 - `/tickets`: listado filtrable, paginado, ordenable y exportable.
 - `/tickets/:id`: detalle, edición, audio y seguimiento.
+- `/rendimiento`: espacio ejecutivo visible únicamente para SysAdmin y Controller; actualmente presenta la navegación y las vistas básicas en estado de preparación.
 - `/admin`: CRUD, importación, cuarentena y zona peligrosa.
 - `/admin/roles-usuarios`: gestión de usuarios y roles para SysAdmin.
 
@@ -257,7 +288,7 @@ erDiagram
     ROLES ||--o{ USUARIOS : posee
     USUARIOS ||--o{ SESIONES : inicia
     USUARIOS o|--o{ TICKETS : asigna
-    USUARIOS o|--o{ SEGUIMIENTOS : referencia
+    USUARIOS o|--o{ SEGUIMIENTOS : realiza
     TICKETS ||--o{ SEGUIMIENTOS : registra
     TICKETS ||--o| TICKETS_CUARENTENA : clasifica
 
@@ -315,6 +346,7 @@ erDiagram
         integer asignado_anterior_usuario_id FK
         integer asignado_nuevo_usuario_id FK
         json campos_editados
+        integer autor_usuario_id FK "nullable"
         text autor
         timestamp fecha_creacion
     }
@@ -347,17 +379,19 @@ Es una proyección interna uno-a-cero-o-uno: la presencia del `ticket_id` indica
 
 Es la auditoría temporal del ticket. Registra notas manuales, alta automática desde Serin, transiciones de estado, cambios de prioridad, reasignaciones y campos editados. La asignación guarda tanto IDs como snapshots legibles para que el historial siga siendo entendible aunque un usuario sea desactivado o eliminado.
 
+`autor_usuario_id` es una FK nullable a `usuarios.id` con `ON DELETE SET NULL`. Las acciones humanas nuevas guardan allí la identidad autenticada; los eventos automáticos y el historial anterior a la migración permanecen en `null`. La columna `autor` conserva el snapshot legible, por lo que eliminar o renombrar una cuenta no vuelve incomprensible la auditoría. El índice `(autor_usuario_id, fecha_creacion, id)` permite recuperar actividad atribuida con un orden estable.
+
 `campos_editados` contiene únicamente nombres de campos, no una copia de valores sensibles.
 
 Las lecturas cronológicas se apoyan en índices con el ID como desempate estable. `0015` agrega índices por creación, vencimiento y resolución de tickets, y por creación global de seguimientos. Su inclusión está respaldada por `EXPLAIN QUERY PLAN` sobre las consultas reales de actividad, vencidos y conteos diarios; no se crean índices para búsquedas o expresiones que SQLite no pueda aprovechar.
 
 ### `roles`, `usuarios` y `sesiones`
 
-- `roles` define el catálogo de perfiles. Los nombres base `SysAdmin`, `Administrador` y `Operador` son identidades reservadas y activas; los perfiles personalizados sí admiten ciclo de vida propio.
+- `roles` define el catálogo de perfiles. Los nombres base `SysAdmin`, `Controller`, `Administrador` y `Operador` son identidades reservadas y activas; los perfiles personalizados sí admiten ciclo de vida propio.
 - `usuarios` contiene identidad, credenciales hash, rol, estado activo y el flag autoritativo `debe_cambiar_password`.
 - `sesiones` persiste el usuario, expiración absoluta y únicamente un hash versionado `sha256:<64 hex>` del bearer de `gsb_session`; permite revocar sesiones y sobrevivir reinicios sin guardar en SQLite una cookie reutilizable. El borde HTTP solo acepta el raw aleatorio emitido (64 hex), deriva el hash con separación de dominio, centraliza `HttpOnly`/`SameSite=Lax`/`Path=/`, elimina cookies malformadas, vencidas o revocadas y marca `/auth/*` como `no-store`. El hash almacenado no cumple el formato de cookie y el instante exacto de expiración ya no es válido.
 - `password_hash` usa scrypt asíncrono y versionado (`scrypt$v1$N$r$p$salt$hash`); nunca se almacena la contraseña en texto plano. El lector mantiene compatibilidad con el formato legado y lo rehashea con una sal nueva tras un login válido.
-- Alta, reset y bootstrap validan con `@workspace/password-policy`: 16–128 unidades UTF-16, sin controles C0/DEL, whitespace exterior, placeholders públicos conocidos ni un único carácter repetido. OpenAPI reutiliza un único schema `NewPassword`; el paquete completa la blocklist contextual acotada. Se permiten frases con espacios interiores y no se recorta ni normaliza el secreto antes de hashearlo (NFKC/minúsculas se usan solo para comparar la blocklist y el patrón repetitivo).
+- Alta, reset y bootstrap validan con `@workspace/password-policy`: 8–128 unidades UTF-16, sin controles C0/DEL, whitespace exterior, placeholders públicos conocidos ni un único carácter repetido. OpenAPI reutiliza un único schema `NewPassword`; el paquete completa la blocklist contextual acotada. Se permiten frases con espacios interiores y no se recorta ni normaliza el secreto antes de hashearlo (NFKC/minúsculas se usan solo para comparar la blocklist y el patrón repetitivo).
 - Login acepta 1–128 unidades UTF-16 para preservar credenciales históricas y poder migrar su hash; esa compatibilidad no habilita nuevas claves fuera de política.
 - La protección anti-fuerza-bruta no forma parte del modelo persistente: mantiene en memoria hasta 20.000 hashes de identidades, con ventana deslizante de diez fallos confirmados/15 minutos y bloqueo de 15 minutos. Una compuerta separada combina un token bucket con ráfaga inicial de 30 KDF y reposición de 30 por minuto, cuatro activos y ocho en cola.
 - Alta, reset administrativo y bootstrap dejan la credencial como temporal. Un usuario en ese estado conserva únicamente sesión actual, logout y cambio propio; el segundo guard global bloquea tickets, dashboard, administración y SSE hasta que el flag sea exactamente `false`.
@@ -368,7 +402,7 @@ Invariantes de RBAC aplicadas en backend y reflejadas en la UI:
 - un rol inactivo no permite login ni nuevas asignaciones; al desactivarlo se revocan atómicamente las sesiones de sus usuarios y, después del commit, cada stream recibe el evento terminal `sesion_revocada` antes de cerrarse;
 - un cambio real de `usuarios.role_id`, la desactivación de la cuenta o el reset administrativo de contraseña aplican la misma revocación y notificación; reenviar el mismo rol es un no-op para la sesión;
 - el cambio propio de contraseña cierra los streams anteriores sin el evento terminal: en ese flujo se entrega una cookie rotada válida y el navegador debe poder reconectar con ella;
-- los tres roles base no se renombran, desactivan ni eliminan;
+- los cuatro roles base no se renombran, desactivan ni eliminan;
 - una actualización de usuarios no puede dejar el sistema sin al menos un SysAdmin activo, con username y hash scrypt utilizable;
 - el seed crea/reactiva roles canónicos y migra solo la identidad histórica: nunca convierte en masa el rol `Administrador` en `SysAdmin`.
 
@@ -377,6 +411,18 @@ Invariantes de RBAC aplicadas en backend y reflejadas en la UI:
 Antes de entrar al flujo de sesión, `POST /auth/login` crea una reserva usando el hash del `username` normalizado. Solo un rechazo real de credenciales confirma el fallo; capacidad agotada, carreras administrativas y `5xx` liberan la reserva. Una desconexión no cancela trabajo criptográfico ya admitido: su resultado real confirma o libera la reserva, para que abortar solicitudes no permita eludir el límite. Existencia, activación y validez de contraseña no cambian la semántica observable: hasta diez fallos reciben el `401` genérico y la siguiente solicitud recibe `429 LOGIN_RATE_LIMITED` con la espera explícita. Un acceso correcto o una recuperación administrativa elimina el bucket. No se usa una IP obtenida de `X-Forwarded-For`, porque el backend también es alcanzable directamente en el puerto 5000 y ese header sería falsificable sin una lista exacta de proxies confiables.
 
 El rate limit y la compuerta de scrypt son estado deliberadamente local del proceso. Esto coincide con el backend único exigido por SQLite/SSE, evita escrituras controladas por atacantes en la base operativa y mantiene una interfaz aislada para migrar a Redis u otro store si cambia la topología.
+
+Las capacidades canónicas se resuelven en `modules/auth/domain/rbac.ts` y se aplican mediante middlewares del mismo módulo. La matriz actual es:
+
+| Rol           | Dashboard | Tickets                                         | Rendimiento | Administración |
+| ------------- | --------- | ----------------------------------------------- | ----------- | -------------- |
+| SysAdmin      | Ver       | Leer, gestionar y cerrar                        | Ver         | Sí             |
+| Controller    | Ver       | Solo lectura, incluido detalle, historial y CSV | Ver         | No             |
+| Administrador | Ver       | Leer, gestionar y cerrar                        | No          | No             |
+| Operador      | Ver       | Leer y gestionar, sin cerrar                    | No          | No             |
+| Personalizado | Ver       | Leer y gestionar, sin cerrar                    | No          | No             |
+
+Controller es un perfil directivo de solo lectura: puede consultar Dashboard, Tickets y Rendimiento, pero no modificar tickets ni acceder a Administración. `GET /api/rendimiento` está protegido en el prefijo completo del módulo para que sus futuros endpoints nazcan con la misma restricción.
 
 El diagrama siguiente cubre las rutas funcionales posteriores al router de autenticación.
 
@@ -387,26 +433,23 @@ flowchart TD
     session{Sesión válida?}
     password{¿Cambio temporal pendiente?}
     authOnly{¿me o cambio propio?}
-    sensitive{¿Frontera administrativa?}
-    sysadmin{¿Rol SysAdmin?}
+    capability{¿Cumple la capacidad<br/>requerida por la ruta?}
     allow[Ejecutar operación]
     reject401[401 / SESSION_INVALID]
     reject403[403 / acceso denegado]
     rejectPassword[403 / PASSWORD_CHANGE_REQUIRED]
-    reject503[503 / configuración ausente]
 
     request --> public
     public -->|health, login, logout, webhook con su clave| allow
     public -->|resto| session
     session -->|no| reject401
     session -->|sí| password
-    password -->|no| sensitive
+    password -->|no| capability
     password -->|sí| authOnly
     authOnly -->|sí| allow
     authOnly -->|no| rejectPassword
-    sensitive -->|no| allow
-    sensitive -->|sí| sysadmin
-    sysadmin -->|no| reject403
+    capability -->|sí| allow
+    capability -->|no| reject403
 ```
 
 La protección se aplica en dos lugares:
@@ -539,6 +582,7 @@ En local, `pnpm --filter @workspace/db run push` combina `drizzle-kit push` con 
 0016            → elevación por sesión (retirada por 0018)
 0017            → backfill de préstamos, obra social, sanciones y proveedores
 0018            → retira la elevación por sesión
+0019            → autor estructurado nullable e índice de actividad en seguimientos
 ```
 
 La columna física conserva el nombre histórico `sesiones.token` para permitir un rollback estructural, pero el schema la expone como `token_hash`. Desde `0011`, toda fila nueva contiene `sha256:<digest>` y el arranque elimina formatos crudos o inválidos después de validar secretos, antes del seed y antes de abrir el puerto. La migración fuerza un único re-login; no se admite un despliegue simultáneo de binarios anteriores y posteriores a este cambio. Un rollback rápido conserva el schema e invalida las sesiones creadas por la otra versión, pero el piso soportado es `06db746`, primer commit cuyo extractor rechaza todo lo que no sea raw de 64 hex.
@@ -554,15 +598,24 @@ Cada migración nueva debe:
 ## 10. Estructura de directorios
 
 ```text
-backend/                 API Express, auth, rutas y reglas específicas del servidor
+backend/                 API Express y composition root del servidor
+  src/modules/           módulos funcionales con API pública propia
+    auth/                sesión, credenciales, seed y capacidades RBAC
+    tickets/             consulta, gestión, auditoría, CSV y prioridad
+    dashboard/           agregaciones y períodos del resumen operativo
+    administracion/      usuarios, roles y operaciones administrativas
+    ingestion/           webhook e ingesta idempotente
+    rendimiento/         frontera y vistas ejecutivas en preparación
+  src/shared/            infraestructura transversal sin reglas de dominio
+  src/routes/            composición HTTP, health y SSE aún transversales
 frontend/                SPA React, pantallas, layout y componentes
 e2e/                     Playwright, servidor aislado y flujos críticos de navegador
-lib/api-spec/             OpenAPI, fuente del contrato
-lib/api-client-react/     cliente React Query generado
-lib/api-zod/              validadores Zod generados
-lib/db/                   schema Drizzle, SQLite, migraciones y visibilidad
-lib/ingesta/              clasificación, SLA y normalización compartida
-lib/password-policy/      política pura de contraseñas nuevas
+lib/api-spec/            OpenAPI, fuente del contrato
+lib/api-client-react/    cliente React Query generado
+lib/api-zod/             validadores Zod generados
+lib/db/                  schema Drizzle, SQLite, migraciones y visibilidad
+lib/ingesta/             clasificación, SLA y normalización compartida
+lib/password-policy/     política pura de contraseñas nuevas
 scripts/                  importador histórico y backup de SQLite
 docs/                    arquitectura, flujo, deploy y bitácora
 .github/workflows/        Quality para PR y Deploy independiente desde main

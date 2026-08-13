@@ -3,7 +3,7 @@
 Sistema de gestión de tickets que se alimenta **automáticamente** de llamadas telefónicas: un agente de voz de ElevenLabs atiende la llamada, n8n arma el JSON y se lo manda a este sistema. Los tickets no se crean a mano en el flujo normal — nacen solos con cada llamada.
 
 ```
-Llamada telefónica → ElevenLabs (agente de voz) → n8n → POST /api/webhooks/ticket → SQLite → Dashboard / Tickets
+Llamada telefónica → ElevenLabs (agente de voz) → n8n → POST /api/webhooks/ticket → SQLite → Dashboard / Tickets / Rendimiento
                                                               ↑
                                                     también: importador CSV / panel admin
 ```
@@ -27,7 +27,8 @@ Llamada telefónica → ElevenLabs (agente de voz) → n8n → POST /api/webhook
 - **Categorización automática del motivo**: un clasificador basado en reglas agrupa el texto libre de `motivo`/`resumen` en categorías estables (haberes y pagos, recibos, vacaciones, bajas, empleo, reclamos, legales, **embargos**, etc.) para poder filtrar y graficar sin que cada redacción de n8n sea una categoría nueva. v0.5 reconcilia la columna derivada de registros anteriores al arrancar, sin reescribir sus textos originales.
 - **Trazabilidad desde v0.5**: cada modificación registra de forma atómica el autor y los cambios reales de estado, prioridad, asignación y campos editados. El historial nuevo no intenta inventar eventos anteriores a la incorporación de esta auditoría.
 - **Actualización en vivo**: la app mantiene una conexión de Server-Sent Events; cuando entra un llamado nuevo (o se importa un CSV), todas las pestañas abiertas se refrescan al instante y muestran una notificación — sin recargar la página.
-- **Login obligatorio con roles**: nadie ve ninguna pantalla ni puede pegarle a la API sin sesión iniciada. Tres roles con permisos distintos (ver sección Autenticación).
+- **Login obligatorio con roles**: nadie ve ninguna pantalla ni puede pegarle a la API sin sesión iniciada. Cuatro roles de sistema con permisos distintos (ver sección Autenticación).
+- **Rendimiento ejecutivo**: SysAdmin y Controller disponen de una ruta protegida `/rendimiento` con las vistas base Resumen del equipo, Personas, Reiteraciones y Calidad de datos. El módulo está explícitamente en preparación: todavía no publica métricas ni rankings hasta que su trazabilidad sea auditable.
 - **Panel de administración** (solo rol SysAdmin): tabla ampliada, ordenable y paginada, acceso al detalle incluso para registros en cuarentena, CRUD manual de tickets, importador de CSV con simulación previa, "zona peligrosa" para vaciar la base, y gestión de roles/usuarios con reset de contraseña.
 - **Importador del histórico**: script CLI que carga de una vez un Excel/CSV viejo con el mismo motor de parseo que usa el panel web.
 - **Backup online de SQLite**: copia consistente con el WAL, verificada con `integrity_check`, sin sobrescribir destinos.
@@ -38,11 +39,12 @@ Todo el sistema funcional exige sesión iniciada. Las rutas que no la requieren 
 
 | Rol               | Puede                                                                                                                    |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **SysAdmin**      | Todo, incluido el panel de Administración (`/admin`, `/admin/roles-usuarios`)                                            |
-| **Administrador** | Gestión completa de tickets — incluido pasarlos a **Cerrado** — pero sin acceso al panel de administración               |
+| **SysAdmin**      | Todo: Dashboard, gestión de Tickets, Rendimiento y Administración (`/admin`, `/admin/roles-usuarios`)                    |
+| **Controller**    | Dashboard, consulta de Tickets y Rendimiento; es de **solo lectura** y no accede a Administración                        |
+| **Administrador** | Gestión completa de tickets — incluido pasarlos a **Cerrado** — pero sin acceso a Rendimiento ni Administración          |
 | **Operador**      | Gestión básica de tickets; **no puede cerrarlos** (la opción queda deshabilitada en la UI y el backend la rechaza igual) |
 
-Los tres roles base son identidades protegidas: no se renombran, desactivan ni eliminan. Los roles personalizados inactivos cortan login y sesiones y no pueden recibir nuevas asignaciones. El backend impide además desactivar o degradar al último SysAdmin con credenciales utilizables.
+Los cuatro roles de sistema son identidades protegidas: no se renombran, desactivan ni eliminan. Los roles personalizados inactivos cortan login y sesiones y no pueden recibir nuevas asignaciones. El backend impide además desactivar o degradar al último SysAdmin con credenciales utilizables.
 
 Toda contraseña **nueva** —alta de usuario, reset o bootstrap— debe tener entre 8 y 128 caracteres, sin controles ni espacios al principio o al final, y no puede coincidir con un placeholder público ni ser un único carácter repetido. No se exigen combinaciones artificiales de mayúsculas, números o símbolos: se admiten frases largas con espacios interiores. Las claves entregadas por un SysAdmin o por el bootstrap son temporales: después de autenticarse, el usuario solo puede consultar su sesión, cerrar sesión o definir una contraseña propia antes de entrar a la aplicación. El cambio revoca los demás accesos y rota la sesión actual. El login conserva compatibilidad con contraseñas históricas de 1 a 128 caracteres y las rehashea sin activar retroactivamente este requisito.
 
@@ -55,7 +57,7 @@ Detalle completo (sesiones, hash de contraseñas y seed inicial) en [backend/REA
 ## Estructura del repo
 
 ```
-backend/    → API Express 5 (puerto 5000) — ver backend/README_BACKEND.md
+backend/    → API Express 5 modular por feature (puerto 5000) — ver backend/README_BACKEND.md
 frontend/   → React + Vite (puerto 3000, proxea /api al backend) — ver frontend/README_FRONTEND.md
 e2e/        → Playwright: flujos críticos con backend, Vite y SQLite efímeros
 lib/
@@ -139,9 +141,10 @@ Copiar `.env.example` a `.env` en la raíz:
 
 - **Ingesta por webhook, no leyendo el Excel**: n8n hace POST a `/api/webhooks/ticket` con header `x-api-key`. Idempotente por `conversation_id` (reintento ⇒ 200 con `created: false`); el Excel de n8n queda solo como respaldo/histórico.
 - **Contract-first**: todo el contrato vive en `lib/api-spec/openapi.yaml`. Se edita el yaml, se corre `codegen`, y los dos lados (frontend y backend) quedan sincronizados por construcción.
+- **Backend modular por feature**: `backend/src/modules/` separa `auth`, `tickets`, `dashboard`, `rendimiento`, `administracion` e `ingestion`; `shared/` concentra infraestructura transversal y `routes/index.ts` se limita a componer routers y guards globales.
 - **SQLite en lugar de Postgres** (migrado 2026-07): better-sqlite3 con WAL alcanza para el volumen de llamadas, sin servidor de base de datos que administrar.
 - **Login real con roles**, no solo una API key: sesiones en cookie host-only `httpOnly`, `SameSite=Lax` y token hexadecimal estricto; SQLite conserva únicamente un hash `sha256:` versionado del token, nunca el bearer reutilizable. Las cookies inválidas, vencidas o revocadas se eliminan y las respuestas de autenticación no se cachean. Las contraseñas usan scrypt asíncrono y formato versionado, el login combina límite por identidad con admisión criptográfica acotada, y un candado global (`requireSession`) protege toda la API funcional. Solo liveness/readiness, el webhook con clave propia, login y el logout idempotente quedan fuera del candado.
-- **El rol es la única frontera del panel administrativo**: las rutas `/admin/*`, el borrado, la cuarentena y la edición técnica exigen sesión con rol SysAdmin, verificado por el backend en cada request. Un Operador recibe `403` aunque manipule la interfaz.
+- **El rol es la frontera de cada espacio protegido**: las rutas `/admin/*`, el borrado, la cuarentena y la edición técnica exigen SysAdmin; Rendimiento exige SysAdmin o Controller; y Controller no puede mutar tickets. El backend valida cada caso aunque se manipule la interfaz.
 - **Los secretos de servicio se validan antes de abrir el puerto**: `WEBHOOK_API_KEY` debe existir, tener al menos 32 caracteres y no usar placeholders, controles ni espacios exteriores. `.env.example` los deja vacíos deliberadamente; un backend mal configurado no llega a anunciarse listo.
 - **Transporte web same-origin**: React llama a `/api` mediante Vite/Nginx y el webhook de n8n es servidor-a-servidor. El backend no publica CORS para orígenes arbitrarios ni expone `X-Powered-By`; Nginx oculta su versión y agrega `nosniff`, protección anti-iframe, política de referrer y permisos mínimos.
 - **Texto recibido preservado frente a procesos automáticos, categoría derivada**: el clasificador y los backfills nunca reescriben `ticket.motivo` ni `ticket.resumen`; solo calculan `ticket.motivo_categoria`. Un usuario autenticado sí puede corregir explícitamente esos datos desde el detalle, y esa edición queda auditada; al cambiar motivo o resumen se recalcula la categoría.

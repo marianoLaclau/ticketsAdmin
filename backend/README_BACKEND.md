@@ -43,39 +43,40 @@ pnpm --filter @workspace/backend run typecheck
 
 ```
 backend/
-  build.mjs              → build con esbuild (bundle único, better-sqlite3 externo)
+  build.mjs               → build con esbuild (bundle único, better-sqlite3 externo)
   src/
-    app.ts                → arma la app Express: middlewares + monta el router en /api
-    index.ts               → entrypoint del servidor: carga .env, corre el seed, abre el puerto
-    migrate.ts              → entrypoint separado: aplica migraciones y termina (usado en Docker)
-    lib/
-      auth.ts                → sesiones y guards de autenticación, cambio pendiente y roles
-      login-rate-limit.ts    → ventana deslizante por identidad y admisión acotada de scrypt
-      new-password-policy.ts → adaptación HTTP de la política compartida de contraseñas nuevas
-      passwords.ts            → hash y verificación con scrypt
-      seed.ts                  → crea/migra el usuario y rol semilla al arrancar
-      events.ts                → registro de clientes SSE y broadcastEvent()
-      logger.ts                 → instancia de pino
-      load-env.ts                → carga el .env de la raíz del monorepo (walk-up)
-      ticket-query.ts             → filtros SQL compartidos por listado/CSV
-      ticket-sort.ts              → contrato y orden server-side compartido por listado/CSV
-      ticket-csv.ts                 → serialización segura del export completo
-      prioridad-automatica.ts        → evaluación y promoción transaccional de prioridades
-      prioridad-automatica-runner.ts  → pasada de arranque + ejecución periódica sin solapamientos
-      readiness.ts                     → estado monótono starting → ready → draining
-      runtime-readiness.ts              → control de readiness del proceso
-      sqlite-readiness.ts                → sonda barata del handle y schema mínimo de SQLite
-      server-lifecycle.ts                  → drenaje idempotente de HTTP, tareas y SSE
+    app.ts                 → middlewares Express y montaje del router en /api
+    index.ts               → entrypoint: entorno, seed, tareas, readiness y servidor
+    migrate.ts             → aplica migraciones y termina (usado en Docker)
+    modules/
+      auth/                → sesión, login, contraseñas, seed y capacidades RBAC
+        application/       → sesión y bootstrap
+        data/              → selección de cuenta y persistencia de sesiones
+        domain/            → roles y capacidades
+        http/              → router y handlers HTTP
+        security/          → cookies, scrypt, política y límites de login
+      tickets/             → consulta, edición, auditoría, CSV y prioridad automática
+        application/       → reglas y casos de uso
+        data/              → consultas, orden, acceso y streaming CSV
+        http/              → router y handlers
+        jobs/              → runner periódico de prioridad
+      dashboard/           → rango temporal, agregaciones y router del dashboard
+      rendimiento/         → frontera ejecutiva protegida y estado del módulo
+      administracion/      → tickets manuales, import/truncate, roles y usuarios
+      ingestion/           → webhook idempotente de n8n y seguimiento de origen Serin
+    shared/
+      config/              → validación de secretos de servicio
+      observability/       → logger estructurado
+      realtime/            → clientes y eventos SSE
+      runtime/             → entorno, readiness y ciclo de vida del proceso
+      validation/          → validaciones técnicas compartidas
     routes/
-      auth.ts     → login, sesión actual, logout y cambio de contraseña
-      tickets.ts  → CRUD de tickets + seguimientos
-      dashboard.ts→ estadísticas agregadas
-      webhooks.ts → ingesta desde n8n
-      admin.ts    → CRUD de tickets vía panel, roles, usuarios, import CSV, truncate
-      events.ts   → GET /events (SSE)
-      health.ts   → GET /healthz y GET /readyz
-      index.ts    → ensambla todos los routers y aplica el orden de middlewares
+      events.ts            → GET /events (SSE)
+      health.ts            → GET /healthz y GET /readyz
+      index.ts             → compone módulos y aplica los guards globales
 ```
+
+Cada módulo expone únicamente su `index.ts`; la composición no importa archivos internos. Las capacidades técnicas reutilizables viven en `shared/`, mientras el esquema, las migraciones y los contratos continúan en los paquetes `lib/db` y `lib/api-spec` del workspace.
 
 ## Ciclo de vida de un request
 
@@ -99,7 +100,8 @@ router.use(requireSession); // 🔒 todo lo que sigue exige sesión
 router.use(requirePasswordChangeCompleted); // 🔒 bloquea credenciales temporales
 router.use(ticketsRouter);
 router.use(dashboardRouter);
-router.use(adminRouter); // dentro, además: requireSysAdmin + requireAdminElevation
+router.use(rendimientoRouter); // dentro: SysAdmin o Controller
+router.use(adminRouter); // dentro: solo SysAdmin
 router.use(eventsRouter); // SSE — también detrás del candado
 ```
 
@@ -109,7 +111,7 @@ El proceso nace en `starting`. Recién en el evento `listening` pasa a `ready`; 
 
 ## Rutas de la API
 
-Todas bajo el prefijo `/api`. ✅ = requiere sesión. 🔑 = además, rol SysAdmin y contraseña definitiva.
+Todas bajo el prefijo `/api`. ✅ = requiere sesión. 🔑 = además, rol SysAdmin y contraseña definitiva. 🧭 = acceso ejecutivo para SysAdmin o Controller.
 
 | Método y ruta                       | Qué hace                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Acceso                           |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
@@ -123,14 +125,15 @@ Todas bajo el prefijo `/api`. ✅ = requiere sesión. 🔑 = además, rol SysAdm
 | `GET /tickets`                      | Listado con filtros: `estado`, `prioridad`, `fecha_desde`/`fecha_hasta` (día calendario **local**, según `TZ`), `hora_desde`/`hora_hasta`, `empresa`, `motivo`, `motivo_categoria`, `search`, `vencidos`; orden server-side con `sort_by` sobre una lista cerrada de columnas y `order`; paginación `page`/`limit` (1–100). `incluir_vacios=true` agrega la cuarentena únicamente con acceso administrativo.                                                                                                                                                                                                                       | ✅ / ✅🔑🔑                      |
 | `GET /tickets/export.csv`           | Exporta **todos** los tickets operativos que coinciden con los mismos filtros y orden del listado, sin limitarse a la página visible. CSV UTF-8 con BOM, separador `;` y protección ante fórmulas.                                                                                                                                                                                                                                                                                                                                                                                                                                 | ✅                               |
 | `GET /tickets/:id`                  | Detalle + array de `seguimientos`. Admite `incluir_vacios=true` con acceso administrativo para abrir un registro en cuarentena.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | ✅ / ✅🔑🔑                      |
-| `PATCH /tickets/:id`                | Requiere `expected_version` y al menos un campo editable. Estado, prioridad, notas, progreso y datos funcionales requieren sesión; los campos técnicos (`hora`, `notificado`, `audio_url`, `fecha_resolucion`, `fecha_limite`) exigen rol SysAdmin. Un cambio real incrementa `version` junto con la auditoría; una versión vieja devuelve `409 TICKET_VERSION_CONFLICT` sin escribir. Motivo/resumen reclasifican y una transición real autoasigna.                                                                                                                                                                               | ✅ / ✅🔑🔑                      |
+| `PATCH /tickets/:id`                | Requiere `expected_version`, al menos un campo editable y capacidad `gestionar_tickets`; Controller recibe `403`. Los campos técnicos (`hora`, `notificado`, `audio_url`, `fecha_resolucion`, `fecha_limite`) exigen además SysAdmin. Un cambio real incrementa `version` junto con la auditoría; una versión vieja devuelve `409 TICKET_VERSION_CONFLICT` sin escribir. Motivo/resumen reclasifican y una transición real autoasigna.                                                                                                                                                                                             | ✅ excepto Controller / ✅🔑     |
 | `DELETE /tickets/:id`               | Borra el ticket (cascada sobre sus seguimientos). `204`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | ✅🔑🔑                           |
 | `GET /tickets/:id/seguimientos`     | Historial ordenado por fecha; admite el acceso administrativo a cuarentena mediante `incluir_vacios=true`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | ✅ / ✅🔑🔑                      |
-| `POST /tickets/:id/seguimientos`    | Crea una nota; admite el acceso administrativo a cuarentena. **El campo `autor` y el contexto se derivan en el backend desde la sesión y el ticket**, así el historial no es falsificable.                                                                                                                                                                                                                                                                                                                                                                                                                                         | ✅ / ✅🔑🔑                      |
+| `POST /tickets/:id/seguimientos`    | Crea una nota para roles con capacidad `gestionar_tickets`; Controller recibe `403`. Admite el acceso SysAdmin a cuarentena. **`autor_usuario_id`, `autor` y el contexto se derivan en el backend desde la sesión y el ticket**, así el historial no es falsificable.                                                                                                                                                                                                                                                                                                                                                              | ✅ excepto Controller / ✅🔑     |
 | `GET /dashboard/stats`              | Totales por estado/prioridad, vencidos, resueltos hoy/período, nuevos hoy/período y tiempo promedio. Admite `fecha_desde`/`fecha_hasta` inclusivas por fecha de creación; resueltos del período pertenece a esa misma cohorte.                                                                                                                                                                                                                                                                                                                                                                                                     | ✅                               |
 | `GET /dashboard/actividad-reciente` | Mezcla de tickets creados + seguimientos, ordenados por fecha, con `limit` y `fecha_desde`/`fecha_hasta`; el rango se aplica a la fecha real de cada evento.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | ✅                               |
 | `GET /dashboard/tickets-vencidos`   | Los que pasaron `fecha_limite` sin llegar a `resuelto`/`cerrado`, hasta 20; admite rango inclusivo por fecha de creación.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | ✅                               |
 | `GET /dashboard/motivos`            | Conteo por `motivo_categoria` (no por texto libre), con label y rango inclusivo por fecha de creación.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | ✅                               |
+| `GET /rendimiento`                  | Estado contract-first del módulo ejecutivo: devuelve `estado: "preparacion"` y las vistas previstas, sin fabricar métricas. Toda la frontera `/rendimiento` nace protegida por `requirePerformanceAccess` y responde con `Cache-Control: private, no-store`.                                                                                                                                                                                                                                                                                                                                                                       | ✅🧭                             |
 | `POST /admin/tickets`               | Alta manual (`409` si el `conversation_id` ya existe). Una `fecha_limite` explícita debe ser RFC3339 con zona. Emite `ticket_creado` para tickets operativos y `datos_actualizados` si el registro queda en cuarentena por estar vacío.                                                                                                                                                                                                                                                                                                                                                                                            | ✅🔑🔑                           |
 | `GET /admin/roles`                  | Listado paginado de roles, con `search` sobre nombre/descripción.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | ✅🔑🔑                           |
 | `POST /admin/roles`                 | Crea un rol (`409` si el nombre ya existe).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | ✅🔑🔑                           |
@@ -147,7 +150,7 @@ Todas bajo el prefijo `/api`. ✅ = requiere sesión. 🔑 = además, rol SysAdm
 
 ## Autenticación y autorización
 
-La política de roles vive en `src/lib/rbac.ts`; sesiones y middlewares, en [`src/lib/auth.ts`](src/lib/auth.ts).
+La política de roles y capacidades vive en [`src/modules/auth/domain/rbac.ts`](src/modules/auth/domain/rbac.ts); sesiones y middlewares, en [`src/modules/auth/application/session.ts`](src/modules/auth/application/session.ts).
 
 ### Sesiones
 
@@ -163,7 +166,7 @@ La política de roles vive en `src/lib/rbac.ts`; sesiones y middlewares, en [`sr
 
 ### Protección del login
 
-`src/lib/login-rate-limit.ts` reserva cada intento **antes** de consultar la contraseña. La clave es un SHA-256 con separación de dominio del `username` normalizado, nunca el nombre en claro. Una reserva pendiente evita que solicitudes paralelas atraviesen juntas el cupo, pero solo se confirma como fallo después de que el KDF rechazó las credenciales. Diez fallos dentro de una ventana deslizante de 15 minutos hacen que la siguiente solicitud active un bloqueo de 15 minutos y devuelva `429 LOGIN_RATE_LIMITED`, `Retry-After`, `retry_after_seconds` y `Cache-Control: no-store`. Usuario inexistente, inactivo, rol inactivo y contraseña incorrecta recorren el mismo contador y conservan el mismo error genérico.
+`src/modules/auth/security/login-rate-limit.ts` reserva cada intento **antes** de consultar la contraseña. La clave es un SHA-256 con separación de dominio del `username` normalizado, nunca el nombre en claro. Una reserva pendiente evita que solicitudes paralelas atraviesen juntas el cupo, pero solo se confirma como fallo después de que el KDF rechazó las credenciales. Diez fallos dentro de una ventana deslizante de 15 minutos hacen que la siguiente solicitud active un bloqueo de 15 minutos y devuelva `429 LOGIN_RATE_LIMITED`, `Retry-After`, `retry_after_seconds` y `Cache-Control: no-store`. Usuario inexistente, inactivo, rol inactivo y contraseña incorrecta recorren el mismo contador y conservan el mismo error genérico.
 
 Un login confirmado elimina el contador de su identidad. Crear o renombrar una cuenta y restablecer su contraseña también limpian los buckets pertinentes, por lo que la recuperación administrativa no deja al usuario esperando un bloqueo anterior. Las solicitudes que no consiguen lugar para verificar credenciales o terminan en `5xx` reembolsan su reserva y no se convierten en fallos de contraseña. Cortar la conexión no cancela una verificación ya admitida: su resultado real cierra la reserva, evitando que un cliente pueda eludir el límite mediante abortos deliberados.
 
@@ -179,17 +182,18 @@ El contrato OpenAPI tipa los códigos de `/auth/password` mediante `PasswordChan
 
 ### Roles
 
-Tres roles base por nombre (constantes en `rbac.ts`, espejadas en `frontend/src/lib/roles.ts`):
+Cuatro roles de sistema por nombre (constantes en `modules/auth/domain/rbac.ts`, espejadas en `frontend/src/lib/roles.ts`):
 
-| Constante           | Valor             | Regla                                                                                                       |
-| ------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------- |
-| `ROL_SYSADMIN`      | `"SysAdmin"`      | Único que pasa `requireSysAdmin` → único con acceso a `/admin/*`                                            |
-| `ROL_ADMINISTRADOR` | `"Administrador"` | `puedeCerrarTickets()` devuelve `true`                                                                      |
-| `ROL_OPERADOR`      | `"Operador"`      | `puedeCerrarTickets()` devuelve `false` — el `PATCH /tickets/:id` con `estado: "cerrado"` le responde `403` |
+| Constante           | Valor             | Capacidades efectivas                                                                                 |
+| ------------------- | ----------------- | ----------------------------------------------------------------------------------------------------- |
+| `ROL_SYSADMIN`      | `"SysAdmin"`      | Dashboard, lectura/gestión/cierre de Tickets, Rendimiento y Administración                            |
+| `ROL_CONTROLLER`    | `"Controller"`    | Dashboard, lectura de Tickets y Rendimiento; no gestiona tickets ni accede a Administración           |
+| `ROL_ADMINISTRADOR` | `"Administrador"` | Dashboard y gestión completa de Tickets, incluido el cierre; sin Rendimiento ni Administración        |
+| `ROL_OPERADOR`      | `"Operador"`      | Dashboard y gestión básica de Tickets; no puede cerrarlos, ver Rendimiento ni entrar a Administración |
 
-Los tres nombres quedan reservados sin distinguir mayúsculas: esos roles no se pueden renombrar, desactivar ni eliminar, aunque sí se puede corregir su descripción. Los roles personalizados conservan su CRUD; uno inactivo no admite nuevas asignaciones y revoca las sesiones y streams de sus usuarios. El backend también impide desactivar o degradar al último SysAdmin activo que tenga username y un hash scrypt utilizable.
+Los cuatro nombres quedan reservados sin distinguir mayúsculas: esos roles no se pueden renombrar, desactivar ni eliminar, aunque sí se puede corregir su descripción. Los roles personalizados conservan su CRUD y el alcance operativo histórico; uno inactivo no admite nuevas asignaciones y revoca las sesiones y streams de sus usuarios. El backend también impide desactivar o degradar al último SysAdmin activo que tenga username y un hash scrypt utilizable.
 
-> La autorización todavía se resuelve **por nombre protegido**. Un futuro catálogo de capacidades podrá reemplazar esta decisión sin depender de IDs locales.
+La autorización se expresa mediante capacidades estáticas (`ver_dashboard`, `ver_tickets`, `gestionar_tickets`, `cerrar_tickets`, `ver_rendimiento`, `administrar`). `requireTicketWriteAccess` bloquea todas las mutaciones de Controller y `requirePerformanceAccess` limita Rendimiento a SysAdmin/Controller; ocultar controles en React es solo una mejora de UX.
 
 ### Borrado de usuarios frente a desactivación
 
@@ -225,7 +229,7 @@ Operador recibe `403` igual.
 
 ### El webhook es independiente
 
-`requireWebhookKey` no usa sesión: valida el header `x-api-key` contra `WEBHOOK_API_KEY` con comparación en tiempo constante (`timingSafeEqual` sobre un hash SHA-256, para no filtrar la clave por timing). Igual que la administración, si su variable no está configurada responde `503` y queda cerrado.
+`requireWebhookKey` no usa sesión: valida el header `x-api-key` contra `WEBHOOK_API_KEY` con comparación en tiempo constante (`timingSafeEqual` sobre un hash SHA-256, para no filtrar la clave por timing). Si la variable no está configurada responde `503` y el webhook queda cerrado. Este flujo vive en `modules/ingestion` y no concede acceso a Dashboard, Tickets, Rendimiento ni Administración.
 
 ### Contraseñas
 
@@ -235,15 +239,15 @@ El login y el campo `password_actual` son deliberadamente distintos: aceptan de 
 
 La migración `0010_require_password_change.sql` agrega el booleano con `NOT NULL`, `DEFAULT true` y un `CHECK` cerrado a `0/1`. Después marca explícitamente en `false` a las cuentas históricas para no interrumpirlas. Las altas futuras quedan protegidas por defecto incluso si un consumidor omite el campo.
 
-`src/lib/passwords.ts` usa **scrypt asíncrono** del módulo `crypto` nativo de Node (sin dependencias externas como bcrypt/argon2), con parámetros explícitos `N=16384`, `r=8`, `p=1` y `maxmem=64 MiB`. El trabajo se ejecuta en el pool de libuv y no bloquea el event loop del servidor.
+`src/modules/auth/security/passwords.ts` usa **scrypt asíncrono** del módulo `crypto` nativo de Node (sin dependencias externas como bcrypt/argon2), con parámetros explícitos `N=16384`, `r=8`, `p=1` y `maxmem=64 MiB`. El trabajo se ejecuta en el pool de libuv y no bloquea el event loop del servidor.
 
 El formato actual es `scrypt$v1$16384$8$1$<salt-hex>$<hash-hex>`. Se siguen verificando los hashes históricos `scrypt:<salt-hex>:<hash-hex>` y, tras un login correcto, se reemplazan automáticamente por el formato versionado con una sal nueva. Antes de emitir la sesión se releen usuario, rol y hash dentro de una transacción; un reset concurrente impide autenticar la contraseña anterior. Dos logins simultáneos que verificaron el mismo hash legado revalidan una sola vez el hash migrado, por lo que ambos pueden crear su sesión si la clave continúa siendo válida. `verifyPassword` compara con `timingSafeEqual` y el login deriva una clave dummy equivalente cuando la identidad o el hash no existen, evitando enumeración por una diferencia obvia de costo criptográfico.
 
-### Seed inicial (`src/lib/seed.ts`)
+### Seed inicial (`src/modules/auth/application/seed.ts`)
 
 Se ejecuta una vez en cada arranque del backend (`await ensureAdminSeed()` en `index.ts`, antes de abrir el puerto):
 
-1. **Roles base**: crea `SysAdmin`, `Administrador` y `Operador` si faltan y reactiva cualquiera que hubiese quedado inactivo. Nunca renombra `Administrador` a `SysAdmin`, porque eso promovería también a todos sus usuarios.
+1. **Roles base**: crea `SysAdmin`, `Controller`, `Administrador` y `Operador` si faltan y reactiva cualquiera que hubiese quedado inactivo. Nunca renombra `Administrador` a `SysAdmin`, porque eso promovería también a todos sus usuarios.
 2. **Compatibilidad de identidad**: si existe el usuario histórico `admin` y no existe `sysadmin`, normaliza únicamente esa identidad. Al rotar el seed heredado le asigna el rol `SysAdmin` canónico; los demás usuarios de `Administrador` permanecen en su rol.
 3. **Alta inicial segura**: si ningún usuario tiene `password_hash`, exige `BOOTSTRAP_SYSADMIN_PASSWORD` (8 a 128 caracteres), crea el rol `SysAdmin`, guarda únicamente el hash scrypt y deja la contraseña como temporal. La validación ocurre antes de modificar filas y el backend no abre el puerto si falta o es inválida.
 4. **Upgrade seguro**: detecta exclusivamente si `sysadmin` —o el nombre histórico `admin`— todavía conserva la credencial pública del seed anterior. En ese caso exige el mismo secreto externo, rota el hash, lo marca como temporal y revoca sus sesiones dentro de una transacción.
@@ -348,7 +352,7 @@ No se puede borrar un rol con usuarios asignados (`409`), aunque esté inactivo.
 
 - `clasificarMotivo(motivo, resumen?)` normaliza el texto (minúsculas, sin tildes, sin puntuación) y lo corre contra una lista ordenada de reglas (`REGLAS_CLASIFICACION_MOTIVO`, cada una con una categoría y un array de regex). **Gana la primera regla que matchea**, evaluada de la más específica a la más general (ej. "liquidación" antes que "sueldo", para no confundir un despido con una consulta de haberes).
 - Si `motivo` no matchea ninguna regla, se prueba con `resumen` antes de rendirse. Si tampoco, cae en `sin_clasificar`.
-- Al arrancar, `backend/src/lib/reclasificar-motivos.ts` compara la categoría guardada con el resultado actual y actualiza solo las diferencias mediante compare-and-set. Así los históricos convergen a las mismas reglas que los tickets nuevos sin alterar los datos fuente.
+- Al arrancar, `backend/src/modules/tickets/application/reclassify-reasons.ts` compara la categoría guardada con el resultado actual y actualiza solo las diferencias mediante compare-and-set. Así los históricos convergen a las mismas reglas que los tickets nuevos sin alterar los datos fuente.
 - Categorías actuales: `haberes_pagos`, `recibos_documentacion`, `vacaciones_licencias`, `bajas_liquidacion`, `empleo_postulaciones`, `contacto_general`, `reclamos`, `legales`, `embargos`, `sin_clasificar`.
 - `legales` exige señales jurídicas concretas (por ejemplo, carta documento, telegrama laboral, contacto explícito con un abogado, SECLO, intimación o consulta jurídica). Una profesión mencionada incidentalmente o la palabra `legal` aislada no alcanzan, para evitar falsos positivos.
 - `embargos` se evalúa antes de `legales` y de las reglas generales. Reconoce variantes directas de embargo/desembargo y órdenes o retenciones judiciales, pero excluye expresamente “sin embargo” para reducir falsos positivos.
@@ -381,7 +385,7 @@ En las respuestas de `Ticket` y `Seguimiento`, una columna nullable siempre cons
 `lib/ingesta/src/index.ts` (`@workspace/ingesta`) es una librería **pura** (sin DB, sin Node más allá de lo estándar) compartida por dos consumidores:
 
 - `scripts/src/import-excel.ts` — CLI, agrega soporte `.xlsx` vía `exceljs` encima de esto.
-- `backend/src/routes/admin.ts` (`POST /admin/import`) — importador web.
+- `backend/src/modules/administracion/http/bulk-router.ts` (`POST /admin/import`) — importador web.
 
 Expone: `parseCsv` (parser RFC 4180 con autodetección de `;`/`,`), `detectarColumnas` (mapea encabezados por alias — ver `HEADER_ALIASES` — tolerando variantes de nombre/acentos), `filaATicket` (combina fecha/hora histórica, valida formatos, convierte una fila cruda y aplica el SLA/clasificación), `fechaExcelAStringLocal` (conserva la hora civil de una celda Excel), `calcularFechaLimiteSla`/`sumarHorasHabiles`, el cálculo firmado de horas hábiles restantes y la prioridad mínima correspondiente, además de las constantes `ESTADOS_VALIDOS`/`PRIORIDADES_VALIDAS`.
 
@@ -389,7 +393,7 @@ Tanto el importador HTTP como el CLI preparan las filas antes de abrir la transa
 
 ## Eventos en vivo (SSE)
 
-`src/lib/events.ts` mantiene un `Map` en memoria con cada respuesta HTTP abierta y su identidad de usuario/sesión (una por pestaña conectada a `GET /api/events`). `broadcastEvent(tipo, data)` escribe `data: {...}\n\n` a todos los clientes conectados.
+`src/shared/realtime/events.ts` mantiene un `Map` en memoria con cada respuesta HTTP abierta y su identidad de usuario/sesión (una por pestaña conectada a `GET /api/events`). `broadcastEvent(tipo, data)` escribe `data: {...}\n\n` a todos los clientes conectados.
 
 Emisores actuales:
 
