@@ -8,6 +8,7 @@ import {
   type AuthUser,
   type RendimientoCalidadDatos,
   type RendimientoPersonas,
+  type RendimientoReiteraciones,
   type RendimientoResumenEquipo,
 } from "@workspace/api-client-react";
 import { Router } from "wouter";
@@ -182,6 +183,81 @@ function personasResponse(): RendimientoPersonas {
   };
 }
 
+function reiteracionesResponse(): RendimientoReiteraciones {
+  return {
+    periodo: {
+      fecha_desde: "2026-08-01",
+      fecha_hasta: "2026-08-13",
+      timezone: "America/Argentina/Buenos_Aires",
+      generado_en: "2026-08-13T15:00:00.000Z",
+    },
+    tickets_evaluados: 154,
+    cobertura: {
+      identidad_utilizable: {
+        numerador: 120,
+        denominador: 154,
+        porcentaje: 77.9,
+      },
+      ambiguos_detectados: 0,
+      criterio: "clave_canonica_no_transitiva",
+    },
+    resumen: {
+      contactos_reiterados: 1,
+      tickets_involucrados: 2,
+      abiertos: 1,
+      vencidos_abiertos: 1,
+    },
+    contactos: [
+      {
+        grupo_id: "grupo-opaco-shell",
+        nombre_referencia: "Grace Hopper",
+        coincidencia: {
+          tipo: "email",
+          valor_enmascarado: "g***@example.test",
+        },
+        cantidad_llamados: 2,
+        abiertos: 1,
+        vencidos_abiertos: 1,
+        primer_contacto: "2026-08-02T14:00:00.000Z",
+        ultimo_contacto: "2026-08-12T14:00:00.000Z",
+        antiguedad_abierto_horas: 26,
+        prioridad_maxima: "urgente",
+        responsables: [
+          {
+            usuario_id: 1,
+            nombre: "Ada Lovelace",
+            cantidad_abiertos: 1,
+          },
+        ],
+        tickets: [
+          {
+            id: 202,
+            fecha_creacion: "2026-08-12T14:00:00.000Z",
+            estado: "en_proceso",
+            prioridad: "urgente",
+            fecha_limite: "2026-08-13T14:00:00.000Z",
+            vencido: true,
+            motivo_categoria: "reclamos",
+            asignado_usuario_id: 1,
+            asignado_a: "Ada Lovelace",
+          },
+          {
+            id: 201,
+            fecha_creacion: "2026-08-02T14:00:00.000Z",
+            estado: "cerrado",
+            prioridad: "media",
+            fecha_limite: null,
+            vencido: false,
+            motivo_categoria: "contacto_general",
+            asignado_usuario_id: 1,
+            asignado_a: "Ada Lovelace",
+          },
+        ],
+      },
+    ],
+  };
+}
+
 function getRequestUrl(input: RequestInfo | URL): string {
   if (typeof input === "string") return input;
   return input instanceof URL ? input.toString() : input.url;
@@ -206,7 +282,7 @@ test("autoriza Rendimiento únicamente para SysAdmin y Controller", (t) => {
   }
 });
 
-test("presenta Resumen, Personas y Calidad operativos y conserva Reiteraciones en preparación", async (t) => {
+test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t) => {
   t.after(cleanup);
   const previousFetch = globalThis.fetch;
   const requestedUrls: string[] = [];
@@ -222,6 +298,12 @@ test("presenta Resumen, Personas y Calidad operativos y conserva Reiteraciones e
     }
     if (url.includes("/rendimiento/personas")) {
       return new Response(JSON.stringify(personasResponse()), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.includes("/rendimiento/reiteraciones")) {
+      return new Response(JSON.stringify(reiteracionesResponse()), {
         status: 200,
         headers: { "content-type": "application/json" },
       });
@@ -315,9 +397,23 @@ test("presenta Resumen, Personas y Calidad operativos y conserva Reiteraciones e
   const repetitionsTab = screen.getByRole("tab", { name: "Reiteraciones" });
   await user.click(repetitionsTab);
   assert.equal(repetitionsTab.getAttribute("aria-selected"), "true");
-  assert.ok(screen.getByRole("heading", { name: "Contactos reiterados" }));
-  assert.ok(screen.getByText("En preparación"));
-  assert.ok(screen.getByText("Próxima etapa"));
+  assert.ok(
+    await screen.findByRole("heading", { name: "Contactos reiterados" }),
+  );
+  assert.ok(screen.getByRole("heading", { name: "Cobertura de identidad" }));
+  assert.ok(screen.getByRole("heading", { name: "Grace Hopper" }));
+  assert.ok(
+    screen.getByRole("link", {
+      name: "Abrir ticket #202 de Grace Hopper",
+    }),
+  );
+  assert.equal(screen.queryByText("En preparación"), null);
+  assert.equal(screen.queryByText("Próxima etapa"), null);
+  assert.equal(
+    requestedUrls.filter((url) => url.includes("/rendimiento/reiteraciones"))
+      .length,
+    1,
+  );
 
   const qualityTab = screen.getByRole("tab", { name: "Calidad de datos" });
   await user.click(qualityTab);
