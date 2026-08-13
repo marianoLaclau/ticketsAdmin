@@ -436,6 +436,9 @@ describe("consulta de contactos reiterados", () => {
     );
 
     assert.deepEqual(result, {
+      pagina: 1,
+      limite: 20,
+      total_paginas: 0,
       tickets_evaluados: 0,
       cobertura: {
         identidad_utilizable: {
@@ -458,6 +461,124 @@ describe("consulta de contactos reiterados", () => {
       () => runRendimientoRepetitionQuery(database, {}, new Date(Number.NaN)),
       /instante de reiteraciones no es valido/,
     );
+    sqlite.close();
+  });
+
+  it("pagina grupos en SQL sin recortar cobertura ni resumen global", () => {
+    const { sqlite, database } = createDatabase();
+    const now = new Date("2026-08-20T12:00:00.000Z");
+
+    for (let group = 1; group <= 5; group += 1) {
+      const day = String(group).padStart(2, "0");
+      const email = `grupo-${group}@example.test`;
+      insertTicket(sqlite, {
+        conversationId: `grupo-${group}-cerrado`,
+        createdAt: `2026-08-${day}T08:00:00.000Z`,
+        name: `Contacto ${group}`,
+        email,
+        status: "cerrado",
+      });
+      insertTicket(sqlite, {
+        conversationId: `grupo-${group}-abierto`,
+        createdAt: `2026-08-${day}T10:00:00.000Z`,
+        name: `Contacto ${group}`,
+        email,
+        status: "nuevo",
+      });
+    }
+
+    const firstPage = runRendimientoRepetitionQuery(
+      database,
+      { pagina: 1, limite: 2 },
+      now,
+    );
+    const secondPage = runRendimientoRepetitionQuery(
+      database,
+      { pagina: 2, limite: 2 },
+      now,
+    );
+    const emptyPage = runRendimientoRepetitionQuery(
+      database,
+      { pagina: 4, limite: 2 },
+      now,
+    );
+
+    const globalSummary = {
+      contactos_reiterados: 5,
+      tickets_involucrados: 10,
+      abiertos: 5,
+      vencidos_abiertos: 0,
+    };
+    assert.deepEqual(
+      {
+        pagina: firstPage.pagina,
+        limite: firstPage.limite,
+        total_paginas: firstPage.total_paginas,
+        tickets_evaluados: firstPage.tickets_evaluados,
+      },
+      { pagina: 1, limite: 2, total_paginas: 3, tickets_evaluados: 10 },
+    );
+    assert.deepEqual(firstPage.resumen, globalSummary);
+    assert.deepEqual(secondPage.resumen, globalSummary);
+    assert.deepEqual(emptyPage.resumen, globalSummary);
+    assert.deepEqual(firstPage.cobertura.identidad_utilizable, {
+      numerador: 10,
+      denominador: 10,
+      porcentaje: 100,
+    });
+    assert.deepEqual(
+      firstPage.contactos.map((contact) => contact.grupo_id),
+      ["grupo-1", "grupo-2"],
+    );
+    assert.deepEqual(
+      secondPage.contactos.map((contact) => contact.grupo_id),
+      ["grupo-3", "grupo-4"],
+    );
+    assert.deepEqual(
+      secondPage.contactos.map((contact) => contact.nombre_referencia),
+      ["Contacto 3", "Contacto 4"],
+    );
+    assert.deepEqual(
+      {
+        pagina: emptyPage.pagina,
+        limite: emptyPage.limite,
+        total_paginas: emptyPage.total_paginas,
+        contactos: emptyPage.contactos,
+      },
+      { pagina: 4, limite: 2, total_paginas: 3, contactos: [] },
+    );
+
+    sqlite.close();
+  });
+
+  it("valida pagina y limita el tamano maximo a cincuenta grupos", () => {
+    const { sqlite, database } = createDatabase();
+    const now = new Date("2026-08-20T12:00:00.000Z");
+
+    assert.throws(
+      () =>
+        runRendimientoRepetitionQuery(database, { pagina: 0, limite: 20 }, now),
+      /pagina de reiteraciones debe ser un entero positivo/,
+    );
+    assert.throws(
+      () =>
+        runRendimientoRepetitionQuery(
+          database,
+          { pagina: 1.5, limite: 20 },
+          now,
+        ),
+      /pagina de reiteraciones debe ser un entero positivo/,
+    );
+    assert.throws(
+      () =>
+        runRendimientoRepetitionQuery(database, { pagina: 1, limite: 51 }, now),
+      /limite de reiteraciones debe ser un entero entre 1 y 50/,
+    );
+    assert.equal(
+      runRendimientoRepetitionQuery(database, { limite: 50 }, now).limite,
+      50,
+    );
+
     sqlite.close();
   });
 });

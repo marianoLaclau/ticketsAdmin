@@ -18,18 +18,25 @@ import {
 import {
   normalizedContactDigits,
   normalizedContactText,
+  usableDniContactIdentity,
   usableEmailContactIdentity,
-  usableNumericContactIdentity,
+  usablePhoneContactIdentity,
 } from "./contact-identity";
 
 type PerformanceDatabase<TSchema extends Record<string, unknown>> =
   BetterSQLite3Database<TSchema>;
 
-export type PerformanceRepetitionFilters = PerformanceFilters;
+export type PerformanceRepetitionFilters = PerformanceFilters & {
+  pagina?: number;
+  limite?: number;
+};
 
 type ContactKeyType = "dni" | "telefono" | "email";
 
 export type PerformanceRepetitionResult = {
+  pagina: number;
+  limite: number;
+  total_paginas: number;
   tickets_evaluados: number;
   cobertura: {
     identidad_utilizable: QualityProportion;
@@ -79,9 +86,14 @@ type RawCoverage = {
   tickets_evaluados: number;
   identidad_utilizable: number;
   ambiguos_detectados: number;
+  contactos_reiterados: number;
+  tickets_involucrados: number;
+  abiertos: number;
+  vencidos_abiertos: number;
 };
 
 type RawRepeatedTicket = {
+  group_position: number;
   canonical_type: ContactKeyType;
   canonical_value: string;
   ticket_id: number;
@@ -105,6 +117,9 @@ const PRIORITY_WEIGHT: Record<Prioridad, number> = {
   urgente: 3,
 };
 const HOURS_IN_MILLISECONDS = 3_600_000;
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 50;
 
 function buildIdentityCtes(filters: PerformanceRepetitionFilters) {
   const cohortCondition = and(...buildPerformanceCohortConditions(filters))!;
@@ -126,12 +141,12 @@ function buildIdentityCtes(filters: PerformanceRepetitionFilters) {
         ${ticketsTable.fecha_creacion} as fecha_creacion,
         ${ticketsTable.fecha_limite} as fecha_limite,
         case
-          when ${usableNumericContactIdentity(ticketsTable.dni, 7, 11)}
+          when ${usableDniContactIdentity(ticketsTable.dni)}
             then ${normalizedDni}
           else null
         end as dni_normalizado,
         case
-          when ${usableNumericContactIdentity(ticketsTable.telefono, 7, 15)}
+          when ${usablePhoneContactIdentity(ticketsTable.telefono)}
             then ${normalizedPhone}
           else null
         end as telefono_normalizado,
@@ -198,6 +213,78 @@ function buildIdentityCtes(filters: PerformanceRepetitionFilters) {
   `;
 }
 
+function buildRepeatedGroupsCtes(
+  filters: PerformanceRepetitionFilters,
+  now: Date,
+) {
+  return sql`
+    ${buildIdentityCtes(filters)},
+    repeated_groups as (
+      select
+        canonical_type,
+        canonical_value,
+        count(*) as cantidad_llamados,
+        sum(
+          case when estado not in ('resuelto', 'cerrado') then 1 else 0 end
+        ) as abiertos,
+        sum(
+          case
+            when estado not in ('resuelto', 'cerrado')
+              and fecha_limite is not null
+              and fecha_limite < ${now.getTime()}
+              then 1
+            else 0
+          end
+        ) as vencidos_abiertos,
+        min(fecha_creacion) as primer_contacto,
+        max(fecha_creacion) as ultimo_contacto,
+        min(
+          case
+            when estado not in ('resuelto', 'cerrado') then fecha_creacion
+            else null
+          end
+        ) as primer_abierto,
+        max(
+          case
+            when estado in ('resuelto', 'cerrado') then 0
+            when prioridad = 'urgente' then 3
+            when prioridad = 'alta' then 2
+            when prioridad = 'media' then 1
+            else 0
+          end
+        ) as prioridad_peso
+      from canonical
+      where canonical_type is not null
+      group by canonical_type, canonical_value
+      having count(*) >= 2
+        and sum(
+          case when estado not in ('resuelto', 'cerrado') then 1 else 0 end
+        ) >= 1
+    )
+  `;
+}
+
+function resolvePagination(filters: PerformanceRepetitionFilters): {
+  page: number;
+  pageSize: number;
+} {
+  const page = filters.pagina ?? DEFAULT_PAGE;
+  const pageSize = filters.limite ?? DEFAULT_PAGE_SIZE;
+
+  if (!Number.isInteger(page) || page < 1) {
+    throw new RangeError(
+      "La pagina de reiteraciones debe ser un entero positivo",
+    );
+  }
+  if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
+    throw new RangeError(
+      `El limite de reiteraciones debe ser un entero entre 1 y ${MAX_PAGE_SIZE}`,
+    );
+  }
+
+  return { page, pageSize };
+}
+
 function maskedContactValue(type: ContactKeyType, value: string): string {
   if (type === "dni") return `DNI ••••${value.slice(-4)}`;
   if (type === "telefono") return `Tel. ••••${value.slice(-4)}`;
@@ -231,7 +318,7 @@ function compareText(left: string, right: string): number {
  * Detecta coincidencias operativas sin construir componentes conexas. Cada
  * ticket pertenece a una sola clave; una identidad secundaria solo puede
  * heredar un DNI que aparezca directamente y de forma univoca en la cohorte.
- * La consulta ejecuta dos agregaciones fijas dentro de un snapshot, nunca N+1.
+ * La consulta ejecuta dos lecturas fijas dentro de un snapshot, nunca N+1.
  */
 export function runRendimientoRepetitionQuery<
   TSchema extends Record<string, unknown>,
@@ -243,22 +330,35 @@ export function runRendimientoRepetitionQuery<
   if (Number.isNaN(now.getTime())) {
     throw new RangeError("El instante de reiteraciones no es valido");
   }
+  const { page, pageSize } = resolvePagination(filters);
+  const pageOffset = (page - 1) * pageSize;
 
   return database.transaction((tx): PerformanceRepetitionResult => {
     const coverage = tx.get<RawCoverage>(sql`
-      with ${buildIdentityCtes(filters)}
+      with ${buildRepeatedGroupsCtes(filters, now)}
       select
-        count(*) as tickets_evaluados,
-        coalesce(sum(
-          case when canonical_type is not null then 1 else 0 end
+        (select count(*) from canonical) as tickets_evaluados,
+        coalesce((
+          select sum(case when canonical_type is not null then 1 else 0 end)
+          from canonical
         ), 0) as identidad_utilizable,
-        coalesce(sum(
-          case
-            when dni_normalizado is null and cantidad_dni_directos > 1 then 1
-            else 0
-          end
-        ), 0) as ambiguos_detectados
-      from canonical
+        coalesce((
+          select sum(
+            case
+              when dni_normalizado is null and cantidad_dni_directos > 1 then 1
+              else 0
+            end
+          )
+          from canonical
+        ), 0) as ambiguos_detectados,
+        (select count(*) from repeated_groups) as contactos_reiterados,
+        coalesce((
+          select sum(cantidad_llamados) from repeated_groups
+        ), 0) as tickets_involucrados,
+        coalesce((select sum(abiertos) from repeated_groups), 0) as abiertos,
+        coalesce((
+          select sum(vencidos_abiertos) from repeated_groups
+        ), 0) as vencidos_abiertos
     `);
 
     if (!coverage) {
@@ -266,18 +366,29 @@ export function runRendimientoRepetitionQuery<
     }
 
     const rows = tx.all<RawRepeatedTicket>(sql`
-      with ${buildIdentityCtes(filters)},
-      repeated_keys as (
-        select canonical_type, canonical_value
-        from canonical
-        where canonical_type is not null
-        group by canonical_type, canonical_value
-        having count(*) >= 2
-          and sum(
-            case when estado not in ('resuelto', 'cerrado') then 1 else 0 end
-          ) >= 1
+      with ${buildRepeatedGroupsCtes(filters, now)},
+      ordered_groups as (
+        select
+          repeated_groups.*,
+          row_number() over (
+            order by
+              case when vencidos_abiertos > 0 then 1 else 0 end desc,
+              prioridad_peso desc,
+              primer_abierto asc,
+              ultimo_contacto desc,
+              canonical_type asc,
+              canonical_value asc
+          ) as group_position
+        from repeated_groups
+      ),
+      page_keys as (
+        select *
+        from ordered_groups
+        where group_position > ${pageOffset}
+          and group_position <= ${pageOffset + pageSize}
       )
       select
+        page_keys.group_position as group_position,
         canonical.canonical_type as canonical_type,
         canonical.canonical_value as canonical_value,
         canonical.ticket_id as ticket_id,
@@ -294,14 +405,13 @@ export function runRendimientoRepetitionQuery<
         canonical.fecha_creacion as fecha_creacion,
         canonical.fecha_limite as fecha_limite
       from canonical
-      inner join repeated_keys
-        on repeated_keys.canonical_type = canonical.canonical_type
-        and repeated_keys.canonical_value = canonical.canonical_value
+      inner join page_keys
+        on page_keys.canonical_type = canonical.canonical_type
+        and page_keys.canonical_value = canonical.canonical_value
       left join ${usuariosTable}
         on ${usuariosTable.id} = canonical.asignado_usuario_id
       order by
-        canonical.canonical_type,
-        canonical.canonical_value,
+        page_keys.group_position,
         canonical.fecha_creacion desc,
         canonical.ticket_id desc
     `);
@@ -356,6 +466,7 @@ export function runRendimientoRepetitionQuery<
       }
 
       return {
+        _group_position: Number(newest.group_position),
         _canonical_type: newest.canonical_type,
         _canonical_value: newest.canonical_value,
         grupo_id: "",
@@ -417,31 +528,31 @@ export function runRendimientoRepetitionQuery<
     });
 
     contacts.sort(
-      (left, right) =>
-        Number(right.vencidos_abiertos > 0) -
-          Number(left.vencidos_abiertos > 0) ||
-        PRIORITY_WEIGHT[right.prioridad_maxima] -
-          PRIORITY_WEIGHT[left.prioridad_maxima] ||
-        (right.antiguedad_abierto_horas ?? 0) -
-          (left.antiguedad_abierto_horas ?? 0) ||
-        right.ultimo_contacto.getTime() - left.ultimo_contacto.getTime() ||
-        compareText(left._canonical_type, right._canonical_type) ||
-        compareText(left._canonical_value, right._canonical_value),
+      (left, right) => left._group_position - right._group_position,
     );
 
     const publicContacts = contacts.map(
-      (
-        { _canonical_type: _type, _canonical_value: _value, ...contact },
-        index,
-      ) => ({
+      ({
+        _group_position: groupPosition,
+        _canonical_type: _type,
+        _canonical_value: _value,
+        ...contact
+      }) => ({
         ...contact,
-        grupo_id: `grupo-${index + 1}`,
+        grupo_id: `grupo-${groupPosition}`,
       }),
     );
     const evaluatedTickets = Number(coverage.tickets_evaluados);
     const usableIdentities = Number(coverage.identidad_utilizable);
+    const totalRepeatedContacts = Number(coverage.contactos_reiterados);
 
     return {
+      pagina: page,
+      limite: pageSize,
+      total_paginas:
+        totalRepeatedContacts === 0
+          ? 0
+          : Math.ceil(totalRepeatedContacts / pageSize),
       tickets_evaluados: evaluatedTickets,
       cobertura: {
         identidad_utilizable: buildQualityProportion(
@@ -452,19 +563,10 @@ export function runRendimientoRepetitionQuery<
         criterio: "clave_canonica_no_transitiva",
       },
       resumen: {
-        contactos_reiterados: publicContacts.length,
-        tickets_involucrados: publicContacts.reduce(
-          (total, contact) => total + contact.cantidad_llamados,
-          0,
-        ),
-        abiertos: publicContacts.reduce(
-          (total, contact) => total + contact.abiertos,
-          0,
-        ),
-        vencidos_abiertos: publicContacts.reduce(
-          (total, contact) => total + contact.vencidos_abiertos,
-          0,
-        ),
+        contactos_reiterados: totalRepeatedContacts,
+        tickets_involucrados: Number(coverage.tickets_involucrados),
+        abiertos: Number(coverage.abiertos),
+        vencidos_abiertos: Number(coverage.vencidos_abiertos),
       },
       contactos: publicContacts,
     };
