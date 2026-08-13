@@ -3514,3 +3514,25 @@ porcentajes; los clientes React y validadores Zod se regeneraron desde esa fuent
 - Consultas, ruta y RBAC focales del backend: 78/78 pruebas aprobadas.
 - TypeScript, ESLint, Prettier y `git diff --check`: correctos para la etapa.
 - No se realizó push ni se habilitaron anticipadamente Personas o Reiteraciones.
+
+## 2026-08-13 — Rendimiento etapa 3: actividad individual
+
+**Agente:** Codex
+
+Se habilitó `GET /api/rendimiento/personas` y la pestaña **Personas** para
+SysAdmin y Controller. La atribución usa exclusivamente transiciones reales
+desde un estado no final a uno final con `autor_usuario_id`; nunca adjudica una
+resolución por la asignación actual. Se distinguen tickets resueltos de eventos
+de resolución, se muestran promedio y mediana con muestra, cumplimiento con
+`fecha_limite_snapshot`, carga abierta actual y resoluciones luego reabiertas.
+
+La reapertura se relaciona con la resolución previa y no con la persona que
+ejecutó la reapertura. La respuesta conserva usuarios activos e inactivos en
+orden alfabético y expone cobertura global con umbrales 10/80/95. La interfaz
+es deliberadamente descriptiva: no calcula puntajes, posiciones ni rankings.
+
+Validación focal: 20/20 contratos, 84/84 pruebas backend integradas, 5/5 casos
+SQL individuales y 6/6 pruebas de interfaz e integración. La base local mantuvo
+`integrity_check=ok`; sus registros históricos no poseen autor estructurado
+suficiente, por lo que la vista informa correctamente cobertura insuficiente.
+No se realizó push.
