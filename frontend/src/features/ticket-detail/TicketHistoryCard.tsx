@@ -11,6 +11,7 @@ import { EstadoBadge, formatDate, PrioridadBadge } from "@/lib/utils-tickets";
 interface TicketHistoryCardProps {
   seguimientos: readonly Seguimiento[] | undefined;
   isLoading: boolean;
+  canAddSeguimiento: boolean;
   draft: string;
   isSubmitting: boolean;
   onDraftChange: (value: string) => void;
@@ -20,6 +21,7 @@ interface TicketHistoryCardProps {
 export function TicketHistoryCard({
   seguimientos,
   isLoading,
+  canAddSeguimiento,
   draft,
   isSubmitting,
   onDraftChange,
@@ -34,27 +36,28 @@ export function TicketHistoryCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
-        {/* Add seguimiento form */}
-        <div className="p-4 bg-slate-50 border-b border-slate-100">
-          <div className="flex gap-3">
-            <Textarea
-              placeholder="Agregar una nota de seguimiento o actualización..."
-              aria-label="Nueva nota de seguimiento"
-              className="min-h-[80px] bg-white resize-y"
-              value={draft}
-              onChange={(event) => onDraftChange(event.target.value)}
-            />
+        {canAddSeguimiento && (
+          <div className="p-4 bg-slate-50 border-b border-slate-100">
+            <div className="flex gap-3">
+              <Textarea
+                placeholder="Agregar una nota de seguimiento o actualización..."
+                aria-label="Nueva nota de seguimiento"
+                className="min-h-[80px] bg-white resize-y"
+                value={draft}
+                onChange={(event) => onDraftChange(event.target.value)}
+              />
+            </div>
+            <div className="flex justify-end mt-3">
+              <Button
+                size="sm"
+                onClick={onSubmit}
+                disabled={!draft.trim() || isSubmitting}
+              >
+                {isSubmitting ? "Guardando..." : "Agregar Nota"}
+              </Button>
+            </div>
           </div>
-          <div className="flex justify-end mt-3">
-            <Button
-              size="sm"
-              onClick={onSubmit}
-              disabled={!draft.trim() || isSubmitting}
-            >
-              {isSubmitting ? "Guardando..." : "Agregar Nota"}
-            </Button>
-          </div>
-        </div>
+        )}
 
         {/* Timeline list */}
         <div className="p-4 sm:p-6">

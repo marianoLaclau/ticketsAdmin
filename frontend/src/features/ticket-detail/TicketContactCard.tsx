@@ -24,12 +24,14 @@ interface TicketContactCardProps {
   ticket: TicketContact;
   onEdit: () => void;
   isEditDisabled: boolean;
+  showEditAction: boolean;
 }
 
 export function TicketContactCard({
   ticket,
   onEdit,
   isEditDisabled,
+  showEditAction,
 }: TicketContactCardProps) {
   const contactoLabel = getContactDisplayName(ticket);
   const telefonoLabel = getContactDisplayPhone(ticket.telefono);
@@ -46,18 +48,20 @@ export function TicketContactCard({
         <CardTitle className="flex min-w-0 items-center gap-2 text-lg">
           <User className="h-5 w-5 text-primary" aria-hidden="true" />
           <span className="min-w-0 flex-1">Datos del Contacto</span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="ml-auto h-9 w-9 shrink-0 text-slate-500"
-            onClick={onEdit}
-            disabled={isEditDisabled}
-            aria-label="Editar datos del contacto"
-            title="Editar datos del contacto"
-          >
-            <Pencil className="h-4 w-4" aria-hidden="true" />
-          </Button>
+          {showEditAction && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="ml-auto h-9 w-9 shrink-0 text-slate-500"
+              onClick={onEdit}
+              disabled={isEditDisabled}
+              aria-label="Editar datos del contacto"
+              title="Editar datos del contacto"
+            >
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-4 space-y-4">

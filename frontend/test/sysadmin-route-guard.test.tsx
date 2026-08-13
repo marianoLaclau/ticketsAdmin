@@ -29,6 +29,12 @@ const OPERATOR: AuthUser = {
   email: "operador@example.test",
   rol: "Operador",
 };
+const CONTROLLER: AuthUser = {
+  ...SYSADMIN,
+  id: 88,
+  email: "controller@example.test",
+  rol: "Controller",
+};
 const TICKET: TicketDetailData = {
   id: 226,
   version: 1,
@@ -267,6 +273,106 @@ test("abrir un ticket reutiliza la sesión confirmada sin refetchear /me", async
   assert.equal(sessionFetches, 0);
   assert.ok(ticketFetches >= 1);
   assert.ok(seguimientoFetches >= 1);
+});
+
+test("Controller consulta Dashboard y Tickets sin acciones de gestión ni Administración", async (t) => {
+  const queryClient = createQueryClient();
+  queryClient.setQueryData(getGetMeQueryKey(), CONTROLLER, { updatedAt: 1 });
+  const previousAddEventListener = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "addEventListener",
+  );
+  const previousRemoveEventListener = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "removeEventListener",
+  );
+  Object.defineProperties(globalThis, {
+    addEventListener: {
+      configurable: true,
+      value: window.addEventListener.bind(window),
+    },
+    removeEventListener: {
+      configurable: true,
+      value: window.removeEventListener.bind(window),
+    },
+  });
+  let sessionFetches = 0;
+
+  t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (url.includes("/api/auth/me")) sessionFetches += 1;
+    if (url.includes("/api/dashboard/stats")) return statsResponse();
+    if (url.includes("/api/tickets/226/seguimientos")) {
+      return jsonResponse([]);
+    }
+    if (url.includes("/api/tickets/226")) return jsonResponse(TICKET);
+    throw new Error(`Request inesperado: ${url}`);
+  });
+  t.after(() => {
+    cleanup();
+    queryClient.clear();
+    if (previousAddEventListener) {
+      Object.defineProperty(
+        globalThis,
+        "addEventListener",
+        previousAddEventListener,
+      );
+    } else {
+      Reflect.deleteProperty(globalThis, "addEventListener");
+    }
+    if (previousRemoveEventListener) {
+      Object.defineProperty(
+        globalThis,
+        "removeEventListener",
+        previousRemoveEventListener,
+      );
+    } else {
+      Reflect.deleteProperty(globalThis, "removeEventListener");
+    }
+  });
+
+  const location = memoryLocation({ path: "/tickets/226" });
+  render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <AuthGate
+            acceptedUserId={CONTROLLER.id}
+            onAcceptUserId={() => undefined}
+            onConfirmedSessionLoss={() => undefined}
+            passwordChangeContent={<p>Cambiar contraseña</p>}
+          >
+            <Sidebar />
+            <Route path="/tickets/:id">
+              <TicketDetailPage />
+            </Route>
+          </AuthGate>
+        </Router>
+      </QueryClientProvider>
+    </StrictMode>,
+  );
+
+  await waitFor(() => {
+    assert.ok(screen.getByRole("heading", { name: TICKET.motivo }));
+  });
+
+  assert.ok(screen.getByRole("link", { name: /dashboard/i }));
+  assert.ok(screen.getByRole("link", { name: /tickets/i }));
+  assert.equal(screen.queryByRole("link", { name: /administración/i }), null);
+  assert.ok(screen.getByText("Datos del Contacto"));
+  assert.ok(screen.getByText("Historial y Seguimiento"));
+  assert.equal(screen.queryByRole("button", { name: /editar estado/i }), null);
+  assert.equal(
+    screen.queryByRole("button", { name: /editar datos del contacto/i }),
+    null,
+  );
+  assert.equal(
+    screen.queryByRole("textbox", { name: /nueva nota de seguimiento/i }),
+    null,
+  );
+  assert.equal(screen.queryByRole("button", { name: /agregar nota/i }), null);
+  await flushAsyncWork();
+  assert.equal(sessionFetches, 0);
 });
 
 test("un Operador ve 403 y nunca obtiene el acceso administrativo", async (t) => {

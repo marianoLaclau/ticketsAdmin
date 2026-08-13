@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LoadingStatus } from "@/components/ui/loading-status";
 
 import { isVencido, EstadoBadge, PrioridadBadge } from "@/lib/utils-tickets";
-import { puedeCerrarTickets } from "@/lib/roles";
+import { puedeCerrarTickets, puedeGestionarTickets } from "@/lib/roles";
 import { ErrorPage, getErrorStatus } from "@/components/ErrorPage";
 import { getAppHref } from "@/lib/base-path";
 import { getAdminErrorMessage } from "@/lib/error-messages";
@@ -34,12 +34,14 @@ interface TicketDetailContentProps {
   adminMode: boolean;
   historyState: unknown;
   canCloseTickets: boolean;
+  canManageTickets: boolean;
 }
 
 export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
   const historyState = useHistoryState<unknown>();
   const me = useProtectedSessionUser();
   const canCloseTickets = puedeCerrarTickets(me?.rol);
+  const canManageTickets = puedeGestionarTickets(me?.rol);
 
   if (!adminMode) {
     return (
@@ -47,6 +49,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
         adminMode={false}
         historyState={historyState}
         canCloseTickets={canCloseTickets}
+        canManageTickets={canManageTickets}
       />
     );
   }
@@ -56,6 +59,7 @@ export default function TicketDetail({ adminMode = false }: TicketDetailProps) {
       adminMode
       historyState={historyState}
       canCloseTickets={canCloseTickets}
+      canManageTickets={canManageTickets}
     />
   );
 }
@@ -64,6 +68,7 @@ function TicketDetailContent({
   adminMode,
   historyState,
   canCloseTickets,
+  canManageTickets,
 }: TicketDetailContentProps) {
   const { id } = useParams<{ id: string }>();
   const ticketId = parseInt(id || "0", 10);
@@ -213,15 +218,19 @@ function TicketDetailContent({
             className="text-sm px-3 py-1"
           />
 
-          <TicketManagementDialog
-            {...editing.managementDialog}
-            canCloseTickets={canCloseTickets}
-            showTechnicalDeadline={adminMode}
-          />
+          {canManageTickets && (
+            <TicketManagementDialog
+              {...editing.managementDialog}
+              canCloseTickets={canCloseTickets}
+              showTechnicalDeadline={adminMode}
+            />
+          )}
         </div>
       </div>
 
-      <TicketDataEditDialog ticket={ticket} {...editing.functionalDialog} />
+      {canManageTickets && (
+        <TicketDataEditDialog ticket={ticket} {...editing.functionalDialog} />
+      )}
 
       <TicketProgressCard estado={ticket.estado} progreso={ticket.progreso} />
 
@@ -237,6 +246,7 @@ function TicketDetailContent({
           <TicketHistoryCard
             seguimientos={seguimientos}
             isLoading={loadingSeguimientos}
+            canAddSeguimiento={canManageTickets}
             {...seguimiento.historyCard}
           />
         </div>
@@ -247,6 +257,7 @@ function TicketDetailContent({
             ticket={ticket}
             onEdit={editing.openFunctionalEditor}
             isEditDisabled={editing.areEditorActionsDisabled}
+            showEditAction={canManageTickets}
           />
 
           <TicketTimingCard
