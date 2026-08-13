@@ -8,7 +8,6 @@ import {
   not,
   or,
   sql,
-  type AnyColumn,
   type SQL,
 } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
@@ -22,6 +21,11 @@ import {
   buildPerformanceCohortConditions,
   type PerformanceFilters,
 } from "./cohort";
+import {
+  nonBlankContactText,
+  usableEmailContactIdentity,
+  usableNumericContactIdentity,
+} from "./contact-identity";
 
 type PerformanceDatabase<TSchema extends Record<string, unknown>> =
   BetterSQLite3Database<TSchema>;
@@ -61,41 +65,6 @@ function countWhen(condition: SQL): SQL<number> {
   );
 }
 
-const normalizedText = (column: AnyColumn): SQL<string> =>
-  sql<string>`lower(trim(coalesce(${column}, '')))`;
-
-const nonBlank = (column: AnyColumn): SQL<boolean> =>
-  sql<boolean>`${normalizedText(column)} <> ''`;
-
-function normalizedDigits(column: AnyColumn): SQL<string> {
-  return sql<string>`replace(replace(replace(replace(replace(replace(replace(
-    ${normalizedText(column)}, ' ', ''), '.', ''), '-', ''), '(', ''), ')', ''), '+', ''), '/', '')`;
-}
-
-function usableNumericIdentity(
-  column: AnyColumn,
-  minimumLength: number,
-  maximumLength: number,
-): SQL<boolean> {
-  const normalized = normalizedDigits(column);
-  return sql<boolean>`length(${normalized}) between ${minimumLength} and ${maximumLength}
-    and ${normalized} not glob '*[^0-9]*'`;
-}
-
-function usableEmail(column: AnyColumn): SQL<boolean> {
-  const normalized = normalizedText(column);
-  const domain = sql<string>`substr(${normalized}, instr(${normalized}, '@') + 1)`;
-  return sql<boolean>`length(${normalized}) between 5 and 254
-    and instr(${normalized}, ' ') = 0
-    and instr(${normalized}, char(9)) = 0
-    and instr(${normalized}, char(10)) = 0
-    and instr(${normalized}, char(13)) = 0
-    and instr(${normalized}, '@') > 1
-    and instr(${domain}, '@') = 0
-    and instr(${domain}, '.') > 1
-    and substr(${domain}, -1) <> '.'`;
-}
-
 /**
  * Mide cobertura sin materializar filas. Todas las consultas comparten un
  * snapshot diferido y la misma cohorte de tickets visibles por creación.
@@ -109,13 +78,13 @@ export function consultarCalidadRendimiento<
   const cohort = buildPerformanceCohortConditions(filters);
   const finalStatus = inArray(ticketsTable.estado, ["resuelto", "cerrado"]);
   const hasContactIdentity = or(
-    usableNumericIdentity(ticketsTable.dni, 7, 11),
-    usableNumericIdentity(ticketsTable.telefono, 7, 15),
-    usableEmail(ticketsTable.email),
+    usableNumericContactIdentity(ticketsTable.dni, 7, 11),
+    usableNumericContactIdentity(ticketsTable.telefono, 7, 15),
+    usableEmailContactIdentity(ticketsTable.email),
   )!;
   const hasAnyAssignment = or(
     isNotNull(ticketsTable.asignado_usuario_id),
-    nonBlank(ticketsTable.asignado_a),
+    nonBlankContactText(ticketsTable.asignado_a),
   )!;
   const isVerifiedResolution = and(
     isNotNull(seguimientosTable.estado_anterior),
