@@ -9,7 +9,12 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { runRendimientoRepetitionQuery } from "../src/modules/rendimiento/data/repetition-query";
 
-function createDatabase() {
+type LoggedQuery = {
+  sql: string;
+  params: unknown[];
+};
+
+function createDatabase(queryLog?: LoggedQuery[]) {
   const sqlite = new Database(":memory:");
   sqlite.pragma("foreign_keys = ON");
   sqlite.exec(`
@@ -50,6 +55,15 @@ function createDatabase() {
   `);
   const database = drizzle(sqlite, {
     schema: { ticketsTable, ticketsCuarentenaTable, usuariosTable },
+    ...(queryLog
+      ? {
+          logger: {
+            logQuery(sql: string, params: unknown[]) {
+              queryLog.push({ sql, params });
+            },
+          },
+        }
+      : {}),
   });
   return { sqlite, database };
 }
@@ -580,6 +594,44 @@ describe("consulta de contactos reiterados", () => {
     sqlite.close();
   });
 
+  it("materializa una sola vez la cohorte y las claves canonicas por lectura", () => {
+    const queryLog: LoggedQuery[] = [];
+    const { sqlite, database } = createDatabase(queryLog);
+    const now = new Date("2026-08-20T12:00:00.000Z");
+
+    insertTicket(sqlite, {
+      conversationId: "plan-abierto",
+      createdAt: "2026-08-01T10:00:00.000Z",
+      phone: "1161234567",
+      status: "nuevo",
+    });
+    insertTicket(sqlite, {
+      conversationId: "plan-cerrado",
+      createdAt: "2026-08-02T10:00:00.000Z",
+      phone: "11 6123-4567",
+      status: "cerrado",
+    });
+
+    runRendimientoRepetitionQuery(database, { pagina: 1, limite: 20 }, now);
+
+    assert.equal(queryLog.length, 2);
+    for (const query of queryLog) {
+      const plan = sqlite
+        .prepare(`EXPLAIN QUERY PLAN ${query.sql}`)
+        .all(...query.params) as Array<{ detail: string }>;
+      const details = plan.map((step) => step.detail).join("\n");
+      const ticketReads = plan.filter((step) =>
+        /^(?:SCAN|SEARCH) tickets(?:\s|$)/.test(step.detail),
+      );
+
+      assert.match(details, /MATERIALIZE cohort/);
+      assert.match(details, /MATERIALIZE canonical/);
+      assert.equal(ticketReads.length, 1);
+    }
+
+    sqlite.close();
+  });
+
   it("valida pagina y limita el tamano maximo a cincuenta grupos", () => {
     const { sqlite, database } = createDatabase();
     const now = new Date("2026-08-20T12:00:00.000Z");
@@ -594,6 +646,15 @@ describe("consulta de contactos reiterados", () => {
         runRendimientoRepetitionQuery(
           database,
           { pagina: 1.5, limite: 20 },
+          now,
+        ),
+      /pagina de reiteraciones debe ser un entero positivo/,
+    );
+    assert.throws(
+      () =>
+        runRendimientoRepetitionQuery(
+          database,
+          { pagina: Number.MAX_SAFE_INTEGER + 1, limite: 20 },
           now,
         ),
       /pagina de reiteraciones debe ser un entero positivo/,

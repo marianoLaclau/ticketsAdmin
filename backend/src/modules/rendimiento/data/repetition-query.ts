@@ -128,7 +128,7 @@ function buildIdentityCtes(filters: PerformanceRepetitionFilters) {
   const normalizedEmail = normalizedContactText(ticketsTable.email);
 
   return sql`
-    cohort as (
+    cohort as materialized (
       select
         ${ticketsTable.id} as ticket_id,
         ${ticketsTable.nombre} as nombre,
@@ -178,7 +178,7 @@ function buildIdentityCtes(filters: PerformanceRepetitionFilters) {
         and dni_normalizado is not null
       group by email_normalizado
     ),
-    canonical as (
+    canonical as materialized (
       select
         cohort.*,
         case
@@ -271,12 +271,16 @@ function resolvePagination(filters: PerformanceRepetitionFilters): {
   const page = filters.pagina ?? DEFAULT_PAGE;
   const pageSize = filters.limite ?? DEFAULT_PAGE_SIZE;
 
-  if (!Number.isInteger(page) || page < 1) {
+  if (!Number.isSafeInteger(page) || page < 1) {
     throw new RangeError(
       "La pagina de reiteraciones debe ser un entero positivo",
     );
   }
-  if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
+  if (
+    !Number.isSafeInteger(pageSize) ||
+    pageSize < 1 ||
+    pageSize > MAX_PAGE_SIZE
+  ) {
     throw new RangeError(
       `El limite de reiteraciones debe ser un entero entre 1 y ${MAX_PAGE_SIZE}`,
     );
