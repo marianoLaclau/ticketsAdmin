@@ -16,6 +16,13 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RendimientoFiltersPanel } from "@/features/rendimiento/RendimientoFiltersPanel";
+import { RendimientoQualityView } from "@/features/rendimiento/RendimientoQualityView";
+import { useRendimientoFiltersUrl } from "@/features/rendimiento/useRendimientoFiltersUrl";
+import {
+  createDefaultRendimientoUrlState,
+  type RendimientoUrlState,
+} from "@/lib/rendimiento-url";
 
 interface RendimientoView {
   value: string;
@@ -151,6 +158,16 @@ function PreparationView({ view }: { view: RendimientoView }) {
 }
 
 export default function Rendimiento() {
+  const { urlState, updateUrlState } = useRendimientoFiltersUrl();
+
+  const applyFilters = (nextState: RendimientoUrlState) => {
+    updateUrlState(() => nextState);
+  };
+
+  const resetFilters = () => {
+    updateUrlState(() => createDefaultRendimientoUrlState());
+  };
+
   return (
     <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col space-y-4 p-4 md:p-8">
       <header className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -169,7 +186,7 @@ export default function Rendimiento() {
           className="w-fit shrink-0 border-slate-200 bg-white px-3 py-1.5 text-slate-700 shadow-sm"
         >
           <ShieldCheck className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-          Acceso dirección · En preparación
+          Acceso dirección
         </Badge>
       </header>
 
@@ -190,9 +207,22 @@ export default function Rendimiento() {
           })}
         </TabsList>
 
+        <RendimientoFiltersPanel
+          state={urlState}
+          onApply={applyFilters}
+          onReset={resetFilters}
+        />
+
         {VIEWS.map((view) => (
           <TabsContent key={view.value} value={view.value} className="mt-0">
-            <PreparationView view={view} />
+            {view.value === "calidad" ? (
+              <RendimientoQualityView
+                filters={urlState}
+                onClearFilters={resetFilters}
+              />
+            ) : (
+              <PreparationView view={view} />
+            )}
           </TabsContent>
         ))}
       </Tabs>
