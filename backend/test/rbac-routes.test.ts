@@ -1730,11 +1730,12 @@ describe("módulo de Rendimiento", () => {
     });
   });
 
-  it("protege Calidad, Resumen y Personas para SysAdmin y Controller", async () => {
+  it("protege todas las vistas de Rendimiento para SysAdmin y Controller", async () => {
     const endpoints = [
       "/api/rendimiento/calidad-datos",
       "/api/rendimiento/resumen-equipo",
       "/api/rendimiento/personas",
+      "/api/rendimiento/reiteraciones",
     ];
     for (const endpoint of endpoints) {
       const withoutSession = await fetch(`${baseUrl}${endpoint}`);
@@ -1784,7 +1785,12 @@ describe("módulo de Rendimiento", () => {
 
   it("valida filtros y el orden cronológico del período", async () => {
     const cookie = await adminSession();
-    for (const endpoint of ["calidad-datos", "resumen-equipo", "personas"]) {
+    for (const endpoint of [
+      "calidad-datos",
+      "resumen-equipo",
+      "personas",
+      "reiteraciones",
+    ]) {
       for (const query of [
         "fecha_desde=2026-08-14&fecha_hasta=2026-08-13",
         "fecha_desde=2026-8-01",
@@ -2041,6 +2047,91 @@ describe("módulo de Rendimiento", () => {
         },
       ],
     });
+
+    sqlite
+      .prepare(
+        `INSERT INTO tickets (
+          id, conversation_id, hora, nombre, apellido, dni, empresa, motivo,
+          motivo_categoria, estado, prioridad, asignado_usuario_id,
+          asignado_a, fecha_creacion, fecha_limite
+        ) VALUES (
+          102, 'reiteracion-102', '13:00', 'Ana', 'Pérez', '30.111.222', 'Acme',
+          'Otra consulta legal', 'legales', 'nuevo', 'alta', 2, 'Operadora', ?, ?
+        )`,
+      )
+      .run(Date.parse("2026-08-10T16:00:00.000Z"), deadline);
+
+    const repetitionResponse = await requestWithSession(
+      "/clocked-api/rendimiento/reiteraciones?fecha_desde=2026-08-01&fecha_hasta=2026-08-13&empresa=Acme&motivo_categoria=legales&prioridad=alta",
+      await adminSession(),
+    );
+    assert.equal(repetitionResponse.status, 200);
+    assert.equal(
+      repetitionResponse.headers.get("cache-control"),
+      "private, no-store",
+    );
+    const repetition = (await repetitionResponse.json()) as Record<
+      string,
+      unknown
+    >;
+    assert.deepEqual(repetition.periodo, {
+      fecha_desde: "2026-08-01",
+      fecha_hasta: "2026-08-13",
+      timezone: "America/Argentina/Buenos_Aires",
+      generado_en: "2026-08-13T15:30:00.000Z",
+    });
+    assert.equal(repetition.tickets_evaluados, 2);
+    assert.deepEqual(repetition.cobertura, {
+      identidad_utilizable: {
+        numerador: 2,
+        denominador: 2,
+        porcentaje: 100,
+      },
+      ambiguos_detectados: 0,
+      criterio: "clave_canonica_no_transitiva",
+    });
+    assert.deepEqual(repetition.resumen, {
+      contactos_reiterados: 1,
+      tickets_involucrados: 2,
+      abiertos: 1,
+      vencidos_abiertos: 1,
+    });
+
+    const contactos = repetition.contactos as Array<Record<string, unknown>>;
+    assert.equal(contactos.length, 1);
+    assert.equal(contactos[0]?.nombre_referencia, "Ana Pérez");
+    assert.equal(contactos[0]?.cantidad_llamados, 2);
+    assert.equal(contactos[0]?.abiertos, 1);
+    assert.equal(contactos[0]?.vencidos_abiertos, 1);
+    assert.equal(contactos[0]?.primer_contacto, "2026-08-05T15:00:00.000Z");
+    assert.equal(contactos[0]?.ultimo_contacto, "2026-08-10T16:00:00.000Z");
+    assert.equal(contactos[0]?.prioridad_maxima, "alta");
+    assert.ok(
+      typeof contactos[0]?.grupo_id === "string" &&
+        !contactos[0].grupo_id.includes("30111222"),
+    );
+    const coincidence = contactos[0]?.coincidencia as Record<string, unknown>;
+    assert.equal(coincidence.tipo, "dni");
+    assert.equal(typeof coincidence.valor_enmascarado, "string");
+    assert.equal(
+      String(coincidence.valor_enmascarado).includes("30111222"),
+      false,
+    );
+    assert.match(String(coincidence.valor_enmascarado), /1222$/);
+    assert.deepEqual(contactos[0]?.responsables, [
+      {
+        usuario_id: 2,
+        nombre: "Operadora",
+        cantidad_abiertos: 1,
+      },
+    ]);
+    assert.deepEqual(
+      (contactos[0]?.tickets as Array<Record<string, unknown>>).map(
+        (ticket) => ticket.id,
+      ),
+      [102, 101],
+    );
+    assert.equal(JSON.stringify(repetition).includes("30111222"), false);
   });
 });
 

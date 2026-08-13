@@ -13,10 +13,15 @@ import {
   createRendimientoIndividualHandler,
   type RendimientoIndividualHandlerOptions,
 } from "./individual-handler";
+import {
+  createRendimientoRepetitionHandler,
+  type RendimientoRepetitionHandlerOptions,
+} from "./repetition-handler";
 
 export type RendimientoRouterOptions = RendimientoQualityHandlerOptions &
   RendimientoTeamSummaryHandlerOptions &
-  RendimientoIndividualHandlerOptions;
+  RendimientoIndividualHandlerOptions &
+  RendimientoRepetitionHandlerOptions;
 
 export const RENDIMIENTO_MODULE_STATUS = Object.freeze({
   modulo: "rendimiento",
@@ -56,6 +61,10 @@ export function createRendimientoRouter(
   router.get(
     "/rendimiento/personas",
     createRendimientoIndividualHandler(options),
+  );
+  router.get(
+    "/rendimiento/reiteraciones",
+    createRendimientoRepetitionHandler(options),
   );
 
   return router;
