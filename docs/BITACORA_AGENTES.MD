@@ -3600,3 +3600,59 @@ la mediana bajó de unos 777 a 84 ms en 5.000 tickets y de unos 3,3 s a 319 ms e
 - TypeScript y ESLint focales aprobaron. El quality gate integral se ejecutó al
   cerrar esta etapa.
 - Todo quedó en commits locales pequeños sobre `main`. No se realizó push.
+
+## 2026-08-13 — Rendimiento: cierre de navegación, consistencia y recorrido Controller
+
+**Agente:** Codex
+
+### Integración y experiencia de uso
+
+- La invalidación ante eventos SSE del dominio de tickets incluye ahora
+  Tickets, Dashboard y Rendimiento. El predicado compara la raíz exacta o una
+  subruta separada por `/`: no alcanza sesión, elevación administrativa,
+  usuarios, roles ni nombres meramente parecidos.
+- La vista activa de Rendimiento se incorporó al estado canónico de la URL
+  junto con período, empresa, categoría y prioridad. Los deep-links, Atrás y
+  Adelante del navegador y una recarga restauran el mismo contexto; una vista
+  ausente o inválida vuelve de forma estable al Resumen del equipo.
+- Los estados vacíos de las cuatro vistas ofrecen `Limpiar filtros` y regresan
+  al contexto predeterminado sin obligar a editar cada control por separado.
+- Durante un refetch se conserva el último snapshot visible y aparece el estado
+  accesible `Actualizando indicadores…`. Un fallo de actualización continúa
+  mostrando el resultado anterior y permite reintentar.
+- Períodos y fechas con hora usan formateadores compartidos en las cuatro
+  vistas, con locale `es-AR`, timezone informada por el contrato y fallbacks
+  consistentes ante valores no utilizables.
+- Calidad conserva su semántica de cobertura, no de puntaje: informa qué
+  proporción de la cohorte sostiene métricas auditables sin completar ni
+  inferir faltantes. Sus estados `disponible`, `parcial` e `insuficiente`
+  describen la aptitud para comparar personas y explicitan desde cuándo existe
+  atribución estructurada; no califican el trabajo del equipo.
+- El filtro Empresa es un campo de búsqueda con autocompletado semántico de
+  organización y ayuda visible: busca coincidencias dentro del nombre, no exige
+  escribirlo completo.
+
+### Recorrido aislado de Controller
+
+Se agregó un flujo E2E autocontenido que crea su propio usuario Controller y
+sus propios tickets, completa el cambio obligatorio de contraseña y comprueba
+Dashboard, Tickets y Rendimiento sin acceso a Administración ni escritura de
+tickets. Recorre Resumen, Personas, Reiteraciones y Calidad, abre un ticket,
+vuelve conservando la vista, aplica Empresa y verifica el deep-link después de
+recargar. Sus datos son únicos por ejecución y no dependen de registros ni del
+orden de otras pruebas.
+
+### Definiciones de negocio pendientes
+
+La implementación no convierte coincidencias técnicas en hechos históricos. Antes
+de ampliar los indicadores, Dirección debe definir expresamente:
+
+- qué evento demuestra que un contacto reiterado continúa **sin respuesta**;
+- a quién y a qué intervalo se atribuye un resultado cuando asignación,
+  gestión y resolución ocurren en momentos distintos;
+- qué población debe mostrar **Personas**: usuarios activos, participantes del
+  período, autores históricos u otra regla acordada.
+
+Hasta resolver esas decisiones se exponen solo eventos y snapshots auditables;
+no se reconstruyen respuestas, responsables ni tramos temporales que la base no
+registró.
