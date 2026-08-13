@@ -3465,3 +3465,52 @@ rankings ni datos simulados.
   violaciones de claves foráneas.
 - Backend disponible en `:5000`, frontend en `:3000` y readiness en `200`.
   Los cambios permanecen en commits locales; no se realizó push.
+
+## 2026-08-13 — Rendimiento etapa 2: Resumen del equipo
+
+**Agente:** Codex
+
+### Alcance habilitado
+
+El módulo pasó a estado `operativo_parcial`. **Resumen del equipo** y
+**Calidad de datos** ya consultan información real; **Personas** y
+**Reiteraciones** continúan en preparación y no presentan datos simulados,
+atribuciones ni rankings. Toda la frontera sigue limitada por backend a los
+roles SysAdmin y Controller y responde sin caché privada reutilizable.
+
+### Cohorte y métricas
+
+`GET /api/rendimiento/resumen-equipo` comparte con Calidad los filtros de
+período, empresa, categoría y prioridad. La cohorte se define una sola vez con
+los tickets visibles cuya `fecha_creacion` cae en el período solicitado; la
+cuarentena queda excluida. La respuesta informa:
+
+- tickets ingresados en la cohorte;
+- estado actual: total, abiertos, finalizados y vencidos abiertos;
+- distribución completa por estado y prioridad, incluyendo cantidades cero;
+- muestra, promedio y mediana de horas corridas hasta la resolución;
+- muestra, cantidad cumplida y porcentaje de cumplimiento auditable del plazo.
+
+El estado es una fotografía al `generado_en`, no una reconstrucción del estado
+que cada ticket tenía en fechas pasadas. Los tiempos solo usan tickets
+actualmente finalizados con fechas válidas y duración no negativa. El
+cumplimiento es deliberadamente más estricto: cuenta únicamente transiciones
+reales desde un estado no final hacia `resuelto` o `cerrado` que conservaron
+`fecha_limite_snapshot`. Un cambio posterior de `resuelto` a `cerrado` no crea
+otra resolución ni duplica el indicador.
+
+### Interfaz y contrato
+
+La pestaña Resumen del equipo reemplazó su placeholder por KPIs, distribuciones,
+tiempos, cumplimiento y avisos de cobertura o ausencia de muestra. Conserva los
+mismos filtros persistidos en URL que Calidad y muestra el período y el instante
+del snapshot. El contrato OpenAPI define objetos estrictos, muestras explícitas
+y valores `null` cuando no hay base suficiente para calcular tiempos o
+porcentajes; los clientes React y validadores Zod se regeneraron desde esa fuente.
+
+### Validación local
+
+- Contratos de Rendimiento: 12/12 pruebas aprobadas.
+- Consultas, ruta y RBAC focales del backend: 78/78 pruebas aprobadas.
+- TypeScript, ESLint, Prettier y `git diff --check`: correctos para la etapa.
+- No se realizó push ni se habilitaron anticipadamente Personas o Reiteraciones.

@@ -1,6 +1,6 @@
 # GSB Tickets — Documentación del flujo completo
 
-> Última actualización: julio 2026
+> Última actualización: agosto 2026
 
 ## 1. El flujo de punta a punta
 
@@ -122,6 +122,9 @@ API REST en Express 5. Único componente que toca la base. Rutas:
 | `GET /api/dashboard/actividad-reciente`  | Línea de tiempo de tickets y seguimientos; el rango se aplica a la fecha real del evento.                                                                                                                               |
 | `GET /api/dashboard/tickets-vencidos`    | Vencidos del conjunto de tickets creados dentro del rango solicitado.                                                                                                                                                   |
 | `GET /api/dashboard/motivos`             | Categorías de contacto del conjunto creado dentro del rango solicitado.                                                                                                                                                 |
+| `GET /api/rendimiento`                   | Estado del módulo ejecutivo. Informa operación parcial: Resumen del equipo y Calidad de datos están operativos; Personas y Reiteraciones continúan en preparación.                                                      |
+| `GET /api/rendimiento/calidad-datos`     | Cobertura de los datos que sostienen las métricas. Usa tickets visibles por fecha de creación y admite período, empresa, categoría y prioridad.                                                                         |
+| `GET /api/rendimiento/resumen-equipo`    | Cohorte ingresada, estado actual, distribuciones, promedio/mediana de resolución y cumplimiento del plazo sobre eventos con vencimiento preservado.                                                                     |
 | `GET /api/healthz`                       | Chequeo de vida.                                                                                                                                                                                                        |
 | `GET /api/readyz`                        | Disponibilidad real: `200` solo en fase `ready` y con los schemas runtime de tickets, cuarentena y sesiones accesibles en SQLite; `503` durante arranque, fallo o drenaje.                                              |
 | `POST /api/admin/tickets`                | **Admin**: alta manual de un registro (409 si el conversation_id existe).                                                                                                                                               |
@@ -134,6 +137,8 @@ API REST en Express 5. Único componente que toca la base. Rutas:
 | `GET /api/events`                        | **SSE**: stream de eventos en vivo. El frontend recibe altas/importaciones, actualizaciones de tickets y cambios automáticos de prioridad al instante. Fuera de OpenAPI porque Orval no modela streams.                 |
 
 Las estadísticas y los motivos del Dashboard se agregan directamente en SQLite, sin traer tickets completos al proceso web. Los KPIs de una respuesta comparten snapshot y los límites de “hoy” se calculan siempre con el calendario de Buenos Aires; así no cambian si el contenedor o la máquina de desarrollo usan otra zona horaria.
+
+Rendimiento también agrega en SQLite y está disponible únicamente para **SysAdmin** y **Controller**. Sus vistas operativas comparten una cohorte de tickets visibles definida por `fecha_creacion` y por los filtros activos. El estado es una fotografía al instante informado por la respuesta; los tiempos incluyen su tamaño de muestra; y el cumplimiento del SLA solo usa transiciones reales desde un estado no final hacia `resuelto` o `cerrado` que conservaron el vencimiento vigente en `fecha_limite_snapshot`. Así, una edición posterior del ticket no reescribe el resultado histórico. Personas y Reiteraciones permanecen en preparación y no muestran métricas individuales ni rankings.
 
 `healthz` y `readyz` tienen responsabilidades distintas. El primero prueba únicamente que Express puede responder y siempre entrega `200 { status: "ok" }`. El segundo responde `200 { status: "ready" }` solo después del evento `listening`, antes de iniciar el drenaje y mientras SQLite esté abierto con Tickets, cuarentena y todas las columnas de sesión requeridas consultables; en cualquier otro caso entrega un `503 { status: "unavailable" }` genérico. Ambos son públicos y envían `Cache-Control: no-store`; un 503 de readiness no es un error de autenticación.
 
@@ -159,7 +164,7 @@ La decisión conserva esta regla derivada, pero su resultado se materializa en l
 Mientras permanece vacío queda fuera de:
 
 - el listado `/tickets`, la ficha individual y sus seguimientos;
-- KPIs, badges, actividad reciente, motivos y vencidos del Dashboard;
+- KPIs, badges, actividad reciente, motivos y vencidos del Dashboard, y las cohortes de Rendimiento;
 - los toasts de nuevos tickets e importaciones.
 
 Sigue visible en la tabla de Administración mediante `GET /api/tickets?incluir_vacios=true`. Ese parámetro no es un bypass público: exige sesión con rol rol SysAdmin.
@@ -169,6 +174,7 @@ Sigue visible en la tabla de Administración mediante `GET /api/tickets?incluir_
 React + Vite. Pantallas principales:
 
 - **Dashboard** (`/dashboard`): KPIs, distribución por estado, rendimiento, motivos, prioridades, vencidos y actividad. El desplegable permite visualizar Todo (default), semana actual, mes actual o un rango desde/hasta; el mismo período se aplica a todos los paneles.
+- **Rendimiento** (`/rendimiento`): acceso exclusivo de SysAdmin y Controller. **Resumen del equipo** presenta tickets ingresados, abiertos, finalizados, vencidos, distribuciones, promedio/mediana de resolución y cumplimiento auditable del plazo; **Calidad de datos** muestra la cobertura y las muestras que permiten interpretar esos valores. Ambos comparten filtros persistidos en URL por período, empresa, categoría y prioridad. Personas y Reiteraciones siguen visibles como próximas etapas, sin datos simulados ni rankings.
 - **Listado** (`/tickets`): tabla con contacto, categoría, motivo, estado, prioridad, **asignado**, progreso y fecha límite. Todos los encabezados de datos ordenan en el servidor antes de paginar y admiten varios criterios priorizados; los filtros son combinables y el botón **Exportar CSV** descarga el resultado completo filtrado/ordenado. Si existe una empresa y n8n informó `estado_empleado`, debajo se muestra `Activo` o `Inactivo`; sin empresa, la presentación no cambia. Si no existe responsable muestra `Sin asignar`; si nombre y apellido están vacíos muestra `Sin nombre proporcionado`.
 - **Detalle** (`/tickets/:id`): resumen de la llamada, audio, datos del contacto, tiempos y gestión. Los editores congelan datos + versión al abrir, envían solo diferencias y cada edición real queda en el historial. Si otra sesión modifica el ticket, el backend rechaza el snapshot viejo y el diálogo conserva el draft visible pero bloquea Guardar. Solo una acción explícita descarta esos cambios y carga la revisión actual; un fallo de recarga tampoco pierde lo escrito. El estado laboral se presenta debajo de la empresa cuando corresponde. Teléfono y email mantienen filas fijas y fallbacks cuando faltan. El historial muestra cambios de estado, prioridad, asignación y campos editados; si el webhook recibió una empresa real, comienza con la entrada de `Sistema` que registra el origen Serin.
 
