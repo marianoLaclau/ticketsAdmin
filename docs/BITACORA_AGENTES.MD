@@ -3393,3 +3393,75 @@ Controller y conservar todos los contratos y flujos productivos actuales.
 - Trabajo dividido en commits locales pequeños sobre `main`. No se realizó push;
   el desarrollo del cálculo real de Rendimiento queda para la siguiente etapa,
   después de la prueba manual del usuario.
+
+## 2026-08-13 — Rendimiento: instrumentación y Calidad de datos
+
+**Agente:** Codex
+
+### Criterio de la primera entrega
+
+Antes de publicar productividad individual se implementó una vista verificable
+de Calidad de datos. La aplicación no atribuye una resolución al responsable
+actual del ticket: solo cuenta como autor a quien produjo una transición real de
+un estado no final a `resuelto` o `cerrado`. El paso posterior de `resuelto` a
+`cerrado` tampoco duplica una resolución.
+
+### Trazabilidad incorporada
+
+- La migración aditiva `0020` agrega
+  `seguimientos.fecha_limite_snapshot`. El backend la completa solamente al
+  entrar a un estado final, con el vencimiento vigente en ese instante. De este
+  modo una edición posterior no altera retroactivamente el cumplimiento.
+- El snapshot es interno y no amplió accidentalmente el contrato HTTP de
+  seguimientos.
+- Un usuario con acciones auditadas ya no puede borrarse físicamente: el
+  endpoint devuelve `409 USER_HAS_AUDIT_HISTORY` y exige desactivarlo. Esto
+  conserva la FK estructurada y el snapshot legible del autor.
+
+### Contrato y cálculo
+
+Se agregó `GET /api/rendimiento/calidad-datos`, accesible exclusivamente para
+SysAdmin y Controller. Acepta período por fecha de creación, empresa, categoría
+y prioridad; rechaza fechas invertidas y parámetros duplicados, usa
+`America/Argentina/Buenos_Aires` y responde con `private, no-store`.
+
+Las dos agregaciones SQL se ejecutan en el mismo snapshot de lectura y excluyen
+la cuarentena. Informan muestra, numerador y porcentaje para:
+
+- autor estructurado de resolución;
+- fecha efectiva de resolución;
+- vencimiento preservado al resolver;
+- asignación estructurada frente a asignación histórica textual;
+- identidad de contacto utilizable;
+- fecha límite del ticket.
+
+DNI y teléfono se normalizan a dígitos con longitudes admisibles y el email
+debe conservar una forma utilizable; placeholders como `Sin DNI`, números
+incompletos o correos sin dominio no inflan la cobertura. La comparación por
+persona permanece `insuficiente` con menos de 10 resoluciones o menos de 80 %
+de autoría, pasa a `parcial` entre 80 % y 95 %, y queda `disponible` desde 95 %.
+
+### Interfaz
+
+La vista Calidad de datos ya es funcional; Resumen, Personas y Reiteraciones
+siguen identificadas como `En preparación`. Se incorporaron filtros persistidos
+y canonizados en URL para mes, semana, últimos 30 días, últimos 90 días y
+rango personalizado, además de empresa, categoría y prioridad. La pantalla
+presenta muestras reales, seis coberturas, estado de comparabilidad, fecha del
+snapshot y estados accesibles de carga, error y cohorte vacía. No contiene
+rankings ni datos simulados.
+
+### Validación local
+
+- Migración, Tickets y RBAC: 1/1, 29/29 y 68/68 pruebas aprobadas.
+- Dominio y consultas de Calidad: 5/5; contrato OpenAPI: 4/4.
+- Frontend focal: 21 pruebas puras y 7 de componentes/accesibilidad aprobadas,
+  incluida una regresión que demuestra que la canonización de URL se estabiliza
+  sin ciclos de render.
+- TypeScript, ESLint, Prettier y builds de backend/frontend: correctos.
+- Antes de adaptar la SQLite local se generó y verificó
+  `backups/pre-rendimiento-calidad-20260813-1215.db`. La alteración preservó
+  138 tickets y 22 seguimientos; `integrity_check` quedó `ok` y no hubo
+  violaciones de claves foráneas.
+- Backend disponible en `:5000`, frontend en `:3000` y readiness en `200`.
+  Los cambios permanecen en commits locales; no se realizó push.
