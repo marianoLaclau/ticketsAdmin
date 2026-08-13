@@ -3554,7 +3554,9 @@ y email. Un dato secundario sin DNI solo hereda uno cuando la relación directa
 dentro de la cohorte es unívoca. Los mapas de teléfono y email se calculan por
 separado, el teléfono conserva su precedencia y nunca se construyen componentes
 conexas: un puente A ↔ B ↔ C no fusiona automáticamente a A con C. Las
-relaciones ambiguas se mantienen separadas y se informan como cobertura.
+relaciones ambiguas se mantienen separadas y se informan como cobertura. La
+normalización descarta además formatos fuera de rango, secuencias numéricas
+repetidas y valores centinela como `sin correo`, aunque aparenten ser válidos.
 
 Solo se publica un grupo cuando reúne dos tickets distintos o más y al menos
 uno sigue abierto. La respuesta contiene una clave opaca, DNI/teléfono/email
@@ -3568,22 +3570,33 @@ antigüedad y contacto reciente.
 
 La vista presenta cuatro KPIs, cobertura y ambigüedades, cards responsive sin
 scroll horizontal, responsables múltiples y tres tickets iniciales con
-expansión accesible. Distingue cohorte vacía, ausencia de identidad y ausencia
-de reiteraciones abiertas, además de loading, error, reintento y refetch con el
-último dato conservado. Se eliminó el placeholder `En preparación`.
+expansión accesible. Los grupos se paginan después de aplicar el orden global
+por riesgo; cambiar filtros vuelve a la primera página, la navegación conserva
+el último dato durante el refetch y una firma estable evita trasladar la
+expansión si cambia el orden. Distingue cohorte vacía, ausencia de identidad,
+ausencia de reiteraciones abiertas y página fuera de rango. Se eliminó el
+placeholder `En preparación`.
 
 Los cuatro handlers reutilizan una única validación de filtros y construcción
 del período contractual. El endpoint aplica el guard común de Rendimiento,
 Zod estricto y `Cache-Control: private, no-store`; serializa todas las fechas
-en ISO sin desplazar los días calendario solicitados.
+en ISO sin desplazar los días calendario solicitados. `pagina` exige un entero
+seguro positivo y `limite` admite entre 1 y 50 grupos.
+
+La consulta ejecuta dos lecturas fijas dentro de un snapshot, sin N+1. Las CTE
+de cohorte e identidad canónica se materializan una sola vez por lectura; una
+regresión con `EXPLAIN QUERY PLAN` fija ese comportamiento. Con datos sintéticos
+la mediana bajó de unos 777 a 84 ms en 5.000 tickets y de unos 3,3 s a 319 ms en
+20.000. La página siguió limitada a 20 grupos y 60 tickets en esa prueba.
 
 ### Validación local
 
-- Contrato OpenAPI de Rendimiento: 26/26 pruebas.
-- Consulta, Calidad y RBAC focales: 80/80 pruebas; componentes y shell: 5/5.
+- Contrato OpenAPI de Rendimiento: 27/27 pruebas.
+- Consulta, Calidad y RBAC focales: 83/83 pruebas; componentes y shell: 7/7.
 - La SQLite local conservó 137 tickets visibles. Reiteraciones detectó 6 grupos
-  con 15 tickets, 7 abiertos vencidos y 66,4 % de identidad utilizable en unos
-  24 ms; la inspección de la respuesta confirmó ausencia de campos PII crudos.
+  con 15 tickets, 7 abiertos vencidos y 66,4 % de identidad utilizable. Tras
+  materializar las CTE, la mediana fue 7,5 ms y el p95 9,7 ms; la inspección de
+  la respuesta confirmó ausencia de campos PII crudos.
 - TypeScript y ESLint focales aprobaron. El quality gate integral se ejecutó al
   cerrar esta etapa.
 - Todo quedó en commits locales pequeños sobre `main`. No se realizó push.

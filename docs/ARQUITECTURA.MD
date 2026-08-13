@@ -245,12 +245,19 @@ parte del contrato para no presentar estimaciones incompletas como hechos.
 
 Reiteraciones asigna exactamente una clave canónica por ticket, con precedencia
 DNI, teléfono y email. Una identidad secundaria sin DNI solo hereda uno cuando
-la asociación directa en la cohorte es unívoca. No se calculan componentes
-conexos ni se encadenan coincidencias, porque eso podría fusionar personas por
-un dato compartido o incorrecto. Solo se publican grupos con dos tickets o más y
-al menos uno abierto; el identificador completo nunca sale de la capa de datos,
-la API entrega una máscara y un `grupo_id` opaco. Por tanto, el resultado es una
-señal para revisión operativa y no una identidad civil inferida.
+la asociación directa en la cohorte es unívoca. Se rechazan formatos inválidos,
+secuencias numéricas repetidas y valores centinela como “sin correo”; no se
+calculan componentes conexos ni se encadenan coincidencias, porque eso podría
+fusionar personas por un dato compartido o incorrecto. Solo se publican grupos
+con dos tickets o más y al menos uno abierto; el identificador completo nunca
+sale de la capa de datos, la API entrega una máscara y un `grupo_id` opaco.
+
+La consulta usa dos lecturas fijas dentro del mismo snapshot SQLite. Materializa
+la cohorte y su clave canónica una vez por lectura, calcula cobertura y totales
+globales y recién entonces aplica el orden de riesgo con `row_number()`. La API
+entrega como máximo 50 grupos por página y no materializa en Node.js los grupos
+de otras páginas. Por tanto, el resultado es una señal acotada para revisión
+operativa y no una identidad civil inferida.
 
 ## 3. Contrato y paquetes compartidos
 
