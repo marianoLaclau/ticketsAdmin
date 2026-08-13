@@ -21,11 +21,11 @@ interface RendimientoFiltersUrlController {
 
 export function useRendimientoFiltersUrl(): RendimientoFiltersUrlController {
   const [searchParams, setSearchParams] = useSearchParams();
-  const urlState = useMemo(
-    () => parseRendimientoUrlState(searchParams),
-    [searchParams],
-  );
   const currentSearch = searchParams.toString();
+  const urlState = useMemo(
+    () => parseRendimientoUrlState(currentSearch),
+    [currentSearch],
+  );
   const canonicalSearch = useMemo(
     () => serializeRendimientoUrlState(urlState).toString(),
     [urlState],
