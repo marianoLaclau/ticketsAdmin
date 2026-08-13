@@ -5,6 +5,40 @@
  * GSB Ticket Management System API
  * OpenAPI spec version: 0.5.0
  */
+export type RendimientoModuleStatusModulo = typeof RendimientoModuleStatusModulo[keyof typeof RendimientoModuleStatusModulo];
+
+
+export const RendimientoModuleStatusModulo = {
+  rendimiento: 'rendimiento',
+} as const;
+
+export type RendimientoModuleStatusEstado = typeof RendimientoModuleStatusEstado[keyof typeof RendimientoModuleStatusEstado];
+
+
+export const RendimientoModuleStatusEstado = {
+  preparacion: 'preparacion',
+} as const;
+
+export type RendimientoModuleStatusVistasItem = typeof RendimientoModuleStatusVistasItem[keyof typeof RendimientoModuleStatusVistasItem];
+
+
+export const RendimientoModuleStatusVistasItem = {
+  resumen_equipo: 'resumen_equipo',
+  personas: 'personas',
+  reiteraciones: 'reiteraciones',
+  calidad_datos: 'calidad_datos',
+} as const;
+
+export interface RendimientoModuleStatus {
+  modulo: RendimientoModuleStatusModulo;
+  estado: RendimientoModuleStatusEstado;
+  /**
+     * @minItems 4
+     * @maxItems 4
+     */
+  vistas: RendimientoModuleStatusVistasItem[];
+}
+
 /**
  * Código estable que identifica la frontera funcional que bloqueó la operación.
  */
@@ -937,5 +971,17 @@ fecha_desde?: DashboardFechaDesdeParameter;
  * Ultimo dia incluido en el periodo del dashboard (YYYY-MM-DD).
  */
 fecha_hasta?: DashboardFechaHastaParameter;
+};
+
+export type GetRendimientoStatus403Code = typeof GetRendimientoStatus403Code[keyof typeof GetRendimientoStatus403Code];
+
+
+export const GetRendimientoStatus403Code = {
+  PERFORMANCE_ACCESS_REQUIRED: 'PERFORMANCE_ACCESS_REQUIRED',
+} as const;
+
+export type GetRendimientoStatus403 = {
+  code: GetRendimientoStatus403Code;
+  error: string;
 };
 

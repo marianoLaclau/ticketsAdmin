@@ -999,3 +999,19 @@ export const GetMotivoStatsResponseItem = zod.object({
 export const GetMotivoStatsResponse = zod.array(GetMotivoStatsResponseItem)
 
 
+/**
+ * Confirma la disponibilidad y las vistas previstas del módulo ejecutivo. No expone métricas hasta que la instrumentación sea auditable.
+ * @summary Get performance module status
+ */
+export const getRendimientoStatusResponseVistasMin = 4;
+export const getRendimientoStatusResponseVistasMax = 4;
+
+
+
+export const GetRendimientoStatusResponse = zod.object({
+  "modulo": zod.enum(['rendimiento']),
+  "estado": zod.enum(['preparacion']),
+  "vistas": zod.array(zod.enum(['resumen_equipo', 'personas', 'reiteraciones', 'calidad_datos'])).min(getRendimientoStatusResponseVistasMin).max(getRendimientoStatusResponseVistasMax)
+})
+
+

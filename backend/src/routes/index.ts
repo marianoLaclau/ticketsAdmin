@@ -6,6 +6,7 @@ import webhooksRouter from "./webhooks";
 import adminRouter from "./admin";
 import eventsRouter from "./events";
 import authRouter from "./auth";
+import rendimientoRouter from "../modules/rendimiento";
 import { requirePasswordChangeCompleted, requireSession } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -20,6 +21,7 @@ router.use(requireSession);
 router.use(requirePasswordChangeCompleted);
 router.use(ticketsRouter);
 router.use(dashboardRouter);
+router.use(rendimientoRouter);
 router.use(adminRouter); // además exige elevación administrativa
 router.use(eventsRouter);
 

@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
+  BarChart3,
   Ticket,
   UserCircle,
   Settings,
@@ -14,7 +15,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { ROL_SYSADMIN } from "@/lib/roles";
+import { puedeVerRendimiento, ROL_SYSADMIN } from "@/lib/roles";
 import { getEstadoLabel } from "@/lib/estados";
 import { getUserErrorMessage } from "@/lib/error-messages";
 import { cn } from "@/lib/utils";
@@ -81,9 +82,13 @@ export function Sidebar({
   // El acceso a Administración solo existe para el rol SysAdmin (el backend
   // lo valida igual; esto es para que los demás ni siquiera lo vean).
   const esSysAdmin = me?.rol === ROL_SYSADMIN;
+  const puedeVerModuloRendimiento = puedeVerRendimiento(me?.rol);
   const links = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/tickets", label: "Tickets", icon: Ticket },
+    ...(puedeVerModuloRendimiento
+      ? [{ href: "/rendimiento", label: "Rendimiento", icon: BarChart3 }]
+      : []),
     ...(esSysAdmin
       ? [{ href: "/admin", label: "Administración", icon: Settings }]
       : []),

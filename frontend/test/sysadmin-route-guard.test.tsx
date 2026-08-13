@@ -164,6 +164,7 @@ test("AuthGate, Sidebar y guard reutilizan /me sin ciclar al remontar", async (t
     screen.getByTestId("admin-content").textContent,
     "Administración",
   );
+  assert.ok(screen.getByTestId("nav-link-rendimiento"));
   await waitFor(() => assert.ok(statsFetches >= 1));
   assert.equal(sessionFetches, 0);
 
@@ -358,6 +359,7 @@ test("Controller consulta Dashboard y Tickets sin acciones de gestión ni Admini
 
   assert.ok(screen.getByRole("link", { name: /dashboard/i }));
   assert.ok(screen.getByRole("link", { name: /tickets/i }));
+  assert.ok(screen.getByRole("link", { name: /rendimiento/i }));
   assert.equal(screen.queryByRole("link", { name: /administración/i }), null);
   assert.ok(screen.getByText("Datos del Contacto"));
   assert.ok(screen.getByText("Historial y Seguimiento"));
@@ -394,6 +396,7 @@ test("un Operador ve 403 y nunca obtiene el acceso administrativo", async (t) =>
   assert.equal(screen.queryByTestId("admin-content"), null);
   assert.ok(screen.getByRole("heading", { name: /acceso denegado/i }));
   assert.equal(screen.queryByTestId("nav-link-administración"), null);
+  assert.equal(screen.queryByTestId("nav-link-rendimiento"), null);
   await flushAsyncWork();
   assert.equal(sessionFetches, 0);
 });

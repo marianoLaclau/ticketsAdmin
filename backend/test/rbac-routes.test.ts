@@ -1618,6 +1618,61 @@ describe("política de contraseñas nuevas", () => {
   });
 });
 
+describe("módulo de Rendimiento", () => {
+  it("expone solo el estado auditable a SysAdmin y Controller", async () => {
+    const withoutSession = await fetch(`${baseUrl}/api/rendimiento`);
+    assert.equal(withoutSession.status, 401);
+
+    const sysAdminResponse = await requestWithSession(
+      "/api/rendimiento",
+      await adminSession(),
+    );
+    assert.equal(sysAdminResponse.status, 200);
+    assert.equal(
+      sysAdminResponse.headers.get("cache-control"),
+      "private, no-store",
+    );
+    assert.deepEqual(await sysAdminResponse.json(), {
+      modulo: "rendimiento",
+      estado: "preparacion",
+      vistas: ["resumen_equipo", "personas", "reiteraciones", "calidad_datos"],
+    });
+
+    const passwordHash = (
+      sqlite
+        .prepare("SELECT password_hash FROM usuarios WHERE id = 1")
+        .get() as { password_hash: string }
+    ).password_hash;
+    sqlite
+      .prepare(
+        `INSERT INTO usuarios
+         (id, nombre, username, email, password_hash, debe_cambiar_password, role_id, activo)
+         VALUES (4, 'Control', 'controller', 'controller@example.test', ?, 0, 7, 1)`,
+      )
+      .run(passwordHash);
+
+    const controllerLogin = await login("controller");
+    assert.equal(controllerLogin.status, 200);
+    const controllerResponse = await requestWithSession(
+      "/api/rendimiento",
+      sessionCookie(controllerLogin),
+    );
+    assert.equal(controllerResponse.status, 200);
+
+    const operatorLogin = await login("operadora");
+    assert.equal(operatorLogin.status, 200);
+    const forbidden = await requestWithSession(
+      "/api/rendimiento",
+      sessionCookie(operatorLogin),
+    );
+    assert.equal(forbidden.status, 403);
+    assert.deepEqual(await forbidden.json(), {
+      code: "PERFORMANCE_ACCESS_REQUIRED",
+      error: "Requiere rol SysAdmin o Controller",
+    });
+  });
+});
+
 describe("catálogo administrativo de roles", () => {
   it("mantiene el subrouter detrás del rol SysAdmin", async () => {
     const sysAdminCookie = await adminSession();

@@ -44,6 +44,7 @@ import type {
   GetActividadRecienteParams,
   GetDashboardStatsParams,
   GetMotivoStatsParams,
+  GetRendimientoStatus403,
   GetTicketParams,
   GetTicketsVencidosParams,
   HealthStatus,
@@ -59,6 +60,7 @@ import type {
   PasswordChangeError,
   ReadinessStatus,
   ReadinessUnavailable,
+  RendimientoModuleStatus,
   Seguimiento,
   SeguimientoInput,
   Ticket,
@@ -2417,6 +2419,84 @@ export function useGetMotivoStats<TData = Awaited<ReturnType<typeof getMotivoSta
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetMotivoStatsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetRendimientoStatusUrl = () => {
+
+
+
+
+  return `/api/rendimiento`
+}
+
+/**
+ * Confirma la disponibilidad y las vistas previstas del módulo ejecutivo. No expone métricas hasta que la instrumentación sea auditable.
+ * @summary Get performance module status
+ */
+export const getRendimientoStatus = async ( options?: RequestInit): Promise<RendimientoModuleStatus> => {
+
+  return customFetch<RendimientoModuleStatus>(getGetRendimientoStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRendimientoStatusQueryKey = () => {
+    return [
+    `/api/rendimiento`
+    ] as const;
+    }
+
+
+export const getGetRendimientoStatusQueryOptions = <TData = Awaited<ReturnType<typeof getRendimientoStatus>>, TError = ErrorType<AdminAccessUnauthorized | GetRendimientoStatus403>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRendimientoStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRendimientoStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRendimientoStatus>>> = ({ signal }) => getRendimientoStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRendimientoStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRendimientoStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getRendimientoStatus>>>
+export type GetRendimientoStatusQueryError = ErrorType<AdminAccessUnauthorized | GetRendimientoStatus403>
+
+
+/**
+ * @summary Get performance module status
+ */
+
+export function useGetRendimientoStatus<TData = Awaited<ReturnType<typeof getRendimientoStatus>>, TError = ErrorType<AdminAccessUnauthorized | GetRendimientoStatus403>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRendimientoStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRendimientoStatusQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

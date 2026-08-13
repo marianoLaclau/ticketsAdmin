@@ -21,6 +21,7 @@ import {
   type SessionIdentityProps,
 } from "@/features/auth/AuthGate";
 import { SysAdminRouteGuard } from "@/features/auth/SysAdminRouteGuard";
+import { RendimientoRouteGuard } from "@/features/auth/RendimientoRouteGuard";
 import {
   AppErrorBoundary,
   ErrorPage,
@@ -46,6 +47,7 @@ import {
 const Dashboard = React.lazy(() => import("@/pages/Dashboard"));
 const TicketList = React.lazy(() => import("@/pages/TicketList"));
 const TicketDetail = React.lazy(() => import("@/pages/TicketDetail"));
+const Rendimiento = React.lazy(() => import("@/pages/Rendimiento"));
 const Admin = React.lazy(() => import("@/pages/Admin"));
 const AdminRolesUsers = React.lazy(() => import("@/pages/AdminRolesUsers"));
 
@@ -207,6 +209,11 @@ function ProtectedRouter() {
       <React.Suspense fallback={<LoadingProtectedRoute />}>
         <Switch>
           <Route path="/dashboard" component={Dashboard} />
+          <Route path="/rendimiento">
+            <RendimientoRouteGuard>
+              <Rendimiento />
+            </RendimientoRouteGuard>
+          </Route>
           <Route path="/admin/roles-usuarios">
             <SysAdminRouteGuard>
               <AdminRolesUsers />

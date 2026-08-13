@@ -16,6 +16,8 @@ tags:
     description: Ticket follow-up tracking
   - name: dashboard
     description: Dashboard statistics
+  - name: rendimiento
+    description: Indicadores ejecutivos protegidos para SysAdmin y Controller
   - name: webhooks
     description: Ingesta automática de llamadas (n8n)
   - name: admin
@@ -1171,6 +1173,42 @@ paths:
         "403":
           $ref: "#/components/responses/FunctionalAccessForbidden"
 
+  /rendimiento:
+    get:
+      operationId: getRendimientoStatus
+      tags: [rendimiento]
+      summary: Get performance module status
+      description: >
+        Confirma la disponibilidad y las vistas previstas del módulo ejecutivo.
+        No expone métricas hasta que la instrumentación sea auditable.
+      responses:
+        "200":
+          description: Performance module status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RendimientoModuleStatus"
+        "401":
+          description: Sesión inválida o ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAccessUnauthorized"
+        "403":
+          description: El rol no puede consultar Rendimiento
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [code, error]
+                properties:
+                  code:
+                    type: string
+                    enum: [PERFORMANCE_ACCESS_REQUIRED]
+                  error:
+                    type: string
+
 components:
   parameters:
     DashboardFechaDesde:
@@ -1208,6 +1246,33 @@ components:
       name: x-api-key
 
   schemas:
+    RendimientoModuleStatus:
+      type: object
+      additionalProperties: false
+      required:
+        - modulo
+        - estado
+        - vistas
+      properties:
+        modulo:
+          type: string
+          enum: [rendimiento]
+        estado:
+          type: string
+          enum: [preparacion]
+        vistas:
+          type: array
+          minItems: 4
+          maxItems: 4
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+              - resumen_equipo
+              - personas
+              - reiteraciones
+              - calidad_datos
+
     FunctionalAccessError:
       type: object
       required:
