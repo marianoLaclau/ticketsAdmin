@@ -63,10 +63,7 @@ test("muestra las seis coberturas con porcentaje y muestra", async (t) => {
   t.after(cleanup);
   render(
     <main>
-      <RendimientoQualityPanel
-        data={qualityData()}
-        onClearFilters={() => {}}
-      />
+      <RendimientoQualityPanel data={qualityData()} onClearFilters={() => {}} />
     </main>,
   );
 
