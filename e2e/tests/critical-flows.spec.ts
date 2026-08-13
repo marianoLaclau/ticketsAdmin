@@ -150,6 +150,7 @@ async function createTemporaryUser(
   page: Page,
   username: string,
   email: string,
+  roleName = "Operador",
 ): Promise<void> {
   const adminHeaders = {};
   const rolesResponse = await page.request.get("/api/admin/roles?limit=100", {
@@ -157,10 +158,10 @@ async function createTemporaryUser(
   });
   expect(rolesResponse.ok()).toBe(true);
   const roleList = (await rolesResponse.json()) as AdminRoleListResponse;
-  const operatorRole = roleList.roles.find(
-    (role) => role.nombre === "Operador",
-  );
-  if (!operatorRole) throw new Error("No se encontró el rol base Operador");
+  const selectedRole = roleList.roles.find((role) => role.nombre === roleName);
+  if (!selectedRole) {
+    throw new Error(`No se encontró el rol base ${roleName}`);
+  }
 
   const createResponse = await page.request.post("/api/admin/users", {
     headers: adminHeaders,
@@ -170,12 +171,146 @@ async function createTemporaryUser(
       username,
       password: E2E_AGENT_TEMP_PASSWORD,
       email,
-      role_id: operatorRole.id,
+      role_id: selectedRole.id,
       activo: true,
     },
   });
   expect(createResponse.status()).toBe(201);
 }
+
+test("Controller consulta Rendimiento de extremo a extremo sin permisos de escritura", async ({
+  page,
+}) => {
+  const suffix = randomUUID().slice(0, 8);
+  const controllerUsername = `controller-e2e-${suffix}`;
+  const company = `Dirección E2E ${suffix}`;
+  const repeatedDni = "30987654";
+
+  await loginSysAdmin(page);
+  await createTemporaryUser(
+    page,
+    controllerUsername,
+    `${controllerUsername}@example.test`,
+    "Controller",
+  );
+
+  const firstTicket = await ingestTicket(page, {
+    conversation_id: uniqueValue("e2e-rendimiento-primero"),
+    hora: "09:10",
+    nombre: "Contacto",
+    apellido: "Reiterado",
+    telefono: "1165432109",
+    dni: repeatedDni,
+    empresa: company,
+    motivo: "Consulta general de Rendimiento",
+    resumen: "Primer contacto usado por el flujo ejecutivo E2E.",
+  });
+  const secondTicket = await ingestTicket(page, {
+    conversation_id: uniqueValue("e2e-rendimiento-segundo"),
+    hora: "10:20",
+    nombre: "Contacto",
+    apellido: "Reiterado",
+    telefono: "11 6543-2109",
+    dni: repeatedDni,
+    empresa: company,
+    motivo: "Reitera una consulta general",
+    resumen: "Segundo contacto que conserva un ticket abierto.",
+  });
+
+  const resolved = await page.request.patch(
+    `/api/tickets/${firstTicket.ticket.id}`,
+    {
+      data: {
+        expected_version: firstTicket.ticket.version,
+        estado: "resuelto",
+      },
+    },
+  );
+  expect(resolved.ok()).toBe(true);
+
+  await page.getByRole("button", { name: "Cerrar sesión" }).click();
+  await login(page, controllerUsername, E2E_AGENT_TEMP_PASSWORD);
+  await completeRequiredPasswordChange(
+    page,
+    E2E_AGENT_TEMP_PASSWORD,
+    E2E_AGENT_PASSWORD,
+  );
+
+  await expect(page.getByRole("link", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Tickets" })).toBeVisible();
+  const performanceLink = page.getByRole("link", { name: "Rendimiento" });
+  await expect(performanceLink).toBeVisible();
+  await expect(page.getByRole("link", { name: "Administración" })).toHaveCount(
+    0,
+  );
+
+  const forbiddenUpdate = await page.request.patch(
+    `/api/tickets/${secondTicket.ticket.id}`,
+    {
+      data: {
+        expected_version: secondTicket.ticket.version,
+        notas: "Un Controller no debe poder escribir esta nota.",
+      },
+    },
+  );
+  expect(forbiddenUpdate.status()).toBe(403);
+
+  await performanceLink.click();
+  await expect(page).toHaveURL(/\/rendimiento$/);
+  await expect(
+    page.getByRole("heading", { name: "Resumen del equipo" }),
+  ).toBeVisible();
+
+  await page.getByRole("tab", { name: "Personas" }).click();
+  await expect(page).toHaveURL(/vista=personas/);
+  await expect(
+    page.getByRole("heading", { name: "Rendimiento individual" }),
+  ).toBeVisible();
+
+  await page.getByRole("tab", { name: "Reiteraciones" }).click();
+  await expect(page).toHaveURL(/vista=reiteraciones/);
+  await expect(
+    page.getByRole("heading", { name: "Contactos reiterados" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Contacto Reiterado" }),
+  ).toBeVisible();
+
+  const repeatedTicketLink = page.getByRole("link", {
+    name: `Abrir ticket #${secondTicket.ticket.id} de Contacto Reiterado`,
+  });
+  await repeatedTicketLink.click();
+  await expect(page).toHaveURL(
+    new RegExp(`/tickets/${secondTicket.ticket.id}$`),
+  );
+  await expect(page.getByRole("button", { name: "Editar Estado" })).toHaveCount(
+    0,
+  );
+
+  await page.goBack();
+  await expect(page).toHaveURL(/vista=reiteraciones/);
+  await expect(
+    page.getByRole("tab", { name: "Reiteraciones", selected: true }),
+  ).toBeVisible();
+
+  await page.getByLabel("Empresa").fill(company);
+  await page.getByRole("button", { name: "Aplicar filtros" }).click();
+  await expect(page).toHaveURL(/vista=reiteraciones/);
+  await expect(page).toHaveURL(/empresa=Direcci%C3%B3n\+E2E/);
+  await page.reload();
+  await expect(
+    page.getByRole("tab", { name: "Reiteraciones", selected: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Contacto Reiterado" }),
+  ).toBeVisible();
+
+  await page.getByRole("tab", { name: "Calidad de datos" }).click();
+  await expect(page).toHaveURL(/vista=calidad/);
+  await expect(
+    page.getByRole("heading", { name: "Calidad y cobertura" }),
+  ).toBeVisible();
+});
 
 test("primer ingreso, cambio obligatorio, logout y guardas públicas", async ({
   page,
