@@ -1209,6 +1209,61 @@ paths:
                   error:
                     type: string
 
+  /rendimiento/calidad-datos:
+    get:
+      operationId: getRendimientoCalidadDatos
+      tags: [rendimiento]
+      summary: Consultar la cobertura de datos para métricas de rendimiento
+      description: |
+        Evalúa si los datos disponibles permiten construir indicadores de equipo
+        e individuales sin presentar estimaciones como hechos auditables.
+
+        La cohorte contiene únicamente tickets visibles cuya `fecha_creacion`
+        pertenece al período solicitado. `empresa`, `motivo_categoria` y
+        `prioridad` restringen esa misma cohorte; todos los denominadores se
+        calculan después de aplicar esos filtros.
+
+        Una resolución evaluable para atribución es exclusivamente una transición
+        de un estado no final a `resuelto` o `cerrado`. Un cambio posterior de
+        `resuelto` a `cerrado` no crea una segunda resolución.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/RendimientoFechaDesde"
+        - $ref: "#/components/parameters/RendimientoFechaHasta"
+        - $ref: "#/components/parameters/RendimientoEmpresa"
+        - $ref: "#/components/parameters/RendimientoMotivoCategoria"
+        - $ref: "#/components/parameters/RendimientoPrioridad"
+      responses:
+        "200":
+          description: Coberturas de calidad de la cohorte filtrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RendimientoCalidadDatos"
+        "400":
+          description: Filtros o período inválidos
+        "401":
+          description: Sesión inválida o ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAccessUnauthorized"
+        "403":
+          description: El rol no puede consultar Rendimiento
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [code, error]
+                properties:
+                  code:
+                    type: string
+                    enum: [PERFORMANCE_ACCESS_REQUIRED]
+                  error:
+                    type: string
+
 components:
   parameters:
     DashboardFechaDesde:
@@ -1225,6 +1280,39 @@ components:
       schema:
         type: string
         format: date
+    RendimientoFechaDesde:
+      name: fecha_desde
+      in: query
+      description: Primer día incluido según fecha_creacion del ticket (YYYY-MM-DD).
+      schema:
+        type: string
+        format: date
+    RendimientoFechaHasta:
+      name: fecha_hasta
+      in: query
+      description: Último día incluido según fecha_creacion del ticket (YYYY-MM-DD).
+      schema:
+        type: string
+        format: date
+    RendimientoEmpresa:
+      name: empresa
+      in: query
+      description: Texto contenido en la empresa de los tickets incluidos en la cohorte.
+      schema:
+        type: string
+    RendimientoMotivoCategoria:
+      name: motivo_categoria
+      in: query
+      description: Categoría normalizada de los tickets incluidos en la cohorte.
+      schema:
+        $ref: "#/components/schemas/MotivoCategoria"
+    RendimientoPrioridad:
+      name: prioridad
+      in: query
+      description: Prioridad actual de los tickets incluidos en la cohorte.
+      schema:
+        type: string
+        enum: [baja, media, alta, urgente]
 
   responses:
     FunctionalAccessForbidden:
@@ -1272,6 +1360,135 @@ components:
               - personas
               - reiteraciones
               - calidad_datos
+
+    RendimientoPeriodo:
+      type: object
+      additionalProperties: false
+      required:
+        - fecha_desde
+        - fecha_hasta
+        - timezone
+        - generado_en
+      properties:
+        fecha_desde:
+          description: Primer día incluido por fecha_creacion, o null si no se limitó el inicio.
+          type: [string, "null"]
+          format: date
+        fecha_hasta:
+          description: Último día incluido por fecha_creacion, o null si no se limitó el fin.
+          type: [string, "null"]
+          format: date
+        timezone:
+          type: string
+          enum: [America/Argentina/Buenos_Aires]
+        generado_en:
+          type: string
+          format: date-time
+          description: Instante del snapshot consistente usado para calcular la respuesta.
+
+    RendimientoProporcion:
+      type: object
+      additionalProperties: false
+      description: La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.
+      required:
+        - numerador
+        - denominador
+        - porcentaje
+      properties:
+        numerador:
+          type: integer
+          minimum: 0
+        denominador:
+          type: integer
+          minimum: 0
+        porcentaje:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 100
+
+    RendimientoCoberturasCalidadDatos:
+      type: object
+      additionalProperties: false
+      required:
+        - actor_resolucion
+        - fecha_resolucion
+        - plazo_resolucion
+        - asignacion_estructurada
+        - identidad_contacto
+        - fecha_limite
+      properties:
+        actor_resolucion:
+          allOf:
+            - $ref: "#/components/schemas/RendimientoProporcion"
+          description: >
+            Resoluciones evaluadas con autor_usuario_id persistido sobre el total de
+            transiciones no-final a final de los tickets de la cohorte.
+        fecha_resolucion:
+          allOf:
+            - $ref: "#/components/schemas/RendimientoProporcion"
+          description: >
+            Tickets actualmente en estado final con fecha_resolucion sobre el total
+            de tickets actualmente en estado final de la cohorte.
+        plazo_resolucion:
+          allOf:
+            - $ref: "#/components/schemas/RendimientoProporcion"
+          description: >
+            Resoluciones evaluadas que conservaron el plazo vigente al resolverse
+            sobre el total de transiciones no-final a final de la cohorte.
+        asignacion_estructurada:
+          allOf:
+            - $ref: "#/components/schemas/RendimientoProporcion"
+          description: >
+            Tickets con asignado_usuario_id sobre los tickets que poseen alguna
+            asignación estructurada o histórica dentro de la cohorte.
+        identidad_contacto:
+          allOf:
+            - $ref: "#/components/schemas/RendimientoProporcion"
+          description: >
+            Tickets con al menos un DNI, teléfono o email normalizado utilizable
+            sobre todos los tickets de la cohorte.
+        fecha_limite:
+          allOf:
+            - $ref: "#/components/schemas/RendimientoProporcion"
+          description: Tickets con fecha_limite válida sobre todos los tickets de la cohorte.
+
+    RendimientoCalidadDatos:
+      type: object
+      additionalProperties: false
+      required:
+        - periodo
+        - tickets_evaluados
+        - resoluciones_evaluadas
+        - atribucion_desde
+        - comparacion_individual_estado
+        - coberturas
+      properties:
+        periodo:
+          $ref: "#/components/schemas/RendimientoPeriodo"
+        tickets_evaluados:
+          type: integer
+          minimum: 0
+          description: Tickets visibles de la cohorte después de aplicar todos los filtros.
+        resoluciones_evaluadas:
+          type: integer
+          minimum: 0
+          description: >
+            Transiciones no-final a final encontradas para los tickets de la cohorte;
+            es el denominador de actor_resolucion.
+        atribucion_desde:
+          type: [string, "null"]
+          format: date-time
+          description: >
+            Primera resolución con autor_usuario_id estructurado observable en el
+            historial persistido, o null cuando todavía no existe.
+        comparacion_individual_estado:
+          type: string
+          enum: [insuficiente, parcial, disponible]
+          description: >
+            insuficiente impide comparar personas; parcial exige advertir cobertura
+            incompleta; disponible indica que se alcanzó el umbral auditable del servidor.
+        coberturas:
+          $ref: "#/components/schemas/RendimientoCoberturasCalidadDatos"
 
     FunctionalAccessError:
       type: object

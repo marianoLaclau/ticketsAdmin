@@ -1018,3 +1018,119 @@ export const GetRendimientoStatusResponse = zod.object({
 })
 
 
+/**
+ * Evalúa si los datos disponibles permiten construir indicadores de equipo
+ * e individuales sin presentar estimaciones como hechos auditables.
+ *
+ * La cohorte contiene únicamente tickets visibles cuya `fecha_creacion`
+ * pertenece al período solicitado. `empresa`, `motivo_categoria` y
+ * `prioridad` restringen esa misma cohorte; todos los denominadores se
+ * calculan después de aplicar esos filtros.
+ *
+ * Una resolución evaluable para atribución es exclusivamente una transición
+ * de un estado no final a `resuelto` o `cerrado`. Un cambio posterior de
+ * `resuelto` a `cerrado` no crea una segunda resolución.
+ * @summary Consultar la cobertura de datos para métricas de rendimiento
+ */
+export const GetRendimientoCalidadDatosQueryParams = zod.object({
+  "fecha_desde": zod.coerce.date().optional().describe('Primer día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
+  "fecha_hasta": zod.coerce.date().optional().describe('Último día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
+  "empresa": zod.coerce.string().optional().describe('Texto contenido en la empresa de los tickets incluidos en la cohorte.'),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'prestamos_anticipos', 'obra_social', 'sanciones_ausencias', 'proveedores_comercial', 'sin_clasificar']).optional().describe('Categoría normalizada de los tickets incluidos en la cohorte.'),
+  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional().describe('Prioridad actual de los tickets incluidos en la cohorte.')
+})
+
+export const getRendimientoCalidadDatosResponseTicketsEvaluadosMin = 0;
+
+export const getRendimientoCalidadDatosResponseResolucionesEvaluadasMin = 0;
+
+export const getRendimientoCalidadDatosResponseCoberturasActorResolucionOneNumeradorMin = 0;
+
+export const getRendimientoCalidadDatosResponseCoberturasActorResolucionOneDenominadorMin = 0;
+
+export const getRendimientoCalidadDatosResponseCoberturasActorResolucionOnePorcentajeMin = 0;
+export const getRendimientoCalidadDatosResponseCoberturasActorResolucionOnePorcentajeMax = 100;
+
+export const getRendimientoCalidadDatosResponseCoberturasFechaResolucionOneNumeradorMin = 0;
+
+export const getRendimientoCalidadDatosResponseCoberturasFechaResolucionOneDenominadorMin = 0;
+
+export const getRendimientoCalidadDatosResponseCoberturasFechaResolucionOnePorcentajeMin = 0;
+export const getRendimientoCalidadDatosResponseCoberturasFechaResolucionOnePorcentajeMax = 100;
+
+export const getRendimientoCalidadDatosResponseCoberturasPlazoResolucionOneNumeradorMin = 0;
+
+export const getRendimientoCalidadDatosResponseCoberturasPlazoResolucionOneDenominadorMin = 0;
+
+export const getRendimientoCalidadDatosResponseCoberturasPlazoResolucionOnePorcentajeMin = 0;
+export const getRendimientoCalidadDatosResponseCoberturasPlazoResolucionOnePorcentajeMax = 100;
+
+export const getRendimientoCalidadDatosResponseCoberturasAsignacionEstructuradaOneNumeradorMin = 0;
+
+export const getRendimientoCalidadDatosResponseCoberturasAsignacionEstructuradaOneDenominadorMin = 0;
+
+export const getRendimientoCalidadDatosResponseCoberturasAsignacionEstructuradaOnePorcentajeMin = 0;
+export const getRendimientoCalidadDatosResponseCoberturasAsignacionEstructuradaOnePorcentajeMax = 100;
+
+export const getRendimientoCalidadDatosResponseCoberturasIdentidadContactoOneNumeradorMin = 0;
+
+export const getRendimientoCalidadDatosResponseCoberturasIdentidadContactoOneDenominadorMin = 0;
+
+export const getRendimientoCalidadDatosResponseCoberturasIdentidadContactoOnePorcentajeMin = 0;
+export const getRendimientoCalidadDatosResponseCoberturasIdentidadContactoOnePorcentajeMax = 100;
+
+export const getRendimientoCalidadDatosResponseCoberturasFechaLimiteOneNumeradorMin = 0;
+
+export const getRendimientoCalidadDatosResponseCoberturasFechaLimiteOneDenominadorMin = 0;
+
+export const getRendimientoCalidadDatosResponseCoberturasFechaLimiteOnePorcentajeMin = 0;
+export const getRendimientoCalidadDatosResponseCoberturasFechaLimiteOnePorcentajeMax = 100;
+
+
+
+export const GetRendimientoCalidadDatosResponse = zod.object({
+  "periodo": zod.object({
+  "fecha_desde": zod.coerce.date().nullable().describe('Primer día incluido por fecha_creacion, o null si no se limitó el inicio.'),
+  "fecha_hasta": zod.coerce.date().nullable().describe('Último día incluido por fecha_creacion, o null si no se limitó el fin.'),
+  "timezone": zod.enum(['America/Argentina/Buenos_Aires']),
+  "generado_en": zod.coerce.date().describe('Instante del snapshot consistente usado para calcular la respuesta.')
+}),
+  "tickets_evaluados": zod.number().min(getRendimientoCalidadDatosResponseTicketsEvaluadosMin).describe('Tickets visibles de la cohorte después de aplicar todos los filtros.'),
+  "resoluciones_evaluadas": zod.number().min(getRendimientoCalidadDatosResponseResolucionesEvaluadasMin).describe('Transiciones no-final a final encontradas para los tickets de la cohorte; es el denominador de actor_resolucion.\n'),
+  "atribucion_desde": zod.coerce.date().nullable().describe('Primera resolución con autor_usuario_id estructurado observable en el historial persistido, o null cuando todavía no existe.\n'),
+  "comparacion_individual_estado": zod.enum(['insuficiente', 'parcial', 'disponible']).describe('insuficiente impide comparar personas; parcial exige advertir cobertura incompleta; disponible indica que se alcanzó el umbral auditable del servidor.\n'),
+  "coberturas": zod.object({
+  "actor_resolucion": zod.object({
+  "numerador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasActorResolucionOneNumeradorMin),
+  "denominador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasActorResolucionOneDenominadorMin),
+  "porcentaje": zod.number().min(getRendimientoCalidadDatosResponseCoberturasActorResolucionOnePorcentajeMin).max(getRendimientoCalidadDatosResponseCoberturasActorResolucionOnePorcentajeMax).nullable()
+}).describe('La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.').describe('Resoluciones evaluadas con autor_usuario_id persistido sobre el total de transiciones no-final a final de los tickets de la cohorte.\n'),
+  "fecha_resolucion": zod.object({
+  "numerador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasFechaResolucionOneNumeradorMin),
+  "denominador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasFechaResolucionOneDenominadorMin),
+  "porcentaje": zod.number().min(getRendimientoCalidadDatosResponseCoberturasFechaResolucionOnePorcentajeMin).max(getRendimientoCalidadDatosResponseCoberturasFechaResolucionOnePorcentajeMax).nullable()
+}).describe('La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.').describe('Tickets actualmente en estado final con fecha_resolucion sobre el total de tickets actualmente en estado final de la cohorte.\n'),
+  "plazo_resolucion": zod.object({
+  "numerador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasPlazoResolucionOneNumeradorMin),
+  "denominador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasPlazoResolucionOneDenominadorMin),
+  "porcentaje": zod.number().min(getRendimientoCalidadDatosResponseCoberturasPlazoResolucionOnePorcentajeMin).max(getRendimientoCalidadDatosResponseCoberturasPlazoResolucionOnePorcentajeMax).nullable()
+}).describe('La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.').describe('Resoluciones evaluadas que conservaron el plazo vigente al resolverse sobre el total de transiciones no-final a final de la cohorte.\n'),
+  "asignacion_estructurada": zod.object({
+  "numerador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasAsignacionEstructuradaOneNumeradorMin),
+  "denominador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasAsignacionEstructuradaOneDenominadorMin),
+  "porcentaje": zod.number().min(getRendimientoCalidadDatosResponseCoberturasAsignacionEstructuradaOnePorcentajeMin).max(getRendimientoCalidadDatosResponseCoberturasAsignacionEstructuradaOnePorcentajeMax).nullable()
+}).describe('La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.').describe('Tickets con asignado_usuario_id sobre los tickets que poseen alguna asignación estructurada o histórica dentro de la cohorte.\n'),
+  "identidad_contacto": zod.object({
+  "numerador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasIdentidadContactoOneNumeradorMin),
+  "denominador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasIdentidadContactoOneDenominadorMin),
+  "porcentaje": zod.number().min(getRendimientoCalidadDatosResponseCoberturasIdentidadContactoOnePorcentajeMin).max(getRendimientoCalidadDatosResponseCoberturasIdentidadContactoOnePorcentajeMax).nullable()
+}).describe('La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.').describe('Tickets con al menos un DNI, teléfono o email normalizado utilizable sobre todos los tickets de la cohorte.\n'),
+  "fecha_limite": zod.object({
+  "numerador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasFechaLimiteOneNumeradorMin),
+  "denominador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasFechaLimiteOneDenominadorMin),
+  "porcentaje": zod.number().min(getRendimientoCalidadDatosResponseCoberturasFechaLimiteOnePorcentajeMin).max(getRendimientoCalidadDatosResponseCoberturasFechaLimiteOnePorcentajeMax).nullable()
+}).describe('La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.').describe('Tickets con fecha_limite válida sobre todos los tickets de la cohorte.')
+})
+})
+
+

@@ -39,6 +39,94 @@ export interface RendimientoModuleStatus {
   vistas: RendimientoModuleStatusVistasItem[];
 }
 
+export type RendimientoPeriodoTimezone = typeof RendimientoPeriodoTimezone[keyof typeof RendimientoPeriodoTimezone];
+
+
+export const RendimientoPeriodoTimezone = {
+  'America/Argentina/Buenos_Aires': 'America/Argentina/Buenos_Aires',
+} as const;
+
+export interface RendimientoPeriodo {
+  /**
+     * Primer día incluido por fecha_creacion, o null si no se limitó el inicio.
+     * @nullable
+     */
+  fecha_desde: string | null;
+  /**
+     * Último día incluido por fecha_creacion, o null si no se limitó el fin.
+     * @nullable
+     */
+  fecha_hasta: string | null;
+  timezone: RendimientoPeriodoTimezone;
+  /** Instante del snapshot consistente usado para calcular la respuesta. */
+  generado_en: string;
+}
+
+/**
+ * La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.
+ */
+export interface RendimientoProporcion {
+  /** @minimum 0 */
+  numerador: number;
+  /** @minimum 0 */
+  denominador: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  porcentaje: number | null;
+}
+
+export interface RendimientoCoberturasCalidadDatos {
+  /** Resoluciones evaluadas con autor_usuario_id persistido sobre el total de transiciones no-final a final de los tickets de la cohorte. */
+  actor_resolucion: RendimientoProporcion;
+  /** Tickets actualmente en estado final con fecha_resolucion sobre el total de tickets actualmente en estado final de la cohorte. */
+  fecha_resolucion: RendimientoProporcion;
+  /** Resoluciones evaluadas que conservaron el plazo vigente al resolverse sobre el total de transiciones no-final a final de la cohorte. */
+  plazo_resolucion: RendimientoProporcion;
+  /** Tickets con asignado_usuario_id sobre los tickets que poseen alguna asignación estructurada o histórica dentro de la cohorte. */
+  asignacion_estructurada: RendimientoProporcion;
+  /** Tickets con al menos un DNI, teléfono o email normalizado utilizable sobre todos los tickets de la cohorte. */
+  identidad_contacto: RendimientoProporcion;
+  /** Tickets con fecha_limite válida sobre todos los tickets de la cohorte. */
+  fecha_limite: RendimientoProporcion;
+}
+
+/**
+ * insuficiente impide comparar personas; parcial exige advertir cobertura incompleta; disponible indica que se alcanzó el umbral auditable del servidor.
+ */
+export type RendimientoCalidadDatosComparacionIndividualEstado = typeof RendimientoCalidadDatosComparacionIndividualEstado[keyof typeof RendimientoCalidadDatosComparacionIndividualEstado];
+
+
+export const RendimientoCalidadDatosComparacionIndividualEstado = {
+  insuficiente: 'insuficiente',
+  parcial: 'parcial',
+  disponible: 'disponible',
+} as const;
+
+export interface RendimientoCalidadDatos {
+  periodo: RendimientoPeriodo;
+  /**
+     * Tickets visibles de la cohorte después de aplicar todos los filtros.
+     * @minimum 0
+     */
+  tickets_evaluados: number;
+  /**
+     * Transiciones no-final a final encontradas para los tickets de la cohorte; es el denominador de actor_resolucion.
+     * @minimum 0
+     */
+  resoluciones_evaluadas: number;
+  /**
+     * Primera resolución con autor_usuario_id estructurado observable en el historial persistido, o null cuando todavía no existe.
+     * @nullable
+     */
+  atribucion_desde: string | null;
+  /** insuficiente impide comparar personas; parcial exige advertir cobertura incompleta; disponible indica que se alcanzó el umbral auditable del servidor. */
+  comparacion_individual_estado: RendimientoCalidadDatosComparacionIndividualEstado;
+  coberturas: RendimientoCoberturasCalidadDatos;
+}
+
 /**
  * Código estable que identifica la frontera funcional que bloqueó la operación.
  */
@@ -752,6 +840,33 @@ export type DashboardFechaDesdeParameter = string;
  */
 export type DashboardFechaHastaParameter = string;
 
+/**
+ * Primer día incluido según fecha_creacion del ticket (YYYY-MM-DD).
+ */
+export type RendimientoFechaDesdeParameter = string;
+
+/**
+ * Último día incluido según fecha_creacion del ticket (YYYY-MM-DD).
+ */
+export type RendimientoFechaHastaParameter = string;
+
+/**
+ * Texto contenido en la empresa de los tickets incluidos en la cohorte.
+ */
+export type RendimientoEmpresaParameter = string;
+
+export type RendimientoMotivoCategoriaParameter = MotivoCategoria;
+
+export type RendimientoPrioridadParameter = typeof RendimientoPrioridadParameter[keyof typeof RendimientoPrioridadParameter];
+
+
+export const RendimientoPrioridadParameter = {
+  baja: 'baja',
+  media: 'media',
+  alta: 'alta',
+  urgente: 'urgente',
+} as const;
+
 export type ListTicketsParams = {
 estado?: ListTicketsEstado;
 prioridad?: ListTicketsPrioridad;
@@ -987,6 +1102,41 @@ export const GetRendimientoStatus403Code = {
 
 export type GetRendimientoStatus403 = {
   code: GetRendimientoStatus403Code;
+  error: string;
+};
+
+export type GetRendimientoCalidadDatosParams = {
+/**
+ * Primer día incluido según fecha_creacion del ticket (YYYY-MM-DD).
+ */
+fecha_desde?: RendimientoFechaDesdeParameter;
+/**
+ * Último día incluido según fecha_creacion del ticket (YYYY-MM-DD).
+ */
+fecha_hasta?: RendimientoFechaHastaParameter;
+/**
+ * Texto contenido en la empresa de los tickets incluidos en la cohorte.
+ */
+empresa?: RendimientoEmpresaParameter;
+/**
+ * Categoría normalizada de los tickets incluidos en la cohorte.
+ */
+motivo_categoria?: RendimientoMotivoCategoriaParameter;
+/**
+ * Prioridad actual de los tickets incluidos en la cohorte.
+ */
+prioridad?: RendimientoPrioridadParameter;
+};
+
+export type GetRendimientoCalidadDatos403Code = typeof GetRendimientoCalidadDatos403Code[keyof typeof GetRendimientoCalidadDatos403Code];
+
+
+export const GetRendimientoCalidadDatos403Code = {
+  PERFORMANCE_ACCESS_REQUIRED: 'PERFORMANCE_ACCESS_REQUIRED',
+} as const;
+
+export type GetRendimientoCalidadDatos403 = {
+  code: GetRendimientoCalidadDatos403Code;
   error: string;
 };
 

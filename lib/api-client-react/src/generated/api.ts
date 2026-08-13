@@ -44,6 +44,8 @@ import type {
   GetActividadRecienteParams,
   GetDashboardStatsParams,
   GetMotivoStatsParams,
+  GetRendimientoCalidadDatos403,
+  GetRendimientoCalidadDatosParams,
   GetRendimientoStatus403,
   GetTicketParams,
   GetTicketsVencidosParams,
@@ -60,6 +62,7 @@ import type {
   PasswordChangeError,
   ReadinessStatus,
   ReadinessUnavailable,
+  RendimientoCalidadDatos,
   RendimientoModuleStatus,
   Seguimiento,
   SeguimientoInput,
@@ -2497,6 +2500,101 @@ export function useGetRendimientoStatus<TData = Awaited<ReturnType<typeof getRen
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetRendimientoStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetRendimientoCalidadDatosUrl = (params?: GetRendimientoCalidadDatosParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/rendimiento/calidad-datos?${stringifiedParams}` : `/api/rendimiento/calidad-datos`
+}
+
+/**
+ * Evalúa si los datos disponibles permiten construir indicadores de equipo
+ * e individuales sin presentar estimaciones como hechos auditables.
+ *
+ * La cohorte contiene únicamente tickets visibles cuya `fecha_creacion`
+ * pertenece al período solicitado. `empresa`, `motivo_categoria` y
+ * `prioridad` restringen esa misma cohorte; todos los denominadores se
+ * calculan después de aplicar esos filtros.
+ *
+ * Una resolución evaluable para atribución es exclusivamente una transición
+ * de un estado no final a `resuelto` o `cerrado`. Un cambio posterior de
+ * `resuelto` a `cerrado` no crea una segunda resolución.
+ * @summary Consultar la cobertura de datos para métricas de rendimiento
+ */
+export const getRendimientoCalidadDatos = async (params?: GetRendimientoCalidadDatosParams, options?: RequestInit): Promise<RendimientoCalidadDatos> => {
+
+  return customFetch<RendimientoCalidadDatos>(getGetRendimientoCalidadDatosUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRendimientoCalidadDatosQueryKey = (params?: GetRendimientoCalidadDatosParams,) => {
+    return [
+    `/api/rendimiento/calidad-datos`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetRendimientoCalidadDatosQueryOptions = <TData = Awaited<ReturnType<typeof getRendimientoCalidadDatos>>, TError = ErrorType<void | AdminAccessUnauthorized | GetRendimientoCalidadDatos403>>(params?: GetRendimientoCalidadDatosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRendimientoCalidadDatos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRendimientoCalidadDatosQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRendimientoCalidadDatos>>> = ({ signal }) => getRendimientoCalidadDatos(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRendimientoCalidadDatos>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRendimientoCalidadDatosQueryResult = NonNullable<Awaited<ReturnType<typeof getRendimientoCalidadDatos>>>
+export type GetRendimientoCalidadDatosQueryError = ErrorType<void | AdminAccessUnauthorized | GetRendimientoCalidadDatos403>
+
+
+/**
+ * @summary Consultar la cobertura de datos para métricas de rendimiento
+ */
+
+export function useGetRendimientoCalidadDatos<TData = Awaited<ReturnType<typeof getRendimientoCalidadDatos>>, TError = ErrorType<void | AdminAccessUnauthorized | GetRendimientoCalidadDatos403>>(
+ params?: GetRendimientoCalidadDatosParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRendimientoCalidadDatos>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRendimientoCalidadDatosQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
