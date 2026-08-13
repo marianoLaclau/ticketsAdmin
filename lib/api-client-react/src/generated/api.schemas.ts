@@ -13,7 +13,7 @@ export const RendimientoModuleStatusModulo = {
 } as const;
 
 /**
- * Resumen, Personas y Calidad de datos operativos; Reiteraciones continúa pendiente.
+ * Resumen, Personas, Reiteraciones y Calidad de datos operativos; el módulo continúa en validación integral.
  */
 export type RendimientoModuleStatusEstado = typeof RendimientoModuleStatusEstado[keyof typeof RendimientoModuleStatusEstado];
 
@@ -34,7 +34,7 @@ export const RendimientoModuleStatusVistasItem = {
 
 export interface RendimientoModuleStatus {
   modulo: RendimientoModuleStatusModulo;
-  /** Resumen, Personas y Calidad de datos operativos; Reiteraciones continúa pendiente. */
+  /** Resumen, Personas, Reiteraciones y Calidad de datos operativos; el módulo continúa en validación integral. */
   estado: RendimientoModuleStatusEstado;
   /**
      * @minItems 4
@@ -397,6 +397,182 @@ export interface RendimientoPersonas {
   personas: RendimientoPersona[];
 }
 
+export type RendimientoReiteracionesCoberturaCriterio = typeof RendimientoReiteracionesCoberturaCriterio[keyof typeof RendimientoReiteracionesCoberturaCriterio];
+
+
+export const RendimientoReiteracionesCoberturaCriterio = {
+  clave_canonica_no_transitiva: 'clave_canonica_no_transitiva',
+} as const;
+
+/**
+ * Cobertura de identidad de la cohorte. ambiguos_detectados cuenta tickets cuya identidad secundaria utilizable apunta directamente a más de un DNI; esos casos no se fusionan de forma transitiva.
+ */
+export interface RendimientoReiteracionesCobertura {
+  identidad_utilizable: RendimientoProporcion;
+  /** @minimum 0 */
+  ambiguos_detectados: number;
+  criterio: RendimientoReiteracionesCoberturaCriterio;
+}
+
+export interface RendimientoReiteracionesResumen {
+  /** @minimum 0 */
+  contactos_reiterados: number;
+  /** @minimum 0 */
+  tickets_involucrados: number;
+  /** @minimum 0 */
+  abiertos: number;
+  /** @minimum 0 */
+  vencidos_abiertos: number;
+}
+
+export type RendimientoReiteracionCoincidenciaTipo = typeof RendimientoReiteracionCoincidenciaTipo[keyof typeof RendimientoReiteracionCoincidenciaTipo];
+
+
+export const RendimientoReiteracionCoincidenciaTipo = {
+  dni: 'dni',
+  telefono: 'telefono',
+  email: 'email',
+} as const;
+
+/**
+ * Identificador operativo enmascarado; nunca contiene el dato completo.
+ */
+export interface RendimientoReiteracionCoincidencia {
+  tipo: RendimientoReiteracionCoincidenciaTipo;
+  /** @minLength 1 */
+  valor_enmascarado: string;
+}
+
+export interface RendimientoReiteracionResponsable {
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  usuario_id: number | null;
+  /**
+     * Nombre visible del responsable o `Sin asignar`.
+     * @minLength 1
+     */
+  nombre: string;
+  /** @minimum 1 */
+  cantidad_abiertos: number;
+}
+
+export type RendimientoReiteracionTicketEstado = typeof RendimientoReiteracionTicketEstado[keyof typeof RendimientoReiteracionTicketEstado];
+
+
+export const RendimientoReiteracionTicketEstado = {
+  nuevo: 'nuevo',
+  en_proceso: 'en_proceso',
+  pendiente: 'pendiente',
+  resuelto: 'resuelto',
+  cerrado: 'cerrado',
+} as const;
+
+export type RendimientoReiteracionTicketPrioridad = typeof RendimientoReiteracionTicketPrioridad[keyof typeof RendimientoReiteracionTicketPrioridad];
+
+
+export const RendimientoReiteracionTicketPrioridad = {
+  baja: 'baja',
+  media: 'media',
+  alta: 'alta',
+  urgente: 'urgente',
+} as const;
+
+export type MotivoCategoria = typeof MotivoCategoria[keyof typeof MotivoCategoria];
+
+
+export const MotivoCategoria = {
+  haberes_pagos: 'haberes_pagos',
+  recibos_documentacion: 'recibos_documentacion',
+  vacaciones_licencias: 'vacaciones_licencias',
+  bajas_liquidacion: 'bajas_liquidacion',
+  empleo_postulaciones: 'empleo_postulaciones',
+  contacto_general: 'contacto_general',
+  reclamos: 'reclamos',
+  embargos: 'embargos',
+  legales: 'legales',
+  prestamos_anticipos: 'prestamos_anticipos',
+  obra_social: 'obra_social',
+  sanciones_ausencias: 'sanciones_ausencias',
+  proveedores_comercial: 'proveedores_comercial',
+  sin_clasificar: 'sin_clasificar',
+} as const;
+
+export interface RendimientoReiteracionTicket {
+  /** @minimum 1 */
+  id: number;
+  fecha_creacion: string;
+  estado: RendimientoReiteracionTicketEstado;
+  prioridad: RendimientoReiteracionTicketPrioridad;
+  /** @nullable */
+  fecha_limite: string | null;
+  vencido: boolean;
+  motivo_categoria: MotivoCategoria;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  asignado_usuario_id: number | null;
+  /** @nullable */
+  asignado_a: string | null;
+}
+
+export type RendimientoReiteracionContactoPrioridadMaxima = typeof RendimientoReiteracionContactoPrioridadMaxima[keyof typeof RendimientoReiteracionContactoPrioridadMaxima];
+
+
+export const RendimientoReiteracionContactoPrioridadMaxima = {
+  baja: 'baja',
+  media: 'media',
+  alta: 'alta',
+  urgente: 'urgente',
+} as const;
+
+export interface RendimientoReiteracionContacto {
+  /**
+     * Identificador opaco y no reversible, estable solo dentro de la respuesta.
+     * @minLength 1
+     */
+  grupo_id: string;
+  /**
+     * Nombre del contacto más reciente o `Sin nombre proporcionado`.
+     * @minLength 1
+     */
+  nombre_referencia: string;
+  coincidencia: RendimientoReiteracionCoincidencia;
+  /** @minimum 2 */
+  cantidad_llamados: number;
+  /** @minimum 1 */
+  abiertos: number;
+  /** @minimum 0 */
+  vencidos_abiertos: number;
+  primer_contacto: string;
+  ultimo_contacto: string;
+  /**
+     * Horas corridas desde el ticket abierto más antiguo al snapshot.
+     * @minimum 0
+     * @nullable
+     */
+  antiguedad_abierto_horas: number | null;
+  prioridad_maxima: RendimientoReiteracionContactoPrioridadMaxima;
+  responsables: RendimientoReiteracionResponsable[];
+  /**
+     * Tickets del grupo ordenados desde el contacto más reciente.
+     * @minItems 2
+     */
+  tickets: RendimientoReiteracionTicket[];
+}
+
+export interface RendimientoReiteraciones {
+  periodo: RendimientoPeriodo;
+  /** @minimum 0 */
+  tickets_evaluados: number;
+  cobertura: RendimientoReiteracionesCobertura;
+  resumen: RendimientoReiteracionesResumen;
+  /** Grupos con dos o más tickets y al menos uno abierto, ordenados por riesgo operativo y nunca como una identificación civil definitiva. */
+  contactos: RendimientoReiteracionContacto[];
+}
+
 /**
  * Código estable que identifica la frontera funcional que bloqueó la operación.
  */
@@ -704,26 +880,6 @@ export type TicketEstadoEmpleado = typeof TicketEstadoEmpleado[keyof typeof Tick
 export const TicketEstadoEmpleado = {
   Activo: 'Activo',
   Inactivo: 'Inactivo',
-} as const;
-
-export type MotivoCategoria = typeof MotivoCategoria[keyof typeof MotivoCategoria];
-
-
-export const MotivoCategoria = {
-  haberes_pagos: 'haberes_pagos',
-  recibos_documentacion: 'recibos_documentacion',
-  vacaciones_licencias: 'vacaciones_licencias',
-  bajas_liquidacion: 'bajas_liquidacion',
-  empleo_postulaciones: 'empleo_postulaciones',
-  contacto_general: 'contacto_general',
-  reclamos: 'reclamos',
-  embargos: 'embargos',
-  legales: 'legales',
-  prestamos_anticipos: 'prestamos_anticipos',
-  obra_social: 'obra_social',
-  sanciones_ausencias: 'sanciones_ausencias',
-  proveedores_comercial: 'proveedores_comercial',
-  sin_clasificar: 'sin_clasificar',
 } as const;
 
 export type TicketEstado = typeof TicketEstado[keyof typeof TicketEstado];
@@ -1477,6 +1633,41 @@ export const GetRendimientoPersonas403Code = {
 
 export type GetRendimientoPersonas403 = {
   code: GetRendimientoPersonas403Code;
+  error: string;
+};
+
+export type GetRendimientoReiteracionesParams = {
+/**
+ * Primer día incluido según fecha_creacion del ticket (YYYY-MM-DD).
+ */
+fecha_desde?: RendimientoFechaDesdeParameter;
+/**
+ * Último día incluido según fecha_creacion del ticket (YYYY-MM-DD).
+ */
+fecha_hasta?: RendimientoFechaHastaParameter;
+/**
+ * Texto contenido en la empresa de los tickets incluidos en la cohorte.
+ */
+empresa?: RendimientoEmpresaParameter;
+/**
+ * Categoría normalizada de los tickets incluidos en la cohorte.
+ */
+motivo_categoria?: RendimientoMotivoCategoriaParameter;
+/**
+ * Prioridad actual de los tickets incluidos en la cohorte.
+ */
+prioridad?: RendimientoPrioridadParameter;
+};
+
+export type GetRendimientoReiteraciones403Code = typeof GetRendimientoReiteraciones403Code[keyof typeof GetRendimientoReiteraciones403Code];
+
+
+export const GetRendimientoReiteraciones403Code = {
+  PERFORMANCE_ACCESS_REQUIRED: 'PERFORMANCE_ACCESS_REQUIRED',
+} as const;
+
+export type GetRendimientoReiteraciones403 = {
+  code: GetRendimientoReiteraciones403Code;
   error: string;
 };
 

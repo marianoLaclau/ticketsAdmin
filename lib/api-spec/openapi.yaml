@@ -1385,6 +1385,66 @@ paths:
                   error:
                     type: string
 
+  /rendimiento/reiteraciones:
+    get:
+      operationId: getRendimientoReiteraciones
+      tags: [rendimiento]
+      summary: Detectar contactos reiterados con tickets todavía abiertos
+      description: |
+        Detecta reiteraciones dentro de la misma cohorte de tickets visibles por
+        `fecha_creacion`; `empresa`, `motivo_categoria` y `prioridad` se aplican
+        antes de agrupar. Un contacto solo aparece cuando reúne al menos dos
+        tickets distintos y conserva al menos uno en estado no final.
+
+        Cada ticket recibe una única clave canónica, con precedencia DNI,
+        teléfono y email. Una identidad secundaria solo hereda un DNI cuando su
+        relación directa dentro de la cohorte es unívoca; las relaciones ambiguas
+        se conservan separadas y nunca se encadenan transitivamente. Por eso esta
+        vista describe coincidencias operativas, no una identidad civil probada
+        ni confirma que una persona haya quedado sin respuesta.
+
+        La API nunca devuelve DNI, teléfono o email completos. Expone una clave
+        de grupo opaca, un valor enmascarado y los ids de tickets necesarios para
+        revisar el caso. Los grupos se ordenan por riesgo: primero vencidos,
+        luego prioridad máxima, antigüedad del abierto, último contacto y clave.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/RendimientoFechaDesde"
+        - $ref: "#/components/parameters/RendimientoFechaHasta"
+        - $ref: "#/components/parameters/RendimientoEmpresa"
+        - $ref: "#/components/parameters/RendimientoMotivoCategoria"
+        - $ref: "#/components/parameters/RendimientoPrioridad"
+      responses:
+        "200":
+          description: Contactos reiterados de la cohorte filtrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RendimientoReiteraciones"
+        "400":
+          description: Filtros o período inválidos
+        "401":
+          description: Sesión inválida o ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAccessUnauthorized"
+        "403":
+          description: El rol no puede consultar Rendimiento
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [code, error]
+                properties:
+                  code:
+                    type: string
+                    enum: [PERFORMANCE_ACCESS_REQUIRED]
+                  error:
+                    type: string
+
 components:
   parameters:
     DashboardFechaDesde:
@@ -1469,7 +1529,7 @@ components:
         estado:
           type: string
           enum: [operativo_parcial]
-          description: Resumen, Personas y Calidad de datos operativos; Reiteraciones continúa pendiente.
+          description: Resumen, Personas, Reiteraciones y Calidad de datos operativos; el módulo continúa en validación integral.
         vistas:
           type: array
           minItems: 4
@@ -1994,6 +2054,209 @@ components:
             nombre y luego por id. El orden es alfabético, no un ranking.
           items:
             $ref: "#/components/schemas/RendimientoPersona"
+
+    RendimientoReiteracionesCobertura:
+      type: object
+      additionalProperties: false
+      description: >
+        Cobertura de identidad de la cohorte. ambiguos_detectados cuenta tickets
+        cuya identidad secundaria utilizable apunta directamente a más de un DNI;
+        esos casos no se fusionan de forma transitiva.
+      required:
+        - identidad_utilizable
+        - ambiguos_detectados
+        - criterio
+      properties:
+        identidad_utilizable:
+          $ref: "#/components/schemas/RendimientoProporcion"
+        ambiguos_detectados:
+          type: integer
+          minimum: 0
+        criterio:
+          type: string
+          enum: [clave_canonica_no_transitiva]
+
+    RendimientoReiteracionesResumen:
+      type: object
+      additionalProperties: false
+      required:
+        - contactos_reiterados
+        - tickets_involucrados
+        - abiertos
+        - vencidos_abiertos
+      properties:
+        contactos_reiterados:
+          type: integer
+          minimum: 0
+        tickets_involucrados:
+          type: integer
+          minimum: 0
+        abiertos:
+          type: integer
+          minimum: 0
+        vencidos_abiertos:
+          type: integer
+          minimum: 0
+
+    RendimientoReiteracionCoincidencia:
+      type: object
+      additionalProperties: false
+      description: Identificador operativo enmascarado; nunca contiene el dato completo.
+      required:
+        - tipo
+        - valor_enmascarado
+      properties:
+        tipo:
+          type: string
+          enum: [dni, telefono, email]
+        valor_enmascarado:
+          type: string
+          minLength: 1
+
+    RendimientoReiteracionResponsable:
+      type: object
+      additionalProperties: false
+      required:
+        - usuario_id
+        - nombre
+        - cantidad_abiertos
+      properties:
+        usuario_id:
+          type: [integer, "null"]
+          minimum: 1
+        nombre:
+          type: string
+          minLength: 1
+          description: Nombre visible del responsable o `Sin asignar`.
+        cantidad_abiertos:
+          type: integer
+          minimum: 1
+
+    RendimientoReiteracionTicket:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - fecha_creacion
+        - estado
+        - prioridad
+        - fecha_limite
+        - vencido
+        - motivo_categoria
+        - asignado_usuario_id
+        - asignado_a
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        fecha_creacion:
+          type: string
+          format: date-time
+        estado:
+          type: string
+          enum: [nuevo, en_proceso, pendiente, resuelto, cerrado]
+        prioridad:
+          type: string
+          enum: [baja, media, alta, urgente]
+        fecha_limite:
+          type: [string, "null"]
+          format: date-time
+        vencido:
+          type: boolean
+        motivo_categoria:
+          $ref: "#/components/schemas/MotivoCategoria"
+        asignado_usuario_id:
+          type: [integer, "null"]
+          minimum: 1
+        asignado_a:
+          type: [string, "null"]
+
+    RendimientoReiteracionContacto:
+      type: object
+      additionalProperties: false
+      required:
+        - grupo_id
+        - nombre_referencia
+        - coincidencia
+        - cantidad_llamados
+        - abiertos
+        - vencidos_abiertos
+        - primer_contacto
+        - ultimo_contacto
+        - antiguedad_abierto_horas
+        - prioridad_maxima
+        - responsables
+        - tickets
+      properties:
+        grupo_id:
+          type: string
+          minLength: 1
+          description: Identificador opaco y no reversible, estable solo dentro de la respuesta.
+        nombre_referencia:
+          type: string
+          minLength: 1
+          description: Nombre del contacto más reciente o `Sin nombre proporcionado`.
+        coincidencia:
+          $ref: "#/components/schemas/RendimientoReiteracionCoincidencia"
+        cantidad_llamados:
+          type: integer
+          minimum: 2
+        abiertos:
+          type: integer
+          minimum: 1
+        vencidos_abiertos:
+          type: integer
+          minimum: 0
+        primer_contacto:
+          type: string
+          format: date-time
+        ultimo_contacto:
+          type: string
+          format: date-time
+        antiguedad_abierto_horas:
+          type: [number, "null"]
+          minimum: 0
+          description: Horas corridas desde el ticket abierto más antiguo al snapshot.
+        prioridad_maxima:
+          type: string
+          enum: [baja, media, alta, urgente]
+        responsables:
+          type: array
+          items:
+            $ref: "#/components/schemas/RendimientoReiteracionResponsable"
+        tickets:
+          type: array
+          minItems: 2
+          description: Tickets del grupo ordenados desde el contacto más reciente.
+          items:
+            $ref: "#/components/schemas/RendimientoReiteracionTicket"
+
+    RendimientoReiteraciones:
+      type: object
+      additionalProperties: false
+      required:
+        - periodo
+        - tickets_evaluados
+        - cobertura
+        - resumen
+        - contactos
+      properties:
+        periodo:
+          $ref: "#/components/schemas/RendimientoPeriodo"
+        tickets_evaluados:
+          type: integer
+          minimum: 0
+        cobertura:
+          $ref: "#/components/schemas/RendimientoReiteracionesCobertura"
+        resumen:
+          $ref: "#/components/schemas/RendimientoReiteracionesResumen"
+        contactos:
+          type: array
+          description: >
+            Grupos con dos o más tickets y al menos uno abierto, ordenados por
+            riesgo operativo y nunca como una identificación civil definitiva.
+          items:
+            $ref: "#/components/schemas/RendimientoReiteracionContacto"
 
     FunctionalAccessError:
       type: object

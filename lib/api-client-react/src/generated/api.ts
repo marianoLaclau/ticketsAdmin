@@ -48,6 +48,8 @@ import type {
   GetRendimientoCalidadDatosParams,
   GetRendimientoPersonas403,
   GetRendimientoPersonasParams,
+  GetRendimientoReiteraciones403,
+  GetRendimientoReiteracionesParams,
   GetRendimientoResumenEquipo403,
   GetRendimientoResumenEquipoParams,
   GetRendimientoStatus403,
@@ -69,6 +71,7 @@ import type {
   RendimientoCalidadDatos,
   RendimientoModuleStatus,
   RendimientoPersonas,
+  RendimientoReiteraciones,
   RendimientoResumenEquipo,
   Seguimiento,
   SeguimientoInput,
@@ -2802,6 +2805,106 @@ export function useGetRendimientoPersonas<TData = Awaited<ReturnType<typeof getR
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetRendimientoPersonasQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetRendimientoReiteracionesUrl = (params?: GetRendimientoReiteracionesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/rendimiento/reiteraciones?${stringifiedParams}` : `/api/rendimiento/reiteraciones`
+}
+
+/**
+ * Detecta reiteraciones dentro de la misma cohorte de tickets visibles por
+ * `fecha_creacion`; `empresa`, `motivo_categoria` y `prioridad` se aplican
+ * antes de agrupar. Un contacto solo aparece cuando reúne al menos dos
+ * tickets distintos y conserva al menos uno en estado no final.
+ *
+ * Cada ticket recibe una única clave canónica, con precedencia DNI,
+ * teléfono y email. Una identidad secundaria solo hereda un DNI cuando su
+ * relación directa dentro de la cohorte es unívoca; las relaciones ambiguas
+ * se conservan separadas y nunca se encadenan transitivamente. Por eso esta
+ * vista describe coincidencias operativas, no una identidad civil probada
+ * ni confirma que una persona haya quedado sin respuesta.
+ *
+ * La API nunca devuelve DNI, teléfono o email completos. Expone una clave
+ * de grupo opaca, un valor enmascarado y los ids de tickets necesarios para
+ * revisar el caso. Los grupos se ordenan por riesgo: primero vencidos,
+ * luego prioridad máxima, antigüedad del abierto, último contacto y clave.
+ * @summary Detectar contactos reiterados con tickets todavía abiertos
+ */
+export const getRendimientoReiteraciones = async (params?: GetRendimientoReiteracionesParams, options?: RequestInit): Promise<RendimientoReiteraciones> => {
+
+  return customFetch<RendimientoReiteraciones>(getGetRendimientoReiteracionesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRendimientoReiteracionesQueryKey = (params?: GetRendimientoReiteracionesParams,) => {
+    return [
+    `/api/rendimiento/reiteraciones`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetRendimientoReiteracionesQueryOptions = <TData = Awaited<ReturnType<typeof getRendimientoReiteraciones>>, TError = ErrorType<void | AdminAccessUnauthorized | GetRendimientoReiteraciones403>>(params?: GetRendimientoReiteracionesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRendimientoReiteraciones>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRendimientoReiteracionesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRendimientoReiteraciones>>> = ({ signal }) => getRendimientoReiteraciones(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRendimientoReiteraciones>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRendimientoReiteracionesQueryResult = NonNullable<Awaited<ReturnType<typeof getRendimientoReiteraciones>>>
+export type GetRendimientoReiteracionesQueryError = ErrorType<void | AdminAccessUnauthorized | GetRendimientoReiteraciones403>
+
+
+/**
+ * @summary Detectar contactos reiterados con tickets todavía abiertos
+ */
+
+export function useGetRendimientoReiteraciones<TData = Awaited<ReturnType<typeof getRendimientoReiteraciones>>, TError = ErrorType<void | AdminAccessUnauthorized | GetRendimientoReiteraciones403>>(
+ params?: GetRendimientoReiteracionesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRendimientoReiteraciones>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRendimientoReiteracionesQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

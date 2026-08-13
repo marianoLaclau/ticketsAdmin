@@ -1013,7 +1013,7 @@ export const getRendimientoStatusResponseVistasMax = 4;
 
 export const GetRendimientoStatusResponse = zod.object({
   "modulo": zod.enum(['rendimiento']),
-  "estado": zod.enum(['operativo_parcial']).describe('Resumen, Personas y Calidad de datos operativos; Reiteraciones continúa pendiente.'),
+  "estado": zod.enum(['operativo_parcial']).describe('Resumen, Personas, Reiteraciones y Calidad de datos operativos; el módulo continúa en validación integral.'),
   "vistas": zod.array(zod.enum(['resumen_equipo', 'personas', 'reiteraciones', 'calidad_datos'])).min(getRendimientoStatusResponseVistasMin).max(getRendimientoStatusResponseVistasMax)
 })
 
@@ -1352,6 +1352,128 @@ export const GetRendimientoPersonasResponse = zod.object({
 }).describe('Fotografía de la cohorte al instante generado_en. Solo cuenta tickets actualmente no finales cuyo asignado_usuario_id coincide con la persona; vencidos_asignados es un subconjunto de abiertos_asignados.\n'),
   "resoluciones_reabiertas": zod.number().min(getRendimientoPersonasResponsePersonasItemResolucionesReabiertasMin).describe('Resoluciones atribuibles de la persona tras las que ocurrió al menos una transición final a no-final y antes de la siguiente resolución del mismo ticket. Cada resolución se cuenta como máximo una vez; no atribuye la acción de reabrir y no implica una evaluación negativa.\n')
 }).describe('Indicadores auditables de una persona. Las cantidades son hechos independientes; no se combinan en un puntaje ni determinan una posición.\n')).describe('Todos los usuarios persistidos, activos o inactivos, ordenados por nombre y luego por id. El orden es alfabético, no un ranking.\n')
+})
+
+
+/**
+ * Detecta reiteraciones dentro de la misma cohorte de tickets visibles por
+ * `fecha_creacion`; `empresa`, `motivo_categoria` y `prioridad` se aplican
+ * antes de agrupar. Un contacto solo aparece cuando reúne al menos dos
+ * tickets distintos y conserva al menos uno en estado no final.
+ *
+ * Cada ticket recibe una única clave canónica, con precedencia DNI,
+ * teléfono y email. Una identidad secundaria solo hereda un DNI cuando su
+ * relación directa dentro de la cohorte es unívoca; las relaciones ambiguas
+ * se conservan separadas y nunca se encadenan transitivamente. Por eso esta
+ * vista describe coincidencias operativas, no una identidad civil probada
+ * ni confirma que una persona haya quedado sin respuesta.
+ *
+ * La API nunca devuelve DNI, teléfono o email completos. Expone una clave
+ * de grupo opaca, un valor enmascarado y los ids de tickets necesarios para
+ * revisar el caso. Los grupos se ordenan por riesgo: primero vencidos,
+ * luego prioridad máxima, antigüedad del abierto, último contacto y clave.
+ * @summary Detectar contactos reiterados con tickets todavía abiertos
+ */
+export const GetRendimientoReiteracionesQueryParams = zod.object({
+  "fecha_desde": zod.coerce.date().optional().describe('Primer día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
+  "fecha_hasta": zod.coerce.date().optional().describe('Último día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
+  "empresa": zod.coerce.string().optional().describe('Texto contenido en la empresa de los tickets incluidos en la cohorte.'),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'prestamos_anticipos', 'obra_social', 'sanciones_ausencias', 'proveedores_comercial', 'sin_clasificar']).optional().describe('Categoría normalizada de los tickets incluidos en la cohorte.'),
+  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional().describe('Prioridad actual de los tickets incluidos en la cohorte.')
+})
+
+export const getRendimientoReiteracionesResponseTicketsEvaluadosMin = 0;
+
+export const getRendimientoReiteracionesResponseCoberturaIdentidadUtilizableNumeradorMin = 0;
+
+export const getRendimientoReiteracionesResponseCoberturaIdentidadUtilizableDenominadorMin = 0;
+
+export const getRendimientoReiteracionesResponseCoberturaIdentidadUtilizablePorcentajeMin = 0;
+export const getRendimientoReiteracionesResponseCoberturaIdentidadUtilizablePorcentajeMax = 100;
+
+export const getRendimientoReiteracionesResponseCoberturaAmbiguosDetectadosMin = 0;
+
+export const getRendimientoReiteracionesResponseResumenContactosReiteradosMin = 0;
+
+export const getRendimientoReiteracionesResponseResumenTicketsInvolucradosMin = 0;
+
+export const getRendimientoReiteracionesResponseResumenAbiertosMin = 0;
+
+export const getRendimientoReiteracionesResponseResumenVencidosAbiertosMin = 0;
+
+
+
+
+export const getRendimientoReiteracionesResponseContactosItemCantidadLlamadosMin = 2;
+
+
+export const getRendimientoReiteracionesResponseContactosItemVencidosAbiertosMin = 0;
+
+export const getRendimientoReiteracionesResponseContactosItemAntiguedadAbiertoHorasMin = 0;
+
+
+
+
+
+
+export const getRendimientoReiteracionesResponseContactosItemTicketsMin = 2;
+
+
+
+export const GetRendimientoReiteracionesResponse = zod.object({
+  "periodo": zod.object({
+  "fecha_desde": zod.coerce.date().nullable().describe('Primer día incluido por fecha_creacion, o null si no se limitó el inicio.'),
+  "fecha_hasta": zod.coerce.date().nullable().describe('Último día incluido por fecha_creacion, o null si no se limitó el fin.'),
+  "timezone": zod.enum(['America/Argentina/Buenos_Aires']),
+  "generado_en": zod.coerce.date().describe('Instante del snapshot consistente usado para calcular la respuesta.')
+}),
+  "tickets_evaluados": zod.number().min(getRendimientoReiteracionesResponseTicketsEvaluadosMin),
+  "cobertura": zod.object({
+  "identidad_utilizable": zod.object({
+  "numerador": zod.number().min(getRendimientoReiteracionesResponseCoberturaIdentidadUtilizableNumeradorMin),
+  "denominador": zod.number().min(getRendimientoReiteracionesResponseCoberturaIdentidadUtilizableDenominadorMin),
+  "porcentaje": zod.number().min(getRendimientoReiteracionesResponseCoberturaIdentidadUtilizablePorcentajeMin).max(getRendimientoReiteracionesResponseCoberturaIdentidadUtilizablePorcentajeMax).nullable()
+}).describe('La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.'),
+  "ambiguos_detectados": zod.number().min(getRendimientoReiteracionesResponseCoberturaAmbiguosDetectadosMin),
+  "criterio": zod.enum(['clave_canonica_no_transitiva'])
+}).describe('Cobertura de identidad de la cohorte. ambiguos_detectados cuenta tickets cuya identidad secundaria utilizable apunta directamente a más de un DNI; esos casos no se fusionan de forma transitiva.\n'),
+  "resumen": zod.object({
+  "contactos_reiterados": zod.number().min(getRendimientoReiteracionesResponseResumenContactosReiteradosMin),
+  "tickets_involucrados": zod.number().min(getRendimientoReiteracionesResponseResumenTicketsInvolucradosMin),
+  "abiertos": zod.number().min(getRendimientoReiteracionesResponseResumenAbiertosMin),
+  "vencidos_abiertos": zod.number().min(getRendimientoReiteracionesResponseResumenVencidosAbiertosMin)
+}),
+  "contactos": zod.array(zod.object({
+  "grupo_id": zod.string().min(1).describe('Identificador opaco y no reversible, estable solo dentro de la respuesta.'),
+  "nombre_referencia": zod.string().min(1).describe('Nombre del contacto más reciente o `Sin nombre proporcionado`.'),
+  "coincidencia": zod.object({
+  "tipo": zod.enum(['dni', 'telefono', 'email']),
+  "valor_enmascarado": zod.string().min(1)
+}).describe('Identificador operativo enmascarado; nunca contiene el dato completo.'),
+  "cantidad_llamados": zod.number().min(getRendimientoReiteracionesResponseContactosItemCantidadLlamadosMin),
+  "abiertos": zod.number().min(1),
+  "vencidos_abiertos": zod.number().min(getRendimientoReiteracionesResponseContactosItemVencidosAbiertosMin),
+  "primer_contacto": zod.coerce.date(),
+  "ultimo_contacto": zod.coerce.date(),
+  "antiguedad_abierto_horas": zod.number().min(getRendimientoReiteracionesResponseContactosItemAntiguedadAbiertoHorasMin).nullable().describe('Horas corridas desde el ticket abierto más antiguo al snapshot.'),
+  "prioridad_maxima": zod.enum(['baja', 'media', 'alta', 'urgente']),
+  "responsables": zod.array(zod.object({
+  "usuario_id": zod.number().min(1).nullable(),
+  "nombre": zod.string().min(1).describe('Nombre visible del responsable o `Sin asignar`.'),
+  "cantidad_abiertos": zod.number().min(1)
+})),
+  "tickets": zod.array(zod.object({
+  "id": zod.number().min(1),
+  "fecha_creacion": zod.coerce.date(),
+  "estado": zod.enum(['nuevo', 'en_proceso', 'pendiente', 'resuelto', 'cerrado']),
+  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']),
+  "fecha_limite": zod.coerce.date().nullable(),
+  "vencido": zod.boolean(),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'prestamos_anticipos', 'obra_social', 'sanciones_ausencias', 'proveedores_comercial', 'sin_clasificar']),
+  "asignado_usuario_id": zod.number().min(1).nullable(),
+  "asignado_a": zod.string().nullable()
+})).min(getRendimientoReiteracionesResponseContactosItemTicketsMin).describe('Tickets del grupo ordenados desde el contacto más reciente.')
+})).describe('Grupos con dos o más tickets y al menos uno abierto, ordenados por riesgo operativo y nunca como una identificación civil definitiva.\n')
 })
 
 
