@@ -726,6 +726,7 @@ export const GetTicketResponse = zod.object({
   "asignado_nuevo_usuario_id": zod.number().nullable(),
   "asignado_nuevo": zod.string().nullable(),
   "campos_editados": zod.array(zod.string()).nullable(),
+  "autor_usuario_id": zod.number().nullable().describe('Identidad del actor humano; null para eventos automáticos o históricos sin atribución verificable.'),
   "autor": zod.string().nullable(),
   "fecha_creacion": zod.coerce.date()
 }))
@@ -850,6 +851,7 @@ export const ListSeguimientosResponseItem = zod.object({
   "asignado_nuevo_usuario_id": zod.number().nullable(),
   "asignado_nuevo": zod.string().nullable(),
   "campos_editados": zod.array(zod.string()).nullable(),
+  "autor_usuario_id": zod.number().nullable().describe('Identidad del actor humano; null para eventos automáticos o históricos sin atribución verificable.'),
   "autor": zod.string().nullable(),
   "fecha_creacion": zod.coerce.date()
 })
@@ -886,6 +888,7 @@ export const CreateSeguimientoResponse = zod.object({
   "asignado_nuevo_usuario_id": zod.number().nullable(),
   "asignado_nuevo": zod.string().nullable(),
   "campos_editados": zod.array(zod.string()).nullable(),
+  "autor_usuario_id": zod.number().nullable().describe('Identidad del actor humano; null para eventos automáticos o históricos sin atribución verificable.'),
   "autor": zod.string().nullable(),
   "fecha_creacion": zod.coerce.date()
 })

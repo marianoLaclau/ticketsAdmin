@@ -84,6 +84,7 @@ function createDatabase(): {
       asignado_nuevo_usuario_id INTEGER,
       asignado_nuevo TEXT,
       campos_editados TEXT,
+      autor_usuario_id INTEGER,
       autor TEXT,
       fecha_creacion INTEGER NOT NULL
     );

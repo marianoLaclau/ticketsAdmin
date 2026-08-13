@@ -97,6 +97,7 @@ bootstrap.exec(`
     asignado_nuevo_usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
     asignado_nuevo TEXT,
     campos_editados TEXT,
+    autor_usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
     autor TEXT,
     fecha_creacion INTEGER NOT NULL
   );
@@ -644,8 +645,22 @@ describe("contrato nullable de tickets", () => {
       "asignado_nuevo_usuario_id",
       "asignado_nuevo",
       "campos_editados",
+      "autor_usuario_id",
       "autor",
     ]);
+
+    assert.equal(
+      (history[0] as { autor_usuario_id: number | null }).autor_usuario_id,
+      null,
+      "un seguimiento legacy debe permanecer Sin atribuir",
+    );
+
+    const historyWithoutActor = [{ ...history[0] }];
+    delete historyWithoutActor[0]?.autor_usuario_id;
+    assert.equal(
+      ListSeguimientosResponse.safeParse(historyWithoutActor).success,
+      false,
+    );
 
     const historyWithoutAuthor = [{ ...history[0] }];
     delete historyWithoutAuthor[0]?.autor;
@@ -884,6 +899,7 @@ describe("edición y auditoría atómica", () => {
           detail.seguimientos[0]?.asignado_anterior_usuario_id,
         asignado_nuevo_usuario_id:
           detail.seguimientos[0]?.asignado_nuevo_usuario_id,
+        autor_usuario_id: detail.seguimientos[0]?.autor_usuario_id,
         autor: detail.seguimientos[0]?.autor,
       },
       {
@@ -893,6 +909,7 @@ describe("edición y auditoría atómica", () => {
         prioridad_nueva: "alta",
         asignado_anterior_usuario_id: null,
         asignado_nuevo_usuario_id: 1,
+        autor_usuario_id: 1,
         autor: "Operadora Uno",
       },
     );
@@ -1205,8 +1222,13 @@ describe("seguimientos manuales", () => {
       nota: "  Nota real  ",
     });
     assert.equal(created.status, 201);
-    const body = (await created.json()) as { nota: string; autor: string };
+    const body = (await created.json()) as {
+      nota: string;
+      autor_usuario_id: number;
+      autor: string;
+    };
     assert.equal(body.nota, "Nota real");
+    assert.equal(body.autor_usuario_id, 1);
     assert.equal(body.autor, "Operadora Uno");
 
     sqlite

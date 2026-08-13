@@ -85,6 +85,7 @@ bootstrap.exec(`
     asignado_nuevo_usuario_id INTEGER,
     asignado_nuevo TEXT,
     campos_editados TEXT,
+    autor_usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
     autor TEXT,
     fecha_creacion INTEGER NOT NULL
   );
@@ -279,11 +280,17 @@ describe("ingesta integrada desde Serin", () => {
 
     const seguimientos = sqlite
       .prepare(
-        "SELECT autor, nota FROM seguimientos WHERE ticket_id = ? ORDER BY id",
+        `SELECT autor_usuario_id, autor, nota
+         FROM seguimientos WHERE ticket_id = ? ORDER BY id`,
       )
-      .all(ticket.id) as Array<{ autor: string; nota: string }>;
+      .all(ticket.id) as Array<{
+      autor_usuario_id: number | null;
+      autor: string;
+      nota: string;
+    }>;
     assert.deepEqual(seguimientos, [
       {
+        autor_usuario_id: null,
         autor: "Sistema",
         nota: "Los datos fueron extraídos y persistidos desde Serin con el DNI proporcionado.",
       },

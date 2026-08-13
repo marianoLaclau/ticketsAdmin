@@ -209,6 +209,7 @@ router.patch(
               : null,
             asignado_nuevo: assignmentChanged ? updated.asignado_a : null,
             campos_editados: editedFields.length > 0 ? editedFields : null,
+            autor_usuario_id: authUser.id,
             autor,
             fecha_creacion: now,
           })

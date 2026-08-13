@@ -98,6 +98,7 @@ router.post("/webhooks/ticket", requireWebhookKey, async (req, res) => {
       tx.insert(seguimientosTable)
         .values({
           ticket_id: inserted.id,
+          autor_usuario_id: null,
           autor: seguimientoSerin.autor,
           nota: seguimientoSerin.nota,
           fecha_creacion: fechaCreacion,

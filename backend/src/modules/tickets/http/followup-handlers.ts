@@ -116,6 +116,7 @@ export async function createTicketFollowup(
       .values({
         ticket_id: ticket.id,
         nota,
+        autor_usuario_id: authUser.id,
         autor,
       })
       .returning()

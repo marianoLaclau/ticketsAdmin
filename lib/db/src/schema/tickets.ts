@@ -117,6 +117,13 @@ export const seguimientosTable = sqliteTable(
     campos_editados: text("campos_editados", { mode: "json" }).$type<
       string[]
     >(),
+    // Identidad estructurada del actor humano. Los eventos automáticos y el
+    // historial previo a esta columna permanecen en null; `autor` conserva el
+    // snapshot legible aunque luego cambie o se elimine la cuenta.
+    autor_usuario_id: integer("autor_usuario_id").references(
+      () => usuariosTable.id,
+      { onDelete: "set null" },
+    ),
     autor: text("autor"),
     fecha_creacion: integer("fecha_creacion", { mode: "timestamp_ms" })
       .notNull()
@@ -129,6 +136,11 @@ export const seguimientosTable = sqliteTable(
       table.id,
     ),
     index("seguimientos_fecha_creacion_id_idx").on(
+      table.fecha_creacion,
+      table.id,
+    ),
+    index("seguimientos_autor_fecha_id_idx").on(
+      table.autor_usuario_id,
       table.fecha_creacion,
       table.id,
     ),

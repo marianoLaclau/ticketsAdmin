@@ -36,6 +36,7 @@ function crearBase(opciones: { forzarFalloAuditoria?: boolean } = {}) {
       asignado_nuevo_usuario_id INTEGER,
       asignado_nuevo TEXT,
       campos_editados TEXT,
+      autor_usuario_id INTEGER,
       autor TEXT NOT NULL${opciones.forzarFalloAuditoria ? " CHECK (autor <> 'Sistema')" : ""},
       fecha_creacion INTEGER NOT NULL
     );
@@ -116,7 +117,8 @@ describe("repositorio transaccional de prioridad automatica", () => {
     const seguimientos = sqlite
       .prepare(
         `
-      SELECT ticket_id, nota, prioridad_anterior, prioridad_nueva, autor
+      SELECT ticket_id, nota, prioridad_anterior, prioridad_nueva,
+             autor_usuario_id, autor
       FROM seguimientos
       WHERE ticket_id = 1
     `,
@@ -131,12 +133,14 @@ describe("repositorio transaccional de prioridad automatica", () => {
         ticket_id: seguimientos[0]?.ticket_id,
         prioridad_anterior: seguimientos[0]?.prioridad_anterior,
         prioridad_nueva: seguimientos[0]?.prioridad_nueva,
+        autor_usuario_id: seguimientos[0]?.autor_usuario_id,
         autor: seguimientos[0]?.autor,
       },
       {
         ticket_id: 1,
         prioridad_anterior: "media",
         prioridad_nueva: "alta",
+        autor_usuario_id: null,
         autor: "Sistema",
       },
     );

@@ -535,6 +535,11 @@ export interface Seguimiento {
   asignado_nuevo: string | null;
   /** @nullable */
   campos_editados: string[] | null;
+  /**
+     * Identidad del actor humano; null para eventos automáticos o históricos sin atribución verificable.
+     * @nullable
+     */
+  autor_usuario_id: number | null;
   /** @nullable */
   autor: string | null;
   fecha_creacion: string;

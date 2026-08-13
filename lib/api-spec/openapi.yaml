@@ -2025,6 +2025,7 @@ components:
         - asignado_nuevo_usuario_id
         - asignado_nuevo
         - campos_editados
+        - autor_usuario_id
         - autor
         - fecha_creacion
       properties:
@@ -2056,6 +2057,9 @@ components:
           type: ["array", "null"]
           items:
             type: string
+        autor_usuario_id:
+          type: ["integer", "null"]
+          description: Identidad del actor humano; null para eventos automáticos o históricos sin atribución verificable.
         autor:
           type: ["string", "null"]
         fecha_creacion:

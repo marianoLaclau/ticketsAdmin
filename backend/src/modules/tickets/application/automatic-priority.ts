@@ -282,6 +282,7 @@ export function crearRepositorioPrioridadAutomaticaDb(
             nota: crearNotaPromocionPrioridad(cambio),
             prioridad_anterior: cambio.prioridadEsperada,
             prioridad_nueva: cambio.prioridadNueva,
+            autor_usuario_id: null,
             autor: "Sistema",
           })
           .run();
