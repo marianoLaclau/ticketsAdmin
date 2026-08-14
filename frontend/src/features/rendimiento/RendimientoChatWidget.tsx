@@ -63,6 +63,9 @@ function configuredWebhookUrl(): string | null {
 
 export function normalizeRendimientoChatWebhookUrl(
   value: unknown,
+  applicationOrigin = typeof window === "undefined"
+    ? null
+    : window.location.origin,
 ): string | null {
   if (typeof value !== "string" || value.trim() === "") return null;
 
@@ -76,8 +79,12 @@ export function normalizeRendimientoChatWebhookUrl(
     const isLocalHttp =
       url.protocol === "http:" &&
       ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname);
+    const configuredProxyUrl = applicationOrigin
+      ? new URL(CHAT_PROXY_URL, applicationOrigin).href
+      : null;
+    const isSameOriginProxy = url.href === configuredProxyUrl;
 
-    return isSecure || isLocalHttp ? url.href : null;
+    return isSecure || isLocalHttp || isSameOriginProxy ? url.href : null;
   } catch {
     return null;
   }

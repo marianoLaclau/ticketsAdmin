@@ -115,6 +115,28 @@ test("normaliza solo el proxy y URLs seguras o HTTP locales", () => {
     normalizeRendimientoChatWebhookUrl("http://[::1]:5678/webhook/chat"),
     "http://[::1]:5678/webhook/chat",
   );
+  assert.equal(
+    normalizeRendimientoChatWebhookUrl(
+      "http://192.168.6.68:3000/api/rendimiento/asistente/chat",
+      "http://192.168.6.68:3000",
+    ),
+    "http://192.168.6.68:3000/api/rendimiento/asistente/chat",
+  );
+
+  for (const invalidSameOriginValue of [
+    "http://192.168.6.68:3000/api/otra-ruta",
+    "http://192.168.6.68:3000/api/rendimiento/asistente/chat?debug=true",
+    "http://192.168.6.68:3000/api/rendimiento/asistente/chat#fragmento",
+    "http://192.168.6.69:3000/api/rendimiento/asistente/chat",
+  ]) {
+    assert.equal(
+      normalizeRendimientoChatWebhookUrl(
+        invalidSameOriginValue,
+        "http://192.168.6.68:3000",
+      ),
+      null,
+    );
+  }
 
   for (const invalidValue of [
     "https://usuario:secreto@n8n.example.test/webhook/chat",
@@ -181,6 +203,21 @@ test("presenta un disparador accesible y mantiene cerrado el panel inicialmente"
   assert.equal(panel.getAttribute("role"), "dialog");
   assert.equal(panel.getAttribute("aria-label"), "Asistente de consultas");
   assert.equal(loaderCalls, 0);
+});
+
+test("configura el proxy por defecto como URL absoluta del mismo origen", async (t) => {
+  t.after(cleanup);
+  const user = userEvent.setup();
+  const probe = createFactoryProbe();
+
+  render(<RendimientoChatWidget loadChatFactory={async () => probe.factory} />);
+
+  await user.click(screen.getByRole("button", { name: "Abrir Asistente IA" }));
+  await waitFor(() => assert.equal(probe.receivedOptions.length, 1));
+  assert.equal(
+    probe.receivedOptions[0]?.webhookUrl,
+    new URL(CHAT_PROXY_URL, window.location.origin).href,
+  );
 });
 
 test("reutiliza la misma sesión al cerrar, abrir y remontar en la pestaña", async (t) => {
