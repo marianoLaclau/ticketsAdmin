@@ -12,13 +12,13 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { TicketDataEditDialog } from "../src/components/tickets/TicketDataEditDialog.tsx";
+import { TicketDataEditDialog } from "../src/features/ticket-detail/TicketDataEditDialog.tsx";
 import { TicketManagementDialog } from "../src/features/ticket-detail/TicketManagementDialog.tsx";
 import { useTicketDetailEditing } from "../src/features/ticket-detail/useTicketDetailEditing.ts";
 import { useTicketDetailOperationGuard } from "../src/features/ticket-detail/useTicketDetailOperationGuard.ts";
 import { useTicketSeguimiento } from "../src/features/ticket-detail/useTicketSeguimiento.ts";
 import { useToast } from "../src/hooks/use-toast.ts";
-import { ticketToManagementForm } from "../src/lib/ticket-edit.ts";
+import { ticketToManagementForm } from "../src/features/ticket-detail/ticket-edit.ts";
 import { installDomEventRealm } from "./dom-event-realm.ts";
 
 installDomEventRealm();

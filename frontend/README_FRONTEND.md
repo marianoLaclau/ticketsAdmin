@@ -59,29 +59,30 @@ frontend/
       not-found.tsx                       → 404
     features/
       auth/                       → AuthGate, guards SysAdmin/Rendimiento y sesión protegida
-      admin-directory/            → CRUD y fronteras de roles/usuarios
-      admin-tickets/              → CRUD, importación y zona peligrosa
-      dashboard/                  → paneles y selección temporal
-      ticket-detail/              → controladores y diálogos del detalle
+      admin-directory/            → CRUD y fronteras de roles/usuarios (incluye admin-directory-url.ts)
+      admin-tickets/              → CRUD, importación y zona peligrosa (incluye admin-ticket-form.ts)
+      dashboard/                  → paneles y selección temporal (incluye dashboard-period.ts, dashboard-url.ts)
+      rendimiento/                → vistas, filtros y chat de rendimiento (incluye rendimiento-url.ts)
+      ticket-detail/              → controladores y diálogos del detalle (incluye ticket-edit.ts, datetime-local.ts)
       ticket-list/                → filtros, orden, filas y accesibilidad del listado
     components/
       layout/AppLayout.tsx        → Sidebar + listener de eventos en vivo
       admin/AdminHeader.tsx        → título y navegación entre pantallas admin
       SortableTableHead.tsx         → encabezado accesible para orden server-side
-      tickets/TicketDataEditDialog.tsx → edición de datos funcionales del ticket
+      tickets/TicketVersionConflictAlert.tsx → aviso de conflicto de versión (compartido por dos features)
       ui/                            → 20 primitivas shadcn/ui efectivamente usadas
     hooks/
       use-admin-operation-guard.ts → descarta respuestas de un componente ya desmontado
       use-toast.ts                   → sistema de notificaciones
-    lib/
+    lib/                             → solo lo transversal: si algo lo usa una sola feature, vive en features/
       roles.ts                       → roles y capacidades visibles (espejo del backend)
       password-change.ts               → decisión de ruta y validación pura del cambio obligatorio
       session-state.ts                   → revalidación y aislamiento de caché entre identidades
       motivos.ts                      → catálogo de categorías de motivo + estilos de badge
-      ticket-edit.ts                   → formulario funcional, PATCH mínimo y labels de auditoría
+      ticket-version.ts                → change-sets y conflictos de versión (ticket-detail + admin-tickets)
       ticket-list-controls.ts           → parámetros compartidos por listado y exportación
+      calendar-date.ts                  → validación de fechas calendario (dashboard, rendimiento, listado)
       utils-tickets.tsx                → badges de Estado/Prioridad, formatDate, isVencido
-      datetime-local.ts                 → conversión segura entre ISO y <input type="datetime-local">
       utils.ts                            → cn() (clsx + tailwind-merge)
 ```
 
@@ -272,16 +273,23 @@ Antes de la primera corrida local se instala el navegador con `pnpm --filter @wo
 
 ## Librerías propias (`src/lib`)
 
+`src/lib` guarda **solo lo transversal**: código que consumen dos o más features, o la aplicación entera. Si una utilidad la usa una sola feature, vive dentro de esa feature (`src/features/<nombre>/`), no acá. Una regla de ESLint (`frontendFeatureBoundaryConfigs` en `eslint.config.mjs`, espejo de la del backend) impide que una feature importe archivos de otra: lo que necesiten compartir tiene que subir a `src/lib`. `pages/` y `components/` quedan fuera de esa restricción y pueden componer cualquier feature.
+
 - **`roles.ts`** — ver [Roles en la UI](#roles-en-la-ui).
 - **`error-messages.ts`** — mensajes seguros para login, administración y mutaciones; solo inspecciona campos estructurados del error y aplica traducciones conocidas.
-- **`dashboard-period.ts`** — rangos calendario de semana/mes, validación del período personalizado y etiquetas de presentación.
+- **`calendar-date.ts`** — validación de fechas calendario `YYYY-MM-DD`; la comparten los parseos de URL de dashboard, rendimiento y listado.
 - **`asignacion.ts`** — normalización visual del responsable y fallback `Sin asignar`.
 - **`motivos.ts`** — espejo visual del catálogo de `lib/ingesta/src/motivos.ts`, con estilos (`color`, `badgeClass`). Incluye `legales` y la nueva categoría `embargos`; `getMotivoCategoriaConfig(categoria)` devuelve un fallback razonable si llega una categoría todavía desconocida.
-- **`ticket-edit.ts`** — define formularios y change-sets mínimos para datos funcionales y gestión, y traduce los nombres técnicos del historial a etiquetas legibles.
-- **`ticket-version.ts`** — congela baseline + versión, agrega `expected_version` solo a cambios reales y evita degradar la caché con una respuesta más antigua.
-- **`ticket-list-controls.ts`** — mantiene en un solo lugar los parámetros de filtros/orden que comparten la consulta paginada y el export CSV.
+- **`ticket-version.ts`** — congela baseline + versión, agrega `expected_version` solo a cambios reales y evita degradar la caché con una respuesta más antigua. Lo usan `ticket-detail` y `admin-tickets`.
+- **`ticket-navigation.ts`** — estado de navegación para volver al listado correcto (público o admin) desde el detalle.
+- **`ticket-list-controls.ts`** / **`ticket-list-url.ts`** — parámetros de filtros/orden y su serialización en la URL, compartidos por el listado público y el panel admin.
 - **`utils-tickets.tsx`** — `EstadoBadge`/`PrioridadBadge` (los puntos de color + texto que aparecen en todas las tablas), `formatDate` (formato `es-AR`), `isVencido` (fecha límite pasada y el ticket no está resuelto/cerrado).
-- **`datetime-local.ts`** — `toDateTimeLocalValue`/`dateTimeLocalValueToIso`: convierten entre un ISO string y el formato que espera `<input type="datetime-local">`, **en la zona horaria del navegador** (no UTC). `dateTimeLocalValueToIso` rechaza (devuelve `null`) fechas imposibles o horas inexistentes por cambio de horario de verano, en vez de dejar que `Date` las normalice silenciosamente.
+
+Lógica que vive dentro de su feature (ejemplos): `features/dashboard/dashboard-period.ts` y `dashboard-url.ts`, `features/rendimiento/rendimiento-url.ts`, `features/ticket-detail/ticket-edit.ts` y `datetime-local.ts`, `features/admin-tickets/admin-ticket-form.ts`, `features/admin-directory/admin-directory-url.ts`.
+
+- **`features/ticket-detail/ticket-edit.ts`** — define formularios y change-sets mínimos para datos funcionales y gestión, y traduce los nombres técnicos del historial a etiquetas legibles.
+- **`features/ticket-detail/datetime-local.ts`** — `toDateTimeLocalValue`/`dateTimeLocalValueToIso`: convierten entre un ISO string y el formato que espera `<input type="datetime-local">`, **en la zona horaria del navegador** (no UTC). `dateTimeLocalValueToIso` rechaza (devuelve `null`) fechas imposibles o horas inexistentes por cambio de horario de verano, en vez de dejar que `Date` las normalice silenciosamente.
+- **`features/dashboard/dashboard-period.ts`** — rangos calendario de semana/mes, validación del período personalizado y etiquetas de presentación.
 
 ## Estilos y componentes UI
 

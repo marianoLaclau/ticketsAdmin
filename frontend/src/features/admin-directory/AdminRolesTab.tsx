@@ -44,7 +44,7 @@ import type {
   AdminDirectoryRolesUrlUpdate,
   AdminDirectoryUrlNavigation,
 } from "@/features/admin-directory/useAdminDirectoryUrl";
-import type { AdminDirectoryRolesUrlState } from "@/lib/admin-directory-url";
+import type { AdminDirectoryRolesUrlState } from "@/features/admin-directory/admin-directory-url";
 import { getAdminErrorMessage } from "@/lib/error-messages";
 import { esRolSistema } from "@/lib/roles";
 

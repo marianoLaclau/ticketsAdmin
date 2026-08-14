@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/table";
 import { TabsContent } from "@/components/ui/tabs";
 import { getAdminErrorMessage } from "@/lib/error-messages";
-import type { AdminDirectoryUsersUrlState } from "@/lib/admin-directory-url";
+import type { AdminDirectoryUsersUrlState } from "@/features/admin-directory/admin-directory-url";
 
 interface AdminUsersTabProps {
   urlState: AdminDirectoryUsersUrlState;

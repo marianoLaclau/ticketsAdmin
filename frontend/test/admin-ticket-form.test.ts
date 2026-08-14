@@ -6,7 +6,7 @@ import {
   buildAdminTicketUpdate,
   createEmptyAdminTicketForm,
   ticketToAdminTicketForm,
-} from "../src/lib/admin-ticket-form.ts";
+} from "../src/features/admin-tickets/admin-ticket-form.ts";
 
 const ticket: Ticket = {
   id: 7,

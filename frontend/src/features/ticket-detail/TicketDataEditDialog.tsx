@@ -17,7 +17,7 @@ import {
   isValidOptionalEmail,
   ticketToFunctionalForm,
   type TicketFunctionalForm,
-} from "@/lib/ticket-edit";
+} from "@/features/ticket-detail/ticket-edit";
 import {
   buildVersionedTicketUpdate,
   createTicketEditBaseline,
@@ -26,8 +26,8 @@ import {
 import {
   transitionTicketDraftSession,
   type TicketDraftSession,
-} from "@/lib/ticket-draft-session";
-import { TicketVersionConflictAlert } from "./TicketVersionConflictAlert";
+} from "@/features/ticket-detail/ticket-draft-session";
+import { TicketVersionConflictAlert } from "@/components/tickets/TicketVersionConflictAlert";
 
 interface TicketDataEditDialogProps {
   ticket: Ticket;

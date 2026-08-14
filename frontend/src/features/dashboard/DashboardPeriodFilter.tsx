@@ -13,7 +13,7 @@ import {
 import type {
   DashboardDateParams,
   DashboardPeriod,
-} from "@/lib/dashboard-period";
+} from "@/features/dashboard/dashboard-period";
 
 interface DashboardPeriodFilterProps {
   period: DashboardPeriod;

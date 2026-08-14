@@ -1,5 +1,5 @@
 import type { Ticket, TicketInput } from "@workspace/api-client-react";
-import type { TicketChanges } from "./ticket-version";
+import type { TicketChanges } from "@/lib/ticket-version";
 
 export interface AdminTicketForm {
   conversation_id: string;

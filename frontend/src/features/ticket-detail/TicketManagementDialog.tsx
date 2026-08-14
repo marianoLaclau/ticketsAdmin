@@ -22,7 +22,7 @@ import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { TicketVersionConflictAlert } from "@/components/tickets/TicketVersionConflictAlert";
 import { getEstadoLabel } from "@/lib/estados";
-import type { TicketManagementForm } from "@/lib/ticket-edit";
+import type { TicketManagementForm } from "@/features/ticket-detail/ticket-edit";
 
 interface TicketManagementDialogProps {
   open: boolean;

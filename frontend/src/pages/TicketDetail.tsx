@@ -10,7 +10,7 @@ import { puedeCerrarTickets, puedeGestionarTickets } from "@/lib/roles";
 import { ErrorPage, getErrorStatus } from "@/components/ErrorPage";
 import { getAppHref } from "@/lib/base-path";
 import { getAdminErrorMessage } from "@/lib/error-messages";
-import { TicketDataEditDialog } from "@/components/tickets/TicketDataEditDialog";
+import { TicketDataEditDialog } from "@/features/ticket-detail/TicketDataEditDialog";
 import { TicketCallSummaryCard } from "@/features/ticket-detail/TicketCallSummaryCard";
 import { TicketContactCard } from "@/features/ticket-detail/TicketContactCard";
 import { TicketHeaderSummary } from "@/features/ticket-detail/TicketHeaderSummary";

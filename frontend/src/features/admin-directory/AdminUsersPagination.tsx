@@ -10,7 +10,7 @@ import {
 import {
   ADMIN_DIRECTORY_USER_LIMITS,
   type AdminDirectoryUserLimit,
-} from "@/lib/admin-directory-url";
+} from "@/features/admin-directory/admin-directory-url";
 
 interface AdminUsersPaginationProps {
   page: number;

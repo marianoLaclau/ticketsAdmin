@@ -8,7 +8,7 @@ import {
   getDashboardRangeLabel,
   shouldRefreshDashboardAtBusinessDateChange,
   validateDashboardDateRange,
-} from "../src/lib/dashboard-period.ts";
+} from "../src/features/dashboard/dashboard-period.ts";
 
 const tuesday = new Date("2026-07-21T15:00:00.000Z");
 

@@ -1,4 +1,4 @@
-import { isValidCalendarDate } from "./calendar-date.ts";
+import { isValidCalendarDate } from "@/lib/calendar-date";
 
 export type DashboardPeriod = "todo" | "semana" | "mes" | "personalizado";
 

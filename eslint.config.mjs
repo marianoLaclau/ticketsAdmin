@@ -55,6 +55,38 @@ const backendModuleBoundaryConfigs = backendModuleNames.map((moduleName) => ({
   },
 }));
 
+const frontendFeatureNames = [
+  "admin-directory",
+  "admin-tickets",
+  "auth",
+  "dashboard",
+  "rendimiento",
+  "ticket-detail",
+  "ticket-list",
+];
+
+const frontendFeatureBoundaryConfigs = frontendFeatureNames.map(
+  (featureName) => ({
+    files: [`frontend/src/features/${featureName}/**/*.{ts,tsx}`],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: frontendFeatureNames
+                .filter((candidate) => candidate !== featureName)
+                .map((candidate) => `**/features/${candidate}/**`),
+              message:
+                "Una feature de frontend no puede importar archivos de otra feature; si la logica es compartida, debe vivir en frontend/src/lib.",
+            },
+          ],
+        },
+      ],
+    },
+  }),
+);
+
 const promiseSafetyRules = {
   "@typescript-eslint/await-thenable": "error",
   "@typescript-eslint/no-floating-promises": [
@@ -204,6 +236,7 @@ export default defineConfig(
     },
   },
   ...backendModuleBoundaryConfigs,
+  ...frontendFeatureBoundaryConfigs,
   {
     files: ["backend/src/shared/**/*.ts"],
     rules: {

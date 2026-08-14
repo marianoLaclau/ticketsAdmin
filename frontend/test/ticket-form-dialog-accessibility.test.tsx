@@ -4,9 +4,9 @@ import { useState } from "react";
 import type { Ticket, TicketUpdate } from "@workspace/api-client-react";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { TicketDataEditDialog } from "../src/components/tickets/TicketDataEditDialog.tsx";
+import { TicketDataEditDialog } from "../src/features/ticket-detail/TicketDataEditDialog.tsx";
 import { AdminTicketFormDialog } from "../src/features/admin-tickets/AdminTicketFormDialog.tsx";
-import type { AdminTicketForm } from "../src/lib/admin-ticket-form.ts";
+import type { AdminTicketForm } from "../src/features/admin-tickets/admin-ticket-form.ts";
 import { installDomEventRealm } from "./dom-event-realm.ts";
 
 installDomEventRealm();

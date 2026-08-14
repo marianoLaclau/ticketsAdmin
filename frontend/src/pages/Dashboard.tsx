@@ -27,7 +27,7 @@ import {
   getDashboardRangeKey,
   getDashboardRangeLabel,
   shouldRefreshDashboardAtBusinessDateChange,
-} from "@/lib/dashboard-period";
+} from "@/features/dashboard/dashboard-period";
 
 const DASHBOARD_TEMPORAL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const DASHBOARD_TEMPORAL_QUERY_POLICY = {

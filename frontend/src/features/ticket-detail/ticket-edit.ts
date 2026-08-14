@@ -1,5 +1,5 @@
 import type { Ticket } from "@workspace/api-client-react";
-import type { TicketChanges } from "./ticket-version";
+import type { TicketChanges } from "@/lib/ticket-version";
 
 const FUNCTIONAL_TICKET_FIELD_LABELS = {
   nombre: "Nombre",

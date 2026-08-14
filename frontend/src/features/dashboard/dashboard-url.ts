@@ -1,5 +1,5 @@
 import type { DashboardPeriod } from "./dashboard-period.ts";
-import { isValidCalendarDate } from "./calendar-date.ts";
+import { isValidCalendarDate } from "@/lib/calendar-date";
 
 type DashboardPresetPeriod = Exclude<DashboardPeriod, "personalizado">;
 

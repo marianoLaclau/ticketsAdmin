@@ -20,7 +20,7 @@ import {
   createEmptyAdminTicketForm,
   ticketToAdminTicketForm,
   type AdminTicketForm,
-} from "@/lib/admin-ticket-form";
+} from "@/features/admin-tickets/admin-ticket-form";
 import { getContactDisplayName } from "@/lib/contacto";
 import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
 import {

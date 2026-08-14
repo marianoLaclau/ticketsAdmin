@@ -9,7 +9,7 @@ import {
   parseAdminDirectoryUrlState,
   serializeAdminDirectoryUrlState,
   type AdminDirectoryUrlState,
-} from "../src/lib/admin-directory-url.ts";
+} from "../src/features/admin-directory/admin-directory-url.ts";
 
 describe("codec URL del directorio administrativo", () => {
   it("omite por completo el estado predeterminado", () => {

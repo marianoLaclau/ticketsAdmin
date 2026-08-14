@@ -8,7 +8,7 @@ import {
   type AdminDirectoryTabValue,
   type AdminDirectoryUsersUrlState,
   type AdminDirectoryUrlState,
-} from "@/lib/admin-directory-url";
+} from "@/features/admin-directory/admin-directory-url";
 
 interface AdminDirectoryUrlController {
   urlState: AdminDirectoryUrlState;

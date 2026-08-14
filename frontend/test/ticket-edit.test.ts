@@ -9,7 +9,7 @@ import {
   isValidOptionalEmail,
   ticketToFunctionalForm,
   ticketToManagementForm,
-} from "../src/lib/ticket-edit.ts";
+} from "../src/features/ticket-detail/ticket-edit.ts";
 
 const ticket = {
   id: 1,

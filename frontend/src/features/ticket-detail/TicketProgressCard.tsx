@@ -2,7 +2,7 @@ import { TicketEstado, type Ticket } from "@workspace/api-client-react";
 import { CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { getEstadoLabel } from "@/lib/estados";
-import { TICKET_STATE_PROGRESS } from "@/lib/ticket-edit";
+import { TICKET_STATE_PROGRESS } from "@/features/ticket-detail/ticket-edit";
 
 const PROGRESS_STATES = [
   TicketEstado.nuevo,

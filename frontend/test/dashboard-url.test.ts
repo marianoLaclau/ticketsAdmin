@@ -5,7 +5,7 @@ import {
   parseDashboardUrlState,
   serializeDashboardUrlState,
   type DashboardUrlState,
-} from "../src/lib/dashboard-url.ts";
+} from "../src/features/dashboard/dashboard-url.ts";
 
 describe("codec URL del dashboard", () => {
   it("omite el período predeterminado", () => {

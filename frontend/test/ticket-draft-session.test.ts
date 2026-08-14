@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   transitionTicketDraftSession,
   type TicketDraftSession,
-} from "../src/lib/ticket-draft-session.ts";
+} from "../src/features/ticket-detail/ticket-draft-session.ts";
 
 const closedSession: TicketDraftSession = {
   wasOpen: false,

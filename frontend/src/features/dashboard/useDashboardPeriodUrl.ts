@@ -13,12 +13,12 @@ import {
   validateDashboardDateRange,
   type DashboardDateParams,
   type DashboardPeriod,
-} from "@/lib/dashboard-period";
+} from "@/features/dashboard/dashboard-period";
 import {
   parseDashboardUrlState,
   serializeDashboardUrlState,
   type DashboardUrlState,
-} from "@/lib/dashboard-url";
+} from "@/features/dashboard/dashboard-url";
 
 interface DashboardPeriodUrlController {
   periodo: DashboardPeriod;

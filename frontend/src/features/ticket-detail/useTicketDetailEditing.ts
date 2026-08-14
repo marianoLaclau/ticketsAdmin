@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   dateTimeLocalValueToIso,
   toDateTimeLocalValue,
-} from "@/lib/datetime-local";
+} from "@/features/ticket-detail/datetime-local";
 import {
   getAdminErrorMessage,
   getUserErrorMessage,
@@ -25,7 +25,7 @@ import {
   buildTicketManagementUpdate,
   ticketToManagementForm,
   type TicketManagementForm,
-} from "@/lib/ticket-edit";
+} from "@/features/ticket-detail/ticket-edit";
 import {
   buildVersionedTicketUpdate,
   createTicketEditBaseline,

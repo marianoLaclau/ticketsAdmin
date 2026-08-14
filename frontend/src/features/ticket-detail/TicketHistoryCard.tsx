@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { getAssignedDisplayName } from "@/lib/asignacion";
-import { getFunctionalFieldLabel } from "@/lib/ticket-edit";
+import { getFunctionalFieldLabel } from "@/features/ticket-detail/ticket-edit";
 import { EstadoBadge, formatDate, PrioridadBadge } from "@/lib/utils-tickets";
 
 interface TicketHistoryCardProps {

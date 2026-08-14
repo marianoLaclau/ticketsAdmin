@@ -24,7 +24,7 @@ import { getEstadoLabel } from "@/lib/estados";
 import type {
   AdminTicketForm,
   AdminTicketTextField,
-} from "@/lib/admin-ticket-form";
+} from "@/features/admin-tickets/admin-ticket-form";
 
 const CAMPOS_TEXTO: Array<{
   campo: AdminTicketTextField;
