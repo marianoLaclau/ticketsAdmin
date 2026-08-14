@@ -85,7 +85,6 @@ export function normalizeRendimientoChatWebhookUrl(
 
 async function loadN8nChatFactory(): Promise<RendimientoChatFactory> {
   await import("@n8n/chat/style.css");
-  await import("./rendimiento-chat-widget.css");
   const { createChat } = await import("@n8n/chat");
   return createChat as RendimientoChatFactory;
 }

@@ -14,6 +14,7 @@ import { RendimientoPersonasView } from "@/features/rendimiento/RendimientoPerso
 import { RendimientoQualityView } from "@/features/rendimiento/RendimientoQualityView";
 import { RendimientoReiteracionesView } from "@/features/rendimiento/RendimientoReiteracionesView";
 import { ResumenEquipoView } from "@/features/rendimiento/ResumenEquipoView";
+import "@/features/rendimiento/rendimiento-chat-widget.css";
 import { useRendimientoFiltersUrl } from "@/features/rendimiento/useRendimientoFiltersUrl";
 import {
   createDefaultRendimientoUrlState,
