@@ -1167,6 +1167,10 @@ export const SendRendimientoChatMessageResponse = zod.object({
  * estado no final a `resuelto` o `cerrado` que conservaron el snapshot del
  * plazo vigente al resolverse. El cambio `resuelto` a `cerrado` no cuenta
  * como otra resolución.
+ *
+ * `backlog_vencido`, `antiguedad_backlog` y `cobertura_asignacion`
+ * describen únicamente los tickets actualmente abiertos del mismo conjunto
+ * analizado. No incorporan backlog creado fuera del período solicitado.
  * @summary Consultar el resumen de rendimiento del equipo
  */
 export const GetRendimientoResumenEquipoQueryParams = zod.object({
@@ -1199,6 +1203,28 @@ export const getRendimientoResumenEquipoResponseCumplimientoPlazoAuditableCumpli
 
 export const getRendimientoResumenEquipoResponseCumplimientoPlazoAuditablePorcentajeMin = 0;
 export const getRendimientoResumenEquipoResponseCumplimientoPlazoAuditablePorcentajeMax = 100;
+
+export const getRendimientoResumenEquipoResponseBacklogVencidoAbiertosMin = 0;
+
+export const getRendimientoResumenEquipoResponseBacklogVencidoConPlazoMin = 0;
+
+export const getRendimientoResumenEquipoResponseBacklogVencidoVencidosMin = 0;
+
+export const getRendimientoResumenEquipoResponseBacklogVencidoPorcentajeMin = 0;
+export const getRendimientoResumenEquipoResponseBacklogVencidoPorcentajeMax = 100;
+
+export const getRendimientoResumenEquipoResponseAntiguedadBacklogMuestraMin = 0;
+
+export const getRendimientoResumenEquipoResponseAntiguedadBacklogMedianaHorasHabilesMin = 0;
+
+export const getRendimientoResumenEquipoResponseCoberturaAsignacionAbiertosMin = 0;
+
+export const getRendimientoResumenEquipoResponseCoberturaAsignacionAsignadosMin = 0;
+
+export const getRendimientoResumenEquipoResponseCoberturaAsignacionSinAsignarMin = 0;
+
+export const getRendimientoResumenEquipoResponseCoberturaAsignacionPorcentajeMin = 0;
+export const getRendimientoResumenEquipoResponseCoberturaAsignacionPorcentajeMax = 100;
 
 export const getRendimientoResumenEquipoResponseDistribucionEstadoOneNuevoMin = 0;
 
@@ -1244,6 +1270,22 @@ export const GetRendimientoResumenEquipoResponse = zod.object({
   "cumplidos": zod.number().min(getRendimientoResumenEquipoResponseCumplimientoPlazoAuditableCumplidosMin),
   "porcentaje": zod.number().min(getRendimientoResumenEquipoResponseCumplimientoPlazoAuditablePorcentajeMin).max(getRendimientoResumenEquipoResponseCumplimientoPlazoAuditablePorcentajeMax).nullable()
 }).describe('Cumplimiento basado exclusivamente en transiciones no-final a final con fecha_limite_snapshot. Una resolución cumple cuando la fecha del evento no supera ese snapshot. porcentaje es null cuando muestra es cero.\n'),
+  "backlog_vencido": zod.object({
+  "abiertos": zod.number().min(getRendimientoResumenEquipoResponseBacklogVencidoAbiertosMin),
+  "con_plazo": zod.number().min(getRendimientoResumenEquipoResponseBacklogVencidoConPlazoMin),
+  "vencidos": zod.number().min(getRendimientoResumenEquipoResponseBacklogVencidoVencidosMin),
+  "porcentaje": zod.number().min(getRendimientoResumenEquipoResponseBacklogVencidoPorcentajeMin).max(getRendimientoResumenEquipoResponseBacklogVencidoPorcentajeMax).nullable()
+}).describe('Fotografía del backlog del conjunto analizado al instante generado_en. porcentaje usa todos los tickets actualmente abiertos como denominador; con_plazo explicita cuántos poseen una fecha límite verificable. Un plazo igual al snapshot todavía no está vencido. porcentaje es null cuando no hay backlog.\n'),
+  "antiguedad_backlog": zod.object({
+  "muestra": zod.number().min(getRendimientoResumenEquipoResponseAntiguedadBacklogMuestraMin),
+  "mediana_horas_habiles": zod.number().min(getRendimientoResumenEquipoResponseAntiguedadBacklogMedianaHorasHabilesMin).nullable()
+}).describe('Mediana exacta del tiempo hábil transcurrido desde fecha_creacion hasta generado_en para los tickets actualmente abiertos del conjunto analizado cuya creación no está en el futuro. Las horas hábiles cuentan las 24 horas de lunes a viernes en America\/Argentina\/Buenos_Aires, omiten sábados y domingos y no contemplan feriados. La mediana es null cuando muestra es cero.\n'),
+  "cobertura_asignacion": zod.object({
+  "abiertos": zod.number().min(getRendimientoResumenEquipoResponseCoberturaAsignacionAbiertosMin),
+  "asignados": zod.number().min(getRendimientoResumenEquipoResponseCoberturaAsignacionAsignadosMin),
+  "sin_asignar": zod.number().min(getRendimientoResumenEquipoResponseCoberturaAsignacionSinAsignarMin),
+  "porcentaje": zod.number().min(getRendimientoResumenEquipoResponseCoberturaAsignacionPorcentajeMin).max(getRendimientoResumenEquipoResponseCoberturaAsignacionPorcentajeMax).nullable()
+}).describe('Cobertura de responsable estructurado sobre los tickets actualmente abiertos del conjunto analizado. Solo cuenta asignado_usuario_id; el texto histórico asignado_a no identifica por sí solo a un operador. porcentaje es null cuando no hay backlog.\n'),
   "distribucion_estado": zod.object({
   "nuevo": zod.number().min(getRendimientoResumenEquipoResponseDistribucionEstadoOneNuevoMin),
   "en_proceso": zod.number().min(getRendimientoResumenEquipoResponseDistribucionEstadoOneEnProcesoMin),

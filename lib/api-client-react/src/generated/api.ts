@@ -2720,6 +2720,10 @@ export const getGetRendimientoResumenEquipoUrl = (params?: GetRendimientoResumen
  * estado no final a `resuelto` o `cerrado` que conservaron el snapshot del
  * plazo vigente al resolverse. El cambio `resuelto` a `cerrado` no cuenta
  * como otra resolución.
+ *
+ * `backlog_vencido`, `antiguedad_backlog` y `cobertura_asignacion`
+ * describen únicamente los tickets actualmente abiertos del mismo conjunto
+ * analizado. No incorporan backlog creado fuera del período solicitado.
  * @summary Consultar el resumen de rendimiento del equipo
  */
 export const getRendimientoResumenEquipo = async (params?: GetRendimientoResumenEquipoParams, options?: RequestInit): Promise<RendimientoResumenEquipo> => {

@@ -1354,6 +1354,10 @@ paths:
         estado no final a `resuelto` o `cerrado` que conservaron el snapshot del
         plazo vigente al resolverse. El cambio `resuelto` a `cerrado` no cuenta
         como otra resolución.
+
+        `backlog_vencido`, `antiguedad_backlog` y `cobertura_asignacion`
+        describen únicamente los tickets actualmente abiertos del mismo conjunto
+        analizado. No incorporan backlog creado fuera del período solicitado.
       security:
         - sessionCookie: []
       parameters:
@@ -1872,6 +1876,84 @@ components:
           minimum: 0
           maximum: 100
 
+    RendimientoBacklogVencido:
+      type: object
+      additionalProperties: false
+      description: >
+        Fotografía del backlog del conjunto analizado al instante generado_en.
+        porcentaje usa todos los tickets actualmente abiertos como denominador;
+        con_plazo explicita cuántos poseen una fecha límite verificable. Un plazo
+        igual al snapshot todavía no está vencido. porcentaje es null cuando no
+        hay backlog.
+      required:
+        - abiertos
+        - con_plazo
+        - vencidos
+        - porcentaje
+      properties:
+        abiertos:
+          type: integer
+          minimum: 0
+        con_plazo:
+          type: integer
+          minimum: 0
+        vencidos:
+          type: integer
+          minimum: 0
+        porcentaje:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 100
+
+    RendimientoAntiguedadBacklog:
+      type: object
+      additionalProperties: false
+      description: >
+        Mediana exacta del tiempo hábil transcurrido desde fecha_creacion hasta
+        generado_en para los tickets actualmente abiertos del conjunto analizado
+        cuya creación no está en el futuro. Las horas hábiles cuentan las 24 horas
+        de lunes a viernes en America/Argentina/Buenos_Aires, omiten sábados y
+        domingos y no contemplan feriados. La mediana es null cuando muestra es
+        cero.
+      required:
+        - muestra
+        - mediana_horas_habiles
+      properties:
+        muestra:
+          type: integer
+          minimum: 0
+        mediana_horas_habiles:
+          type: [number, "null"]
+          minimum: 0
+
+    RendimientoCoberturaAsignacion:
+      type: object
+      additionalProperties: false
+      description: >
+        Cobertura de responsable estructurado sobre los tickets actualmente
+        abiertos del conjunto analizado. Solo cuenta asignado_usuario_id; el texto
+        histórico asignado_a no identifica por sí solo a un operador. porcentaje
+        es null cuando no hay backlog.
+      required:
+        - abiertos
+        - asignados
+        - sin_asignar
+        - porcentaje
+      properties:
+        abiertos:
+          type: integer
+          minimum: 0
+        asignados:
+          type: integer
+          minimum: 0
+        sin_asignar:
+          type: integer
+          minimum: 0
+        porcentaje:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 100
+
     RendimientoDistribucionEstado:
       type: object
       additionalProperties: false
@@ -1929,6 +2011,9 @@ components:
         - estado_actual
         - resolucion_con_fecha
         - cumplimiento_plazo_auditable
+        - backlog_vencido
+        - antiguedad_backlog
+        - cobertura_asignacion
         - distribucion_estado
         - distribucion_prioridad
       properties:
@@ -1946,6 +2031,12 @@ components:
           $ref: "#/components/schemas/RendimientoResolucionConFecha"
         cumplimiento_plazo_auditable:
           $ref: "#/components/schemas/RendimientoCumplimientoPlazoAuditable"
+        backlog_vencido:
+          $ref: "#/components/schemas/RendimientoBacklogVencido"
+        antiguedad_backlog:
+          $ref: "#/components/schemas/RendimientoAntiguedadBacklog"
+        cobertura_asignacion:
+          $ref: "#/components/schemas/RendimientoCoberturaAsignacion"
         distribucion_estado:
           description: >
             Estado actual del conjunto analizado; incluye todos los estados conocidos, aun

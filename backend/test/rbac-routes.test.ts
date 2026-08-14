@@ -2005,6 +2005,22 @@ describe("módulo de Rendimiento", () => {
         cumplidos: 1,
         porcentaje: 100,
       },
+      backlog_vencido: {
+        abiertos: 0,
+        con_plazo: 0,
+        vencidos: 0,
+        porcentaje: null,
+      },
+      antiguedad_backlog: {
+        muestra: 0,
+        mediana_horas_habiles: null,
+      },
+      cobertura_asignacion: {
+        abiertos: 0,
+        asignados: 0,
+        sin_asignar: 0,
+        porcentaje: null,
+      },
       distribucion_estado: {
         nuevo: 0,
         en_proceso: 0,

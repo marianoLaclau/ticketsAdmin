@@ -6,6 +6,7 @@ import {
   type Estado,
   type Prioridad,
 } from "@workspace/db/schema";
+import { calcularHorasHabilesEntre } from "@workspace/ingesta";
 import { and, sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import {
@@ -34,6 +35,22 @@ export type PerformanceTeamSummaryResult = {
     cumplidos: number;
     porcentaje: number | null;
   };
+  backlog_vencido: {
+    abiertos: number;
+    con_plazo: number;
+    vencidos: number;
+    porcentaje: number | null;
+  };
+  antiguedad_backlog: {
+    muestra: number;
+    mediana_horas_habiles: number | null;
+  };
+  cobertura_asignacion: {
+    abiertos: number;
+    asignados: number;
+    sin_asignar: number;
+    porcentaje: number | null;
+  };
   distribucion_estado: Record<Estado, number>;
   distribucion_prioridad: Record<Prioridad, number>;
 };
@@ -45,6 +62,9 @@ type RawTeamSummary = {
   abiertos: number;
   finalizados: number;
   vencidos_abiertos: number;
+  abiertos_con_plazo: number;
+  abiertos_asignados: number;
+  antiguedad_muestra: number;
   estado_nuevo: number;
   estado_en_proceso: number;
   estado_pendiente: number;
@@ -59,6 +79,10 @@ type RawTeamSummary = {
   resolucion_mediana_ms: number | null;
   plazo_muestra: number;
   plazo_cumplidos: number;
+};
+
+type RawBacklogCreation = {
+  fecha_creacion: number;
 };
 
 const MILLISECONDS_PER_HOUR = 3_600_000;
@@ -83,11 +107,25 @@ function numberOf(value: number): number {
   return Number(value);
 }
 
+function medianBusinessHours(
+  centralRows: readonly RawBacklogCreation[],
+  now: Date,
+): number | null {
+  if (centralRows.length === 0) return null;
+
+  const total = centralRows.reduce(
+    (sum, row) =>
+      sum + calcularHorasHabilesEntre(new Date(row.fecha_creacion), now),
+    0,
+  );
+  return Math.round((total / centralRows.length) * 100) / 100;
+}
+
 /**
- * Calcula el resumen completo con una única sentencia agregada. La mediana es
- * poblacional exacta: para una muestra par promedia los dos valores centrales
- * y para una impar toma el central. SQLite ordena duraciones enteras en ms;
- * solo la representación final en horas se redondea a dos decimales.
+ * Calcula el resumen dentro de un único snapshot transaccional: una sentencia
+ * agregada resuelve los conteos y las duraciones, y una segunda lectura obtiene
+ * como máximo las dos fechas centrales del backlog. Ambas medianas son
+ * poblacionales exactas; solo su representación final se redondea a centésimas.
  */
 export function consultarResumenEquipo<TSchema extends Record<string, unknown>>(
   database: PerformanceDatabase<TSchema>,
@@ -99,7 +137,10 @@ export function consultarResumenEquipo<TSchema extends Record<string, unknown>>(
   }
 
   const cohortCondition = and(...buildPerformanceCohortConditions(filters))!;
-  const row = database.get<RawTeamSummary>(sql`
+  const nowMs = now.getTime();
+
+  return database.transaction((transaction) => {
+    const row = transaction.get<RawTeamSummary>(sql`
     with cohort as (
       select
         ${ticketsTable.id} as ticket_id,
@@ -107,7 +148,8 @@ export function consultarResumenEquipo<TSchema extends Record<string, unknown>>(
         ${ticketsTable.prioridad} as prioridad,
         ${ticketsTable.fecha_creacion} as fecha_creacion,
         ${ticketsTable.fecha_limite} as fecha_limite,
-        ${ticketsTable.fecha_resolucion} as fecha_resolucion
+        ${ticketsTable.fecha_resolucion} as fecha_resolucion,
+        ${ticketsTable.asignado_usuario_id} as asignado_usuario_id
       from ${ticketsTable}
       where ${cohortCondition}
     ),
@@ -166,11 +208,35 @@ export function consultarResumenEquipo<TSchema extends Record<string, unknown>>(
       coalesce(sum(
         case
           when estado not in ('resuelto', 'cerrado')
-            and fecha_limite < ${now.getTime()}
+            and fecha_limite < ${nowMs}
             then 1
           else 0
         end
       ), 0) as vencidos_abiertos,
+      coalesce(sum(
+        case
+          when estado not in ('resuelto', 'cerrado')
+            and fecha_limite is not null
+            then 1
+          else 0
+        end
+      ), 0) as abiertos_con_plazo,
+      coalesce(sum(
+        case
+          when estado not in ('resuelto', 'cerrado')
+            and asignado_usuario_id is not null
+            then 1
+          else 0
+        end
+      ), 0) as abiertos_asignados,
+      coalesce(sum(
+        case
+          when estado not in ('resuelto', 'cerrado')
+            and fecha_creacion <= ${nowMs}
+            then 1
+          else 0
+        end
+      ), 0) as antiguedad_muestra,
       coalesce(sum(case when estado = 'nuevo' then 1 else 0 end), 0) as estado_nuevo,
       coalesce(sum(case when estado = 'en_proceso' then 1 else 0 end), 0) as estado_en_proceso,
       coalesce(sum(case when estado = 'pendiente' then 1 else 0 end), 0) as estado_pendiente,
@@ -185,48 +251,82 @@ export function consultarResumenEquipo<TSchema extends Record<string, unknown>>(
       (select mediana_ms from resolution_stats) as resolucion_mediana_ms,
       (select muestra from deadline_stats) as plazo_muestra,
       (select cumplidos from deadline_stats) as plazo_cumplidos
-    from cohort
-  `);
+      from cohort
+    `);
 
-  if (!row) {
-    throw new Error("SQLite no devolvió el resumen agregado de rendimiento");
-  }
+    if (!row) {
+      throw new Error("SQLite no devolvió el resumen agregado de rendimiento");
+    }
 
-  const total = numberOf(row.total);
-  const resolutionSample = numberOf(row.resolucion_muestra);
-  const deadlineSample = numberOf(row.plazo_muestra);
-  const deadlinesMet = numberOf(row.plazo_cumplidos);
+    const total = numberOf(row.total);
+    const opened = numberOf(row.abiertos);
+    const overdue = numberOf(row.vencidos_abiertos);
+    const assigned = numberOf(row.abiertos_asignados);
+    const backlogAgeSample = numberOf(row.antiguedad_muestra);
+    const resolutionSample = numberOf(row.resolucion_muestra);
+    const deadlineSample = numberOf(row.plazo_muestra);
+    const deadlinesMet = numberOf(row.plazo_cumplidos);
+    const centralRows =
+      backlogAgeSample === 0
+        ? []
+        : transaction.all<RawBacklogCreation>(sql`
+            select ${ticketsTable.fecha_creacion} as fecha_creacion
+            from ${ticketsTable}
+            where ${cohortCondition}
+              and ${ticketsTable.estado} not in ('resuelto', 'cerrado')
+              and ${ticketsTable.fecha_creacion} <= ${nowMs}
+            order by ${ticketsTable.fecha_creacion} asc, ${ticketsTable.id} asc
+            limit ${backlogAgeSample % 2 === 0 ? 2 : 1}
+            offset ${Math.floor((backlogAgeSample - 1) / 2)}
+          `);
 
-  return {
-    tickets_ingresados: total,
-    estado_actual: {
-      total,
-      abiertos: numberOf(row.abiertos),
-      finalizados: numberOf(row.finalizados),
-      vencidos_abiertos: numberOf(row.vencidos_abiertos),
-    },
-    resolucion_con_fecha: {
-      muestra: resolutionSample,
-      promedio_horas: millisecondsToRoundedHours(row.resolucion_promedio_ms),
-      mediana_horas: millisecondsToRoundedHours(row.resolucion_mediana_ms),
-    },
-    cumplimiento_plazo_auditable: {
-      muestra: deadlineSample,
-      cumplidos: deadlinesMet,
-      porcentaje: percentage(deadlinesMet, deadlineSample),
-    },
-    distribucion_estado: {
-      [ESTADOS[0]]: numberOf(row.estado_nuevo),
-      [ESTADOS[1]]: numberOf(row.estado_en_proceso),
-      [ESTADOS[2]]: numberOf(row.estado_pendiente),
-      [ESTADOS[3]]: numberOf(row.estado_resuelto),
-      [ESTADOS[4]]: numberOf(row.estado_cerrado),
-    },
-    distribucion_prioridad: {
-      [PRIORIDADES[0]]: numberOf(row.prioridad_baja),
-      [PRIORIDADES[1]]: numberOf(row.prioridad_media),
-      [PRIORIDADES[2]]: numberOf(row.prioridad_alta),
-      [PRIORIDADES[3]]: numberOf(row.prioridad_urgente),
-    },
-  };
+    return {
+      tickets_ingresados: total,
+      estado_actual: {
+        total,
+        abiertos: opened,
+        finalizados: numberOf(row.finalizados),
+        vencidos_abiertos: overdue,
+      },
+      resolucion_con_fecha: {
+        muestra: resolutionSample,
+        promedio_horas: millisecondsToRoundedHours(row.resolucion_promedio_ms),
+        mediana_horas: millisecondsToRoundedHours(row.resolucion_mediana_ms),
+      },
+      cumplimiento_plazo_auditable: {
+        muestra: deadlineSample,
+        cumplidos: deadlinesMet,
+        porcentaje: percentage(deadlinesMet, deadlineSample),
+      },
+      backlog_vencido: {
+        abiertos: opened,
+        con_plazo: numberOf(row.abiertos_con_plazo),
+        vencidos: overdue,
+        porcentaje: percentage(overdue, opened),
+      },
+      antiguedad_backlog: {
+        muestra: backlogAgeSample,
+        mediana_horas_habiles: medianBusinessHours(centralRows, now),
+      },
+      cobertura_asignacion: {
+        abiertos: opened,
+        asignados: assigned,
+        sin_asignar: opened - assigned,
+        porcentaje: percentage(assigned, opened),
+      },
+      distribucion_estado: {
+        [ESTADOS[0]]: numberOf(row.estado_nuevo),
+        [ESTADOS[1]]: numberOf(row.estado_en_proceso),
+        [ESTADOS[2]]: numberOf(row.estado_pendiente),
+        [ESTADOS[3]]: numberOf(row.estado_resuelto),
+        [ESTADOS[4]]: numberOf(row.estado_cerrado),
+      },
+      distribucion_prioridad: {
+        [PRIORIDADES[0]]: numberOf(row.prioridad_baja),
+        [PRIORIDADES[1]]: numberOf(row.prioridad_media),
+        [PRIORIDADES[2]]: numberOf(row.prioridad_alta),
+        [PRIORIDADES[3]]: numberOf(row.prioridad_urgente),
+      },
+    };
+  });
 }

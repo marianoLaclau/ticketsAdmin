@@ -208,6 +208,55 @@ export interface RendimientoCumplimientoPlazoAuditable {
   porcentaje: number | null;
 }
 
+/**
+ * Fotografía del backlog del conjunto analizado al instante generado_en. porcentaje usa todos los tickets actualmente abiertos como denominador; con_plazo explicita cuántos poseen una fecha límite verificable. Un plazo igual al snapshot todavía no está vencido. porcentaje es null cuando no hay backlog.
+ */
+export interface RendimientoBacklogVencido {
+  /** @minimum 0 */
+  abiertos: number;
+  /** @minimum 0 */
+  con_plazo: number;
+  /** @minimum 0 */
+  vencidos: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  porcentaje: number | null;
+}
+
+/**
+ * Mediana exacta del tiempo hábil transcurrido desde fecha_creacion hasta generado_en para los tickets actualmente abiertos del conjunto analizado cuya creación no está en el futuro. Las horas hábiles cuentan las 24 horas de lunes a viernes en America/Argentina/Buenos_Aires, omiten sábados y domingos y no contemplan feriados. La mediana es null cuando muestra es cero.
+ */
+export interface RendimientoAntiguedadBacklog {
+  /** @minimum 0 */
+  muestra: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  mediana_horas_habiles: number | null;
+}
+
+/**
+ * Cobertura de responsable estructurado sobre los tickets actualmente abiertos del conjunto analizado. Solo cuenta asignado_usuario_id; el texto histórico asignado_a no identifica por sí solo a un operador. porcentaje es null cuando no hay backlog.
+ */
+export interface RendimientoCoberturaAsignacion {
+  /** @minimum 0 */
+  abiertos: number;
+  /** @minimum 0 */
+  asignados: number;
+  /** @minimum 0 */
+  sin_asignar: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  porcentaje: number | null;
+}
+
 export interface RendimientoDistribucionEstado {
   /** @minimum 0 */
   nuevo: number;
@@ -242,6 +291,9 @@ export interface RendimientoResumenEquipo {
   estado_actual: RendimientoEstadoActual;
   resolucion_con_fecha: RendimientoResolucionConFecha;
   cumplimiento_plazo_auditable: RendimientoCumplimientoPlazoAuditable;
+  backlog_vencido: RendimientoBacklogVencido;
+  antiguedad_backlog: RendimientoAntiguedadBacklog;
+  cobertura_asignacion: RendimientoCoberturaAsignacion;
   /** Estado actual del conjunto analizado; incluye todos los estados conocidos, aun cuando su cantidad sea cero. */
   distribucion_estado: RendimientoDistribucionEstado;
   /** Prioridad actual del conjunto analizado; incluye todas las prioridades conocidas, aun cuando su cantidad sea cero. */

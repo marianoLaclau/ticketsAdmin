@@ -77,6 +77,8 @@ type TicketInput = {
   category?: string;
   deadline?: string | null;
   resolvedAt?: string | null;
+  assignedUserId?: number | null;
+  assignedTo?: string | null;
 };
 
 function insertTicket(sqlite: Database.Database, input: TicketInput): number {
@@ -86,8 +88,8 @@ function insertTicket(sqlite: Database.Database, input: TicketInput): number {
         `INSERT INTO tickets (
           conversation_id, hora, nombre, apellido, empresa, motivo,
           motivo_categoria, estado, prioridad, fecha_creacion, fecha_limite,
-          fecha_resolucion
-        ) VALUES (?, '10:00', 'Persona', '', ?, 'Consulta', ?, ?, ?, ?, ?, ?)`,
+          fecha_resolucion, asignado_usuario_id, asignado_a
+        ) VALUES (?, '10:00', 'Persona', '', ?, 'Consulta', ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         input.conversationId,
@@ -98,6 +100,8 @@ function insertTicket(sqlite: Database.Database, input: TicketInput): number {
         Date.parse(input.createdAt),
         input.deadline ? Date.parse(input.deadline) : null,
         input.resolvedAt ? Date.parse(input.resolvedAt) : null,
+        input.assignedUserId ?? null,
+        input.assignedTo ?? null,
       ).lastInsertRowid,
   );
 }
@@ -139,6 +143,8 @@ describe("resumen de equipo de Rendimiento", () => {
       status: "nuevo",
       priority: "baja",
       deadline: "2026-08-14T12:00:00.000Z",
+      assignedUserId: 11,
+      assignedTo: "Operadora Uno",
     });
     insertTicket(sqlite, {
       conversationId: "en-proceso-al-limite",
@@ -146,6 +152,7 @@ describe("resumen de equipo de Rendimiento", () => {
       status: "en_proceso",
       priority: "media",
       deadline: now.toISOString(),
+      assignedTo: "Asignación histórica sin identidad",
     });
     insertTicket(sqlite, {
       conversationId: "pendiente",
@@ -296,6 +303,22 @@ describe("resumen de equipo de Rendimiento", () => {
         cumplidos: 2,
         porcentaje: 66.7,
       },
+      backlog_vencido: {
+        abiertos: 3,
+        con_plazo: 2,
+        vencidos: 1,
+        porcentaje: 33.3,
+      },
+      antiguedad_backlog: {
+        muestra: 3,
+        mediana_horas_habiles: 240,
+      },
+      cobertura_asignacion: {
+        abiertos: 3,
+        asignados: 1,
+        sin_asignar: 2,
+        porcentaje: 33.3,
+      },
       distribucion_estado: {
         nuevo: 1,
         en_proceso: 1,
@@ -409,6 +432,22 @@ describe("resumen de equipo de Rendimiento", () => {
       cumplidos: 1,
       porcentaje: 100,
     });
+    assert.deepEqual(result.backlog_vencido, {
+      abiertos: 0,
+      con_plazo: 0,
+      vencidos: 0,
+      porcentaje: null,
+    });
+    assert.deepEqual(result.antiguedad_backlog, {
+      muestra: 0,
+      mediana_horas_habiles: null,
+    });
+    assert.deepEqual(result.cobertura_asignacion, {
+      abiertos: 0,
+      asignados: 0,
+      sin_asignar: 0,
+      porcentaje: null,
+    });
     sqlite.close();
   });
 
@@ -462,6 +501,22 @@ describe("resumen de equipo de Rendimiento", () => {
         cumplidos: 0,
         porcentaje: null,
       },
+      backlog_vencido: {
+        abiertos: 0,
+        con_plazo: 0,
+        vencidos: 0,
+        porcentaje: null,
+      },
+      antiguedad_backlog: {
+        muestra: 0,
+        mediana_horas_habiles: null,
+      },
+      cobertura_asignacion: {
+        abiertos: 0,
+        asignados: 0,
+        sin_asignar: 0,
+        porcentaje: null,
+      },
       distribucion_estado: {
         nuevo: 0,
         en_proceso: 0,
@@ -475,6 +530,33 @@ describe("resumen de equipo de Rendimiento", () => {
         alta: 0,
         urgente: 0,
       },
+    });
+    sqlite.close();
+  });
+
+  it("calcula la mediana hábil del backlog y excluye fechas futuras", () => {
+    const { sqlite, database } = createDatabase();
+    const now = new Date("2026-08-10T15:00:00.000Z"); // lunes 12:00 ART
+
+    insertTicket(sqlite, {
+      conversationId: "abierto-viernes",
+      createdAt: "2026-08-07T15:00:00.000Z", // viernes 12:00 ART: 24 h hábiles
+    });
+    insertTicket(sqlite, {
+      conversationId: "abierto-lunes",
+      createdAt: "2026-08-10T13:00:00.000Z", // lunes 10:00 ART: 2 h hábiles
+    });
+    insertTicket(sqlite, {
+      conversationId: "abierto-futuro",
+      createdAt: "2026-08-11T15:00:00.000Z",
+    });
+
+    const result = consultarResumenEquipo(database, {}, now);
+
+    assert.equal(result.estado_actual.abiertos, 3);
+    assert.deepEqual(result.antiguedad_backlog, {
+      muestra: 2,
+      mediana_horas_habiles: 13,
     });
     sqlite.close();
   });
