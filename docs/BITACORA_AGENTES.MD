@@ -3780,8 +3780,10 @@ chatInput }`. Al primer uso se recupera o genera un UUID v4 y se guarda bajo
 ### Criterios documentados
 
 - El Resumen del equipo incorpora como indicadores explícitos el cumplimiento
-  auditable del SLA, el porcentaje del backlog vencido, la antigüedad mediana
+  auditable del plazo, el porcentaje del backlog vencido, la antigüedad mediana
   del backlog en horas hábiles y la cobertura de asignación estructurada.
+- La interfaz usa **Cumplimiento del plazo** en lugar de la sigla técnica SLA;
+  los nombres internos del contrato permanecen estables para no romper la API.
 - Cada indicador conserva numerador, denominador o muestra. Los porcentajes y
   medianas son `null` cuando no existe una base válida; ese estado significa
   **sin muestra**, no 0 %.

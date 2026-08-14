@@ -707,7 +707,7 @@ export function ResumenEquipoPanel({
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   <OperationalKpiCard
                     id="rendimiento-kpi-cumplimiento-sla"
-                    title="Cumplimiento del SLA"
+                    title="Cumplimiento del plazo"
                     value={
                       hasCompliance
                         ? formatPercentage(compliancePercentage)

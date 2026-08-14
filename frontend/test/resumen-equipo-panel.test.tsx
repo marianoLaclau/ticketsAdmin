@@ -83,7 +83,7 @@ test("presenta volumen, indicadores operativos, distribuciones y tiempos con sus
     "Finalizados",
     "Vencidos abiertos",
     "Indicadores operativos",
-    "Cumplimiento del SLA",
+    "Cumplimiento del plazo",
     "Backlog vencido",
     "Antigüedad del backlog",
     "Cobertura de asignación",
@@ -110,14 +110,14 @@ test("presenta volumen, indicadores operativos, distribuciones y tiempos con sus
   assert.ok(within(timing).getByText(/Cobertura parcial:/));
 
   const sla = screen
-    .getByRole("heading", { name: "Cumplimiento del SLA" })
+    .getByRole("heading", { name: "Cumplimiento del plazo" })
     .closest<HTMLElement>("article");
   assert.ok(sla);
   assert.ok(within(sla).getByText("80,6%"));
   assert.ok(within(sla).getByText("58 de 72 resoluciones dentro del plazo"));
   assert.ok(
     within(sla).getByRole("progressbar", {
-      name: "Cumplimiento del SLA",
+      name: "Cumplimiento del plazo",
     }),
   );
 
@@ -161,7 +161,7 @@ test("presenta volumen, indicadores operativos, distribuciones y tiempos con sus
   await assertNoAxeViolations();
 });
 
-test("mantiene muestras de SLA mayores a los finalizados sin recortarlas", (t) => {
+test("mantiene muestras de cumplimiento mayores a los finalizados sin recortarlas", (t) => {
   t.after(cleanup);
   render(
     <ResumenEquipoPanel
@@ -221,14 +221,14 @@ test("presenta estados analíticos vacíos sin inventar valores", (t) => {
   assert.ok(
     within(
       screen
-        .getByRole("heading", { name: "Cumplimiento del SLA" })
+        .getByRole("heading", { name: "Cumplimiento del plazo" })
         .closest<HTMLElement>("article")!,
     ).getByText("Sin muestra"),
   );
   assert.equal(
     within(
       screen
-        .getByRole("heading", { name: "Cumplimiento del SLA" })
+        .getByRole("heading", { name: "Cumplimiento del plazo" })
         .closest<HTMLElement>("article")!,
     ).queryByRole("progressbar"),
     null,

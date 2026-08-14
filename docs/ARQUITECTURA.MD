@@ -270,18 +270,18 @@ flowchart LR
 
 Resumen y Operadores distinguen la fotografía actual de los eventos históricos.
 Una resolución solo es atribuible cuando un seguimiento prueba una transición
-de estado no final a final y posee `autor_usuario_id`; el SLA histórico usa el
+de estado no final a final y posee `autor_usuario_id`; el cumplimiento histórico usa el
 `fecha_limite_snapshot` preservado en ese evento. Las muestras y coberturas son
 parte del contrato para no presentar estimaciones incompletas como hechos.
 
 El Resumen del equipo calcula cuatro indicadores sobre ese mismo snapshot:
 
-| Indicador                      | Numerador / valor                                                               | Denominador / muestra                                                      |
-| ------------------------------ | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Cumplimiento auditable del SLA | Resoluciones cuyo evento ocurrió antes o exactamente en `fecha_limite_snapshot` | Transiciones reales no-final → final que conservaron el snapshot del plazo |
-| Backlog vencido                | Abiertos con `fecha_limite < generado_en`                                       | Todos los tickets actualmente abiertos del conjunto analizado              |
-| Antigüedad mediana             | Mediana exacta de horas hábiles entre `fecha_creacion` y `generado_en`          | Abiertos con fecha de creación no futura                                   |
-| Cobertura de asignación        | Abiertos con `asignado_usuario_id`                                              | Todos los tickets actualmente abiertos del conjunto analizado              |
+| Indicador                        | Numerador / valor                                                               | Denominador / muestra                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Cumplimiento auditable del plazo | Resoluciones cuyo evento ocurrió antes o exactamente en `fecha_limite_snapshot` | Transiciones reales no-final → final que conservaron el snapshot del plazo |
+| Backlog vencido                  | Abiertos con `fecha_limite < generado_en`                                       | Todos los tickets actualmente abiertos del conjunto analizado              |
+| Antigüedad mediana               | Mediana exacta de horas hábiles entre `fecha_creacion` y `generado_en`          | Abiertos con fecha de creación no futura                                   |
+| Cobertura de asignación          | Abiertos con `asignado_usuario_id`                                              | Todos los tickets actualmente abiertos del conjunto analizado              |
 
 `abierto` equivale a un estado distinto de `resuelto` y `cerrado`. La cobertura
 de asignación no utiliza `asignado_a`, porque ese texto solo conserva una
