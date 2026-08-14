@@ -3772,3 +3772,42 @@ chatInput }`. Al primer uso se recupera o genera un UUID v4 y se guarda bajo
 - El escaneo comparó los cinco valores sensibles configurados contra los 505
   archivos versionados y todo el historial Git, sin coincidencias. Los
   artefactos de backup están ignorados. No se realizó push.
+
+## 2026-08-14 — Rendimiento: definición auditable de indicadores ejecutivos
+
+**Agente:** Codex
+
+### Criterios documentados
+
+- El Resumen del equipo incorpora como indicadores explícitos el cumplimiento
+  auditable del SLA, el porcentaje del backlog vencido, la antigüedad mediana
+  del backlog en horas hábiles y la cobertura de asignación estructurada.
+- Cada indicador conserva numerador, denominador o muestra. Los porcentajes y
+  medianas son `null` cuando no existe una base válida; ese estado significa
+  **sin muestra**, no 0 %.
+- Cumplimiento utiliza únicamente transiciones reales desde un estado no final
+  a `resuelto` o `cerrado` con `fecha_limite_snapshot`. No se infieren
+  resoluciones anteriores a esa auditoría ni se reemplaza el snapshot histórico
+  por el plazo editable actual.
+- Backlog vencido usa vencidos sobre todos los abiertos y expone por separado
+  cuántos abiertos poseen fecha límite. El instante exacto del límite todavía
+  no se considera vencido.
+- Antigüedad calcula la mediana exacta desde `fecha_creacion` hasta
+  `generado_en`, con el calendario compartido de Buenos Aires: lunes a viernes
+  cuentan las 24 horas, sábado y domingo no cuentan y los feriados siguen
+  incluidos.
+- Cobertura de asignación usa exclusivamente `asignado_usuario_id`; el snapshot
+  textual `asignado_a` no demuestra por sí solo una asignación operativa.
+- Los tres indicadores de backlog describen el estado actual del conjunto
+  visible delimitado por fecha de creación y filtros. Un período mensual o
+  semanal excluye tickets más antiguos aunque continúen abiertos; “todo el
+  historial” produce la lectura global.
+- No se definieron metas, rankings ni umbrales de Dirección. La documentación
+  separa el dato medido de cualquier objetivo futuro y deja explícita la
+  convivencia de plazos históricos persistidos con la regla actual, sin
+  recalcular registros anteriores.
+
+Archivos documentados: `README.md`, `backend/README_BACKEND.md`,
+`frontend/README_FRONTEND.md`, `docs/ARQUITECTURA.MD`, `docs/FLUJO.md` y
+`docs/BITACORA_AGENTES.MD`. La implementación y su documentación quedaron en
+commits locales independientes; no se realizó push.

@@ -274,6 +274,38 @@ de estado no final a final y posee `autor_usuario_id`; el SLA histórico usa el
 `fecha_limite_snapshot` preservado en ese evento. Las muestras y coberturas son
 parte del contrato para no presentar estimaciones incompletas como hechos.
 
+El Resumen del equipo calcula cuatro indicadores sobre ese mismo snapshot:
+
+| Indicador                      | Numerador / valor                                                               | Denominador / muestra                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Cumplimiento auditable del SLA | Resoluciones cuyo evento ocurrió antes o exactamente en `fecha_limite_snapshot` | Transiciones reales no-final → final que conservaron el snapshot del plazo |
+| Backlog vencido                | Abiertos con `fecha_limite < generado_en`                                       | Todos los tickets actualmente abiertos del conjunto analizado              |
+| Antigüedad mediana             | Mediana exacta de horas hábiles entre `fecha_creacion` y `generado_en`          | Abiertos con fecha de creación no futura                                   |
+| Cobertura de asignación        | Abiertos con `asignado_usuario_id`                                              | Todos los tickets actualmente abiertos del conjunto analizado              |
+
+`abierto` equivale a un estado distinto de `resuelto` y `cerrado`. La cobertura
+de asignación no utiliza `asignado_a`, porque ese texto solo conserva una
+representación histórica. El backlog vencido informa además cuántos abiertos
+poseen `fecha_limite`, de modo que la cobertura del plazo no quede implícita.
+Cuando un denominador o muestra vale cero, el contrato devuelve `null` en lugar
+de fabricar un 0 % o una mediana. El cumplimiento anterior a la captura de
+`fecha_limite_snapshot` no se reconstruye con campos actuales: queda
+correctamente identificado como histórico sin muestra auditable.
+
+Las horas hábiles reutilizan `@workspace/ingesta`: se cuentan las 24 horas de
+lunes a viernes en `America/Argentina/Buenos_Aires`, se omiten sábados y
+domingos y actualmente no se descuentan feriados. La agregación principal y la
+selección de una o dos fechas centrales para la mediana se ejecutan dentro de
+la misma transacción de lectura. Así comparten `generado_en` y snapshot SQLite,
+sin materializar todo el backlog en Node.js. El índice por `fecha_creacion`
+resuelve el rango y el orden central; la exclusión de cuarentena consulta su PK.
+
+Los filtros temporales delimitan por fecha de creación, no reconstruyen el
+estado a una fecha pasada. Por ejemplo, “mes actual” muestra la situación de
+hoy de los tickets creados durante ese mes y excluye backlog más antiguo; para
+una lectura global debe elegirse todo el historial. Empresa, categoría y
+prioridad también describen sus valores actuales dentro del conjunto analizado.
+
 Contactos recurrentes asignan exactamente una clave canónica por ticket, con precedencia
 DNI, teléfono y email. Una identidad secundaria sin DNI solo hereda uno cuando
 la asociación directa en el conjunto analizado es unívoca. Se rechazan formatos inválidos,
