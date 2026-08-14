@@ -2,12 +2,14 @@ import type { LucideIcon } from "lucide-react";
 import {
   AlertCircle,
   BarChart3,
+  CalendarClock,
   CheckCircle2,
   Clock3,
   Inbox,
   ListChecks,
   ShieldAlert,
   Timer,
+  UserCheck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,6 +53,25 @@ export interface ResumenEquipoCumplimiento {
   porcentaje: number | null;
 }
 
+export interface ResumenEquipoBacklogVencido {
+  abiertos: number;
+  con_plazo: number;
+  vencidos: number;
+  porcentaje: number | null;
+}
+
+export interface ResumenEquipoAntiguedadBacklog {
+  muestra: number;
+  mediana_horas_habiles: number | null;
+}
+
+export interface ResumenEquipoCoberturaAsignacion {
+  abiertos: number;
+  asignados: number;
+  sin_asignar: number;
+  porcentaje: number | null;
+}
+
 export interface ResumenEquipoEstadoDistribucion {
   nuevo: number;
   en_proceso: number;
@@ -72,6 +93,9 @@ export interface ResumenEquipoPanelProps {
   estado_actual: ResumenEquipoEstadoActual;
   resolucion_con_fecha: ResumenEquipoResolucionConFecha;
   cumplimiento_plazo_auditable: ResumenEquipoCumplimiento;
+  backlog_vencido: ResumenEquipoBacklogVencido;
+  antiguedad_backlog: ResumenEquipoAntiguedadBacklog;
+  cobertura_asignacion: ResumenEquipoCoberturaAsignacion;
   distribucion_estado: ResumenEquipoEstadoDistribucion;
   distribucion_prioridad: ResumenEquipoPrioridadDistribucion;
   onClearFilters: () => void;
@@ -167,6 +191,27 @@ function formatHours(value: number | null): string {
     : `${numberFormatter.format(wholeHours)} h`;
 }
 
+function formatBusinessHours(value: number | null): string {
+  if (value === null || !Number.isFinite(value) || value < 0) {
+    return "Sin muestra";
+  }
+  if (value < 1) return `${Math.round(value * 60)} min hábiles`;
+
+  const wholeHours = Math.floor(value);
+  const minutes = Math.round((value - wholeHours) * 60);
+  if (minutes === 60) return `${wholeHours + 1} h hábiles`;
+  return minutes > 0
+    ? `${numberFormatter.format(wholeHours)} h ${minutes} min hábiles`
+    : `${numberFormatter.format(wholeHours)} h hábiles`;
+}
+
+function formatPercentage(value: number | null): string {
+  const percentage = normalizePercentage(value);
+  return percentage === null
+    ? "Sin muestra"
+    : `${decimalFormatter.format(percentage)}%`;
+}
+
 interface KpiCardProps {
   title: string;
   value: number;
@@ -203,6 +248,95 @@ function KpiCard({ title, value, detail, icon: Icon, tone }: KpiCardProps) {
         </p>
         <p className="mt-1 text-[11px] opacity-80">{detail}</p>
       </div>
+    </article>
+  );
+}
+
+interface OperationalKpiCardProps {
+  id: string;
+  title: string;
+  value: string;
+  detail: string;
+  description: string;
+  note?: string | undefined;
+  icon: LucideIcon;
+  tone: "blue" | "amber" | "violet" | "emerald";
+  percentage?: number | null;
+  progressValueText?: string | undefined;
+}
+
+const OPERATIONAL_KPI_TONES: Record<OperationalKpiCardProps["tone"], string> = {
+  blue: "bg-blue-50 text-blue-700",
+  amber: "bg-amber-50 text-amber-700",
+  violet: "bg-violet-50 text-violet-700",
+  emerald: "bg-emerald-50 text-emerald-700",
+};
+
+function OperationalKpiCard({
+  id,
+  title,
+  value,
+  detail,
+  description,
+  note,
+  icon: Icon,
+  tone,
+  percentage,
+  progressValueText,
+}: OperationalKpiCardProps) {
+  const descriptionId = `${id}-description`;
+  const normalizedProgress = normalizePercentage(percentage ?? null);
+
+  return (
+    <article
+      className="flex min-w-0 flex-col rounded-xl border bg-card p-4 shadow-sm sm:p-5"
+      aria-describedby={descriptionId}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+            OPERATIONAL_KPI_TONES[tone],
+          )}
+        >
+          <Icon className="h-5 w-5" aria-hidden="true" />
+        </div>
+        <div className="min-w-0">
+          <h3 id={id} className="text-sm font-semibold leading-tight">
+            {title}
+          </h3>
+          <p className="mt-2 text-2xl font-bold leading-none tabular-nums sm:text-3xl">
+            {value}
+          </p>
+        </div>
+      </div>
+
+      <p className="mt-3 text-xs font-medium leading-relaxed text-foreground">
+        {detail}
+      </p>
+      <p
+        id={descriptionId}
+        className="mt-1 text-xs leading-relaxed text-muted-foreground"
+      >
+        {description}
+      </p>
+      {note ? (
+        <p className="mt-2 text-xs font-medium leading-relaxed text-amber-800">
+          {note}
+        </p>
+      ) : null}
+
+      {normalizedProgress !== null ? (
+        <div className="mt-auto pt-4">
+          <Progress
+            value={normalizedProgress}
+            aria-label={title}
+            aria-valuetext={
+              progressValueText ?? formatPercentage(percentage ?? null)
+            }
+          />
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -380,81 +514,6 @@ function TimingPanel({
   );
 }
 
-function CompliancePanel({
-  compliance,
-}: {
-  compliance: ResumenEquipoCumplimiento;
-}) {
-  const sample = normalizeCount(compliance.muestra);
-  const fulfilled = Math.min(normalizeCount(compliance.cumplidos), sample);
-  const percentage = normalizePercentage(compliance.porcentaje);
-
-  return (
-    <Card className="shadow-sm">
-      <CardHeader className="border-b p-5">
-        <div className="flex items-center gap-2">
-          <ListChecks className="h-4 w-4 text-primary" aria-hidden="true" />
-          <h2 className="font-semibold">Cumplimiento del plazo</h2>
-        </div>
-        <CardDescription>
-          Resoluciones realizadas dentro del plazo vigente.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-5">
-        {sample > 0 && percentage !== null ? (
-          <>
-            <div className="flex items-end justify-between gap-3">
-              <div>
-                <p className="text-3xl font-bold tabular-nums">
-                  {decimalFormatter.format(percentage)}%
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {numberFormatter.format(fulfilled)} de{" "}
-                  {numberFormatter.format(sample)} resoluciones
-                </p>
-              </div>
-              <Badge
-                variant="outline"
-                className={cn(
-                  percentage >= 80
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                    : "border-amber-200 bg-amber-50 text-amber-800",
-                )}
-              >
-                Muestra: {numberFormatter.format(sample)}
-              </Badge>
-            </div>
-            <Progress
-              className="mt-4"
-              value={percentage}
-              aria-label="Cumplimiento del plazo"
-              aria-valuetext={`${decimalFormatter.format(percentage)}%, ${numberFormatter.format(fulfilled)} de ${numberFormatter.format(sample)} resoluciones`}
-            />
-            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-              Muestra auditable: incluye las transiciones de resolución que
-              conservaron un plazo verificable. Consultá Calidad de datos para
-              interpretar su cobertura histórica.
-            </p>
-          </>
-        ) : (
-          <div className="rounded-lg border border-dashed p-6 text-center">
-            <ListChecks
-              className="mx-auto h-7 w-7 text-slate-300"
-              aria-hidden="true"
-            />
-            <h3 className="mt-2 text-sm font-medium">
-              Sin muestra para medir cumplimiento
-            </h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              No hay resoluciones con un plazo auditable en este período.
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 function genericConfig(key: string): VisualConfig {
   const label = key
     .replaceAll("_", " ")
@@ -472,6 +531,9 @@ export function ResumenEquipoPanel({
   estado_actual,
   resolucion_con_fecha,
   cumplimiento_plazo_auditable,
+  backlog_vencido,
+  antiguedad_backlog,
+  cobertura_asignacion,
   distribucion_estado,
   distribucion_prioridad,
   onClearFilters,
@@ -480,6 +542,44 @@ export function ResumenEquipoPanel({
   const opened = normalizeCount(estado_actual.abiertos);
   const finished = normalizeCount(estado_actual.finalizados);
   const overdue = normalizeCount(estado_actual.vencidos_abiertos);
+  const complianceSample = normalizeCount(cumplimiento_plazo_auditable.muestra);
+  const complianceFulfilled = Math.min(
+    normalizeCount(cumplimiento_plazo_auditable.cumplidos),
+    complianceSample,
+  );
+  const compliancePercentage =
+    complianceSample > 0
+      ? normalizePercentage(cumplimiento_plazo_auditable.porcentaje)
+      : null;
+  const backlogOpen = normalizeCount(backlog_vencido.abiertos);
+  const backlogOverdue = Math.min(
+    normalizeCount(backlog_vencido.vencidos),
+    backlogOpen,
+  );
+  const backlogWithDeadline = Math.min(
+    normalizeCount(backlog_vencido.con_plazo),
+    backlogOpen,
+  );
+  const backlogPercentage =
+    backlogOpen > 0 ? normalizePercentage(backlog_vencido.porcentaje) : null;
+  const backlogAgeSample = normalizeCount(antiguedad_backlog.muestra);
+  const backlogAge =
+    backlogAgeSample > 0 ? antiguedad_backlog.mediana_horas_habiles : null;
+  const assignmentOpen = normalizeCount(cobertura_asignacion.abiertos);
+  const assigned = Math.min(
+    normalizeCount(cobertura_asignacion.asignados),
+    assignmentOpen,
+  );
+  const assignmentPercentage =
+    assignmentOpen > 0
+      ? normalizePercentage(cobertura_asignacion.porcentaje)
+      : null;
+  const hasCompliance = complianceSample > 0 && compliancePercentage !== null;
+  const hasBacklogAge =
+    backlogAgeSample > 0 &&
+    backlogAge !== null &&
+    Number.isFinite(backlogAge) &&
+    backlogAge >= 0;
   const hasData =
     normalizeCount(tickets_ingresados) > 0 ||
     total > 0 ||
@@ -583,6 +683,130 @@ export function ResumenEquipoPanel({
             />
           </div>
 
+          <section aria-labelledby="rendimiento-indicadores-operativos-heading">
+            <Card className="overflow-hidden border-slate-200 shadow-sm">
+              <CardHeader className="border-b border-slate-100 bg-slate-50/60 p-5 sm:p-6">
+                <div className="flex items-center gap-2">
+                  <ListChecks
+                    className="h-5 w-5 text-primary"
+                    aria-hidden="true"
+                  />
+                  <h2
+                    id="rendimiento-indicadores-operativos-heading"
+                    className="font-semibold"
+                  >
+                    Indicadores operativos
+                  </h2>
+                </div>
+                <CardDescription className="max-w-3xl leading-relaxed">
+                  Seguimiento del plazo, el backlog y su asignación al momento
+                  del snapshot.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-5 sm:p-6">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <OperationalKpiCard
+                    id="rendimiento-kpi-cumplimiento-sla"
+                    title="Cumplimiento del SLA"
+                    value={
+                      hasCompliance
+                        ? formatPercentage(compliancePercentage)
+                        : "Sin muestra"
+                    }
+                    detail={
+                      hasCompliance
+                        ? `${numberFormatter.format(complianceFulfilled)} de ${numberFormatter.format(complianceSample)} resoluciones dentro del plazo`
+                        : "No hay resoluciones con plazo auditable."
+                    }
+                    description="Resoluciones auditables realizadas dentro del plazo vigente."
+                    icon={ListChecks}
+                    tone="blue"
+                    percentage={hasCompliance ? compliancePercentage : null}
+                    progressValueText={
+                      hasCompliance
+                        ? `${formatPercentage(compliancePercentage)}, ${numberFormatter.format(complianceFulfilled)} de ${numberFormatter.format(complianceSample)} resoluciones dentro del plazo`
+                        : undefined
+                    }
+                  />
+                  <OperationalKpiCard
+                    id="rendimiento-kpi-backlog-vencido"
+                    title="Backlog vencido"
+                    value={
+                      backlogOpen === 0
+                        ? "Sin backlog"
+                        : formatPercentage(backlogPercentage)
+                    }
+                    detail={
+                      backlogOpen === 0
+                        ? "No hay tickets abiertos en el conjunto analizado."
+                        : `${numberFormatter.format(backlogOverdue)} de ${numberFormatter.format(backlogOpen)} tickets abiertos del conjunto analizado`
+                    }
+                    description="Proporción del backlog que ya superó su fecha límite."
+                    note={
+                      backlogOpen > 0 && backlogWithDeadline < backlogOpen
+                        ? `Cobertura parcial: ${numberFormatter.format(backlogWithDeadline)} de ${numberFormatter.format(backlogOpen)} con plazo verificable.`
+                        : undefined
+                    }
+                    icon={Clock3}
+                    tone="amber"
+                    percentage={backlogPercentage}
+                    progressValueText={
+                      backlogPercentage !== null
+                        ? `${formatPercentage(backlogPercentage)}, ${numberFormatter.format(backlogOverdue)} de ${numberFormatter.format(backlogOpen)} tickets abiertos vencidos`
+                        : undefined
+                    }
+                  />
+                  <OperationalKpiCard
+                    id="rendimiento-kpi-antiguedad-backlog"
+                    title="Antigüedad del backlog"
+                    value={
+                      hasBacklogAge
+                        ? formatBusinessHours(backlogAge)
+                        : "Sin muestra"
+                    }
+                    detail={
+                      hasBacklogAge
+                        ? `Mediana de ${numberFormatter.format(backlogAgeSample)} tickets abiertos`
+                        : "No hay tickets abiertos con fechas utilizables."
+                    }
+                    description="Tiempo hábil transcurrido desde la creación de los tickets que siguen abiertos."
+                    icon={CalendarClock}
+                    tone="violet"
+                  />
+                  <OperationalKpiCard
+                    id="rendimiento-kpi-cobertura-asignacion"
+                    title="Cobertura de asignación"
+                    value={
+                      assignmentOpen === 0
+                        ? "Sin backlog"
+                        : formatPercentage(assignmentPercentage)
+                    }
+                    detail={
+                      assignmentOpen === 0
+                        ? "No hay tickets abiertos en el conjunto analizado."
+                        : `${numberFormatter.format(assigned)} de ${numberFormatter.format(assignmentOpen)} tickets abiertos con operador asignado`
+                    }
+                    description="Proporción del backlog que tiene un responsable identificado."
+                    icon={UserCheck}
+                    tone="emerald"
+                    percentage={assignmentPercentage}
+                    progressValueText={
+                      assignmentPercentage !== null
+                        ? `${formatPercentage(assignmentPercentage)}, ${numberFormatter.format(assigned)} de ${numberFormatter.format(assignmentOpen)} tickets abiertos con operador asignado`
+                        : undefined
+                    }
+                  />
+                </div>
+                <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+                  Estos indicadores describen únicamente los tickets del
+                  conjunto analizado, incluidos los filtros y el período de
+                  creación seleccionados; no representan backlog creado fuera de
+                  ese período.
+                </p>
+              </CardContent>
+            </Card>
+          </section>
+
           <div className="grid gap-4 xl:grid-cols-2">
             <Card className="shadow-sm">
               <CardHeader className="border-b p-5">
@@ -609,13 +833,10 @@ export function ResumenEquipoPanel({
               </CardContent>
             </Card>
 
-            <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-              <TimingPanel
-                resolution={resolucion_con_fecha}
-                expectedSample={finished}
-              />
-              <CompliancePanel compliance={cumplimiento_plazo_auditable} />
-            </div>
+            <TimingPanel
+              resolution={resolucion_con_fecha}
+              expectedSample={finished}
+            />
           </div>
         </>
       )}

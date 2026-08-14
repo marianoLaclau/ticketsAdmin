@@ -34,6 +34,22 @@ const BASE_PROPS: ResumenEquipoPanelProps = {
     cumplidos: 58,
     porcentaje: 80.6,
   },
+  backlog_vencido: {
+    abiertos: 64,
+    con_plazo: 60,
+    vencidos: 12,
+    porcentaje: 18.75,
+  },
+  antiguedad_backlog: {
+    muestra: 64,
+    mediana_horas_habiles: 13.5,
+  },
+  cobertura_asignacion: {
+    abiertos: 64,
+    asignados: 53,
+    sin_asignar: 11,
+    porcentaje: 82.8125,
+  },
   distribucion_estado: {
     nuevo: 20,
     en_proceso: 30,
@@ -50,7 +66,7 @@ const BASE_PROPS: ResumenEquipoPanelProps = {
   onClearFilters: () => {},
 };
 
-test("presenta KPIs, distribuciones, tiempos y SLA con sus muestras", async (t) => {
+test("presenta volumen, indicadores operativos, distribuciones y tiempos con sus muestras", async (t) => {
   t.after(cleanup);
   render(
     <main>
@@ -66,9 +82,13 @@ test("presenta KPIs, distribuciones, tiempos y SLA con sus muestras", async (t) 
     "Abiertos",
     "Finalizados",
     "Vencidos abiertos",
+    "Indicadores operativos",
+    "Cumplimiento del SLA",
+    "Backlog vencido",
+    "Antigüedad del backlog",
+    "Cobertura de asignación",
     "Flujo y estado actual",
     "Tiempo de resolución",
-    "Cumplimiento del plazo",
   ]) {
     assert.ok(screen.getByRole("heading", { name: heading }));
   }
@@ -90,17 +110,52 @@ test("presenta KPIs, distribuciones, tiempos y SLA con sus muestras", async (t) 
   assert.ok(within(timing).getByText(/Cobertura parcial:/));
 
   const sla = screen
-    .getByRole("heading", { name: "Cumplimiento del plazo" })
-    .closest<HTMLElement>("div.rounded-xl");
+    .getByRole("heading", { name: "Cumplimiento del SLA" })
+    .closest<HTMLElement>("article");
   assert.ok(sla);
   assert.ok(within(sla).getByText("80,6%"));
-  assert.ok(within(sla).getByText("58 de 72 resoluciones"));
-  assert.ok(within(sla).getByText(/Muestra auditable:/));
-  assert.equal(within(sla).queryByText(/tickets finalizados/), null);
+  assert.ok(within(sla).getByText("58 de 72 resoluciones dentro del plazo"));
   assert.ok(
     within(sla).getByRole("progressbar", {
-      name: "Cumplimiento del plazo",
+      name: "Cumplimiento del SLA",
     }),
+  );
+
+  const overdueBacklog = screen
+    .getByRole("heading", { name: "Backlog vencido" })
+    .closest<HTMLElement>("article");
+  assert.ok(overdueBacklog);
+  assert.ok(within(overdueBacklog).getByText("18,8%"));
+  assert.ok(
+    within(overdueBacklog).getByText(
+      "12 de 64 tickets abiertos del conjunto analizado",
+    ),
+  );
+  assert.ok(
+    within(overdueBacklog).getByText(
+      "Cobertura parcial: 60 de 64 con plazo verificable.",
+    ),
+  );
+
+  const backlogAge = screen
+    .getByRole("heading", { name: "Antigüedad del backlog" })
+    .closest<HTMLElement>("article");
+  assert.ok(backlogAge);
+  assert.ok(within(backlogAge).getByText("13 h 30 min hábiles"));
+  assert.ok(within(backlogAge).getByText("Mediana de 64 tickets abiertos"));
+
+  const assignment = screen
+    .getByRole("heading", { name: "Cobertura de asignación" })
+    .closest<HTMLElement>("article");
+  assert.ok(assignment);
+  assert.ok(within(assignment).getByText("82,8%"));
+  assert.ok(
+    within(assignment).getByText(
+      "53 de 64 tickets abiertos con operador asignado",
+    ),
+  );
+  assert.ok(
+    screen.getByText(/no representan backlog creado fuera de ese período/i),
   );
 
   await assertNoAxeViolations();
@@ -123,8 +178,8 @@ test("mantiene muestras de SLA mayores a los finalizados sin recortarlas", (t) =
     />,
   );
 
-  assert.ok(screen.getByText("9 de 12 resoluciones"));
-  assert.ok(screen.getByText("Muestra: 12"));
+  assert.ok(screen.getByText("9 de 12 resoluciones dentro del plazo"));
+  assert.ok(screen.getByText("75%"));
 });
 
 test("presenta estados analíticos vacíos sin inventar valores", (t) => {
@@ -164,12 +219,123 @@ test("presenta estados analíticos vacíos sin inventar valores", (t) => {
     }),
   );
   assert.ok(
-    screen.getByRole("heading", {
-      name: "Sin muestra para medir cumplimiento",
-    }),
+    within(
+      screen
+        .getByRole("heading", { name: "Cumplimiento del SLA" })
+        .closest<HTMLElement>("article")!,
+    ).getByText("Sin muestra"),
+  );
+  assert.equal(
+    within(
+      screen
+        .getByRole("heading", { name: "Cumplimiento del SLA" })
+        .closest<HTMLElement>("article")!,
+    ).queryByRole("progressbar"),
+    null,
   );
   assert.equal(screen.getAllByText("Sin datos para distribuir.").length, 2);
   assert.equal(screen.queryByText("0%"), null);
+});
+
+test("distingue porcentajes en cero de indicadores sin backlog", async (t) => {
+  t.after(cleanup);
+  const result = render(
+    <ResumenEquipoPanel
+      {...BASE_PROPS}
+      estado_actual={{
+        total: 10,
+        abiertos: 10,
+        finalizados: 0,
+        vencidos_abiertos: 0,
+      }}
+      backlog_vencido={{
+        abiertos: 10,
+        con_plazo: 10,
+        vencidos: 0,
+        porcentaje: 0,
+      }}
+      antiguedad_backlog={{
+        muestra: 10,
+        mediana_horas_habiles: 0,
+      }}
+      cobertura_asignacion={{
+        abiertos: 10,
+        asignados: 0,
+        sin_asignar: 10,
+        porcentaje: 0,
+      }}
+    />,
+  );
+
+  const overdueBacklog = screen
+    .getByRole("heading", { name: "Backlog vencido" })
+    .closest<HTMLElement>("article");
+  const assignment = screen
+    .getByRole("heading", { name: "Cobertura de asignación" })
+    .closest<HTMLElement>("article");
+  const backlogAge = screen
+    .getByRole("heading", { name: "Antigüedad del backlog" })
+    .closest<HTMLElement>("article");
+  assert.ok(overdueBacklog);
+  assert.ok(assignment);
+  assert.ok(backlogAge);
+  assert.ok(within(overdueBacklog).getByText("0%"));
+  assert.ok(within(overdueBacklog).getByRole("progressbar"));
+  assert.ok(within(assignment).getByText("0%"));
+  assert.ok(within(assignment).getByRole("progressbar"));
+  assert.ok(within(backlogAge).getByText("0 min hábiles"));
+
+  result.rerender(
+    <ResumenEquipoPanel
+      {...BASE_PROPS}
+      estado_actual={{
+        total: 10,
+        abiertos: 0,
+        finalizados: 10,
+        vencidos_abiertos: 0,
+      }}
+      backlog_vencido={{
+        abiertos: 0,
+        con_plazo: 0,
+        vencidos: 0,
+        porcentaje: null,
+      }}
+      antiguedad_backlog={{
+        muestra: 0,
+        mediana_horas_habiles: null,
+      }}
+      cobertura_asignacion={{
+        abiertos: 0,
+        asignados: 0,
+        sin_asignar: 0,
+        porcentaje: null,
+      }}
+    />,
+  );
+
+  assert.equal(screen.getAllByText("Sin backlog").length, 2);
+  assert.ok(
+    within(
+      screen
+        .getByRole("heading", { name: "Antigüedad del backlog" })
+        .closest<HTMLElement>("article")!,
+    ).getByText("Sin muestra"),
+  );
+  assert.equal(
+    screen
+      .getByRole("heading", { name: "Backlog vencido" })
+      .closest<HTMLElement>("article")!
+      .querySelector('[role="progressbar"]'),
+    null,
+  );
+  assert.equal(
+    screen
+      .getByRole("heading", { name: "Cobertura de asignación" })
+      .closest<HTMLElement>("article")!
+      .querySelector('[role="progressbar"]'),
+    null,
+  );
+  await assertNoAxeViolations();
 });
 
 test("presenta un estado vacío general y permite limpiar filtros", async (t) => {
@@ -194,6 +360,22 @@ test("presenta un estado vacío general y permite limpiar filtros", async (t) =>
       cumplimiento_plazo_auditable={{
         muestra: 0,
         cumplidos: 0,
+        porcentaje: null,
+      }}
+      backlog_vencido={{
+        abiertos: 0,
+        con_plazo: 0,
+        vencidos: 0,
+        porcentaje: null,
+      }}
+      antiguedad_backlog={{
+        muestra: 0,
+        mediana_horas_habiles: null,
+      }}
+      cobertura_asignacion={{
+        abiertos: 0,
+        asignados: 0,
+        sin_asignar: 0,
         porcentaje: null,
       }}
       distribucion_estado={{
@@ -236,6 +418,11 @@ test("anuncia carga y error del resumen y permite reintentar", async (t) => {
       .getByLabelText("Cargando resumen del equipo")
       .getAttribute("aria-busy"),
     "true",
+  );
+  assert.equal(
+    loading.container.querySelectorAll('[aria-hidden="true"].animate-pulse')
+      .length,
+    13,
   );
   loading.unmount();
 

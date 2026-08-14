@@ -33,6 +33,15 @@ export function ResumenEquipoLoadingState() {
           <Skeleton key={index} className="h-28 w-full rounded-xl" />
         ))}
       </div>
+      <div className="space-y-3 rounded-xl border p-5 sm:p-6">
+        <Skeleton className="h-5 w-48" />
+        <Skeleton className="h-4 w-full max-w-xl" />
+        <div className="grid gap-4 pt-2 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }, (_, index) => (
+            <Skeleton key={index} className="h-48 w-full rounded-xl" />
+          ))}
+        </div>
+      </div>
       <div className="grid gap-4 xl:grid-cols-2">
         <Skeleton className="h-80 w-full rounded-xl" />
         <Skeleton className="h-80 w-full rounded-xl" />

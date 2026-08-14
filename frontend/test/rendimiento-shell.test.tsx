@@ -71,6 +71,22 @@ function summaryResponse(): RendimientoResumenEquipo {
       cumplidos: 58,
       porcentaje: 80.6,
     },
+    backlog_vencido: {
+      abiertos: 64,
+      con_plazo: 60,
+      vencidos: 12,
+      porcentaje: 18.75,
+    },
+    antiguedad_backlog: {
+      muestra: 64,
+      mediana_horas_habiles: 13.5,
+    },
+    cobertura_asignacion: {
+      abiertos: 64,
+      asignados: 53,
+      sin_asignar: 11,
+      porcentaje: 82.8125,
+    },
     distribucion_estado: {
       nuevo: 20,
       en_proceso: 30,
