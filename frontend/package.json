@@ -9,7 +9,7 @@
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "test": "pnpm run test:unit && pnpm run test:components",
     "test:unit": "tsx --tsconfig tsconfig.test.json --test ./test/*.test.ts",
-    "test:components": "tsx --tsconfig tsconfig.test.json --import global-jsdom/register --test --test-isolation=process --test-concurrency=1 --test-timeout=30000 ./test/*.test.tsx",
+    "test:components": "tsx --tsconfig tsconfig.test.json --import ./test/register-css-imports.mjs --import global-jsdom/register --test --test-isolation=process --test-concurrency=1 --test-timeout=30000 ./test/*.test.tsx",
     "typecheck": "pnpm run typecheck:src && pnpm run typecheck:test",
     "typecheck:src": "tsc -p tsconfig.json --noEmit",
     "typecheck:test": "tsc -p tsconfig.test.json"
