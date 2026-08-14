@@ -170,7 +170,7 @@ test("presenta un disparador accesible y mantiene cerrado el panel inicialmente"
   );
 
   const trigger = screen.getByRole("button", {
-    name: "Abrir asistente de consultas",
+    name: "Abrir Asistente IA",
   });
   assert.equal(trigger.getAttribute("aria-expanded"), "false");
   assert.equal(trigger.getAttribute("aria-controls"), "rendimiento-chat-panel");
@@ -200,9 +200,7 @@ test("reutiliza la misma sesión al cerrar, abrir y remontar en la pestaña", as
     />,
   );
 
-  await user.click(
-    screen.getByRole("button", { name: "Abrir asistente de consultas" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Abrir Asistente IA" }));
 
   await waitFor(() => assert.equal(probe.receivedOptions.length, 1));
   assert.equal(loaderCalls, 1);
@@ -234,9 +232,7 @@ test("reutiliza la misma sesión al cerrar, abrir y remontar en la pestaña", as
   await user.click(
     screen.getByRole("button", { name: "Cerrar asistente de consultas" }),
   );
-  await user.click(
-    screen.getByRole("button", { name: "Abrir asistente de consultas" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Abrir Asistente IA" }));
   assert.equal(loaderCalls, 1);
   assert.equal(probe.receivedOptions.length, 1);
 
@@ -250,9 +246,7 @@ test("reutiliza la misma sesión al cerrar, abrir y remontar en la pestaña", as
       }}
     />,
   );
-  await user.click(
-    screen.getByRole("button", { name: "Abrir asistente de consultas" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Abrir Asistente IA" }));
   await waitFor(() => assert.equal(probe.receivedOptions.length, 2));
   assert.equal(loaderCalls, 2);
   assert.equal(probe.receivedOptions[1]?.sessionId, SESSION_ID_A);
@@ -275,9 +269,7 @@ test("Nueva conversación persiste otro UUID y remonta el chat", async (t) => {
     />,
   );
 
-  await user.click(
-    screen.getByRole("button", { name: "Abrir asistente de consultas" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Abrir Asistente IA" }));
   await waitFor(() => assert.equal(probe.receivedOptions.length, 1));
   assert.equal(probe.receivedOptions[0]?.sessionId, SESSION_ID_A);
 
@@ -317,9 +309,7 @@ test("elimina la clave legacy que @n8n/chat intenta escribir en localStorage", a
       loadChatFactory={async () => probe.factory}
     />,
   );
-  await user.click(
-    screen.getByRole("button", { name: "Abrir asistente de consultas" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Abrir Asistente IA" }));
   await waitFor(() => assert.equal(probe.receivedOptions.length, 1));
   await waitFor(() =>
     assert.equal(
@@ -370,7 +360,7 @@ test("cierra con el botón o Escape y devuelve el foco al disparador", async (t)
   );
 
   const trigger = screen.getByRole("button", {
-    name: "Abrir asistente de consultas",
+    name: "Abrir Asistente IA",
   });
   await user.click(trigger);
   const input = await screen.findByRole("textbox", {
@@ -403,9 +393,7 @@ test("desmonta la aplicación de chat y limpia su target al salir", async (t) =>
     />,
   );
 
-  await user.click(
-    screen.getByRole("button", { name: "Abrir asistente de consultas" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Abrir Asistente IA" }));
   await waitFor(() => assert.equal(probe.receivedOptions.length, 1));
   const target = probe.receivedOptions[0]?.target;
   assert.ok(target);
@@ -436,9 +424,7 @@ test("informa el fallo y Reintentar vuelve a cargar la fábrica", async (t) => {
     />,
   );
 
-  await user.click(
-    screen.getByRole("button", { name: "Abrir asistente de consultas" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Abrir Asistente IA" }));
   const alert = await screen.findByRole("alert");
   assert.match(alert.textContent ?? "", /No pudimos cargar el asistente/);
 
@@ -465,9 +451,7 @@ test("ignora una carga tardía si el widget ya fue desmontado", async (t) => {
     />,
   );
 
-  await user.click(
-    screen.getByRole("button", { name: "Abrir asistente de consultas" }),
-  );
+  await user.click(screen.getByRole("button", { name: "Abrir Asistente IA" }));
   await waitFor(() => assert.equal(loaderCalls, 1));
   view.unmount();
 

@@ -316,12 +316,12 @@ export function RendimientoChatWidget({
         className="rendimiento-chat-trigger"
         aria-controls={CHAT_PANEL_ID}
         aria-expanded={isOpen}
-        aria-label="Abrir asistente de consultas"
+        aria-label="Abrir Asistente IA"
         onClick={openChat}
         hidden={isOpen}
       >
         <MessageCircle aria-hidden="true" />
-        <span>Asistente de consultas</span>
+        <span>Asistente IA</span>
       </button>
     </div>
   );
