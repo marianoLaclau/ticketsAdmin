@@ -147,12 +147,12 @@ export function RendimientoChatWidget({
           defaultLanguage: "en",
           initialMessages: [
             "Hola 👋",
-            "Soy el asistente de Rendimiento. ¿En qué puedo ayudarte?",
+            "Estoy acá para ayudarte con cualquier pregunta relacionada con los tickets, su gestión y seguimiento. ¿Qué te gustaría consultar?",
           ],
           i18n: {
             en: {
-              title: "Asistente de Rendimiento",
-              subtitle: "Consultas para la gestión del equipo.",
+              title: "Asistente de consultas",
+              subtitle: "Consultá sobre la gestión de tickets.",
               footer: "",
               getStarted: "Nueva conversación",
               inputPlaceholder: "Escribí tu consulta…",
@@ -250,7 +250,7 @@ export function RendimientoChatWidget({
         id={CHAT_PANEL_ID}
         className="rendimiento-chat-panel"
         role="dialog"
-        aria-label="Asistente de Rendimiento"
+        aria-label="Asistente de consultas"
         aria-modal="false"
         aria-busy={loadStatus === "loading"}
         hidden={!isOpen}
@@ -269,7 +269,7 @@ export function RendimientoChatWidget({
         <button
           type="button"
           className="rendimiento-chat-close"
-          aria-label="Cerrar asistente de Rendimiento"
+          aria-label="Cerrar asistente de consultas"
           onClick={closeChat}
         >
           <X aria-hidden="true" />
@@ -316,11 +316,12 @@ export function RendimientoChatWidget({
         className="rendimiento-chat-trigger"
         aria-controls={CHAT_PANEL_ID}
         aria-expanded={isOpen}
-        aria-label="Abrir asistente de Rendimiento"
+        aria-label="Abrir asistente de consultas"
         onClick={openChat}
         hidden={isOpen}
       >
         <MessageCircle aria-hidden="true" />
+        <span>Asistente de consultas</span>
       </button>
     </div>
   );

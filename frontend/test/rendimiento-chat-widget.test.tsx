@@ -170,7 +170,7 @@ test("presenta un disparador accesible y mantiene cerrado el panel inicialmente"
   );
 
   const trigger = screen.getByRole("button", {
-    name: "Abrir asistente de Rendimiento",
+    name: "Abrir asistente de consultas",
   });
   assert.equal(trigger.getAttribute("aria-expanded"), "false");
   assert.equal(trigger.getAttribute("aria-controls"), "rendimiento-chat-panel");
@@ -179,7 +179,7 @@ test("presenta un disparador accesible y mantiene cerrado el panel inicialmente"
   assert.ok(panel);
   assert.equal(panel.hidden, true);
   assert.equal(panel.getAttribute("role"), "dialog");
-  assert.equal(panel.getAttribute("aria-label"), "Asistente de Rendimiento");
+  assert.equal(panel.getAttribute("aria-label"), "Asistente de consultas");
   assert.equal(loaderCalls, 0);
 });
 
@@ -201,7 +201,7 @@ test("reutiliza la misma sesión al cerrar, abrir y remontar en la pestaña", as
   );
 
   await user.click(
-    screen.getByRole("button", { name: "Abrir asistente de Rendimiento" }),
+    screen.getByRole("button", { name: "Abrir asistente de consultas" }),
   );
 
   await waitFor(() => assert.equal(probe.receivedOptions.length, 1));
@@ -217,16 +217,25 @@ test("reutiliza la misma sesión al cerrar, abrir y remontar en la pestaña", as
   assert.equal(options.sessionId, SESSION_ID_A);
   assert.equal(options.allowFileUploads, false);
   assert.equal(options.enableStreaming, false);
+  assert.deepEqual(options.initialMessages, [
+    "Hola 👋",
+    "Estoy acá para ayudarte con cualquier pregunta relacionada con los tickets, su gestión y seguimiento. ¿Qué te gustaría consultar?",
+  ]);
+  assert.equal(options.i18n.en.title, "Asistente de consultas");
+  assert.equal(
+    options.i18n.en.subtitle,
+    "Consultá sobre la gestión de tickets.",
+  );
   assert.equal(
     Object.prototype.hasOwnProperty.call(options, "metadata"),
     false,
   );
 
   await user.click(
-    screen.getByRole("button", { name: "Cerrar asistente de Rendimiento" }),
+    screen.getByRole("button", { name: "Cerrar asistente de consultas" }),
   );
   await user.click(
-    screen.getByRole("button", { name: "Abrir asistente de Rendimiento" }),
+    screen.getByRole("button", { name: "Abrir asistente de consultas" }),
   );
   assert.equal(loaderCalls, 1);
   assert.equal(probe.receivedOptions.length, 1);
@@ -242,7 +251,7 @@ test("reutiliza la misma sesión al cerrar, abrir y remontar en la pestaña", as
     />,
   );
   await user.click(
-    screen.getByRole("button", { name: "Abrir asistente de Rendimiento" }),
+    screen.getByRole("button", { name: "Abrir asistente de consultas" }),
   );
   await waitFor(() => assert.equal(probe.receivedOptions.length, 2));
   assert.equal(loaderCalls, 2);
@@ -267,7 +276,7 @@ test("Nueva conversación persiste otro UUID y remonta el chat", async (t) => {
   );
 
   await user.click(
-    screen.getByRole("button", { name: "Abrir asistente de Rendimiento" }),
+    screen.getByRole("button", { name: "Abrir asistente de consultas" }),
   );
   await waitFor(() => assert.equal(probe.receivedOptions.length, 1));
   assert.equal(probe.receivedOptions[0]?.sessionId, SESSION_ID_A);
@@ -309,7 +318,7 @@ test("elimina la clave legacy que @n8n/chat intenta escribir en localStorage", a
     />,
   );
   await user.click(
-    screen.getByRole("button", { name: "Abrir asistente de Rendimiento" }),
+    screen.getByRole("button", { name: "Abrir asistente de consultas" }),
   );
   await waitFor(() => assert.equal(probe.receivedOptions.length, 1));
   await waitFor(() =>
@@ -361,7 +370,7 @@ test("cierra con el botón o Escape y devuelve el foco al disparador", async (t)
   );
 
   const trigger = screen.getByRole("button", {
-    name: "Abrir asistente de Rendimiento",
+    name: "Abrir asistente de consultas",
   });
   await user.click(trigger);
   const input = await screen.findByRole("textbox", {
@@ -370,7 +379,7 @@ test("cierra con el botón o Escape y devuelve el foco al disparador", async (t)
   await waitFor(() => assert.equal(document.activeElement, input));
 
   await user.click(
-    screen.getByRole("button", { name: "Cerrar asistente de Rendimiento" }),
+    screen.getByRole("button", { name: "Cerrar asistente de consultas" }),
   );
   await waitFor(() => assert.equal(document.activeElement, trigger));
   assert.equal(trigger.getAttribute("aria-expanded"), "false");
@@ -395,7 +404,7 @@ test("desmonta la aplicación de chat y limpia su target al salir", async (t) =>
   );
 
   await user.click(
-    screen.getByRole("button", { name: "Abrir asistente de Rendimiento" }),
+    screen.getByRole("button", { name: "Abrir asistente de consultas" }),
   );
   await waitFor(() => assert.equal(probe.receivedOptions.length, 1));
   const target = probe.receivedOptions[0]?.target;
@@ -428,7 +437,7 @@ test("informa el fallo y Reintentar vuelve a cargar la fábrica", async (t) => {
   );
 
   await user.click(
-    screen.getByRole("button", { name: "Abrir asistente de Rendimiento" }),
+    screen.getByRole("button", { name: "Abrir asistente de consultas" }),
   );
   const alert = await screen.findByRole("alert");
   assert.match(alert.textContent ?? "", /No pudimos cargar el asistente/);
@@ -457,7 +466,7 @@ test("ignora una carga tardía si el widget ya fue desmontado", async (t) => {
   );
 
   await user.click(
-    screen.getByRole("button", { name: "Abrir asistente de Rendimiento" }),
+    screen.getByRole("button", { name: "Abrir asistente de consultas" }),
   );
   await waitFor(() => assert.equal(loaderCalls, 1));
   view.unmount();

@@ -21,10 +21,17 @@
   --chat--message--border-radius: 0.75rem;
   --chat--message--user--background: hsl(104 37% 37%);
   --chat--message--bot--border: 1px solid hsl(220 13% 88%);
+  --chat--input--container--background: white;
+  --chat--input--container--border: 1px solid hsl(220 13% 82%);
+  --chat--input--container--border-radius: 0.875rem;
+  --chat--input--container--padding: 0.125rem;
+  --chat--input--border-radius: 0.75rem;
+  --chat--input--padding: 0.75rem 0.25rem 0.75rem 0.75rem;
   --chat--input--button--border-radius: 0.625rem;
   --chat--input--send--button--color: hsl(104 37% 37%);
   --chat--footer--background: white;
-  --chat--footer--padding: 0.25rem;
+  --chat--footer--padding: 0.75rem;
+  --chat--footer--border-top: 1px solid hsl(220 13% 90%);
 }
 
 .rendimiento-chat-panel {
@@ -79,9 +86,26 @@
   box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
 }
 
+.rendimiento-chat-target .chat-footer {
+  box-shadow: 0 -8px 20px -18px rgb(15 23 42 / 30%);
+}
+
+.rendimiento-chat-target .chat-inputs {
+  box-shadow: 0 2px 7px rgb(15 23 42 / 7%);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.rendimiento-chat-target .chat-inputs:focus-within {
+  border-color: hsl(104 37% 44%);
+  box-shadow:
+    0 0 0 3px hsl(104 37% 37% / 12%),
+    0 4px 10px rgb(15 23 42 / 9%);
+}
+
 .rendimiento-chat-target .chat-inputs textarea:focus-visible {
-  outline: 2px solid hsl(104 37% 37%);
-  outline-offset: -2px;
+  outline: none;
 }
 
 .rendimiento-chat-close,
@@ -161,33 +185,55 @@
 
 .rendimiento-chat-trigger {
   position: fixed;
-  right: 1.25rem;
-  bottom: 1.25rem;
+  right: 1.5rem;
+  bottom: 1.5rem;
   z-index: 40;
   display: inline-flex;
-  width: 3.5rem;
-  height: 3.5rem;
+  width: auto;
+  min-width: 10rem;
+  height: 4rem;
   align-items: center;
   justify-content: center;
-  border: 1px solid hsl(104 37% 29%);
+  gap: 0.625rem;
+  padding: 0 1.25rem;
+  border: 2px solid rgb(255 255 255 / 82%);
   border-radius: 9999px;
   color: white;
-  background: hsl(104 37% 37%);
+  background: linear-gradient(135deg, hsl(104 42% 39%), hsl(132 43% 29%));
   box-shadow:
-    0 14px 28px -10px rgb(45 80 34 / 55%),
-    0 4px 10px -5px rgb(15 23 42 / 30%);
+    0 18px 38px -12px rgb(45 80 34 / 72%),
+    0 7px 16px -8px rgb(15 23 42 / 42%);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
   transition:
     background-color 150ms ease,
     box-shadow 150ms ease,
     transform 150ms ease;
 }
 
+.rendimiento-chat-trigger::before {
+  position: absolute;
+  inset: -0.375rem;
+  border: 1px solid hsl(104 37% 37% / 38%);
+  border-radius: inherit;
+  content: "";
+  pointer-events: none;
+  animation: rendimiento-chat-attention 2.8s ease-out infinite;
+}
+
+.rendimiento-chat-trigger svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+}
+
 .rendimiento-chat-trigger:hover {
-  background: hsl(104 37% 32%);
+  background: linear-gradient(135deg, hsl(104 42% 35%), hsl(132 43% 25%));
   box-shadow:
-    0 18px 34px -12px rgb(45 80 34 / 65%),
-    0 5px 12px -5px rgb(15 23 42 / 35%);
-  transform: translateY(-1px);
+    0 22px 42px -12px rgb(45 80 34 / 78%),
+    0 9px 18px -8px rgb(15 23 42 / 46%);
+  transform: translateY(-2px);
 }
 
 .rendimiento-chat-status {
@@ -245,7 +291,25 @@
   }
 }
 
+@keyframes rendimiento-chat-attention {
+  0%,
+  45% {
+    opacity: 0.65;
+    transform: scale(1);
+  }
+
+  78%,
+  100% {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+}
+
 @media (max-width: 640px) {
+  .rendimiento-chat-widget {
+    --chat--footer--padding: 0.625rem;
+  }
+
   .rendimiento-chat-panel {
     right: 0.5rem;
     bottom: 4.75rem;
@@ -257,6 +321,14 @@
   .rendimiento-chat-trigger {
     right: 0.75rem;
     bottom: 0.75rem;
+    width: 3.75rem;
+    min-width: 3.75rem;
+    height: 3.75rem;
+    padding: 0;
+  }
+
+  .rendimiento-chat-trigger span {
+    display: none;
   }
 }
 
@@ -264,7 +336,8 @@
   .rendimiento-chat-close,
   .rendimiento-chat-new,
   .rendimiento-chat-trigger,
-  .rendimiento-chat-spinner {
+  .rendimiento-chat-spinner,
+  .rendimiento-chat-trigger::before {
     animation: none;
     transition: none;
   }
