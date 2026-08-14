@@ -56,6 +56,7 @@ test("Compose publica readiness end-to-end y conserva SQLite", () => {
 });
 
 test("el deploy real ejecuta backup, build, up y smoke en ese orden", () => {
+  const validateSecrets = workflowStep("Validate deployment secrets");
   const backup = workflowStep("Backup SQLite");
   const build = workflowStep("Build images");
   const deploy = workflowStep("Deploy");
@@ -63,6 +64,7 @@ test("el deploy real ejecuta backup, build, up y smoke en ese orden", () => {
   const diagnostics = workflowStep("Diagnostics on failure");
 
   const orderedSteps = [
+    "Validate deployment secrets",
     "Backup SQLite",
     "Build images",
     "Deploy",
@@ -75,6 +77,19 @@ test("el deploy real ejecuta backup, build, up y smoke en ese orden", () => {
       `${orderedSteps[index - 1]} debe preceder a ${orderedSteps[index]}`,
     );
   }
+
+  for (const secret of [
+    "WEBHOOK_API_KEY",
+    "N8N_CHAT_WEBHOOK_URL",
+    "N8N_CHAT_BASIC_AUTH_USER",
+    "N8N_CHAT_BASIC_AUTH_PASSWORD",
+  ]) {
+    assert.match(validateSecrets, new RegExp(`secrets\\.${secret}`));
+    assert.match(validateSecrets, new RegExp(`\\b${secret}\\b`));
+    assert.match(deploy, new RegExp(`secrets\\.${secret}`));
+  }
+  assert.match(validateSecrets, /test "\$missing" -eq 0/);
+  assert.doesNotMatch(validateSecrets, /echo[^\n]*\$\{!variable/);
 
   assert.match(backup, /set -euo pipefail/);
   assert.match(backup, /\/var\/lib\/ticketsadmin\/backups/);
@@ -91,6 +106,7 @@ test("el deploy real ejecuta backup, build, up y smoke en ese orden", () => {
   assert.match(deploy, /docker compose up -d --wait --wait-timeout 180/);
   assert.match(deploy, /secrets\.WEBHOOK_API_KEY/);
   assert.match(deploy, /secrets\.BOOTSTRAP_SYSADMIN_PASSWORD/);
+  assert.match(deploy, /vars\.N8N_CHAT_TIMEOUT_MS/);
 
   assert.match(smoke, /127\.0\.0\.1:5000\/api\/readyz/);
   assert.match(smoke, /127\.0\.0\.1:3000\//);

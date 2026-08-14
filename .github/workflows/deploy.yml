@@ -20,6 +20,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate deployment secrets
+        shell: bash
+        env:
+          WEBHOOK_API_KEY: ${{ secrets.WEBHOOK_API_KEY }}
+          N8N_CHAT_WEBHOOK_URL: ${{ secrets.N8N_CHAT_WEBHOOK_URL }}
+          N8N_CHAT_BASIC_AUTH_USER: ${{ secrets.N8N_CHAT_BASIC_AUTH_USER }}
+          N8N_CHAT_BASIC_AUTH_PASSWORD: ${{ secrets.N8N_CHAT_BASIC_AUTH_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for variable in \
+            WEBHOOK_API_KEY \
+            N8N_CHAT_WEBHOOK_URL \
+            N8N_CHAT_BASIC_AUTH_USER \
+            N8N_CHAT_BASIC_AUTH_PASSWORD
+          do
+            if [ -z "${!variable:-}" ]; then
+              echo "::error::$variable no está configurado en GitHub Actions."
+              missing=1
+            fi
+          done
+          test "$missing" -eq 0
+
       # Copia el SQLite antes de tocar nada. Es data real de llamadas y las
       # migraciones se aplican solas al arrancar el backend, así que este es el
       # único punto de retorno. Si el backup falla, el deploy NO sigue.
@@ -58,6 +81,10 @@ jobs:
         env:
           WEBHOOK_API_KEY: ${{ secrets.WEBHOOK_API_KEY }}
           BOOTSTRAP_SYSADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_SYSADMIN_PASSWORD }}
+          N8N_CHAT_WEBHOOK_URL: ${{ secrets.N8N_CHAT_WEBHOOK_URL }}
+          N8N_CHAT_BASIC_AUTH_USER: ${{ secrets.N8N_CHAT_BASIC_AUTH_USER }}
+          N8N_CHAT_BASIC_AUTH_PASSWORD: ${{ secrets.N8N_CHAT_BASIC_AUTH_PASSWORD }}
+          N8N_CHAT_TIMEOUT_MS: ${{ vars.N8N_CHAT_TIMEOUT_MS }}
 
       - name: Smoke test
         run: |
