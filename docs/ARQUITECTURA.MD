@@ -87,15 +87,15 @@ flowchart TB
     workspace --> sqlite
 ```
 
-| Módulo                   | Responsabilidad actual                                                                                  |
-| ------------------------ | ------------------------------------------------------------------------------------------------------- |
-| `modules/auth`           | Sesión, login, cambio de contraseña, seed, seguridad de credenciales y capacidades RBAC                 |
-| `modules/tickets`        | Consulta, detalle, edición, seguimiento, auditoría, prioridad automática, orden y exportación           |
-| `modules/dashboard`      | Períodos operativos, agregaciones SQL y endpoints del resumen operativo                                 |
-| `modules/administracion` | Usuarios, roles, operaciones masivas y CRUD administrativo protegido                                    |
-| `modules/ingestion`      | Webhook e ingreso idempotente de datos desde n8n/Serin                                                  |
-| `modules/rendimiento`    | Cohortes y agregaciones ejecutivas auditables, más el proxy protegido del asistente RAG hacia n8n       |
-| `backend/src/shared`     | Configuración, logging, SSE, readiness, ciclo de vida del proceso y validaciones técnicas reutilizables |
+| Módulo                   | Responsabilidad actual                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `modules/auth`           | Sesión, login, cambio de contraseña, seed, seguridad de credenciales y capacidades RBAC                       |
+| `modules/tickets`        | Consulta, detalle, edición, seguimiento, auditoría, prioridad automática, orden y exportación                 |
+| `modules/dashboard`      | Períodos operativos, agregaciones SQL y endpoints del resumen operativo                                       |
+| `modules/administracion` | Usuarios, roles, operaciones masivas y CRUD administrativo protegido                                          |
+| `modules/ingestion`      | Webhook e ingreso idempotente de datos desde n8n/Serin                                                        |
+| `modules/rendimiento`    | Conjuntos analizados y agregaciones ejecutivas auditables, más el proxy protegido del asistente RAG hacia n8n |
+| `backend/src/shared`     | Configuración, logging, SSE, readiness, ciclo de vida del proceso y validaciones técnicas reutilizables       |
 
 #### Transporte y seguridad
 
@@ -138,7 +138,7 @@ Las reglas importantes viven fuera de los handlers cuando pueden reutilizarse:
 - `backend/src/modules/ingestion`: adaptación HTTP de la ingesta idempotente; clasificación y SLA permanecen en `@workspace/ingesta`.
 - `lib/db/src/ticket-visibility.ts`: regla compartida para cuarentena de registros vacíos.
 
-El Dashboard no carga filas completas para volver a contarlas en memoria. Sus KPIs principales se calculan con agregaciones condicionales y los motivos con `GROUP BY`; las lecturas que componen un mismo resultado se ejecutan en una transacción diferida para compartir snapshot. La cohorte del período se determina por `fecha_creacion`, mientras que “nuevos hoy” y “resueltos hoy” conservan su alcance diario global. Todo límite calendario usa `America/Argentina/Buenos_Aires` y no la zona local del host.
+El Dashboard no carga filas completas para volver a contarlas en memoria. Sus KPIs principales se calculan con agregaciones condicionales y los motivos con `GROUP BY`; las lecturas que componen un mismo resultado se ejecutan en una transacción diferida para compartir snapshot. El conjunto analizado del período se determina por `fecha_creacion`, mientras que “nuevos hoy” y “resueltos hoy” conservan su alcance diario global. Todo límite calendario usa `America/Argentina/Buenos_Aires` y no la zona local del host.
 
 #### Persistencia
 
@@ -203,7 +203,7 @@ Las pantallas principales son:
 - `/dashboard`: KPIs, estados, prioridades, motivos y actividad.
 - `/tickets`: listado filtrable, paginado, ordenable y exportable.
 - `/tickets/:id`: detalle, edición, audio y seguimiento.
-- `/rendimiento`: espacio ejecutivo visible únicamente para SysAdmin y Controller; comparte filtros y una cohorte visible entre equipo, operadores, contactos recurrentes y calidad de datos.
+- `/rendimiento`: espacio ejecutivo visible únicamente para SysAdmin y Controller; comparte filtros y un conjunto analizado visible entre equipo, operadores, contactos recurrentes y calidad de datos.
 - `/admin`: CRUD, importación, cuarentena y zona peligrosa.
 - `/admin/roles-usuarios`: gestión de usuarios y roles para SysAdmin.
 
@@ -246,13 +246,13 @@ La respuesta de n8n queda limitada a 1 MiB y se decodifica como UTF-8; el backen
 
 Rendimiento es un módulo de lectura: no persiste tablas derivadas ni modifica
 tickets. Sus cuatro endpoints comparten `buildPerformanceCohortConditions`, que
-define una cohorte de tickets visibles por `fecha_creacion` después de aplicar
+define un conjunto analizado de tickets visibles por `fecha_creacion` después de aplicar
 período, empresa, categoría y prioridad. Cada respuesta se calcula dentro de un
 snapshot de lectura SQLite y usa un único instante `generado_en` inyectable.
 
 ```mermaid
 flowchart LR
-    filters[Filtros validados] --> cohort[Cohorte visible común]
+    filters[Filtros validados] --> cohort[Conjunto analizado visible común]
     cohort --> team[Resumen del equipo]
     cohort --> people[Operadores]
     cohort --> repeats[Contactos recurrentes]
@@ -276,7 +276,7 @@ parte del contrato para no presentar estimaciones incompletas como hechos.
 
 Contactos recurrentes asignan exactamente una clave canónica por ticket, con precedencia
 DNI, teléfono y email. Una identidad secundaria sin DNI solo hereda uno cuando
-la asociación directa en la cohorte es unívoca. Se rechazan formatos inválidos,
+la asociación directa en el conjunto analizado es unívoca. Se rechazan formatos inválidos,
 secuencias numéricas repetidas y valores centinela como “sin correo”; no se
 calculan componentes conexos ni se encadenan coincidencias, porque eso podría
 fusionar personas por un dato compartido o incorrecto. Solo se publican grupos
@@ -284,7 +284,7 @@ con dos tickets o más y al menos uno abierto; el identificador completo nunca
 sale de la capa de datos, la API entrega una máscara y un `grupo_id` opaco.
 
 La consulta usa dos lecturas fijas dentro del mismo snapshot SQLite. Materializa
-la cohorte y su clave canónica una vez por lectura, calcula cobertura y totales
+el conjunto analizado y su clave canónica una vez por lectura, calcula cobertura y totales
 globales y recién entonces aplica el orden de riesgo con `row_number()`. La API
 entrega como máximo 50 grupos por página y no materializa en Node.js los grupos
 de otras páginas. Por tanto, el resultado es una señal acotada para revisión
@@ -616,6 +616,7 @@ La suite `e2e/` usa Playwright con Desktop Chrome, un solo worker y una base SQL
 flowchart TD
     trigger[Push a main o ejecución manual]
     runner[Runner self-hosted]
+    secrets[Preflight de secretos]
     backup[Backup SQLite online<br/>más integrity_check]
     images[docker compose build]
     rollout[docker compose up -d --wait]
@@ -627,11 +628,12 @@ flowchart TD
     intervention[Intervención manual]
     volume[(tickets_data volume)]
 
-    trigger --> runner --> backup --> images --> rollout
+    trigger --> runner --> secrets --> backup --> images --> rollout
     volume --> backup
     rollout --> migrate --> volume
     rollout --> health
     health -->|sí| smoke --> active
+    secrets -. fallo .-> diagnostics
     backup -. fallo .-> diagnostics
     images -. fallo .-> diagnostics
     rollout -. fallo .-> diagnostics
@@ -642,7 +644,7 @@ flowchart TD
 
 El workflow Deploy corre en el runner self-hosted ante cada push a `main` o por `workflow_dispatch`. El grupo de concurrencia `deploy-testing` serializa ejecuciones y `cancel-in-progress: false` evita interrumpir un despliegue que ya empezó. Quality y Deploy son workflows independientes; la política de merge debe exigir Quality si se necesita ese gate antes de llegar a `main`.
 
-Antes de construir, un contenedor efímero monta `ticketsadmin_tickets_data` en solo lectura y usa la API `.backup` de SQLite. La copia queda fuera del checkout en `/var/lib/ticketsadmin/backups` y debe superar `PRAGMA integrity_check`. Si no existe el volumen o `tickets.db`, se considera una instalación nueva. Un fallo real de backup detiene el job.
+Antes de tocar los datos, el workflow valida que existan `WEBHOOK_API_KEY` y las tres variables requeridas del asistente n8n, sin imprimir sus valores. Después, un contenedor efímero monta `ticketsadmin_tickets_data` en solo lectura y usa la API `.backup` de SQLite. La copia queda fuera del checkout en `/var/lib/ticketsadmin/backups` y debe superar `PRAGMA integrity_check`. Si no existe el volumen o `tickets.db`, se considera una instalación nueva. Un secreto ausente o un fallo real de backup detienen el job.
 
 `docker compose build` recibe únicamente placeholders no sensibles. Los secretos se inyectan al ejecutar `docker compose up -d --wait --wait-timeout 180`. El backend aplica `dist/migrate.mjs` antes de abrir la API; su healthcheck exige el JSON exacto de `/api/readyz`. El frontend queda healthy solo si Nginx sirve la SPA y alcanza readiness a través del proxy. El host agrega dos smokes: readiness directa y HTML de la SPA.
 

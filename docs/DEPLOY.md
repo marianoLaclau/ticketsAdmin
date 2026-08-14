@@ -10,6 +10,7 @@ workflow cambia, este runbook debe actualizarse en el mismo cambio.
 flowchart TD
     trigger[Push a main o ejecución manual]
     checkout[Checkout en runner self-hosted]
+    secrets[Validación de secretos requeridos]
     backup[Backup SQLite online<br/>más integrity_check]
     build[docker compose build]
     deploy[docker compose up -d<br/>--wait --wait-timeout 180]
@@ -19,10 +20,11 @@ flowchart TD
     diagnostics[Si falla: compose ps y logs]
     volume[(ticketsadmin_tickets_data)]
 
-    trigger --> checkout --> backup --> build --> deploy
+    trigger --> checkout --> secrets --> backup --> build --> deploy
     volume --> backup
     deploy --> migrate --> volume
     deploy --> health --> smoke
+    secrets -. fallo .-> diagnostics
     backup -. fallo .-> diagnostics
     build -. fallo .-> diagnostics
     deploy -. fallo .-> diagnostics
@@ -33,14 +35,16 @@ El workflow:
 
 1. serializa los despliegues con el grupo `deploy-testing` y no cancela uno ya
    iniciado;
-2. crea un backup consistente mediante la API `.backup` de SQLite y exige
+2. valida que estén configurados el webhook de ingreso y las credenciales del
+   asistente, sin imprimir sus valores;
+3. crea un backup consistente mediante la API `.backup` de SQLite y exige
    `PRAGMA integrity_check = ok` antes de continuar;
-3. construye las imágenes con valores no sensibles, sin exponer secretos al
+4. construye las imágenes con valores no sensibles, sin exponer secretos al
    build;
-4. inyecta los secretos solamente en `docker compose up`;
-5. espera hasta 180 segundos a que Compose declare saludables ambos servicios;
-6. comprueba `/api/readyz` directamente en el backend y que Nginx sirva la SPA;
-7. si algo falla, muestra estado y las últimas líneas de logs sin modificar los
+5. inyecta los secretos solamente en `docker compose up`;
+6. espera hasta 180 segundos a que Compose declare saludables ambos servicios;
+7. comprueba `/api/readyz` directamente en el backend y que Nginx sirva la SPA;
+8. si algo falla, muestra estado y las últimas líneas de logs sin modificar los
    datos.
 
 El volumen nombrado `ticketsadmin_tickets_data` conserva `/data/tickets.db`
@@ -126,15 +130,25 @@ acceso a Docker puede controlar contenedores y volúmenes del host.
 
 En **Settings → Secrets and variables → Actions** definir:
 
-| Secreto                       | Uso                                                  |
-| ----------------------------- | ---------------------------------------------------- |
-| `WEBHOOK_API_KEY`             | Autentica el webhook de n8n.                         |
-| `BOOTSTRAP_SYSADMIN_PASSWORD` | Inicialización o compatibilidad del usuario semilla. |
+| Secreto                        | Uso                                                         |
+| ------------------------------ | ----------------------------------------------------------- |
+| `WEBHOOK_API_KEY`              | Autentica el webhook de ingreso desde n8n.                  |
+| `BOOTSTRAP_SYSADMIN_PASSWORD`  | Inicialización o compatibilidad del usuario semilla.        |
+| `N8N_CHAT_WEBHOOK_URL`         | URL HTTPS privada del Chat Trigger usado por el asistente.  |
+| `N8N_CHAT_BASIC_AUTH_USER`     | Usuario Basic Auth que el backend envía al Chat Trigger.    |
+| `N8N_CHAT_BASIC_AUTH_PASSWORD` | Contraseña Basic Auth que el backend envía al Chat Trigger. |
+
+Opcionalmente, en la pestaña **Variables** puede definirse
+`N8N_CHAT_TIMEOUT_MS` entre 1000 y 120000. Si queda vacío, Compose usa 120000.
 
 `WEBHOOK_API_KEY` debe tener al menos 32 caracteres y respetar la validación
 del backend: sin placeholders, controles, espacios exteriores ni un único
 carácter repetido. El valor de bootstrap puede quedar vacío solamente si
-la base ya contiene credenciales válidas y el arranque no lo requiere.
+la base ya contiene credenciales válidas y el arranque no lo requiere. Los
+tres valores `N8N_CHAT_*` requeridos deben existir para que el workflow avance;
+el preflight solo informa el nombre de una variable ausente y nunca su valor.
+Una credencial que haya sido compartida por chat, ticket o captura se considera
+expuesta: debe rotarse en n8n y en GitHub Actions antes de liberar la versión.
 
 Para operaciones manuales que crean o recrean contenedores, guardar los valores
 en un archivo privado fuera del repo:
@@ -149,6 +163,10 @@ Contenido esperado:
 ```dotenv
 WEBHOOK_API_KEY=<valor-real>
 BOOTSTRAP_SYSADMIN_PASSWORD=<valor-si-corresponde>
+N8N_CHAT_WEBHOOK_URL=<url-https-del-chat-trigger>
+N8N_CHAT_BASIC_AUTH_USER=<usuario-basic-auth>
+N8N_CHAT_BASIC_AUTH_PASSWORD=<contraseña-basic-auth>
+N8N_CHAT_TIMEOUT_MS=120000
 TZ=America/Argentina/Buenos_Aires
 ```
 
@@ -325,9 +343,10 @@ pnpm --filter @workspace/backend run dev      # :5000
 pnpm --filter @workspace/frontend run dev     # :3000, en otra terminal
 ```
 
-Requiere un `.env` en la raíz con `WEBHOOK_API_KEY` y, en una base nueva,
-`BOOTSTRAP_SYSADMIN_PASSWORD`. Arranca con la base vacía: para trabajar con
-datos reales, copiar un backup a `data/tickets.db` con los servicios detenidos.
+Requiere un `.env` en la raíz con `WEBHOOK_API_KEY`, las tres variables
+requeridas `N8N_CHAT_*` y, en una base nueva, `BOOTSTRAP_SYSADMIN_PASSWORD`.
+Arranca con la base vacía: para trabajar con datos reales, copiar un backup a
+`data/tickets.db` con los servicios detenidos.
 
 **El `dev` del backend no tiene watch**: es `build && start`, así que después de
 cambiar código hay que reiniciarlo. Un backend viejo sirviendo una build vieja

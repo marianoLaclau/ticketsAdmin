@@ -3682,7 +3682,7 @@ registró.
   Administración. El botón, panel, cierre, reintento, foco y adaptación móvil
   pertenecen a la aplicación y el widget externo se carga recién al abrirlo.
 - La conversación usa el contrato exacto `{ sessionId, action: "sendMessage",
-  chatInput }`. Al primer uso se recupera o genera un UUID v4 y se guarda bajo
+chatInput }`. Al primer uso se recupera o genera un UUID v4 y se guarda bajo
   `sessionStorage["gsb_rag_chat_session_id"]`; el mismo valor se reutiliza en
   todos los mensajes y remontajes de esa pestaña. **Nueva conversación** genera
   otro UUID y lo reemplaza. Logout, revocación y un login exitoso limpian el
@@ -3720,3 +3720,38 @@ registró.
   volver a publicar la credencial Basic Auth del workflow. No se ensayaron
   variantes ni se registró el secreto.
 - No se realizó push.
+
+## 2026-08-14 — Rendimiento: lenguaje ejecutivo y preparación del asistente para release
+
+**Agente:** Codex
+
+### Lenguaje y experiencia
+
+- La palabra visible **cohorte** se reemplazó por **conjunto analizado** en las
+  cuatro vistas de Rendimiento, sus estados, ayudas, manuales y contrato
+  OpenAPI. Los identificadores técnicos ingleses `cohort` se conservaron para
+  no romper consultas, imports ni contratos internos.
+- El widget pasó a presentarse como **Asistente de consultas**, con una
+  introducción orientada a la gestión y seguimiento de tickets. El disparador
+  es más visible en escritorio, conserva el formato compacto en móvil y el
+  campo de escritura mantiene separación, foco y contraste respecto del borde.
+- La integración real fue probada manualmente desde la interfaz y mantuvo el
+  hilo mediante el mismo `sessionId` de pestaña.
+
+### Deploy y calidad
+
+- Deploy valida antes del backup que existan `WEBHOOK_API_KEY` y las tres
+  variables requeridas del asistente. Las inyecta únicamente al crear los
+  contenedores y nunca imprime sus valores. Una configuración incompleta deja
+  el job en rojo en vez de publicar una aplicación cuyo chat responda `503`.
+- El runbook enumera los secretos de GitHub Actions, la variable opcional de
+  timeout y el archivo privado requerido para operaciones manuales. Toda
+  credencial compartida fuera del gestor de secretos debe rotarse antes del
+  release.
+- La suite React se ejecuta de forma serial y con timeout explícito para evitar
+  saturación por múltiples procesos JSDOM. Un hook de pruebas limitado a CSS
+  locales permite importar la página real sin mover estilos al entrypoint ni
+  ocultar errores de otros módulos.
+- Validación del candidato hasta este punto: contrato OpenAPI 30/30, workflow
+  de deploy 4/4, consultas focales backend 22/22 y suite completa de
+  componentes 111/111. No se realizó push.
