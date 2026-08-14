@@ -68,7 +68,7 @@ function countWhen(condition: SQL): SQL<number> {
 
 /**
  * Mide cobertura sin materializar filas. Todas las consultas comparten un
- * snapshot diferido y la misma cohorte de tickets visibles por creación.
+ * snapshot diferido y el mismo conjunto analizado de tickets visibles por creación.
  */
 export function consultarCalidadRendimiento<
   TSchema extends Record<string, unknown>,

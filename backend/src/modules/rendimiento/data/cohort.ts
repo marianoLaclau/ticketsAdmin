@@ -21,7 +21,7 @@ function escapeLikeFragment(value: string): string {
     .replaceAll("_", "!_");
 }
 
-/** Construye la única definición SQL de la cohorte del módulo Rendimiento. */
+/** Construye la única definición SQL del conjunto analizado del módulo Rendimiento. */
 export function buildPerformanceCohortConditions(
   filters: PerformanceFilters,
 ): SQL[] {

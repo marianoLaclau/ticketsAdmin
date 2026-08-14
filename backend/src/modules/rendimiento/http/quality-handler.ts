@@ -17,7 +17,7 @@ export type RendimientoQualityHandlerOptions = {
 };
 
 /**
- * Construye la frontera HTTP con dependencias inyectables para que la cohorte
+ * Construye la frontera HTTP con dependencias inyectables para que el conjunto analizado
  * y el instante informado puedan probarse sin alterar el reloj ni la DB global.
  */
 export function createRendimientoQualityHandler({

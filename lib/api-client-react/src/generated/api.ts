@@ -2544,9 +2544,9 @@ export const getGetRendimientoCalidadDatosUrl = (params?: GetRendimientoCalidadD
  * Evalúa si los datos disponibles permiten construir indicadores de equipo
  * e individuales sin presentar estimaciones como hechos auditables.
  *
- * La cohorte contiene únicamente tickets visibles cuya `fecha_creacion`
+ * El conjunto analizado contiene únicamente tickets visibles cuya `fecha_creacion`
  * pertenece al período solicitado. `empresa`, `motivo_categoria` y
- * `prioridad` restringen esa misma cohorte; todos los denominadores se
+ * `prioridad` restringen ese mismo conjunto analizado; todos los denominadores se
  * calculan después de aplicar esos filtros.
  *
  * Una resolución evaluable para atribución es exclusivamente una transición
@@ -2709,11 +2709,11 @@ export const getGetRendimientoResumenEquipoUrl = (params?: GetRendimientoResumen
 
 /**
  * Resume tickets visibles cuya `fecha_creacion` pertenece al período
- * solicitado. `empresa`, `motivo_categoria` y `prioridad` restringen esa
- * misma cohorte antes de calcular cualquier métrica.
+ * solicitado. `empresa`, `motivo_categoria` y `prioridad` restringen ese
+ * mismo conjunto analizado antes de calcular cualquier métrica.
  *
  * `estado_actual` y las distribuciones son una fotografía al instante
- * `generado_en`: describen el estado actual de la cohorte por creación, no
+ * `generado_en`: describen el estado actual del conjunto analizado por creación, no
  * el estado que los tickets tenían dentro del período.
  *
  * `cumplimiento_plazo_auditable` considera únicamente transiciones de un
@@ -2804,7 +2804,7 @@ export const getGetRendimientoPersonasUrl = (params?: GetRendimientoPersonasPara
 }
 
 /**
- * Usa la misma cohorte de tickets visibles por `fecha_creacion` que las
+ * Usa el mismo conjunto analizado de tickets visibles por `fecha_creacion` que las
  * demás vistas de Rendimiento. `empresa`, `motivo_categoria` y `prioridad`
  * se aplican antes de calcular cualquier indicador.
  *
@@ -2909,14 +2909,14 @@ export const getGetRendimientoReiteracionesUrl = (params?: GetRendimientoReitera
 }
 
 /**
- * Detecta reiteraciones dentro de la misma cohorte de tickets visibles por
+ * Detecta reiteraciones dentro del mismo conjunto analizado de tickets visibles por
  * `fecha_creacion`; `empresa`, `motivo_categoria` y `prioridad` se aplican
  * antes de agrupar. Un contacto solo aparece cuando reúne al menos dos
  * tickets distintos y conserva al menos uno en estado no final.
  *
  * Cada ticket recibe una única clave canónica, con precedencia DNI,
  * teléfono y email. Una identidad secundaria solo hereda un DNI cuando su
- * relación directa dentro de la cohorte es unívoca; las relaciones ambiguas
+ * relación directa dentro del conjunto analizado es unívoca; las relaciones ambiguas
  * se conservan separadas y nunca se encadenan transitivamente. Por eso esta
  * vista describe coincidencias operativas, no una identidad civil probada
  * ni confirma que una persona haya quedado sin respuesta.
@@ -2926,7 +2926,7 @@ export const getGetRendimientoReiteracionesUrl = (params?: GetRendimientoReitera
  * revisar el caso. Los grupos se ordenan por riesgo: primero vencidos,
  * luego prioridad máxima, antigüedad del abierto, último contacto y clave.
  * Ese orden se aplica sobre el conjunto completo antes de paginar. El
- * resumen conserva los totales globales de la cohorte y `contactos` contiene
+ * resumen conserva los totales globales del conjunto analizado y `contactos` contiene
  * únicamente los grupos de la página solicitada.
  * @summary Detectar contactos reiterados con tickets todavía abiertos
  */

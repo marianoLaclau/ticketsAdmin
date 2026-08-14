@@ -176,7 +176,7 @@ function getComparisonNoticeConfig(
   );
   const historicalContext = attributionStart
     ? ` La atribución estructurada se observa desde ${attributionStart}.`
-    : " Todavía no hay una resolución con autor estructurado en esta cohorte.";
+    : " Todavía no hay una resolución con autor estructurado en este conjunto analizado.";
 
   switch (data.comparacion_individual_estado) {
     case "disponible":
@@ -269,7 +269,7 @@ export function RendimientoQualityPanel({
                   Calidad y cobertura
                 </h2>
                 <CardDescription className="max-w-3xl leading-relaxed">
-                  Qué proporción de la cohorte puede sostener métricas
+                  Qué proporción del conjunto analizado puede sostener métricas
                   auditables sin completar ni inferir datos faltantes.
                 </CardDescription>
               </div>
@@ -321,8 +321,8 @@ export function RendimientoQualityPanel({
               No hay datos para estos filtros
             </h3>
             <p className="mt-1 max-w-lg text-sm leading-relaxed text-muted-foreground">
-              La cohorte no contiene tickets visibles. Probá otro período o
-              quitá los filtros de empresa, categoría y prioridad.
+              El conjunto analizado no contiene tickets visibles. Probá otro
+              período o quitá los filtros de empresa, categoría y prioridad.
             </p>
             <Button
               type="button"
@@ -345,7 +345,7 @@ export function RendimientoQualityPanel({
                   id="rendimiento-coberturas-heading"
                   className="text-base font-semibold text-foreground"
                 >
-                  Coberturas de la cohorte
+                  Coberturas del conjunto analizado
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   Cada indicador muestra su propia base evaluada.

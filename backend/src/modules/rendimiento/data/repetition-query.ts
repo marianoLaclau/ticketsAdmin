@@ -321,7 +321,7 @@ function compareText(left: string, right: string): number {
 /**
  * Detecta coincidencias operativas sin construir componentes conexas. Cada
  * ticket pertenece a una sola clave; una identidad secundaria solo puede
- * heredar un DNI que aparezca directamente y de forma univoca en la cohorte.
+ * heredar un DNI que aparezca directamente y de forma univoca en el conjunto analizado.
  * La consulta ejecuta dos lecturas fijas dentro de un snapshot, nunca N+1.
  */
 export function runRendimientoRepetitionQuery<

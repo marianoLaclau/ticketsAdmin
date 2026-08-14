@@ -362,7 +362,8 @@ function TimingPanel({
               Sin tiempos de resolución disponibles
             </h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              La cohorte no contiene una muestra con fechas completas.
+              El conjunto analizado no contiene una muestra con fechas
+              completas.
             </p>
           </div>
         )}
@@ -511,8 +512,8 @@ export function ResumenEquipoPanel({
                 </h2>
               </div>
               <CardDescription className="mt-1 max-w-3xl leading-relaxed">
-                Volumen del período, estado actual de la cohorte y cobertura de
-                sus indicadores de resolución.
+                Volumen del período, estado actual del conjunto analizado y
+                cobertura de sus indicadores de resolución.
               </CardDescription>
             </div>
             <Badge variant="outline" className="w-fit bg-white text-slate-700">
@@ -536,8 +537,8 @@ export function ResumenEquipoPanel({
               No hay actividad en este período
             </h3>
             <p className="mt-1 max-w-lg text-sm leading-relaxed text-muted-foreground">
-              La cohorte no contiene tickets para construir un resumen del
-              equipo. Probá ampliar el período o quitar filtros.
+              El conjunto analizado no contiene tickets para construir un
+              resumen del equipo. Probá ampliar el período o quitar filtros.
             </p>
             <Button
               type="button"
@@ -562,7 +563,7 @@ export function ResumenEquipoPanel({
             <KpiCard
               title="Abiertos"
               value={opened}
-              detail={`de ${numberFormatter.format(total)} en la cohorte`}
+              detail={`de ${numberFormatter.format(total)} en el conjunto analizado`}
               icon={AlertCircle}
               tone="blue"
             />
@@ -587,7 +588,7 @@ export function ResumenEquipoPanel({
               <CardHeader className="border-b p-5">
                 <h2 className="font-semibold">Flujo y estado actual</h2>
                 <CardDescription>
-                  Lectura exacta de la cohorte por estado y prioridad.
+                  Lectura exacta del conjunto analizado por estado y prioridad.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-6 p-5 sm:grid-cols-2">

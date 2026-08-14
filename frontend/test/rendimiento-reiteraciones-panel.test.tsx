@@ -178,7 +178,7 @@ test("presenta riesgo, cobertura, identidad enmascarada y expande tickets", asyn
   await assertNoAxeViolations();
 });
 
-test("distingue cohorte vacía, falta de identidad y ausencia de grupos", async (t) => {
+test("distingue conjunto vacío, falta de identidad y ausencia de grupos", async (t) => {
   t.after(cleanup);
   const user = userEvent.setup();
   const base = reiteracionesData();

@@ -123,10 +123,10 @@ function CoverageNotice({ data }: { data: RendimientoPersonas }) {
       ? "Sin muestra"
       : percentageFormatter.format(coverage.porcentaje_atribucion) + "%";
   const attributionContext = coverage.atribucion_desde
-    ? " Primera atribución de la cohorte: " +
+    ? " Primera atribución del conjunto analizado: " +
       formatDateTime(coverage.atribucion_desde, data.periodo.timezone) +
       "."
-    : " Todavía no hay una resolución con autor estructurado en la cohorte.";
+    : " Todavía no hay una resolución con autor estructurado en el conjunto analizado.";
 
   return (
     <section
@@ -440,7 +440,7 @@ export function RendimientoPersonasPanel({
             <SummaryFact
               label="Tickets evaluados"
               value={numberFormatter.format(data.tickets_evaluados)}
-              detail="cohorte visible con los filtros actuales"
+              detail="conjunto analizado con los filtros actuales"
             />
             <SummaryFact
               label="Resoluciones verificadas"
@@ -479,8 +479,8 @@ export function RendimientoPersonasPanel({
               No hay datos para estos filtros
             </h3>
             <p className="mt-1 max-w-lg text-sm leading-relaxed text-muted-foreground">
-              La cohorte no contiene tickets visibles. Probá otro período o
-              quitá los filtros de empresa, categoría y prioridad.
+              El conjunto analizado no contiene tickets visibles. Probá otro
+              período o quitá los filtros de empresa, categoría y prioridad.
             </p>
             <Button
               type="button"
@@ -508,7 +508,7 @@ export function RendimientoPersonasPanel({
                   No hay operadores registrados
                 </h3>
                 <p className="mt-1 max-w-lg text-sm text-muted-foreground">
-                  Existen tickets en la cohorte, pero no hay usuarios
+                  Existen tickets en el conjunto analizado, pero no hay usuarios
                   persistidos para presentar actividad individual.
                 </p>
               </CardContent>

@@ -124,7 +124,7 @@ test("presenta avisos distintos para cada estado de comparación", (t) => {
   }
 });
 
-test("el estado vacío explica la cohorte y permite limpiar filtros", async (t) => {
+test("el estado vacío explica el conjunto analizado y permite limpiar filtros", async (t) => {
   t.after(cleanup);
   const user = userEvent.setup();
   let clears = 0;
@@ -145,7 +145,9 @@ test("el estado vacío explica la cohorte y permite limpiar filtros", async (t) 
     screen.getByRole("heading", { name: "No hay datos para estos filtros" }),
   );
   assert.equal(
-    screen.queryByRole("heading", { name: "Coberturas de la cohorte" }),
+    screen.queryByRole("heading", {
+      name: "Coberturas del conjunto analizado",
+    }),
     null,
   );
   await user.click(screen.getByRole("button", { name: "Limpiar filtros" }));

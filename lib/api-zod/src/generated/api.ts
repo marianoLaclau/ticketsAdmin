@@ -1022,9 +1022,9 @@ export const GetRendimientoStatusResponse = zod.object({
  * Evalúa si los datos disponibles permiten construir indicadores de equipo
  * e individuales sin presentar estimaciones como hechos auditables.
  *
- * La cohorte contiene únicamente tickets visibles cuya `fecha_creacion`
+ * El conjunto analizado contiene únicamente tickets visibles cuya `fecha_creacion`
  * pertenece al período solicitado. `empresa`, `motivo_categoria` y
- * `prioridad` restringen esa misma cohorte; todos los denominadores se
+ * `prioridad` restringen ese mismo conjunto analizado; todos los denominadores se
  * calculan después de aplicar esos filtros.
  *
  * Una resolución evaluable para atribución es exclusivamente una transición
@@ -1035,9 +1035,9 @@ export const GetRendimientoStatusResponse = zod.object({
 export const GetRendimientoCalidadDatosQueryParams = zod.object({
   "fecha_desde": zod.coerce.date().optional().describe('Primer día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
   "fecha_hasta": zod.coerce.date().optional().describe('Último día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
-  "empresa": zod.coerce.string().optional().describe('Texto contenido en la empresa de los tickets incluidos en la cohorte.'),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'prestamos_anticipos', 'obra_social', 'sanciones_ausencias', 'proveedores_comercial', 'sin_clasificar']).optional().describe('Categoría normalizada de los tickets incluidos en la cohorte.'),
-  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional().describe('Prioridad actual de los tickets incluidos en la cohorte.')
+  "empresa": zod.coerce.string().optional().describe('Texto contenido en la empresa de los tickets incluidos en el conjunto analizado.'),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'prestamos_anticipos', 'obra_social', 'sanciones_ausencias', 'proveedores_comercial', 'sin_clasificar']).optional().describe('Categoría normalizada de los tickets incluidos en el conjunto analizado.'),
+  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional().describe('Prioridad actual de los tickets incluidos en el conjunto analizado.')
 })
 
 export const getRendimientoCalidadDatosResponseTicketsEvaluadosMin = 0;
@@ -1095,8 +1095,8 @@ export const GetRendimientoCalidadDatosResponse = zod.object({
   "timezone": zod.enum(['America/Argentina/Buenos_Aires']),
   "generado_en": zod.coerce.date().describe('Instante del snapshot consistente usado para calcular la respuesta.')
 }),
-  "tickets_evaluados": zod.number().min(getRendimientoCalidadDatosResponseTicketsEvaluadosMin).describe('Tickets visibles de la cohorte después de aplicar todos los filtros.'),
-  "resoluciones_evaluadas": zod.number().min(getRendimientoCalidadDatosResponseResolucionesEvaluadasMin).describe('Transiciones no-final a final encontradas para los tickets de la cohorte; es el denominador de actor_resolucion.\n'),
+  "tickets_evaluados": zod.number().min(getRendimientoCalidadDatosResponseTicketsEvaluadosMin).describe('Tickets visibles del conjunto analizado después de aplicar todos los filtros.'),
+  "resoluciones_evaluadas": zod.number().min(getRendimientoCalidadDatosResponseResolucionesEvaluadasMin).describe('Transiciones no-final a final encontradas para los tickets del conjunto analizado; es el denominador de actor_resolucion.\n'),
   "atribucion_desde": zod.coerce.date().nullable().describe('Primera resolución con autor_usuario_id estructurado observable en el historial persistido, o null cuando todavía no existe.\n'),
   "comparacion_individual_estado": zod.enum(['insuficiente', 'parcial', 'disponible']).describe('insuficiente impide comparar personas; parcial exige advertir cobertura incompleta; disponible indica que se alcanzó el umbral auditable del servidor.\n'),
   "coberturas": zod.object({
@@ -1104,32 +1104,32 @@ export const GetRendimientoCalidadDatosResponse = zod.object({
   "numerador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasActorResolucionOneNumeradorMin),
   "denominador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasActorResolucionOneDenominadorMin),
   "porcentaje": zod.number().min(getRendimientoCalidadDatosResponseCoberturasActorResolucionOnePorcentajeMin).max(getRendimientoCalidadDatosResponseCoberturasActorResolucionOnePorcentajeMax).nullable()
-}).describe('La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.').describe('Resoluciones evaluadas con autor_usuario_id persistido sobre el total de transiciones no-final a final de los tickets de la cohorte.\n'),
+}).describe('La proporción usa el conjunto analizado filtrado; porcentaje es null cuando el denominador es cero.').describe('Resoluciones evaluadas con autor_usuario_id persistido sobre el total de transiciones no-final a final de los tickets del conjunto analizado.\n'),
   "fecha_resolucion": zod.object({
   "numerador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasFechaResolucionOneNumeradorMin),
   "denominador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasFechaResolucionOneDenominadorMin),
   "porcentaje": zod.number().min(getRendimientoCalidadDatosResponseCoberturasFechaResolucionOnePorcentajeMin).max(getRendimientoCalidadDatosResponseCoberturasFechaResolucionOnePorcentajeMax).nullable()
-}).describe('La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.').describe('Tickets actualmente en estado final con fecha_resolucion sobre el total de tickets actualmente en estado final de la cohorte.\n'),
+}).describe('La proporción usa el conjunto analizado filtrado; porcentaje es null cuando el denominador es cero.').describe('Tickets actualmente en estado final con fecha_resolucion sobre el total de tickets actualmente en estado final del conjunto analizado.\n'),
   "plazo_resolucion": zod.object({
   "numerador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasPlazoResolucionOneNumeradorMin),
   "denominador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasPlazoResolucionOneDenominadorMin),
   "porcentaje": zod.number().min(getRendimientoCalidadDatosResponseCoberturasPlazoResolucionOnePorcentajeMin).max(getRendimientoCalidadDatosResponseCoberturasPlazoResolucionOnePorcentajeMax).nullable()
-}).describe('La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.').describe('Resoluciones evaluadas que conservaron el plazo vigente al resolverse sobre el total de transiciones no-final a final de la cohorte.\n'),
+}).describe('La proporción usa el conjunto analizado filtrado; porcentaje es null cuando el denominador es cero.').describe('Resoluciones evaluadas que conservaron el plazo vigente al resolverse sobre el total de transiciones no-final a final del conjunto analizado.\n'),
   "asignacion_estructurada": zod.object({
   "numerador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasAsignacionEstructuradaOneNumeradorMin),
   "denominador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasAsignacionEstructuradaOneDenominadorMin),
   "porcentaje": zod.number().min(getRendimientoCalidadDatosResponseCoberturasAsignacionEstructuradaOnePorcentajeMin).max(getRendimientoCalidadDatosResponseCoberturasAsignacionEstructuradaOnePorcentajeMax).nullable()
-}).describe('La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.').describe('Tickets con asignado_usuario_id sobre los tickets que poseen alguna asignación estructurada o histórica dentro de la cohorte.\n'),
+}).describe('La proporción usa el conjunto analizado filtrado; porcentaje es null cuando el denominador es cero.').describe('Tickets con asignado_usuario_id sobre los tickets que poseen alguna asignación estructurada o histórica dentro del conjunto analizado.\n'),
   "identidad_contacto": zod.object({
   "numerador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasIdentidadContactoOneNumeradorMin),
   "denominador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasIdentidadContactoOneDenominadorMin),
   "porcentaje": zod.number().min(getRendimientoCalidadDatosResponseCoberturasIdentidadContactoOnePorcentajeMin).max(getRendimientoCalidadDatosResponseCoberturasIdentidadContactoOnePorcentajeMax).nullable()
-}).describe('La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.').describe('Tickets con al menos un DNI, teléfono o email normalizado utilizable sobre todos los tickets de la cohorte.\n'),
+}).describe('La proporción usa el conjunto analizado filtrado; porcentaje es null cuando el denominador es cero.').describe('Tickets con al menos un DNI, teléfono o email normalizado utilizable sobre todos los tickets del conjunto analizado.\n'),
   "fecha_limite": zod.object({
   "numerador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasFechaLimiteOneNumeradorMin),
   "denominador": zod.number().min(getRendimientoCalidadDatosResponseCoberturasFechaLimiteOneDenominadorMin),
   "porcentaje": zod.number().min(getRendimientoCalidadDatosResponseCoberturasFechaLimiteOnePorcentajeMin).max(getRendimientoCalidadDatosResponseCoberturasFechaLimiteOnePorcentajeMax).nullable()
-}).describe('La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.').describe('Tickets con fecha_limite válida sobre todos los tickets de la cohorte.')
+}).describe('La proporción usa el conjunto analizado filtrado; porcentaje es null cuando el denominador es cero.').describe('Tickets con fecha_limite válida sobre todos los tickets del conjunto analizado.')
 })
 })
 
@@ -1156,11 +1156,11 @@ export const SendRendimientoChatMessageResponse = zod.object({
 
 /**
  * Resume tickets visibles cuya `fecha_creacion` pertenece al período
- * solicitado. `empresa`, `motivo_categoria` y `prioridad` restringen esa
- * misma cohorte antes de calcular cualquier métrica.
+ * solicitado. `empresa`, `motivo_categoria` y `prioridad` restringen ese
+ * mismo conjunto analizado antes de calcular cualquier métrica.
  *
  * `estado_actual` y las distribuciones son una fotografía al instante
- * `generado_en`: describen el estado actual de la cohorte por creación, no
+ * `generado_en`: describen el estado actual del conjunto analizado por creación, no
  * el estado que los tickets tenían dentro del período.
  *
  * `cumplimiento_plazo_auditable` considera únicamente transiciones de un
@@ -1172,9 +1172,9 @@ export const SendRendimientoChatMessageResponse = zod.object({
 export const GetRendimientoResumenEquipoQueryParams = zod.object({
   "fecha_desde": zod.coerce.date().optional().describe('Primer día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
   "fecha_hasta": zod.coerce.date().optional().describe('Último día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
-  "empresa": zod.coerce.string().optional().describe('Texto contenido en la empresa de los tickets incluidos en la cohorte.'),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'prestamos_anticipos', 'obra_social', 'sanciones_ausencias', 'proveedores_comercial', 'sin_clasificar']).optional().describe('Categoría normalizada de los tickets incluidos en la cohorte.'),
-  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional().describe('Prioridad actual de los tickets incluidos en la cohorte.')
+  "empresa": zod.coerce.string().optional().describe('Texto contenido en la empresa de los tickets incluidos en el conjunto analizado.'),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'prestamos_anticipos', 'obra_social', 'sanciones_ausencias', 'proveedores_comercial', 'sin_clasificar']).optional().describe('Categoría normalizada de los tickets incluidos en el conjunto analizado.'),
+  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional().describe('Prioridad actual de los tickets incluidos en el conjunto analizado.')
 })
 
 export const getRendimientoResumenEquipoResponseTicketsIngresadosMin = 0;
@@ -1233,12 +1233,12 @@ export const GetRendimientoResumenEquipoResponse = zod.object({
   "abiertos": zod.number().min(getRendimientoResumenEquipoResponseEstadoActualAbiertosMin),
   "finalizados": zod.number().min(getRendimientoResumenEquipoResponseEstadoActualFinalizadosMin),
   "vencidos_abiertos": zod.number().min(getRendimientoResumenEquipoResponseEstadoActualVencidosAbiertosMin)
-}).describe('Fotografía actual de la cohorte definida por fecha_creacion. abiertos comprende nuevo, en_proceso y pendiente; finalizados comprende resuelto y cerrado; vencidos_abiertos es un subconjunto de abiertos cuyo plazo ya pasó al instante generado_en.\n'),
+}).describe('Fotografía actual del conjunto analizado definido por fecha_creacion. abiertos comprende nuevo, en_proceso y pendiente; finalizados comprende resuelto y cerrado; vencidos_abiertos es un subconjunto de abiertos cuyo plazo ya pasó al instante generado_en.\n'),
   "resolucion_con_fecha": zod.object({
   "muestra": zod.number().min(getRendimientoResumenEquipoResponseResolucionConFechaMuestraMin),
   "promedio_horas": zod.number().min(getRendimientoResumenEquipoResponseResolucionConFechaPromedioHorasMin).nullable(),
   "mediana_horas": zod.number().min(getRendimientoResumenEquipoResponseResolucionConFechaMedianaHorasMin).nullable()
-}).describe('Horas corridas desde fecha_creacion hasta fecha_resolucion para tickets actualmente finalizados de la cohorte que poseen ambas fechas válidas y una duración no negativa. Las duraciones son null cuando muestra es cero.\n'),
+}).describe('Horas corridas desde fecha_creacion hasta fecha_resolucion para tickets actualmente finalizados del conjunto analizado que poseen ambas fechas válidas y una duración no negativa. Las duraciones son null cuando muestra es cero.\n'),
   "cumplimiento_plazo_auditable": zod.object({
   "muestra": zod.number().min(getRendimientoResumenEquipoResponseCumplimientoPlazoAuditableMuestraMin),
   "cumplidos": zod.number().min(getRendimientoResumenEquipoResponseCumplimientoPlazoAuditableCumplidosMin),
@@ -1250,18 +1250,18 @@ export const GetRendimientoResumenEquipoResponse = zod.object({
   "pendiente": zod.number().min(getRendimientoResumenEquipoResponseDistribucionEstadoOnePendienteMin),
   "resuelto": zod.number().min(getRendimientoResumenEquipoResponseDistribucionEstadoOneResueltoMin),
   "cerrado": zod.number().min(getRendimientoResumenEquipoResponseDistribucionEstadoOneCerradoMin)
-}).describe('Estado actual de la cohorte; incluye todos los estados conocidos, aun cuando su cantidad sea cero.\n'),
+}).describe('Estado actual del conjunto analizado; incluye todos los estados conocidos, aun cuando su cantidad sea cero.\n'),
   "distribucion_prioridad": zod.object({
   "baja": zod.number().min(getRendimientoResumenEquipoResponseDistribucionPrioridadOneBajaMin),
   "media": zod.number().min(getRendimientoResumenEquipoResponseDistribucionPrioridadOneMediaMin),
   "alta": zod.number().min(getRendimientoResumenEquipoResponseDistribucionPrioridadOneAltaMin),
   "urgente": zod.number().min(getRendimientoResumenEquipoResponseDistribucionPrioridadOneUrgenteMin)
-}).describe('Prioridad actual de la cohorte; incluye todas las prioridades conocidas, aun cuando su cantidad sea cero.\n')
+}).describe('Prioridad actual del conjunto analizado; incluye todas las prioridades conocidas, aun cuando su cantidad sea cero.\n')
 })
 
 
 /**
- * Usa la misma cohorte de tickets visibles por `fecha_creacion` que las
+ * Usa el mismo conjunto analizado de tickets visibles por `fecha_creacion` que las
  * demás vistas de Rendimiento. `empresa`, `motivo_categoria` y `prioridad`
  * se aplican antes de calcular cualquier indicador.
  *
@@ -1287,9 +1287,9 @@ export const GetRendimientoResumenEquipoResponse = zod.object({
 export const GetRendimientoPersonasQueryParams = zod.object({
   "fecha_desde": zod.coerce.date().optional().describe('Primer día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
   "fecha_hasta": zod.coerce.date().optional().describe('Último día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
-  "empresa": zod.coerce.string().optional().describe('Texto contenido en la empresa de los tickets incluidos en la cohorte.'),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'prestamos_anticipos', 'obra_social', 'sanciones_ausencias', 'proveedores_comercial', 'sin_clasificar']).optional().describe('Categoría normalizada de los tickets incluidos en la cohorte.'),
-  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional().describe('Prioridad actual de los tickets incluidos en la cohorte.')
+  "empresa": zod.coerce.string().optional().describe('Texto contenido en la empresa de los tickets incluidos en el conjunto analizado.'),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'prestamos_anticipos', 'obra_social', 'sanciones_ausencias', 'proveedores_comercial', 'sin_clasificar']).optional().describe('Categoría normalizada de los tickets incluidos en el conjunto analizado.'),
+  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional().describe('Prioridad actual de los tickets incluidos en el conjunto analizado.')
 })
 
 export const getRendimientoPersonasResponseTicketsEvaluadosMin = 0;
@@ -1336,17 +1336,17 @@ export const GetRendimientoPersonasResponse = zod.object({
   "timezone": zod.enum(['America/Argentina/Buenos_Aires']),
   "generado_en": zod.coerce.date().describe('Instante del snapshot consistente usado para calcular la respuesta.')
 }),
-  "tickets_evaluados": zod.number().min(getRendimientoPersonasResponseTicketsEvaluadosMin).describe('Tickets visibles de la cohorte luego de aplicar todos los filtros.'),
+  "tickets_evaluados": zod.number().min(getRendimientoPersonasResponseTicketsEvaluadosMin).describe('Tickets visibles del conjunto analizado luego de aplicar todos los filtros.'),
   "cobertura": zod.object({
-  "resoluciones_evaluadas": zod.number().min(getRendimientoPersonasResponseCoberturaResolucionesEvaluadasMin).describe('Total de transiciones no-final a final de la cohorte.'),
+  "resoluciones_evaluadas": zod.number().min(getRendimientoPersonasResponseCoberturaResolucionesEvaluadasMin).describe('Total de transiciones no-final a final del conjunto analizado.'),
   "resoluciones_atribuidas": zod.number().min(getRendimientoPersonasResponseCoberturaResolucionesAtribuidasMin).describe('Resoluciones evaluadas con autor_usuario_id que referencia un usuario persistido.\n'),
   "porcentaje_atribucion": zod.number().min(getRendimientoPersonasResponseCoberturaPorcentajeAtribucionMin).max(getRendimientoPersonasResponseCoberturaPorcentajeAtribucionMax).nullable().describe('Porcentaje de resoluciones atribuidas; null cuando resoluciones_evaluadas es cero.\n'),
-  "atribucion_desde": zod.coerce.date().nullable().describe('Primera resolución atribuible de la cohorte, o null cuando no hay ninguna.\n'),
+  "atribucion_desde": zod.coerce.date().nullable().describe('Primera resolución atribuible del conjunto analizado, o null cuando no hay ninguna.\n'),
   "comparacion_individual_estado": zod.enum(['insuficiente', 'parcial', 'disponible']).describe('insuficiente cuando hay menos de 10 resoluciones evaluadas o menos de 80% de autoría; parcial desde 80% y antes de 95%; disponible a partir de 95%. disponible acredita cobertura global, no una muestra individual suficiente ni permiso para construir un ranking.\n'),
   "minimo_resoluciones_comparables": zod.literal(10).describe('Muestra global mínima exigida antes de comparar personas.'),
   "umbral_cobertura_parcial_porcentaje": zod.literal(80).describe('Cobertura de autoría desde la cual el estado puede ser parcial.'),
   "umbral_cobertura_disponible_porcentaje": zod.literal(95).describe('Cobertura de autoría desde la cual el estado puede ser disponible.')
-}).describe('Cobertura global de autoría para las resoluciones de la cohorte. El estado de comparación usa el mismo criterio auditable que Calidad de datos; aun cuando sea disponible, cada muestra individual debe quedar visible y la respuesta no constituye un ranking.\n'),
+}).describe('Cobertura global de autoría para las resoluciones del conjunto analizado. El estado de comparación usa el mismo criterio auditable que Calidad de datos; aun cuando sea disponible, cada muestra individual debe quedar visible y la respuesta no constituye un ranking.\n'),
   "personas": zod.array(zod.object({
   "usuario": zod.object({
   "id": zod.number().min(1),
@@ -1369,21 +1369,21 @@ export const GetRendimientoPersonasResponse = zod.object({
   "carga_actual": zod.object({
   "abiertos_asignados": zod.number().min(getRendimientoPersonasResponsePersonasItemCargaActualAbiertosAsignadosMin),
   "vencidos_asignados": zod.number().min(getRendimientoPersonasResponsePersonasItemCargaActualVencidosAsignadosMin)
-}).describe('Fotografía de la cohorte al instante generado_en. Solo cuenta tickets actualmente no finales cuyo asignado_usuario_id coincide con la persona; vencidos_asignados es un subconjunto de abiertos_asignados.\n'),
+}).describe('Fotografía del conjunto analizado al instante generado_en. Solo cuenta tickets actualmente no finales cuyo asignado_usuario_id coincide con la persona; vencidos_asignados es un subconjunto de abiertos_asignados.\n'),
   "resoluciones_reabiertas": zod.number().min(getRendimientoPersonasResponsePersonasItemResolucionesReabiertasMin).describe('Resoluciones atribuibles de la persona tras las que ocurrió al menos una transición final a no-final y antes de la siguiente resolución del mismo ticket. Cada resolución se cuenta como máximo una vez; no atribuye la acción de reabrir y no implica una evaluación negativa.\n')
 }).describe('Indicadores auditables de una persona. Las cantidades son hechos independientes; no se combinan en un puntaje ni determinan una posición.\n')).describe('Todos los usuarios persistidos, activos o inactivos, ordenados por nombre y luego por id. El orden es alfabético, no un ranking.\n')
 })
 
 
 /**
- * Detecta reiteraciones dentro de la misma cohorte de tickets visibles por
+ * Detecta reiteraciones dentro del mismo conjunto analizado de tickets visibles por
  * `fecha_creacion`; `empresa`, `motivo_categoria` y `prioridad` se aplican
  * antes de agrupar. Un contacto solo aparece cuando reúne al menos dos
  * tickets distintos y conserva al menos uno en estado no final.
  *
  * Cada ticket recibe una única clave canónica, con precedencia DNI,
  * teléfono y email. Una identidad secundaria solo hereda un DNI cuando su
- * relación directa dentro de la cohorte es unívoca; las relaciones ambiguas
+ * relación directa dentro del conjunto analizado es unívoca; las relaciones ambiguas
  * se conservan separadas y nunca se encadenan transitivamente. Por eso esta
  * vista describe coincidencias operativas, no una identidad civil probada
  * ni confirma que una persona haya quedado sin respuesta.
@@ -1393,7 +1393,7 @@ export const GetRendimientoPersonasResponse = zod.object({
  * revisar el caso. Los grupos se ordenan por riesgo: primero vencidos,
  * luego prioridad máxima, antigüedad del abierto, último contacto y clave.
  * Ese orden se aplica sobre el conjunto completo antes de paginar. El
- * resumen conserva los totales globales de la cohorte y `contactos` contiene
+ * resumen conserva los totales globales del conjunto analizado y `contactos` contiene
  * únicamente los grupos de la página solicitada.
  * @summary Detectar contactos reiterados con tickets todavía abiertos
  */
@@ -1407,9 +1407,9 @@ export const getRendimientoReiteracionesQueryLimiteMax = 50;
 export const GetRendimientoReiteracionesQueryParams = zod.object({
   "fecha_desde": zod.coerce.date().optional().describe('Primer día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
   "fecha_hasta": zod.coerce.date().optional().describe('Último día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
-  "empresa": zod.coerce.string().optional().describe('Texto contenido en la empresa de los tickets incluidos en la cohorte.'),
-  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'prestamos_anticipos', 'obra_social', 'sanciones_ausencias', 'proveedores_comercial', 'sin_clasificar']).optional().describe('Categoría normalizada de los tickets incluidos en la cohorte.'),
-  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional().describe('Prioridad actual de los tickets incluidos en la cohorte.'),
+  "empresa": zod.coerce.string().optional().describe('Texto contenido en la empresa de los tickets incluidos en el conjunto analizado.'),
+  "motivo_categoria": zod.enum(['haberes_pagos', 'recibos_documentacion', 'vacaciones_licencias', 'bajas_liquidacion', 'empleo_postulaciones', 'contacto_general', 'reclamos', 'embargos', 'legales', 'prestamos_anticipos', 'obra_social', 'sanciones_ausencias', 'proveedores_comercial', 'sin_clasificar']).optional().describe('Categoría normalizada de los tickets incluidos en el conjunto analizado.'),
+  "prioridad": zod.enum(['baja', 'media', 'alta', 'urgente']).optional().describe('Prioridad actual de los tickets incluidos en el conjunto analizado.'),
   "pagina": zod.coerce.number().min(1).default(getRendimientoReiteracionesQueryPaginaDefault).describe('Página de grupos luego de aplicar el orden global por riesgo.'),
   "limite": zod.coerce.number().min(1).max(getRendimientoReiteracionesQueryLimiteMax).default(getRendimientoReiteracionesQueryLimiteDefault).describe('Cantidad máxima de grupos por página.')
 })
@@ -1470,12 +1470,12 @@ export const GetRendimientoReiteracionesResponse = zod.object({
   "numerador": zod.number().min(getRendimientoReiteracionesResponseCoberturaIdentidadUtilizableNumeradorMin),
   "denominador": zod.number().min(getRendimientoReiteracionesResponseCoberturaIdentidadUtilizableDenominadorMin),
   "porcentaje": zod.number().min(getRendimientoReiteracionesResponseCoberturaIdentidadUtilizablePorcentajeMin).max(getRendimientoReiteracionesResponseCoberturaIdentidadUtilizablePorcentajeMax).nullable()
-}).describe('La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.'),
+}).describe('La proporción usa el conjunto analizado filtrado; porcentaje es null cuando el denominador es cero.'),
   "ambiguos_detectados": zod.number().min(getRendimientoReiteracionesResponseCoberturaAmbiguosDetectadosMin),
   "criterio": zod.enum(['clave_canonica_no_transitiva'])
-}).describe('Cobertura de identidad de la cohorte. ambiguos_detectados cuenta tickets cuya identidad secundaria utilizable apunta directamente a más de un DNI; esos casos no se fusionan de forma transitiva.\n'),
+}).describe('Cobertura de identidad del conjunto analizado. ambiguos_detectados cuenta tickets cuya identidad secundaria utilizable apunta directamente a más de un DNI; esos casos no se fusionan de forma transitiva.\n'),
   "resumen": zod.object({
-  "contactos_reiterados": zod.number().min(getRendimientoReiteracionesResponseResumenContactosReiteradosMin).describe('Total global de grupos reiterados en la cohorte, no solo en la página actual.'),
+  "contactos_reiterados": zod.number().min(getRendimientoReiteracionesResponseResumenContactosReiteradosMin).describe('Total global de grupos reiterados en el conjunto analizado, no solo en la página actual.'),
   "tickets_involucrados": zod.number().min(getRendimientoReiteracionesResponseResumenTicketsInvolucradosMin),
   "abiertos": zod.number().min(getRendimientoReiteracionesResponseResumenAbiertosMin),
   "vencidos_abiertos": zod.number().min(getRendimientoReiteracionesResponseResumenVencidosAbiertosMin)

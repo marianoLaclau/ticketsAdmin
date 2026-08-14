@@ -151,7 +151,7 @@ test("presenta datos no medibles como Sin muestra y conserva los ceros reales", 
   assert.equal(within(bruno).queryByText("0 h"), null);
 });
 
-test("el estado vacío explica la cohorte y permite limpiar filtros", async (t) => {
+test("el estado vacío explica el conjunto analizado y permite limpiar filtros", async (t) => {
   t.after(cleanup);
   const user = userEvent.setup();
   const data = personasData();

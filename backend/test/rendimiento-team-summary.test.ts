@@ -129,7 +129,7 @@ function insertResolution(
 }
 
 describe("resumen de equipo de Rendimiento", () => {
-  it("resume la cohorte visible y separa estado actual de métricas auditables", () => {
+  it("resume el conjunto analizado visible y separa estado actual de métricas auditables", () => {
     const { sqlite, database } = createDatabase();
     const now = new Date("2026-08-15T12:00:00.000Z");
 

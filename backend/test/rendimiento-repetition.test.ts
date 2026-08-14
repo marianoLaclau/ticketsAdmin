@@ -366,7 +366,7 @@ describe("consulta de contactos reiterados", () => {
     sqlite.close();
   });
 
-  it("aplica la cohorte completa, cuarentena y limites inclusivos antes de agrupar", () => {
+  it("aplica el conjunto analizado completo, cuarentena y limites inclusivos antes de agrupar", () => {
     const { sqlite, database } = createDatabase();
     const matching = (conversationId: string, createdAt: string) =>
       insertTicket(sqlite, {
@@ -594,7 +594,7 @@ describe("consulta de contactos reiterados", () => {
     sqlite.close();
   });
 
-  it("materializa una sola vez la cohorte y las claves canonicas por lectura", () => {
+  it("materializa una sola vez el conjunto analizado y las claves canonicas por lectura", () => {
     const queryLog: LoggedQuery[] = [];
     const { sqlite, database } = createDatabase(queryLog);
     const now = new Date("2026-08-20T12:00:00.000Z");

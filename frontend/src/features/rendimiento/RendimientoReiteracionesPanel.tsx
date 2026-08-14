@@ -627,7 +627,7 @@ export function RendimientoReiteracionesPanel({
       {data.tickets_evaluados === 0 ? (
         <NoResultsState
           title="No hay datos para estos filtros"
-          description="La cohorte no contiene tickets visibles. Probá otro período o quitá los filtros de empresa, categoría y prioridad."
+          description="El conjunto analizado no contiene tickets visibles. Probá otro período o quitá los filtros de empresa, categoría y prioridad."
           onClearFilters={onClearFilters}
         />
       ) : identity.numerador === 0 ? (

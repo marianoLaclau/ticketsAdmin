@@ -1218,9 +1218,9 @@ paths:
         Evalúa si los datos disponibles permiten construir indicadores de equipo
         e individuales sin presentar estimaciones como hechos auditables.
 
-        La cohorte contiene únicamente tickets visibles cuya `fecha_creacion`
+        El conjunto analizado contiene únicamente tickets visibles cuya `fecha_creacion`
         pertenece al período solicitado. `empresa`, `motivo_categoria` y
-        `prioridad` restringen esa misma cohorte; todos los denominadores se
+        `prioridad` restringen ese mismo conjunto analizado; todos los denominadores se
         calculan después de aplicar esos filtros.
 
         Una resolución evaluable para atribución es exclusivamente una transición
@@ -1236,7 +1236,7 @@ paths:
         - $ref: "#/components/parameters/RendimientoPrioridad"
       responses:
         "200":
-          description: Coberturas de calidad de la cohorte filtrada
+          description: Coberturas de calidad del conjunto analizado filtrado
           content:
             application/json:
               schema:
@@ -1343,11 +1343,11 @@ paths:
       summary: Consultar el resumen de rendimiento del equipo
       description: |
         Resume tickets visibles cuya `fecha_creacion` pertenece al período
-        solicitado. `empresa`, `motivo_categoria` y `prioridad` restringen esa
-        misma cohorte antes de calcular cualquier métrica.
+        solicitado. `empresa`, `motivo_categoria` y `prioridad` restringen ese
+        mismo conjunto analizado antes de calcular cualquier métrica.
 
         `estado_actual` y las distribuciones son una fotografía al instante
-        `generado_en`: describen el estado actual de la cohorte por creación, no
+        `generado_en`: describen el estado actual del conjunto analizado por creación, no
         el estado que los tickets tenían dentro del período.
 
         `cumplimiento_plazo_auditable` considera únicamente transiciones de un
@@ -1364,7 +1364,7 @@ paths:
         - $ref: "#/components/parameters/RendimientoPrioridad"
       responses:
         "200":
-          description: Resumen de equipo para la cohorte filtrada
+          description: Resumen de equipo para el conjunto analizado filtrado
           content:
             application/json:
               schema:
@@ -1398,7 +1398,7 @@ paths:
       tags: [rendimiento]
       summary: Consultar indicadores auditables por persona
       description: |
-        Usa la misma cohorte de tickets visibles por `fecha_creacion` que las
+        Usa el mismo conjunto analizado de tickets visibles por `fecha_creacion` que las
         demás vistas de Rendimiento. `empresa`, `motivo_categoria` y `prioridad`
         se aplican antes de calcular cualquier indicador.
 
@@ -1429,7 +1429,7 @@ paths:
         - $ref: "#/components/parameters/RendimientoPrioridad"
       responses:
         "200":
-          description: Indicadores individuales de la cohorte filtrada
+          description: Indicadores individuales del conjunto analizado filtrado
           content:
             application/json:
               schema:
@@ -1463,14 +1463,14 @@ paths:
       tags: [rendimiento]
       summary: Detectar contactos reiterados con tickets todavía abiertos
       description: |
-        Detecta reiteraciones dentro de la misma cohorte de tickets visibles por
+        Detecta reiteraciones dentro del mismo conjunto analizado de tickets visibles por
         `fecha_creacion`; `empresa`, `motivo_categoria` y `prioridad` se aplican
         antes de agrupar. Un contacto solo aparece cuando reúne al menos dos
         tickets distintos y conserva al menos uno en estado no final.
 
         Cada ticket recibe una única clave canónica, con precedencia DNI,
         teléfono y email. Una identidad secundaria solo hereda un DNI cuando su
-        relación directa dentro de la cohorte es unívoca; las relaciones ambiguas
+        relación directa dentro del conjunto analizado es unívoca; las relaciones ambiguas
         se conservan separadas y nunca se encadenan transitivamente. Por eso esta
         vista describe coincidencias operativas, no una identidad civil probada
         ni confirma que una persona haya quedado sin respuesta.
@@ -1480,7 +1480,7 @@ paths:
         revisar el caso. Los grupos se ordenan por riesgo: primero vencidos,
         luego prioridad máxima, antigüedad del abierto, último contacto y clave.
         Ese orden se aplica sobre el conjunto completo antes de paginar. El
-        resumen conserva los totales globales de la cohorte y `contactos` contiene
+        resumen conserva los totales globales del conjunto analizado y `contactos` contiene
         únicamente los grupos de la página solicitada.
       security:
         - sessionCookie: []
@@ -1507,7 +1507,7 @@ paths:
             default: 20
       responses:
         "200":
-          description: Contactos reiterados de la cohorte filtrada
+          description: Contactos reiterados del conjunto analizado filtrado
           content:
             application/json:
               schema:
@@ -1568,19 +1568,19 @@ components:
     RendimientoEmpresa:
       name: empresa
       in: query
-      description: Texto contenido en la empresa de los tickets incluidos en la cohorte.
+      description: Texto contenido en la empresa de los tickets incluidos en el conjunto analizado.
       schema:
         type: string
     RendimientoMotivoCategoria:
       name: motivo_categoria
       in: query
-      description: Categoría normalizada de los tickets incluidos en la cohorte.
+      description: Categoría normalizada de los tickets incluidos en el conjunto analizado.
       schema:
         $ref: "#/components/schemas/MotivoCategoria"
     RendimientoPrioridad:
       name: prioridad
       in: query
-      description: Prioridad actual de los tickets incluidos en la cohorte.
+      description: Prioridad actual de los tickets incluidos en el conjunto analizado.
       schema:
         type: string
         enum: [baja, media, alta, urgente]
@@ -1699,7 +1699,7 @@ components:
     RendimientoProporcion:
       type: object
       additionalProperties: false
-      description: La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.
+      description: La proporción usa el conjunto analizado filtrado; porcentaje es null cuando el denominador es cero.
       required:
         - numerador
         - denominador
@@ -1732,35 +1732,35 @@ components:
             - $ref: "#/components/schemas/RendimientoProporcion"
           description: >
             Resoluciones evaluadas con autor_usuario_id persistido sobre el total de
-            transiciones no-final a final de los tickets de la cohorte.
+            transiciones no-final a final de los tickets del conjunto analizado.
         fecha_resolucion:
           allOf:
             - $ref: "#/components/schemas/RendimientoProporcion"
           description: >
             Tickets actualmente en estado final con fecha_resolucion sobre el total
-            de tickets actualmente en estado final de la cohorte.
+            de tickets actualmente en estado final del conjunto analizado.
         plazo_resolucion:
           allOf:
             - $ref: "#/components/schemas/RendimientoProporcion"
           description: >
             Resoluciones evaluadas que conservaron el plazo vigente al resolverse
-            sobre el total de transiciones no-final a final de la cohorte.
+            sobre el total de transiciones no-final a final del conjunto analizado.
         asignacion_estructurada:
           allOf:
             - $ref: "#/components/schemas/RendimientoProporcion"
           description: >
             Tickets con asignado_usuario_id sobre los tickets que poseen alguna
-            asignación estructurada o histórica dentro de la cohorte.
+            asignación estructurada o histórica dentro del conjunto analizado.
         identidad_contacto:
           allOf:
             - $ref: "#/components/schemas/RendimientoProporcion"
           description: >
             Tickets con al menos un DNI, teléfono o email normalizado utilizable
-            sobre todos los tickets de la cohorte.
+            sobre todos los tickets del conjunto analizado.
         fecha_limite:
           allOf:
             - $ref: "#/components/schemas/RendimientoProporcion"
-          description: Tickets con fecha_limite válida sobre todos los tickets de la cohorte.
+          description: Tickets con fecha_limite válida sobre todos los tickets del conjunto analizado.
 
     RendimientoCalidadDatos:
       type: object
@@ -1778,12 +1778,12 @@ components:
         tickets_evaluados:
           type: integer
           minimum: 0
-          description: Tickets visibles de la cohorte después de aplicar todos los filtros.
+          description: Tickets visibles del conjunto analizado después de aplicar todos los filtros.
         resoluciones_evaluadas:
           type: integer
           minimum: 0
           description: >
-            Transiciones no-final a final encontradas para los tickets de la cohorte;
+            Transiciones no-final a final encontradas para los tickets del conjunto analizado;
             es el denominador de actor_resolucion.
         atribucion_desde:
           type: [string, "null"]
@@ -1804,7 +1804,7 @@ components:
       type: object
       additionalProperties: false
       description: >
-        Fotografía actual de la cohorte definida por fecha_creacion. abiertos
+        Fotografía actual del conjunto analizado definido por fecha_creacion. abiertos
         comprende nuevo, en_proceso y pendiente; finalizados comprende resuelto y
         cerrado; vencidos_abiertos es un subconjunto de abiertos cuyo plazo ya pasó
         al instante generado_en.
@@ -1832,7 +1832,7 @@ components:
       additionalProperties: false
       description: >
         Horas corridas desde fecha_creacion hasta fecha_resolucion para tickets
-        actualmente finalizados de la cohorte que poseen ambas fechas válidas y una
+        actualmente finalizados del conjunto analizado que poseen ambas fechas válidas y una
         duración no negativa. Las duraciones son null cuando muestra es cero.
       required:
         - muestra
@@ -1948,13 +1948,13 @@ components:
           $ref: "#/components/schemas/RendimientoCumplimientoPlazoAuditable"
         distribucion_estado:
           description: >
-            Estado actual de la cohorte; incluye todos los estados conocidos, aun
+            Estado actual del conjunto analizado; incluye todos los estados conocidos, aun
             cuando su cantidad sea cero.
           allOf:
             - $ref: "#/components/schemas/RendimientoDistribucionEstado"
         distribucion_prioridad:
           description: >
-            Prioridad actual de la cohorte; incluye todas las prioridades conocidas,
+            Prioridad actual del conjunto analizado; incluye todas las prioridades conocidas,
             aun cuando su cantidad sea cero.
           allOf:
             - $ref: "#/components/schemas/RendimientoDistribucionPrioridad"
@@ -1963,7 +1963,7 @@ components:
       type: object
       additionalProperties: false
       description: >
-        Cobertura global de autoría para las resoluciones de la cohorte. El
+        Cobertura global de autoría para las resoluciones del conjunto analizado. El
         estado de comparación usa el mismo criterio auditable que Calidad de
         datos; aun cuando sea disponible, cada muestra individual debe quedar
         visible y la respuesta no constituye un ranking.
@@ -1980,7 +1980,7 @@ components:
         resoluciones_evaluadas:
           type: integer
           minimum: 0
-          description: Total de transiciones no-final a final de la cohorte.
+          description: Total de transiciones no-final a final del conjunto analizado.
         resoluciones_atribuidas:
           type: integer
           minimum: 0
@@ -1998,7 +1998,7 @@ components:
           type: [string, "null"]
           format: date-time
           description: >
-            Primera resolución atribuible de la cohorte, o null cuando no hay
+            Primera resolución atribuible del conjunto analizado, o null cuando no hay
             ninguna.
         comparacion_individual_estado:
           type: string
@@ -2098,7 +2098,7 @@ components:
       type: object
       additionalProperties: false
       description: >
-        Fotografía de la cohorte al instante generado_en. Solo cuenta tickets
+        Fotografía del conjunto analizado al instante generado_en. Solo cuenta tickets
         actualmente no finales cuyo asignado_usuario_id coincide con la persona;
         vencidos_asignados es un subconjunto de abiertos_asignados.
       required:
@@ -2172,7 +2172,7 @@ components:
         tickets_evaluados:
           type: integer
           minimum: 0
-          description: Tickets visibles de la cohorte luego de aplicar todos los filtros.
+          description: Tickets visibles del conjunto analizado luego de aplicar todos los filtros.
         cobertura:
           $ref: "#/components/schemas/RendimientoPersonasCobertura"
         personas:
@@ -2187,7 +2187,7 @@ components:
       type: object
       additionalProperties: false
       description: >
-        Cobertura de identidad de la cohorte. ambiguos_detectados cuenta tickets
+        Cobertura de identidad del conjunto analizado. ambiguos_detectados cuenta tickets
         cuya identidad secundaria utilizable apunta directamente a más de un DNI;
         esos casos no se fusionan de forma transitiva.
       required:
@@ -2216,7 +2216,7 @@ components:
         contactos_reiterados:
           type: integer
           minimum: 0
-          description: Total global de grupos reiterados en la cohorte, no solo en la página actual.
+          description: Total global de grupos reiterados en el conjunto analizado, no solo en la página actual.
         tickets_involucrados:
           type: integer
           minimum: 0

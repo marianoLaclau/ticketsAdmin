@@ -177,7 +177,7 @@ describe("proporciones y habilitación individual", () => {
 });
 
 describe("calidad de datos de Rendimiento", () => {
-  it("mide una cohorte visible sin atribuir por asignación actual", () => {
+  it("mide un conjunto analizado visible sin atribuir por asignación actual", () => {
     const { sqlite, database } = createDatabase();
     const deadline = "2026-08-08T12:00:00.000Z";
     const attributed = insertTicket(sqlite, {
@@ -304,7 +304,7 @@ describe("calidad de datos de Rendimiento", () => {
     sqlite.close();
   });
 
-  it("aplica empresa, categoría y prioridad dentro de la misma cohorte", () => {
+  it("aplica empresa, categoría y prioridad dentro del mismo conjunto analizado", () => {
     const { sqlite, database } = createDatabase();
     insertTicket(sqlite, {
       conversationId: "coincide",

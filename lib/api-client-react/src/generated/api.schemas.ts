@@ -96,7 +96,7 @@ export interface RendimientoPeriodo {
 }
 
 /**
- * La proporción usa la cohorte filtrada; porcentaje es null cuando el denominador es cero.
+ * La proporción usa el conjunto analizado filtrado; porcentaje es null cuando el denominador es cero.
  */
 export interface RendimientoProporcion {
   /** @minimum 0 */
@@ -112,17 +112,17 @@ export interface RendimientoProporcion {
 }
 
 export interface RendimientoCoberturasCalidadDatos {
-  /** Resoluciones evaluadas con autor_usuario_id persistido sobre el total de transiciones no-final a final de los tickets de la cohorte. */
+  /** Resoluciones evaluadas con autor_usuario_id persistido sobre el total de transiciones no-final a final de los tickets del conjunto analizado. */
   actor_resolucion: RendimientoProporcion;
-  /** Tickets actualmente en estado final con fecha_resolucion sobre el total de tickets actualmente en estado final de la cohorte. */
+  /** Tickets actualmente en estado final con fecha_resolucion sobre el total de tickets actualmente en estado final del conjunto analizado. */
   fecha_resolucion: RendimientoProporcion;
-  /** Resoluciones evaluadas que conservaron el plazo vigente al resolverse sobre el total de transiciones no-final a final de la cohorte. */
+  /** Resoluciones evaluadas que conservaron el plazo vigente al resolverse sobre el total de transiciones no-final a final del conjunto analizado. */
   plazo_resolucion: RendimientoProporcion;
-  /** Tickets con asignado_usuario_id sobre los tickets que poseen alguna asignación estructurada o histórica dentro de la cohorte. */
+  /** Tickets con asignado_usuario_id sobre los tickets que poseen alguna asignación estructurada o histórica dentro del conjunto analizado. */
   asignacion_estructurada: RendimientoProporcion;
-  /** Tickets con al menos un DNI, teléfono o email normalizado utilizable sobre todos los tickets de la cohorte. */
+  /** Tickets con al menos un DNI, teléfono o email normalizado utilizable sobre todos los tickets del conjunto analizado. */
   identidad_contacto: RendimientoProporcion;
-  /** Tickets con fecha_limite válida sobre todos los tickets de la cohorte. */
+  /** Tickets con fecha_limite válida sobre todos los tickets del conjunto analizado. */
   fecha_limite: RendimientoProporcion;
 }
 
@@ -141,12 +141,12 @@ export const RendimientoCalidadDatosComparacionIndividualEstado = {
 export interface RendimientoCalidadDatos {
   periodo: RendimientoPeriodo;
   /**
-     * Tickets visibles de la cohorte después de aplicar todos los filtros.
+     * Tickets visibles del conjunto analizado después de aplicar todos los filtros.
      * @minimum 0
      */
   tickets_evaluados: number;
   /**
-     * Transiciones no-final a final encontradas para los tickets de la cohorte; es el denominador de actor_resolucion.
+     * Transiciones no-final a final encontradas para los tickets del conjunto analizado; es el denominador de actor_resolucion.
      * @minimum 0
      */
   resoluciones_evaluadas: number;
@@ -161,7 +161,7 @@ export interface RendimientoCalidadDatos {
 }
 
 /**
- * Fotografía actual de la cohorte definida por fecha_creacion. abiertos comprende nuevo, en_proceso y pendiente; finalizados comprende resuelto y cerrado; vencidos_abiertos es un subconjunto de abiertos cuyo plazo ya pasó al instante generado_en.
+ * Fotografía actual del conjunto analizado definido por fecha_creacion. abiertos comprende nuevo, en_proceso y pendiente; finalizados comprende resuelto y cerrado; vencidos_abiertos es un subconjunto de abiertos cuyo plazo ya pasó al instante generado_en.
  */
 export interface RendimientoEstadoActual {
   /** @minimum 0 */
@@ -175,7 +175,7 @@ export interface RendimientoEstadoActual {
 }
 
 /**
- * Horas corridas desde fecha_creacion hasta fecha_resolucion para tickets actualmente finalizados de la cohorte que poseen ambas fechas válidas y una duración no negativa. Las duraciones son null cuando muestra es cero.
+ * Horas corridas desde fecha_creacion hasta fecha_resolucion para tickets actualmente finalizados del conjunto analizado que poseen ambas fechas válidas y una duración no negativa. Las duraciones son null cuando muestra es cero.
  */
 export interface RendimientoResolucionConFecha {
   /** @minimum 0 */
@@ -242,9 +242,9 @@ export interface RendimientoResumenEquipo {
   estado_actual: RendimientoEstadoActual;
   resolucion_con_fecha: RendimientoResolucionConFecha;
   cumplimiento_plazo_auditable: RendimientoCumplimientoPlazoAuditable;
-  /** Estado actual de la cohorte; incluye todos los estados conocidos, aun cuando su cantidad sea cero. */
+  /** Estado actual del conjunto analizado; incluye todos los estados conocidos, aun cuando su cantidad sea cero. */
   distribucion_estado: RendimientoDistribucionEstado;
-  /** Prioridad actual de la cohorte; incluye todas las prioridades conocidas, aun cuando su cantidad sea cero. */
+  /** Prioridad actual del conjunto analizado; incluye todas las prioridades conocidas, aun cuando su cantidad sea cero. */
   distribucion_prioridad: RendimientoDistribucionPrioridad;
 }
 
@@ -291,11 +291,11 @@ export const RendimientoPersonasCoberturaUmbralCoberturaDisponiblePorcentaje = {
 } as const;
 
 /**
- * Cobertura global de autoría para las resoluciones de la cohorte. El estado de comparación usa el mismo criterio auditable que Calidad de datos; aun cuando sea disponible, cada muestra individual debe quedar visible y la respuesta no constituye un ranking.
+ * Cobertura global de autoría para las resoluciones del conjunto analizado. El estado de comparación usa el mismo criterio auditable que Calidad de datos; aun cuando sea disponible, cada muestra individual debe quedar visible y la respuesta no constituye un ranking.
  */
 export interface RendimientoPersonasCobertura {
   /**
-     * Total de transiciones no-final a final de la cohorte.
+     * Total de transiciones no-final a final del conjunto analizado.
      * @minimum 0
      */
   resoluciones_evaluadas: number;
@@ -312,7 +312,7 @@ export interface RendimientoPersonasCobertura {
      */
   porcentaje_atribucion: number | null;
   /**
-     * Primera resolución atribuible de la cohorte, o null cuando no hay ninguna.
+     * Primera resolución atribuible del conjunto analizado, o null cuando no hay ninguna.
      * @nullable
      */
   atribucion_desde: string | null;
@@ -380,7 +380,7 @@ export interface RendimientoCumplimientoPersonaAuditable {
 }
 
 /**
- * Fotografía de la cohorte al instante generado_en. Solo cuenta tickets actualmente no finales cuyo asignado_usuario_id coincide con la persona; vencidos_asignados es un subconjunto de abiertos_asignados.
+ * Fotografía del conjunto analizado al instante generado_en. Solo cuenta tickets actualmente no finales cuyo asignado_usuario_id coincide con la persona; vencidos_asignados es un subconjunto de abiertos_asignados.
  */
 export interface RendimientoCargaActualPersona {
   /** @minimum 0 */
@@ -417,7 +417,7 @@ export interface RendimientoPersona {
 export interface RendimientoPersonas {
   periodo: RendimientoPeriodo;
   /**
-     * Tickets visibles de la cohorte luego de aplicar todos los filtros.
+     * Tickets visibles del conjunto analizado luego de aplicar todos los filtros.
      * @minimum 0
      */
   tickets_evaluados: number;
@@ -434,7 +434,7 @@ export const RendimientoReiteracionesCoberturaCriterio = {
 } as const;
 
 /**
- * Cobertura de identidad de la cohorte. ambiguos_detectados cuenta tickets cuya identidad secundaria utilizable apunta directamente a más de un DNI; esos casos no se fusionan de forma transitiva.
+ * Cobertura de identidad del conjunto analizado. ambiguos_detectados cuenta tickets cuya identidad secundaria utilizable apunta directamente a más de un DNI; esos casos no se fusionan de forma transitiva.
  */
 export interface RendimientoReiteracionesCobertura {
   identidad_utilizable: RendimientoProporcion;
@@ -445,7 +445,7 @@ export interface RendimientoReiteracionesCobertura {
 
 export interface RendimientoReiteracionesResumen {
   /**
-     * Total global de grupos reiterados en la cohorte, no solo en la página actual.
+     * Total global de grupos reiterados en el conjunto analizado, no solo en la página actual.
      * @minimum 0
      */
   contactos_reiterados: number;
@@ -1325,7 +1325,7 @@ export type RendimientoFechaDesdeParameter = string;
 export type RendimientoFechaHastaParameter = string;
 
 /**
- * Texto contenido en la empresa de los tickets incluidos en la cohorte.
+ * Texto contenido en la empresa de los tickets incluidos en el conjunto analizado.
  */
 export type RendimientoEmpresaParameter = string;
 
@@ -1589,15 +1589,15 @@ fecha_desde?: RendimientoFechaDesdeParameter;
  */
 fecha_hasta?: RendimientoFechaHastaParameter;
 /**
- * Texto contenido en la empresa de los tickets incluidos en la cohorte.
+ * Texto contenido en la empresa de los tickets incluidos en el conjunto analizado.
  */
 empresa?: RendimientoEmpresaParameter;
 /**
- * Categoría normalizada de los tickets incluidos en la cohorte.
+ * Categoría normalizada de los tickets incluidos en el conjunto analizado.
  */
 motivo_categoria?: RendimientoMotivoCategoriaParameter;
 /**
- * Prioridad actual de los tickets incluidos en la cohorte.
+ * Prioridad actual de los tickets incluidos en el conjunto analizado.
  */
 prioridad?: RendimientoPrioridadParameter;
 };
@@ -1637,15 +1637,15 @@ fecha_desde?: RendimientoFechaDesdeParameter;
  */
 fecha_hasta?: RendimientoFechaHastaParameter;
 /**
- * Texto contenido en la empresa de los tickets incluidos en la cohorte.
+ * Texto contenido en la empresa de los tickets incluidos en el conjunto analizado.
  */
 empresa?: RendimientoEmpresaParameter;
 /**
- * Categoría normalizada de los tickets incluidos en la cohorte.
+ * Categoría normalizada de los tickets incluidos en el conjunto analizado.
  */
 motivo_categoria?: RendimientoMotivoCategoriaParameter;
 /**
- * Prioridad actual de los tickets incluidos en la cohorte.
+ * Prioridad actual de los tickets incluidos en el conjunto analizado.
  */
 prioridad?: RendimientoPrioridadParameter;
 };
@@ -1672,15 +1672,15 @@ fecha_desde?: RendimientoFechaDesdeParameter;
  */
 fecha_hasta?: RendimientoFechaHastaParameter;
 /**
- * Texto contenido en la empresa de los tickets incluidos en la cohorte.
+ * Texto contenido en la empresa de los tickets incluidos en el conjunto analizado.
  */
 empresa?: RendimientoEmpresaParameter;
 /**
- * Categoría normalizada de los tickets incluidos en la cohorte.
+ * Categoría normalizada de los tickets incluidos en el conjunto analizado.
  */
 motivo_categoria?: RendimientoMotivoCategoriaParameter;
 /**
- * Prioridad actual de los tickets incluidos en la cohorte.
+ * Prioridad actual de los tickets incluidos en el conjunto analizado.
  */
 prioridad?: RendimientoPrioridadParameter;
 };
@@ -1707,15 +1707,15 @@ fecha_desde?: RendimientoFechaDesdeParameter;
  */
 fecha_hasta?: RendimientoFechaHastaParameter;
 /**
- * Texto contenido en la empresa de los tickets incluidos en la cohorte.
+ * Texto contenido en la empresa de los tickets incluidos en el conjunto analizado.
  */
 empresa?: RendimientoEmpresaParameter;
 /**
- * Categoría normalizada de los tickets incluidos en la cohorte.
+ * Categoría normalizada de los tickets incluidos en el conjunto analizado.
  */
 motivo_categoria?: RendimientoMotivoCategoriaParameter;
 /**
- * Prioridad actual de los tickets incluidos en la cohorte.
+ * Prioridad actual de los tickets incluidos en el conjunto analizado.
  */
 prioridad?: RendimientoPrioridadParameter;
 /**
