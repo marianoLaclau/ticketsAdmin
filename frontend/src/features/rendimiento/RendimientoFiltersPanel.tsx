@@ -18,26 +18,19 @@ import {
 import { isValidCalendarDate } from "@/lib/calendar-date";
 import {
   createDefaultRendimientoUrlState,
+  RENDIMIENTO_PERIODO_LABELS,
   type RendimientoCategoria,
   type RendimientoFilterState,
   type RendimientoPeriodo,
   type RendimientoPrioridad,
   type RendimientoUrlState,
-} from "@/lib/rendimiento-url";
+} from "@/features/rendimiento/rendimiento-url";
 import {
   createDefaultRendimientoCustomRange,
   type RendimientoDateRange,
 } from "./rendimiento-query";
 
 const ALL_FILTERS = "_all";
-
-const PERIOD_LABELS: Record<RendimientoPeriodo, string> = {
-  mes: "Mes actual",
-  semana: "Semana actual",
-  ultimos_30: "Últimos 30 días",
-  ultimos_90: "Últimos 90 días",
-  personalizado: "Período personalizado",
-};
 
 interface RendimientoFilterDraft extends RendimientoDateRange {
   periodo: RendimientoPeriodo;
@@ -85,7 +78,7 @@ function getDateRangeError(draft: RendimientoFilterDraft): string | null {
 }
 
 function buildAppliedLabel(state: RendimientoUrlState): string {
-  const parts = [PERIOD_LABELS[state.periodo]];
+  const parts = [RENDIMIENTO_PERIODO_LABELS[state.periodo]];
   if (state.empresa) parts.push(`Empresa: ${state.empresa}`);
   if (state.categoria) {
     parts.push(MOTIVO_CATEGORIA_LABELS[state.categoria]);
@@ -177,11 +170,13 @@ export function RendimientoFiltersPanel({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(PERIOD_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
+                {Object.entries(RENDIMIENTO_PERIODO_LABELS).map(
+                  ([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ),
+                )}
               </SelectContent>
             </Select>
           </div>

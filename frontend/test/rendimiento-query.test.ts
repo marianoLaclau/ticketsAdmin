@@ -8,7 +8,21 @@ import {
 
 const REFERENCE_DATE = new Date("2026-08-13T15:00:00.000Z");
 
-describe("parámetros de Calidad de datos", () => {
+describe("parámetros de Rendimiento", () => {
+  it("omite las fechas para consultar todo el historial", () => {
+    assert.equal(
+      getRendimientoDateRange({ periodo: "todo" }, REFERENCE_DATE),
+      null,
+    );
+    assert.deepEqual(
+      buildRendimientoParams(
+        { periodo: "todo", empresa: "GSB IT" },
+        REFERENCE_DATE,
+      ),
+      { empresa: "GSB IT" },
+    );
+  });
+
   it("convierte el mes predeterminado en fechas de Buenos Aires", () => {
     assert.deepEqual(createDefaultRendimientoCustomRange(REFERENCE_DATE), {
       desde: "2026-08-01",

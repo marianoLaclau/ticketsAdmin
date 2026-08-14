@@ -9,7 +9,10 @@ import { Button } from "@/components/ui/button";
 import { LoadingStatus } from "@/components/ui/loading-status";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUserErrorMessage } from "@/lib/error-messages";
-import type { RendimientoUrlState } from "@/lib/rendimiento-url";
+import {
+  RENDIMIENTO_PERIODO_LABELS,
+  type RendimientoUrlState,
+} from "@/features/rendimiento/rendimiento-url";
 import { buildRendimientoParams } from "./rendimiento-query";
 import { RendimientoRefreshStatus } from "./RendimientoRefreshStatus";
 import { ResumenEquipoPanel } from "./ResumenEquipoPanel";
@@ -139,7 +142,11 @@ export function ResumenEquipoView({
           onRetry={() => void query.refetch()}
         />
       ) : null}
-      <ResumenEquipoPanel {...query.data} onClearFilters={onClearFilters} />
+      <ResumenEquipoPanel
+        {...query.data}
+        periodFilterLabel={RENDIMIENTO_PERIODO_LABELS[filters.periodo]}
+        onClearFilters={onClearFilters}
+      />
     </div>
   );
 }

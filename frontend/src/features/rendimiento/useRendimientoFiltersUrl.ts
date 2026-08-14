@@ -4,7 +4,7 @@ import {
   parseRendimientoUrlState,
   serializeRendimientoUrlState,
   type RendimientoUrlState,
-} from "@/lib/rendimiento-url";
+} from "@/features/rendimiento/rendimiento-url";
 
 export type RendimientoUrlNavigation = "replace" | "push";
 export type RendimientoUrlUpdate = (

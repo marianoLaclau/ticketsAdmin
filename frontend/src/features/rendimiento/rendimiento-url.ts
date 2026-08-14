@@ -3,9 +3,10 @@ import {
   PRIORIDADES_VALIDAS,
   type MotivoCategoria,
 } from "@workspace/ingesta";
-import { isValidCalendarDate } from "./calendar-date.ts";
+import { isValidCalendarDate } from "@/lib/calendar-date";
 
 export const RENDIMIENTO_PERIODOS = [
+  "todo",
   "mes",
   "semana",
   "ultimos_30",
@@ -24,6 +25,17 @@ export type RendimientoPeriodo = (typeof RENDIMIENTO_PERIODOS)[number];
 export type RendimientoVista = (typeof RENDIMIENTO_VISTAS)[number];
 export type RendimientoCategoria = MotivoCategoria;
 export type RendimientoPrioridad = (typeof PRIORIDADES_VALIDAS)[number];
+
+export const RENDIMIENTO_PERIODO_LABELS: Readonly<
+  Record<RendimientoPeriodo, string>
+> = {
+  todo: "Todo el historial",
+  mes: "Mes actual",
+  semana: "Semana actual",
+  ultimos_30: "Últimos 30 días",
+  ultimos_90: "Últimos 90 días",
+  personalizado: "Período personalizado",
+};
 
 type RendimientoPeriodoPredefinido = Exclude<
   RendimientoPeriodo,

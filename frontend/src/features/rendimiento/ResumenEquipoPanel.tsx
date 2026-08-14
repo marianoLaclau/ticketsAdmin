@@ -89,6 +89,7 @@ export interface ResumenEquipoPrioridadDistribucion {
 
 export interface ResumenEquipoPanelProps {
   periodo: ResumenEquipoPeriodo;
+  periodFilterLabel: string;
   tickets_ingresados: number;
   estado_actual: ResumenEquipoEstadoActual;
   resolucion_con_fecha: ResumenEquipoResolucionConFecha;
@@ -263,6 +264,7 @@ interface OperationalKpiCardProps {
   tone: "blue" | "amber" | "violet" | "emerald";
   percentage?: number | null;
   progressValueText?: string | undefined;
+  scopeLabel?: string | undefined;
 }
 
 const OPERATIONAL_KPI_TONES: Record<OperationalKpiCardProps["tone"], string> = {
@@ -283,6 +285,7 @@ function OperationalKpiCard({
   tone,
   percentage,
   progressValueText,
+  scopeLabel,
 }: OperationalKpiCardProps) {
   const descriptionId = `${id}-description`;
   const normalizedProgress = normalizePercentage(percentage ?? null);
@@ -305,6 +308,14 @@ function OperationalKpiCard({
           <h3 id={id} className="text-sm font-semibold leading-tight">
             {title}
           </h3>
+          {scopeLabel ? (
+            <Badge
+              variant="outline"
+              className="mt-1 h-auto max-w-full whitespace-normal bg-slate-50 px-2 py-0.5 text-left text-[10px] font-medium leading-tight text-muted-foreground"
+            >
+              Período evaluado: {scopeLabel}
+            </Badge>
+          ) : null}
           <p className="mt-2 text-2xl font-bold leading-none tabular-nums sm:text-3xl">
             {value}
           </p>
@@ -467,22 +478,31 @@ function TimingPanel({
           <h2 className="font-semibold">Tiempo de resolución</h2>
         </div>
         <CardDescription>
-          Calculado únicamente sobre tickets con fecha de resolución.
+          Horas corridas desde la creación hasta la resolución, únicamente en
+          tickets actualmente finalizados con ambas fechas disponibles.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-5">
         {hasMetrics ? (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border bg-slate-50 p-3">
               <p className="text-xs text-muted-foreground">Mediana</p>
               <p className="mt-1 text-xl font-bold tabular-nums">
                 {formatHours(resolution.mediana_horas)}
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                Valor central: la mitad de la muestra se resolvió en este tiempo
+                o menos. Reduce el efecto de casos excepcionalmente largos.
               </p>
             </div>
             <div className="rounded-lg border bg-slate-50 p-3">
               <p className="text-xs text-muted-foreground">Promedio</p>
               <p className="mt-1 text-xl font-bold tabular-nums">
                 {formatHours(resolution.promedio_horas)}
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                Suma de todos los tiempos dividida por la muestra. Los casos muy
+                demorados pueden elevarlo considerablemente.
               </p>
             </div>
           </div>
@@ -501,8 +521,10 @@ function TimingPanel({
             </p>
           </div>
         )}
-        <p className="mt-3 text-xs text-muted-foreground">
-          Muestra: {numberFormatter.format(sample)} tickets
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          Muestra: {numberFormatter.format(sample)} tickets finalizados con
+          fechas utilizables. Las horas son corridas: incluyen noches, fines de
+          semana y feriados.
         </p>
         <CoverageNotice
           sample={sample}
@@ -527,6 +549,7 @@ function genericConfig(key: string): VisualConfig {
 
 export function ResumenEquipoPanel({
   periodo,
+  periodFilterLabel,
   tickets_ingresados,
   estado_actual,
   resolucion_con_fecha,
@@ -719,6 +742,7 @@ export function ResumenEquipoPanel({
                         : "No hay resoluciones con plazo auditable."
                     }
                     description="Resoluciones auditables realizadas dentro del plazo vigente."
+                    scopeLabel={periodFilterLabel}
                     icon={ListChecks}
                     tone="blue"
                     percentage={hasCompliance ? compliancePercentage : null}

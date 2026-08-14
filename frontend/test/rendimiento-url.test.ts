@@ -9,7 +9,7 @@ import {
   parseRendimientoUrlState,
   serializeRendimientoUrlState,
   type RendimientoUrlState,
-} from "../src/lib/rendimiento-url.ts";
+} from "../src/features/rendimiento/rendimiento-url.ts";
 
 describe("codec URL de Rendimiento", () => {
   it("usa mes como período predeterminado y lo omite de la URL", () => {
@@ -54,7 +54,12 @@ describe("codec URL de Rendimiento", () => {
   });
 
   it("mantiene todos los períodos predefinidos en un roundtrip", () => {
-    for (const periodo of ["semana", "ultimos_30", "ultimos_90"] as const) {
+    for (const periodo of [
+      "todo",
+      "semana",
+      "ultimos_30",
+      "ultimos_90",
+    ] as const) {
       const state: RendimientoUrlState = { periodo, vista: "equipo" };
       const serialized = serializeRendimientoUrlState(state);
 

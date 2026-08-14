@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { LoadingStatus } from "@/components/ui/loading-status";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUserErrorMessage } from "@/lib/error-messages";
-import type { RendimientoUrlState } from "@/lib/rendimiento-url";
+import type { RendimientoUrlState } from "@/features/rendimiento/rendimiento-url";
 import { buildRendimientoParams } from "./rendimiento-query";
 import { RendimientoPersonasPanel } from "./RendimientoPersonasPanel";
 import { RendimientoRefreshStatus } from "./RendimientoRefreshStatus";

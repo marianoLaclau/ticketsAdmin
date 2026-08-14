@@ -17,6 +17,7 @@ const BASE_PROPS: ResumenEquipoPanelProps = {
     timezone: "America/Argentina/Buenos_Aires",
     generado_en: "2026-08-13T15:00:00.000Z",
   },
+  periodFilterLabel: "Mes actual",
   tickets_ingresados: 154,
   estado_actual: {
     total: 154,
@@ -106,7 +107,22 @@ test("presenta volumen, indicadores operativos, distribuciones y tiempos con sus
   assert.ok(timing);
   assert.ok(within(timing).getByText("18 h 15 min"));
   assert.ok(within(timing).getByText("25 h 30 min"));
-  assert.ok(within(timing).getByText("Muestra: 75 tickets"));
+  assert.ok(
+    within(timing).getByText(
+      /Muestra: 75 tickets finalizados con fechas utilizables/,
+    ),
+  );
+  assert.ok(
+    within(timing).getByText(
+      /la mitad de la muestra se resolvió en este tiempo o menos/i,
+    ),
+  );
+  assert.ok(
+    within(timing).getByText(
+      /suma de todos los tiempos dividida por la muestra/i,
+    ),
+  );
+  assert.ok(within(timing).getByText(/las horas son corridas/i));
   assert.ok(within(timing).getByText(/Cobertura parcial:/));
 
   const sla = screen
@@ -114,6 +130,7 @@ test("presenta volumen, indicadores operativos, distribuciones y tiempos con sus
     .closest<HTMLElement>("article");
   assert.ok(sla);
   assert.ok(within(sla).getByText("80,6%"));
+  assert.ok(within(sla).getByText("Período evaluado: Mes actual"));
   assert.ok(within(sla).getByText("58 de 72 resoluciones dentro del plazo"));
   assert.ok(
     within(sla).getByRole("progressbar", {
@@ -345,6 +362,7 @@ test("presenta un estado vacío general y permite limpiar filtros", async (t) =>
   render(
     <ResumenEquipoPanel
       periodo={BASE_PROPS.periodo}
+      periodFilterLabel="Mes actual"
       tickets_ingresados={0}
       estado_actual={{
         total: 0,

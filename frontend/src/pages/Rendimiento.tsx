@@ -20,7 +20,7 @@ import {
   createDefaultRendimientoUrlState,
   type RendimientoFilterState,
   type RendimientoVista,
-} from "@/lib/rendimiento-url";
+} from "@/features/rendimiento/rendimiento-url";
 
 interface RendimientoView {
   value: RendimientoVista;

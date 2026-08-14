@@ -519,6 +519,68 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
   await assertNoAxeViolations();
 });
 
+test("consulta todo el historial sin enviar límites de fecha", async (t) => {
+  t.after(cleanup);
+  const previousFetch = globalThis.fetch;
+  const requestedUrls: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = getRequestUrl(input);
+    requestedUrls.push(url);
+    const response = summaryResponse();
+    response.periodo = {
+      ...response.periodo,
+      fecha_desde: null,
+      fecha_hasta: null,
+    };
+    return new Response(JSON.stringify(response), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+  t.after(() => {
+    globalThis.fetch = previousFetch;
+  });
+
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, refetchOnWindowFocus: false },
+    },
+  });
+  t.after(() => queryClient.clear());
+  const location = memoryLocation({
+    path: "/rendimiento",
+    searchPath: "periodo=todo",
+    record: true,
+  });
+
+  render(
+    <QueryClientProvider client={queryClient}>
+      <Router hook={location.hook} searchHook={location.searchHook}>
+        <Rendimiento />
+      </Router>
+    </QueryClientProvider>,
+  );
+
+  assert.ok(await screen.findByRole("heading", { name: "Resumen del equipo" }));
+  assert.ok(screen.getAllByText("Todo el historial").length >= 1);
+  const complianceCard = screen
+    .getByRole("heading", { name: "Cumplimiento del plazo" })
+    .closest<HTMLElement>("article");
+  assert.ok(complianceCard);
+  assert.ok(
+    within(complianceCard).getByText("Período evaluado: Todo el historial"),
+  );
+  assert.equal(location.history.at(-1), "/rendimiento?periodo=todo");
+
+  const requestUrl = requestedUrls.find((url) =>
+    url.includes("/rendimiento/resumen-equipo"),
+  );
+  assert.ok(requestUrl);
+  const params = new URL(requestUrl, "http://localhost").searchParams;
+  assert.equal(params.has("fecha_desde"), false);
+  assert.equal(params.has("fecha_hasta"), false);
+});
+
 test("abre y recarga un deep-link en la vista indicada sin perder filtros", async (t) => {
   t.after(cleanup);
   const previousFetch = globalThis.fetch;

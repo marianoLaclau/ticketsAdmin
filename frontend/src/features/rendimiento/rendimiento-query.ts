@@ -6,7 +6,7 @@ import type {
 import type {
   RendimientoPeriodo,
   RendimientoFilterState,
-} from "@/lib/rendimiento-url";
+} from "@/features/rendimiento/rendimiento-url";
 
 export const RENDIMIENTO_TIME_ZONE = "America/Argentina/Buenos_Aires";
 
@@ -82,7 +82,7 @@ export function createDefaultRendimientoCustomRange(
 }
 
 function getPresetRange(
-  periodo: Exclude<RendimientoPeriodo, "personalizado">,
+  periodo: Exclude<RendimientoPeriodo, "personalizado" | "todo">,
   now: Date,
 ): RendimientoDateRange {
   const today = getBusinessDateParts(now);
@@ -113,10 +113,12 @@ function getPresetRange(
 export function getRendimientoDateRange(
   state: RendimientoFilterState,
   now = new Date(),
-): RendimientoDateRange {
-  return state.periodo === "personalizado"
-    ? { desde: state.desde, hasta: state.hasta }
-    : getPresetRange(state.periodo, now);
+): RendimientoDateRange | null {
+  if (state.periodo === "todo") return null;
+  if (state.periodo === "personalizado") {
+    return { desde: state.desde, hasta: state.hasta };
+  }
+  return getPresetRange(state.periodo, now);
 }
 
 export function buildRendimientoParams(
@@ -125,8 +127,7 @@ export function buildRendimientoParams(
 ): RendimientoQueryParams {
   const range = getRendimientoDateRange(state, now);
   return {
-    fecha_desde: range.desde,
-    fecha_hasta: range.hasta,
+    ...(range ? { fecha_desde: range.desde, fecha_hasta: range.hasta } : {}),
     ...(state.empresa ? { empresa: state.empresa } : {}),
     ...(state.categoria ? { motivo_categoria: state.categoria } : {}),
     ...(state.prioridad ? { prioridad: state.prioridad } : {}),
