@@ -71,6 +71,15 @@ function summaryResponse(): RendimientoResumenEquipo {
       cumplidos: 58,
       porcentaje: 80.6,
     },
+    cumplimiento_plazo: {
+      muestra: 90,
+      cumplidos: 70,
+      porcentaje: 77.8,
+      muestra_auditable: 72,
+      cumplidos_auditables: 58,
+      muestra_historica_reconstruida: 18,
+      cumplidos_historicos_reconstruidos: 12,
+    },
     backlog_vencido: {
       abiertos: 64,
       con_plazo: 60,
@@ -162,6 +171,8 @@ function personasResponse(): RendimientoPersonas {
     cobertura: {
       resoluciones_evaluadas: 20,
       resoluciones_atribuidas: 17,
+      finalizaciones_historicas_detectadas: 5,
+      finalizaciones_historicas_atribuidas: 4,
       porcentaje_atribucion: 85,
       atribucion_desde: "2026-08-02T14:30:00.000Z",
       comparacion_individual_estado: "parcial",
@@ -179,6 +190,7 @@ function personasResponse(): RendimientoPersonas {
         },
         tickets_resueltos: 12,
         resoluciones_atribuidas: 13,
+        finalizaciones_historicas_atribuidas: 4,
         tiempo_resolucion_atribuible: {
           muestra: 11,
           promedio_horas: 25.5,
@@ -379,7 +391,26 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
     companyFilter.getAttribute("aria-describedby"),
     "rendimiento-empresa-ayuda",
   );
-  assert.ok(screen.getByText("Busca coincidencias dentro del nombre."));
+  const companyHelp = screen.getByText(
+    "Busca coincidencias dentro del nombre.",
+  );
+  assert.match(companyHelp.className, /sr-only/);
+  assert.ok(
+    screen.getByRole("button", {
+      name: "Ayuda sobre búsqueda por nombre",
+    }),
+  );
+  for (const label of ["Período", "Categoría", "Prioridad"]) {
+    assert.match(
+      screen.getByText(label, { selector: "label" }).className,
+      /h-6/,
+    );
+  }
+  assert.match(
+    screen.getByText("Empresa", { selector: "label" }).parentElement
+      ?.className ?? "",
+    /h-6/,
+  );
 
   const tabList = screen.getByRole("tablist");
   assert.match(tabList.className, /grid-cols-2/);
@@ -395,7 +426,7 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
   assert.ok(ticketsKpi);
   assert.ok(within(ticketsKpi).getByText("154"));
   assert.ok(screen.getByText("18 h 15 min"));
-  assert.ok(screen.getByText("80,6%"));
+  assert.ok(screen.getByText("77,8%"));
   assert.equal(
     screen.queryByRole("heading", { name: "No hay actividad en este período" }),
     null,
@@ -502,7 +533,7 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
   assert.ok(screen.getByText("Datos auditados"));
   assert.ok(
     screen.getByRole("heading", {
-      name: "Comparación individual con cobertura parcial",
+      name: "Cobertura auditable parcial",
     }),
   );
   assert.ok(

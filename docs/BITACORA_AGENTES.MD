@@ -3813,3 +3813,123 @@ Archivos documentados: `README.md`, `backend/README_BACKEND.md`,
 `frontend/README_FRONTEND.md`, `docs/ARQUITECTURA.MD`, `docs/FLUJO.md` y
 `docs/BITACORA_AGENTES.MD`. La implementación y su documentación quedaron en
 commits locales independientes; no se realizó push.
+
+## 2026-08-14 — Rendimiento: recuperación histórica y actividad por operador
+
+**Agente:** Codex
+
+### Recuperación y alcance
+
+- Se identificó que el aviso de cobertura insuficiente no representaba una
+  ausencia de datos: la columna estructurada `autor_usuario_id` fue incorporada
+  después de 66 transiciones históricas de resolución, cuyos autores todavía
+  estaban preservados en las asignaciones y en el texto de auditoría.
+- La migración `0021_backfill_resolution_actors.sql` reconstruye únicamente el
+  actor de transiciones reales a `resuelto` o `cerrado` cuando la última
+  asignación estructurada coincide con el autor textual. Es idempotente, no
+  sobrescribe actores existentes y no altera tickets, fechas, estados ni
+  seguimientos. Una desasignación posterior invalida responsables anteriores y
+  cuenta con una prueba de regresión específica.
+- La consulta individual suma además los tickets finalizados anteriores al
+  registro de eventos cuando poseen fecha de resolución y responsable
+  estructurado. Esos casos se presentan explícitamente como históricos: sirven
+  para volumen y tiempo de finalización, pero no para cumplimiento del plazo ni
+  reaperturas porque carecen del snapshot requerido.
+- Sobre una copia del backup productivo se recuperaron las 66 transiciones y se
+  incorporaron 49 finalizaciones históricas sin evento: 115 finalizaciones
+  analizables y atribuibles en total. La integridad de SQLite permaneció
+  correcta y la base productiva original no fue modificada.
+- El borrado físico de usuarios queda bloqueado también cuando preservan
+  asignaciones, autorías o responsabilidad histórica, evitando perder la
+  trazabilidad recuperada.
+
+### Interfaz y validación
+
+- **Actividad por operador** muestra inicialmente tres filas y ofrece controles
+  accesibles para desplegar el resto o volver a contraer la lista.
+- La pantalla distingue finalizaciones con evento de las recuperadas desde el
+  historial y explica qué indicadores pueden utilizar cada fuente. El estado
+  de cobertura para comparar operadores se calcula solo con eventos reales;
+  los snapshots legacy aportan actividad, pero no habilitan una comparación.
+- Aprobaron las pruebas de migración y base de datos, las 277 pruebas del
+  backend, las pruebas focales de Rendimiento, ESLint, TypeScript y los builds
+  de backend y frontend. La suite unitaria completa del frontend aprobó sus 203
+  casos; la ejecución conjunta agotó el tiempo disponible al iniciar la suite
+  de componentes, cuyos nueve casos afectados aprobaron por separado.
+- Los cambios permanecen locales, sin commit ni push.
+
+## 2026-08-14 — Rendimiento: cumplimiento sobre todo el historial
+
+**Agente:** Codex
+
+### Corrección funcional
+
+- Se comprobó que el selector **Todo el historial** ya forma parte de `main` y
+  del despliegue exitoso del commit `0e7f65a`; continúa dentro del desplegable
+  **Período** y también se representa con `?periodo=todo`.
+- El 100 % observado no era un error aritmético: la tarjeta utilizaba solo las
+  finalizaciones posteriores a la incorporación de `fecha_limite_snapshot`.
+  Esa muestra era válida pero insuficiente para el análisis histórico pedido.
+- `cumplimiento_plazo_auditable` mantiene intacto su significado. El nuevo
+  agregado `cumplimiento_plazo` suma los eventos con vencimiento preservado y
+  una única última finalización reconstruible para cada ticket final sin
+  snapshot, usando `fecha_resolucion` y `fecha_limite` coherentes. Una
+  finalización auditada nunca se duplica y una resolución futura respecto de
+  `generado_en` no ingresa anticipadamente al indicador.
+- La tarjeta usa el agregado completo, muestra cumplidos sobre muestra total y
+  explicita muestra y cumplidos tanto para la fuente auditable como para la
+  reconstruida. La
+  etiqueta del alcance refleja exactamente el filtro elegido, incluido **Todo
+  el historial**.
+- La reconstrucción no modifica SQLite ni recalcula plazos antiguos. Usa los
+  valores actualmente persistidos y, por lo tanto, se documenta como evidencia
+  histórica de menor fuerza que un snapshot inmutable. El cumplimiento
+  individual de Operadores continúa siendo estrictamente auditable.
+
+### Evidencia
+
+- Sobre el backup productivo disponible, 115 tickets finalizados poseen fechas
+  coherentes: 86 dentro del plazo y 29 fuera, equivalente a **74,8 %**. La base
+  original no fue modificada.
+- Se agregó una regresión que combina ciclos auditados, eventos sin snapshot y
+  tickets legacy sin evento; también cubre no duplicación, abiertos excluidos y
+  fechas incoherentes.
+- Aprobaron las pruebas específicas de backend y frontend y los typechecks de
+  ambos proyectos. Al momento de este registro no se realizó commit ni push.
+
+## 2026-08-14 — Rendimiento: comparación histórica y filtros alineados
+
+**Agente:** Codex
+
+### Comparación de operadores
+
+- Se corrigió el criterio registrado en la entrada anterior: la disponibilidad
+  para comparar Operadores evalúa todas las finalizaciones atribuibles del
+  conjunto seleccionado, tanto transiciones reales como tickets legacy
+  finalizados sin evento equivalente. Las fuentes continúan desglosadas y no se
+  inventan responsables para casos sin identidad estructurada.
+- Con **Todo el historial**, el backup productivo aporta 66 transiciones
+  recuperadas y 49 finalizaciones legacy atribuibles: 115 de 115 hechos con
+  responsable. Esa cobertura habilita la lectura comparativa sin convertirla en
+  un ranking.
+- Las finalizaciones con fecha anterior a la creación del ticket o posterior al
+  instante del reporte se excluyen de volumen, cobertura y tiempos; permanecen
+  en la base para su revisión, pero no contaminan la comparación ejecutiva.
+- El cumplimiento individual del plazo no cambia: sigue usando solamente
+  eventos reales con `fecha_limite_snapshot`. La vista Calidad de datos fue
+  rotulada como cobertura auditable para distinguir con claridad ambos
+  conceptos.
+
+### Interfaz y accesibilidad
+
+- La ayuda visible debajo del filtro Empresa generaba una tercera línea y
+  desalineaba ese control respecto de Período, Categoría y Prioridad. Se movió a
+  un tooltip accesible junto a la etiqueta; el texto permanece asociado mediante
+  `aria-describedby` y oculto visualmente, por lo que la grilla conserva una
+  altura uniforme sin perder contexto para teclado o lectores de pantalla.
+- Se incorporaron regresiones para el umbral combinado de Operadores, los
+  estados de cobertura auditable y la estructura accesible del filtro.
+- Aprobaron las suites completas de los diez paquetes con pruebas, los 11 flujos
+  Playwright, ESLint sin advertencias, Prettier, schema Drizzle, TypeScript y los
+  builds productivos. Los servidores locales quedaron apagados antes de la
+  publicación para no competir con el runner de despliegue.

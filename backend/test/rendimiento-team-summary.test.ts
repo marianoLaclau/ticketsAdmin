@@ -303,6 +303,15 @@ describe("resumen de equipo de Rendimiento", () => {
         cumplidos: 2,
         porcentaje: 66.7,
       },
+      cumplimiento_plazo: {
+        muestra: 3,
+        cumplidos: 2,
+        porcentaje: 66.7,
+        muestra_auditable: 3,
+        cumplidos_auditables: 2,
+        muestra_historica_reconstruida: 0,
+        cumplidos_historicos_reconstruidos: 0,
+      },
       backlog_vencido: {
         abiertos: 3,
         con_plazo: 2,
@@ -361,6 +370,146 @@ describe("resumen de equipo de Rendimiento", () => {
       promedio_horas: 2.53,
       // Centro exacto: (62 + 181) / 2 = 121.5 minutos = 2.025 horas.
       mediana_horas: 2.03,
+    });
+    sqlite.close();
+  });
+
+  it("combina evidencia auditable con la ultima finalizacion historica sin duplicarla", () => {
+    const { sqlite, database } = createDatabase();
+
+    const audited = insertTicket(sqlite, {
+      conversationId: "auditado",
+      createdAt: "2026-08-01T08:00:00.000Z",
+      status: "resuelto",
+      deadline: "2026-08-01T09:00:00.000Z",
+      resolvedAt: "2026-08-01T10:00:00.000Z",
+    });
+    insertResolution(sqlite, {
+      ticketId: audited,
+      from: "en_proceso",
+      to: "resuelto",
+      resolvedAt: "2026-08-01T10:00:00.000Z",
+      deadlineSnapshot: "2026-08-01T11:00:00.000Z",
+    });
+
+    insertTicket(sqlite, {
+      conversationId: "historico-sin-evento",
+      createdAt: "2026-08-02T08:00:00.000Z",
+      status: "cerrado",
+      deadline: "2026-08-02T12:00:00.000Z",
+      resolvedAt: "2026-08-02T11:00:00.000Z",
+    });
+
+    const historicalEvent = insertTicket(sqlite, {
+      conversationId: "historico-con-evento",
+      createdAt: "2026-08-03T08:00:00.000Z",
+      status: "resuelto",
+      deadline: "2026-08-03T10:00:00.000Z",
+      resolvedAt: "2026-08-03T11:00:00.000Z",
+    });
+    insertResolution(sqlite, {
+      ticketId: historicalEvent,
+      from: "nuevo",
+      to: "resuelto",
+      resolvedAt: "2026-08-03T11:00:00.000Z",
+    });
+
+    const multipleCycles = insertTicket(sqlite, {
+      conversationId: "ciclos-mixtos",
+      createdAt: "2026-08-04T08:00:00.000Z",
+      status: "cerrado",
+      deadline: "2026-08-04T16:00:00.000Z",
+      resolvedAt: "2026-08-04T15:00:00.000Z",
+    });
+    insertResolution(sqlite, {
+      ticketId: multipleCycles,
+      from: "nuevo",
+      to: "resuelto",
+      resolvedAt: "2026-08-04T10:00:00.000Z",
+      deadlineSnapshot: "2026-08-04T11:00:00.000Z",
+    });
+    insertResolution(sqlite, {
+      ticketId: multipleCycles,
+      from: "resuelto",
+      to: "en_proceso",
+      resolvedAt: "2026-08-04T12:00:00.000Z",
+    });
+    insertResolution(sqlite, {
+      ticketId: multipleCycles,
+      from: "en_proceso",
+      to: "cerrado",
+      resolvedAt: "2026-08-04T15:00:00.000Z",
+    });
+
+    insertTicket(sqlite, {
+      conversationId: "abierto-no-reconstruido",
+      createdAt: "2026-08-05T08:00:00.000Z",
+      status: "en_proceso",
+      deadline: "2026-08-05T12:00:00.000Z",
+      resolvedAt: "2026-08-05T11:00:00.000Z",
+    });
+    insertTicket(sqlite, {
+      conversationId: "historico-incoherente",
+      createdAt: "2026-08-06T08:00:00.000Z",
+      status: "resuelto",
+      deadline: "2026-08-06T07:00:00.000Z",
+      resolvedAt: "2026-08-06T09:00:00.000Z",
+    });
+    insertTicket(sqlite, {
+      conversationId: "historico-resuelto-en-el-futuro",
+      createdAt: "2026-08-07T08:00:00.000Z",
+      status: "resuelto",
+      deadline: "2026-09-02T08:00:00.000Z",
+      resolvedAt: "2026-09-01T08:00:00.000Z",
+    });
+    const auditedBeforeCreation = insertTicket(sqlite, {
+      conversationId: "auditado-anterior-a-creacion",
+      createdAt: "2026-08-08T08:00:00.000Z",
+      status: "resuelto",
+      deadline: "2026-08-08T10:00:00.000Z",
+      resolvedAt: "2026-08-08T07:00:00.000Z",
+    });
+    insertResolution(sqlite, {
+      ticketId: auditedBeforeCreation,
+      from: "nuevo",
+      to: "resuelto",
+      resolvedAt: "2026-08-08T07:00:00.000Z",
+      deadlineSnapshot: "2026-08-08T10:00:00.000Z",
+    });
+    const auditedFuture = insertTicket(sqlite, {
+      conversationId: "auditado-en-el-futuro",
+      createdAt: "2026-08-09T08:00:00.000Z",
+      status: "resuelto",
+      deadline: "2026-09-02T08:00:00.000Z",
+      resolvedAt: "2026-09-01T08:00:00.000Z",
+    });
+    insertResolution(sqlite, {
+      ticketId: auditedFuture,
+      from: "nuevo",
+      to: "resuelto",
+      resolvedAt: "2026-09-01T08:00:00.000Z",
+      deadlineSnapshot: "2026-09-02T08:00:00.000Z",
+    });
+
+    const result = consultarResumenEquipo(
+      database,
+      {},
+      new Date("2026-08-31T12:00:00.000Z"),
+    );
+
+    assert.deepEqual(result.cumplimiento_plazo_auditable, {
+      muestra: 2,
+      cumplidos: 2,
+      porcentaje: 100,
+    });
+    assert.deepEqual(result.cumplimiento_plazo, {
+      muestra: 5,
+      cumplidos: 4,
+      porcentaje: 80,
+      muestra_auditable: 2,
+      cumplidos_auditables: 2,
+      muestra_historica_reconstruida: 3,
+      cumplidos_historicos_reconstruidos: 2,
     });
     sqlite.close();
   });
@@ -432,6 +581,15 @@ describe("resumen de equipo de Rendimiento", () => {
       cumplidos: 1,
       porcentaje: 100,
     });
+    assert.deepEqual(result.cumplimiento_plazo, {
+      muestra: 1,
+      cumplidos: 1,
+      porcentaje: 100,
+      muestra_auditable: 1,
+      cumplidos_auditables: 1,
+      muestra_historica_reconstruida: 0,
+      cumplidos_historicos_reconstruidos: 0,
+    });
     assert.deepEqual(result.backlog_vencido, {
       abiertos: 0,
       con_plazo: 0,
@@ -500,6 +658,15 @@ describe("resumen de equipo de Rendimiento", () => {
         muestra: 0,
         cumplidos: 0,
         porcentaje: null,
+      },
+      cumplimiento_plazo: {
+        muestra: 0,
+        cumplidos: 0,
+        porcentaje: null,
+        muestra_auditable: 0,
+        cumplidos_auditables: 0,
+        muestra_historica_reconstruida: 0,
+        cumplidos_historicos_reconstruidos: 0,
       },
       backlog_vencido: {
         abiertos: 0,

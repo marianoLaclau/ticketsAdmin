@@ -1168,6 +1168,11 @@ export const SendRendimientoChatMessageResponse = zod.object({
  * plazo vigente al resolverse. El cambio `resuelto` a `cerrado` no cuenta
  * como otra resolución.
  *
+ * `cumplimiento_plazo` agrega a esa evidencia una reconstrucción de la
+ * última finalización de tickets legacy usando sus valores persistidos de
+ * `fecha_resolucion` y `fecha_limite`. Expone ambas muestras por separado
+ * y nunca duplica una finalización que ya posee snapshot auditable.
+ *
  * `backlog_vencido`, `antiguedad_backlog` y `cobertura_asignacion`
  * describen únicamente los tickets actualmente abiertos del mismo conjunto
  * analizado. No incorporan backlog creado fuera del período solicitado.
@@ -1203,6 +1208,21 @@ export const getRendimientoResumenEquipoResponseCumplimientoPlazoAuditableCumpli
 
 export const getRendimientoResumenEquipoResponseCumplimientoPlazoAuditablePorcentajeMin = 0;
 export const getRendimientoResumenEquipoResponseCumplimientoPlazoAuditablePorcentajeMax = 100;
+
+export const getRendimientoResumenEquipoResponseCumplimientoPlazoMuestraMin = 0;
+
+export const getRendimientoResumenEquipoResponseCumplimientoPlazoCumplidosMin = 0;
+
+export const getRendimientoResumenEquipoResponseCumplimientoPlazoPorcentajeMin = 0;
+export const getRendimientoResumenEquipoResponseCumplimientoPlazoPorcentajeMax = 100;
+
+export const getRendimientoResumenEquipoResponseCumplimientoPlazoMuestraAuditableMin = 0;
+
+export const getRendimientoResumenEquipoResponseCumplimientoPlazoCumplidosAuditablesMin = 0;
+
+export const getRendimientoResumenEquipoResponseCumplimientoPlazoMuestraHistoricaReconstruidaMin = 0;
+
+export const getRendimientoResumenEquipoResponseCumplimientoPlazoCumplidosHistoricosReconstruidosMin = 0;
 
 export const getRendimientoResumenEquipoResponseBacklogVencidoAbiertosMin = 0;
 
@@ -1270,6 +1290,15 @@ export const GetRendimientoResumenEquipoResponse = zod.object({
   "cumplidos": zod.number().min(getRendimientoResumenEquipoResponseCumplimientoPlazoAuditableCumplidosMin),
   "porcentaje": zod.number().min(getRendimientoResumenEquipoResponseCumplimientoPlazoAuditablePorcentajeMin).max(getRendimientoResumenEquipoResponseCumplimientoPlazoAuditablePorcentajeMax).nullable()
 }).describe('Cumplimiento basado exclusivamente en transiciones no-final a final con fecha_limite_snapshot. Una resolución cumple cuando la fecha del evento no supera ese snapshot. porcentaje es null cuando muestra es cero.\n'),
+  "cumplimiento_plazo": zod.object({
+  "muestra": zod.number().min(getRendimientoResumenEquipoResponseCumplimientoPlazoMuestraMin).describe('Finalizaciones evaluadas entre ambas fuentes.'),
+  "cumplidos": zod.number().min(getRendimientoResumenEquipoResponseCumplimientoPlazoCumplidosMin).describe('Finalizaciones dentro del plazo entre ambas fuentes.'),
+  "porcentaje": zod.number().min(getRendimientoResumenEquipoResponseCumplimientoPlazoPorcentajeMin).max(getRendimientoResumenEquipoResponseCumplimientoPlazoPorcentajeMax).nullable(),
+  "muestra_auditable": zod.number().min(getRendimientoResumenEquipoResponseCumplimientoPlazoMuestraAuditableMin).describe('Transiciones con snapshot histórico del plazo.'),
+  "cumplidos_auditables": zod.number().min(getRendimientoResumenEquipoResponseCumplimientoPlazoCumplidosAuditablesMin),
+  "muestra_historica_reconstruida": zod.number().min(getRendimientoResumenEquipoResponseCumplimientoPlazoMuestraHistoricaReconstruidaMin).describe('Tickets finales sin una transición auditable equivalente, evaluados con sus fechas de resolución y límite persistidas.\n'),
+  "cumplidos_historicos_reconstruidos": zod.number().min(getRendimientoResumenEquipoResponseCumplimientoPlazoCumplidosHistoricosReconstruidosMin)
+}).describe('Cumplimiento combinado del plazo. Prioriza transiciones no-final a final que conservaron fecha_limite_snapshot y, cuando la última finalización de un ticket no posee esa evidencia, reconstruye una única finalización histórica comparando fecha_resolucion con fecha_limite. Solo considera resoluciones ocurridas hasta generado_en. Las cantidades por fuente permiten distinguir evidencia auditable de la reconstrucción legacy. porcentaje es null cuando muestra es cero.\n'),
   "backlog_vencido": zod.object({
   "abiertos": zod.number().min(getRendimientoResumenEquipoResponseBacklogVencidoAbiertosMin),
   "con_plazo": zod.number().min(getRendimientoResumenEquipoResponseBacklogVencidoConPlazoMin),
@@ -1307,24 +1336,33 @@ export const GetRendimientoResumenEquipoResponse = zod.object({
  * demás vistas de Rendimiento. `empresa`, `motivo_categoria` y `prioridad`
  * se aplican antes de calcular cualquier indicador.
  *
- * Una resolución se atribuye exclusivamente al `autor_usuario_id` de una
+ * Una resolución auditada se atribuye al `autor_usuario_id` de una
  * transición desde un estado no final hacia `resuelto` o `cerrado`. El
- * cambio posterior de `resuelto` a `cerrado` no crea otra resolución. El
- * tiempo atribuible son horas corridas desde la creación del ticket hasta
- * ese evento; no representa tiempo exclusivo de trabajo de la persona.
+ * cambio posterior de `resuelto` a `cerrado` no crea otra resolución.
+ * También incorpora tickets legacy finalizados que conservan
+ * `fecha_resolucion` y `asignado_usuario_id`, pero no tienen una transición
+ * de resolución: se informan por separado como finalizaciones históricas.
+ * En un ticket cerrado esa fuente identifica al responsable de la última
+ * transición final persistida, no necesariamente al primer resolutor.
  *
- * El cumplimiento solo usa eventos atribuibles que conservaron
- * `fecha_limite_snapshot`. La carga es una fotografía al instante
+ * El tiempo atribuible son horas corridas desde la creación del ticket
+ * hasta el evento auditado o la `fecha_resolucion` legacy; no representa
+ * tiempo exclusivo de trabajo de la persona.
+ *
+ * El cumplimiento solo usa eventos auditados que conservaron
+ * `fecha_limite_snapshot`; nunca estima el plazo de las filas legacy. La
+ * carga es una fotografía al instante
  * `generado_en` de tickets abiertos con `asignado_usuario_id` estructurado.
  * `resoluciones_reabiertas` observa el resultado de una resolución
- * atribuible: cuenta esa resolución una sola vez si luego existe una
+ * auditada: cuenta esa resolución una sola vez si luego existe una
  * transición de estado final a no final antes de la siguiente resolución
  * del mismo ticket. Es contexto operativo, no una calificación negativa.
  *
  * Las personas se devuelven alfabéticamente, nunca como ranking. La API no
- * calcula puntajes ni posiciones y explicita la cobertura global para que
+ * calcula puntajes ni posiciones y evalúa la comparabilidad sobre todas las
+ * finalizaciones analizadas, incluidas las históricas atribuibles, para que
  * una muestra pequeña o incompleta no se presente como comparable.
- * @summary Consultar indicadores auditables por persona
+ * @summary Consultar indicadores de finalización por persona
  */
 export const GetRendimientoPersonasQueryParams = zod.object({
   "fecha_desde": zod.coerce.date().optional().describe('Primer día incluido según fecha_creacion del ticket (YYYY-MM-DD).'),
@@ -1340,6 +1378,10 @@ export const getRendimientoPersonasResponseCoberturaResolucionesEvaluadasMin = 0
 
 export const getRendimientoPersonasResponseCoberturaResolucionesAtribuidasMin = 0;
 
+export const getRendimientoPersonasResponseCoberturaFinalizacionesHistoricasDetectadasMin = 0;
+
+export const getRendimientoPersonasResponseCoberturaFinalizacionesHistoricasAtribuidasMin = 0;
+
 export const getRendimientoPersonasResponseCoberturaPorcentajeAtribucionMin = 0;
 export const getRendimientoPersonasResponseCoberturaPorcentajeAtribucionMax = 100;
 
@@ -1349,6 +1391,8 @@ export const getRendimientoPersonasResponseCoberturaPorcentajeAtribucionMax = 10
 export const getRendimientoPersonasResponsePersonasItemTicketsResueltosMin = 0;
 
 export const getRendimientoPersonasResponsePersonasItemResolucionesAtribuidasMin = 0;
+
+export const getRendimientoPersonasResponsePersonasItemFinalizacionesHistoricasAtribuidasMin = 0;
 
 export const getRendimientoPersonasResponsePersonasItemTiempoResolucionAtribuibleMuestraMin = 0;
 
@@ -1380,15 +1424,17 @@ export const GetRendimientoPersonasResponse = zod.object({
 }),
   "tickets_evaluados": zod.number().min(getRendimientoPersonasResponseTicketsEvaluadosMin).describe('Tickets visibles del conjunto analizado luego de aplicar todos los filtros.'),
   "cobertura": zod.object({
-  "resoluciones_evaluadas": zod.number().min(getRendimientoPersonasResponseCoberturaResolucionesEvaluadasMin).describe('Total de transiciones no-final a final del conjunto analizado.'),
-  "resoluciones_atribuidas": zod.number().min(getRendimientoPersonasResponseCoberturaResolucionesAtribuidasMin).describe('Resoluciones evaluadas con autor_usuario_id que referencia un usuario persistido.\n'),
-  "porcentaje_atribucion": zod.number().min(getRendimientoPersonasResponseCoberturaPorcentajeAtribucionMin).max(getRendimientoPersonasResponseCoberturaPorcentajeAtribucionMax).nullable().describe('Porcentaje de resoluciones atribuidas; null cuando resoluciones_evaluadas es cero.\n'),
-  "atribucion_desde": zod.coerce.date().nullable().describe('Primera resolución atribuible del conjunto analizado, o null cuando no hay ninguna.\n'),
-  "comparacion_individual_estado": zod.enum(['insuficiente', 'parcial', 'disponible']).describe('insuficiente cuando hay menos de 10 resoluciones evaluadas o menos de 80% de autoría; parcial desde 80% y antes de 95%; disponible a partir de 95%. disponible acredita cobertura global, no una muestra individual suficiente ni permiso para construir un ranking.\n'),
+  "resoluciones_evaluadas": zod.number().min(getRendimientoPersonasResponseCoberturaResolucionesEvaluadasMin).describe('Hechos de finalización analizados: transiciones no-final a final más tickets legacy finalizados con fecha y sin una transición equivalente.\n'),
+  "resoluciones_atribuidas": zod.number().min(getRendimientoPersonasResponseCoberturaResolucionesAtribuidasMin).describe('Hechos evaluados con un usuario estructurado atribuible.\n'),
+  "finalizaciones_historicas_detectadas": zod.number().min(getRendimientoPersonasResponseCoberturaFinalizacionesHistoricasDetectadasMin).describe('Subconjunto recuperado desde tickets legacy finalizados con fecha, sin evento real de resolución. No constituye auditoría de transición.\n'),
+  "finalizaciones_historicas_atribuidas": zod.number().min(getRendimientoPersonasResponseCoberturaFinalizacionesHistoricasAtribuidasMin).describe('Finalizaciones históricas detectadas cuyo asignado_usuario_id referencia un usuario persistido.\n'),
+  "porcentaje_atribucion": zod.number().min(getRendimientoPersonasResponseCoberturaPorcentajeAtribucionMin).max(getRendimientoPersonasResponseCoberturaPorcentajeAtribucionMax).nullable().describe('Porcentaje de finalizaciones atribuidas; null cuando resoluciones_evaluadas es cero.\n'),
+  "atribucion_desde": zod.coerce.date().nullable().describe('Primera finalización atribuible del conjunto analizado, o null cuando no hay ninguna.\n'),
+  "comparacion_individual_estado": zod.enum(['insuficiente', 'parcial', 'disponible']).describe('Se calcula sobre todos los hechos de finalización analizados: transiciones reales no-final a final y tickets históricos sin evento equivalente. insuficiente cuando hay menos de 10 finalizaciones o menos de 80% de autoría estructurada; parcial desde 80% y antes de 95%; disponible a partir de 95%. disponible acredita cobertura global, no una muestra individual suficiente ni permiso para construir un ranking.\n'),
   "minimo_resoluciones_comparables": zod.literal(10).describe('Muestra global mínima exigida antes de comparar personas.'),
   "umbral_cobertura_parcial_porcentaje": zod.literal(80).describe('Cobertura de autoría desde la cual el estado puede ser parcial.'),
   "umbral_cobertura_disponible_porcentaje": zod.literal(95).describe('Cobertura de autoría desde la cual el estado puede ser disponible.')
-}).describe('Cobertura global de autoría para las resoluciones del conjunto analizado. El estado de comparación usa el mismo criterio auditable que Calidad de datos; aun cuando sea disponible, cada muestra individual debe quedar visible y la respuesta no constituye un ranking.\n'),
+}).describe('Cobertura global de autoría para las finalizaciones del conjunto analizado. Distingue las transiciones auditadas de los snapshots legacy; aun cuando sea disponible, cada muestra individual debe quedar visible y la respuesta no constituye un ranking.\n'),
   "personas": zod.array(zod.object({
   "usuario": zod.object({
   "id": zod.number().min(1),
@@ -1396,13 +1442,14 @@ export const GetRendimientoPersonasResponse = zod.object({
   "rol": zod.string().min(1).describe('Nombre actual del rol asociado al usuario.'),
   "activo": zod.boolean()
 }).describe('Identidad actual de un usuario persistido. No expone email, username ni credenciales. activo conserva contexto para actividad histórica de cuentas hoy desactivadas.\n'),
-  "tickets_resueltos": zod.number().min(getRendimientoPersonasResponsePersonasItemTicketsResueltosMin).describe('Tickets distintos con al menos una resolución atribuida a la persona. Puede ser menor que resoluciones_atribuidas cuando el mismo ticket fue reabierto y resuelto nuevamente por ella.\n'),
-  "resoluciones_atribuidas": zod.number().min(getRendimientoPersonasResponsePersonasItemResolucionesAtribuidasMin).describe('Eventos no-final a final cuyo autor_usuario_id coincide con el usuario. Un ticket puede aportar más de uno si fue reabierto y resuelto nuevamente.\n'),
+  "tickets_resueltos": zod.number().min(getRendimientoPersonasResponsePersonasItemTicketsResueltosMin).describe('Tickets distintos con al menos una finalización atribuida a la persona, auditada o recuperada desde el snapshot legacy. Puede ser menor que resoluciones_atribuidas cuando el mismo ticket fue reabierto y resuelto nuevamente por ella.\n'),
+  "resoluciones_atribuidas": zod.number().min(getRendimientoPersonasResponsePersonasItemResolucionesAtribuidasMin).describe('Finalizaciones atribuidas al usuario. Incluye eventos no-final a final y snapshots legacy sin evento; un ticket auditado puede aportar más de uno si fue reabierto y resuelto nuevamente.\n'),
+  "finalizaciones_historicas_atribuidas": zod.number().min(getRendimientoPersonasResponsePersonasItemFinalizacionesHistoricasAtribuidasMin).describe('Subconjunto de resoluciones_atribuidas recuperado desde tickets legacy finalizados sin evento de resolución.\n'),
   "tiempo_resolucion_atribuible": zod.object({
   "muestra": zod.number().min(getRendimientoPersonasResponsePersonasItemTiempoResolucionAtribuibleMuestraMin),
   "promedio_horas": zod.number().min(getRendimientoPersonasResponsePersonasItemTiempoResolucionAtribuiblePromedioHorasMin).nullable(),
   "mediana_horas": zod.number().min(getRendimientoPersonasResponsePersonasItemTiempoResolucionAtribuibleMedianaHorasMin).nullable()
-}).describe('Horas corridas desde fecha_creacion del ticket hasta cada transición no-final a final atribuida a la persona. Solo incluye duraciones válidas y no negativas. No mide tiempo exclusivo de trabajo. promedio_horas y mediana_horas son null cuando muestra es cero.\n'),
+}).describe('Horas corridas desde fecha_creacion del ticket hasta cada transición no-final a final atribuida o finalización histórica atribuible. Solo incluye duraciones válidas, no negativas y no futuras respecto del snapshot. No mide tiempo exclusivo de trabajo. promedio_horas y mediana_horas son null cuando muestra es cero.\n'),
   "cumplimiento_plazo_auditable": zod.object({
   "muestra": zod.number().min(getRendimientoPersonasResponsePersonasItemCumplimientoPlazoAuditableMuestraMin),
   "cumplidos": zod.number().min(getRendimientoPersonasResponsePersonasItemCumplimientoPlazoAuditableCumplidosMin),
@@ -1413,7 +1460,7 @@ export const GetRendimientoPersonasResponse = zod.object({
   "vencidos_asignados": zod.number().min(getRendimientoPersonasResponsePersonasItemCargaActualVencidosAsignadosMin)
 }).describe('Fotografía del conjunto analizado al instante generado_en. Solo cuenta tickets actualmente no finales cuyo asignado_usuario_id coincide con la persona; vencidos_asignados es un subconjunto de abiertos_asignados.\n'),
   "resoluciones_reabiertas": zod.number().min(getRendimientoPersonasResponsePersonasItemResolucionesReabiertasMin).describe('Resoluciones atribuibles de la persona tras las que ocurrió al menos una transición final a no-final y antes de la siguiente resolución del mismo ticket. Cada resolución se cuenta como máximo una vez; no atribuye la acción de reabrir y no implica una evaluación negativa.\n')
-}).describe('Indicadores auditables de una persona. Las cantidades son hechos independientes; no se combinan en un puntaje ni determinan una posición.\n')).describe('Todos los usuarios persistidos, activos o inactivos, ordenados por nombre y luego por id. El orden es alfabético, no un ranking.\n')
+}).describe('Indicadores por persona con fuente auditable o histórica explícita. Las cantidades son hechos independientes; no se combinan en un puntaje ni determinan una posición.\n')).describe('Todos los usuarios persistidos, activos o inactivos, ordenados por nombre y luego por id. El orden es alfabético, no un ranking.\n')
 })
 
 

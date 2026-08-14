@@ -96,7 +96,7 @@ test("muestra las seis coberturas con porcentaje y muestra", async (t) => {
   assert.ok(screen.getByText("85%"));
   assert.ok(
     screen.getByRole("heading", {
-      name: "Comparación individual con cobertura parcial",
+      name: "Cobertura auditable parcial",
     }),
   );
   await assertNoAxeViolations();
@@ -105,9 +105,9 @@ test("muestra las seis coberturas con porcentaje y muestra", async (t) => {
 test("presenta avisos distintos para cada estado de comparación", (t) => {
   t.after(cleanup);
   const expected = {
-    insuficiente: "Comparación individual no disponible",
-    parcial: "Comparación individual con cobertura parcial",
-    disponible: "Comparación individual disponible",
+    insuficiente: "Cobertura auditable limitada",
+    parcial: "Cobertura auditable parcial",
+    disponible: "Cobertura auditable disponible",
   } as const;
 
   for (const [status, heading] of Object.entries(expected)) {

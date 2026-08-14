@@ -53,6 +53,13 @@ export interface ResumenEquipoCumplimiento {
   porcentaje: number | null;
 }
 
+export interface ResumenEquipoCumplimientoTotal extends ResumenEquipoCumplimiento {
+  muestra_auditable: number;
+  cumplidos_auditables: number;
+  muestra_historica_reconstruida: number;
+  cumplidos_historicos_reconstruidos: number;
+}
+
 export interface ResumenEquipoBacklogVencido {
   abiertos: number;
   con_plazo: number;
@@ -94,6 +101,7 @@ export interface ResumenEquipoPanelProps {
   estado_actual: ResumenEquipoEstadoActual;
   resolucion_con_fecha: ResumenEquipoResolucionConFecha;
   cumplimiento_plazo_auditable: ResumenEquipoCumplimiento;
+  cumplimiento_plazo: ResumenEquipoCumplimientoTotal;
   backlog_vencido: ResumenEquipoBacklogVencido;
   antiguedad_backlog: ResumenEquipoAntiguedadBacklog;
   cobertura_asignacion: ResumenEquipoCoberturaAsignacion;
@@ -553,7 +561,7 @@ export function ResumenEquipoPanel({
   tickets_ingresados,
   estado_actual,
   resolucion_con_fecha,
-  cumplimiento_plazo_auditable,
+  cumplimiento_plazo,
   backlog_vencido,
   antiguedad_backlog,
   cobertura_asignacion,
@@ -565,15 +573,41 @@ export function ResumenEquipoPanel({
   const opened = normalizeCount(estado_actual.abiertos);
   const finished = normalizeCount(estado_actual.finalizados);
   const overdue = normalizeCount(estado_actual.vencidos_abiertos);
-  const complianceSample = normalizeCount(cumplimiento_plazo_auditable.muestra);
+  const complianceSample = normalizeCount(cumplimiento_plazo.muestra);
   const complianceFulfilled = Math.min(
-    normalizeCount(cumplimiento_plazo_auditable.cumplidos),
+    normalizeCount(cumplimiento_plazo.cumplidos),
     complianceSample,
   );
   const compliancePercentage =
     complianceSample > 0
-      ? normalizePercentage(cumplimiento_plazo_auditable.porcentaje)
+      ? normalizePercentage(cumplimiento_plazo.porcentaje)
       : null;
+  const complianceAuditableSample = Math.min(
+    normalizeCount(cumplimiento_plazo.muestra_auditable),
+    complianceSample,
+  );
+  const complianceHistoricalSample = Math.min(
+    normalizeCount(cumplimiento_plazo.muestra_historica_reconstruida),
+    complianceSample - complianceAuditableSample,
+  );
+  const complianceAuditableFulfilled = Math.min(
+    normalizeCount(cumplimiento_plazo.cumplidos_auditables),
+    complianceAuditableSample,
+  );
+  const complianceHistoricalFulfilled = Math.min(
+    normalizeCount(cumplimiento_plazo.cumplidos_historicos_reconstruidos),
+    complianceHistoricalSample,
+  );
+  const complianceSourceNote = [
+    complianceAuditableSample > 0
+      ? `Con vencimiento preservado: ${numberFormatter.format(complianceAuditableFulfilled)} de ${numberFormatter.format(complianceAuditableSample)} dentro del plazo`
+      : null,
+    complianceHistoricalSample > 0
+      ? `Históricas reconstruidas: ${numberFormatter.format(complianceHistoricalFulfilled)} de ${numberFormatter.format(complianceHistoricalSample)} dentro del plazo`
+      : null,
+  ]
+    .filter((detail): detail is string => detail !== null)
+    .join(" · ");
   const backlogOpen = normalizeCount(backlog_vencido.abiertos);
   const backlogOverdue = Math.min(
     normalizeCount(backlog_vencido.vencidos),
@@ -738,17 +772,22 @@ export function ResumenEquipoPanel({
                     }
                     detail={
                       hasCompliance
-                        ? `${numberFormatter.format(complianceFulfilled)} de ${numberFormatter.format(complianceSample)} resoluciones dentro del plazo`
-                        : "No hay resoluciones con plazo auditable."
+                        ? `${numberFormatter.format(complianceFulfilled)} de ${numberFormatter.format(complianceSample)} finalizaciones dentro del plazo`
+                        : "No hay finalizaciones con fechas de plazo utilizables."
                     }
-                    description="Resoluciones auditables realizadas dentro del plazo vigente."
+                    description="Finalizaciones realizadas dentro del plazo registrado."
+                    note={
+                      hasCompliance && complianceSourceNote
+                        ? `${complianceSourceNote}.`
+                        : undefined
+                    }
                     scopeLabel={periodFilterLabel}
                     icon={ListChecks}
                     tone="blue"
                     percentage={hasCompliance ? compliancePercentage : null}
                     progressValueText={
                       hasCompliance
-                        ? `${formatPercentage(compliancePercentage)}, ${numberFormatter.format(complianceFulfilled)} de ${numberFormatter.format(complianceSample)} resoluciones dentro del plazo`
+                        ? `${formatPercentage(compliancePercentage)}, ${numberFormatter.format(complianceFulfilled)} de ${numberFormatter.format(complianceSample)} finalizaciones dentro del plazo`
                         : undefined
                     }
                   />

@@ -2005,6 +2005,15 @@ describe("módulo de Rendimiento", () => {
         cumplidos: 1,
         porcentaje: 100,
       },
+      cumplimiento_plazo: {
+        muestra: 1,
+        cumplidos: 1,
+        porcentaje: 100,
+        muestra_auditable: 1,
+        cumplidos_auditables: 1,
+        muestra_historica_reconstruida: 0,
+        cumplidos_historicos_reconstruidos: 0,
+      },
       backlog_vencido: {
         abiertos: 0,
         con_plazo: 0,
@@ -2056,6 +2065,8 @@ describe("módulo de Rendimiento", () => {
       cobertura: {
         resoluciones_evaluadas: 1,
         resoluciones_atribuidas: 1,
+        finalizaciones_historicas_detectadas: 0,
+        finalizaciones_historicas_atribuidas: 0,
         porcentaje_atribucion: 100,
         atribucion_desde: "2026-08-06T16:00:00.000Z",
         comparacion_individual_estado: "insuficiente",
@@ -2073,6 +2084,7 @@ describe("módulo de Rendimiento", () => {
           },
           tickets_resueltos: 0,
           resoluciones_atribuidas: 0,
+          finalizaciones_historicas_atribuidas: 0,
           tiempo_resolucion_atribuible: {
             muestra: 0,
             promedio_horas: null,
@@ -2098,6 +2110,7 @@ describe("módulo de Rendimiento", () => {
           },
           tickets_resueltos: 1,
           resoluciones_atribuidas: 1,
+          finalizaciones_historicas_atribuidas: 0,
           tiempo_resolucion_atribuible: {
             muestra: 1,
             promedio_horas: 25,
@@ -2123,6 +2136,7 @@ describe("módulo de Rendimiento", () => {
           },
           tickets_resueltos: 0,
           resoluciones_atribuidas: 0,
+          finalizaciones_historicas_atribuidas: 0,
           tiempo_resolucion_atribuible: {
             muestra: 0,
             promedio_horas: null,
@@ -2514,6 +2528,54 @@ describe("eliminación definitiva de usuarios", () => {
           .get(100) as { autor_usuario_id: number }
       ).autor_usuario_id,
       id,
+    );
+  });
+
+  it("preserva cuentas referenciadas por asignaciones históricas", async () => {
+    const cookie = await adminSession();
+    const id = await crearDescartable(cookie, "asignacion-historica");
+    sqlite.prepare("INSERT INTO tickets (id) VALUES (?)").run(101);
+    sqlite
+      .prepare(
+        `INSERT INTO seguimientos (ticket_id, asignado_nuevo_usuario_id)
+         VALUES (?, ?)`,
+      )
+      .run(101, id);
+
+    const response = await adminRequest(`/admin/users/${id}`, cookie, {
+      method: "DELETE",
+      body: JSON.stringify({
+        confirmar: true,
+        username: "asignacion-historica",
+      }),
+    });
+
+    assert.equal(response.status, 409);
+    assert.equal(
+      ((await response.json()) as { code: string }).code,
+      "USER_HAS_AUDIT_HISTORY",
+    );
+  });
+
+  it("preserva responsables de tickets históricos sin evento", async () => {
+    const cookie = await adminSession();
+    const id = await crearDescartable(cookie, "responsable-historico");
+    sqlite
+      .prepare("INSERT INTO tickets (id, asignado_usuario_id) VALUES (?, ?)")
+      .run(102, id);
+
+    const response = await adminRequest(`/admin/users/${id}`, cookie, {
+      method: "DELETE",
+      body: JSON.stringify({
+        confirmar: true,
+        username: "responsable-historico",
+      }),
+    });
+
+    assert.equal(response.status, 409);
+    assert.equal(
+      ((await response.json()) as { code: string }).code,
+      "USER_HAS_AUDIT_HISTORY",
     );
   });
 

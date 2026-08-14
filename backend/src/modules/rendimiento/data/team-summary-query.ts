@@ -35,6 +35,15 @@ export type PerformanceTeamSummaryResult = {
     cumplidos: number;
     porcentaje: number | null;
   };
+  cumplimiento_plazo: {
+    muestra: number;
+    cumplidos: number;
+    porcentaje: number | null;
+    muestra_auditable: number;
+    cumplidos_auditables: number;
+    muestra_historica_reconstruida: number;
+    cumplidos_historicos_reconstruidos: number;
+  };
   backlog_vencido: {
     abiertos: number;
     con_plazo: number;
@@ -79,6 +88,10 @@ type RawTeamSummary = {
   resolucion_mediana_ms: number | null;
   plazo_muestra: number;
   plazo_cumplidos: number;
+  plazo_muestra_auditable: number;
+  plazo_cumplidos_auditables: number;
+  plazo_muestra_historica: number;
+  plazo_cumplidos_historicos: number;
 };
 
 type RawBacklogCreation = {
@@ -159,6 +172,7 @@ export function consultarResumenEquipo<TSchema extends Record<string, unknown>>(
       where estado in ('resuelto', 'cerrado')
         and fecha_resolucion is not null
         and fecha_resolucion >= fecha_creacion
+        and fecha_resolucion <= ${nowMs}
     ),
     ranked_durations as (
       select
@@ -180,26 +194,78 @@ export function consultarResumenEquipo<TSchema extends Record<string, unknown>>(
         ) as mediana_ms
       from ranked_durations
     ),
-    audited_deadlines as (
+    resolution_events as (
       select
-        case
-          when ${seguimientosTable.fecha_creacion} <= ${seguimientosTable.fecha_limite_snapshot}
-            then 1
-          else 0
-        end as cumplido
+        ${seguimientosTable.ticket_id} as ticket_id,
+        ${seguimientosTable.fecha_creacion} as fecha_evento,
+        ${seguimientosTable.fecha_limite_snapshot} as fecha_limite_snapshot,
+        row_number() over (
+          partition by ${seguimientosTable.ticket_id}
+          order by ${seguimientosTable.fecha_creacion} desc, ${seguimientosTable.id} desc
+        ) as orden_desc
       from ${seguimientosTable}
       inner join cohort
         on cohort.ticket_id = ${seguimientosTable.ticket_id}
       where ${seguimientosTable.estado_anterior} is not null
         and ${seguimientosTable.estado_anterior} not in ('resuelto', 'cerrado')
         and ${seguimientosTable.estado_nuevo} in ('resuelto', 'cerrado')
-        and ${seguimientosTable.fecha_limite_snapshot} is not null
+        and ${seguimientosTable.fecha_creacion} >= cohort.fecha_creacion
+        and ${seguimientosTable.fecha_creacion} <= ${nowMs}
+    ),
+    audited_deadlines as (
+      select
+        ticket_id,
+        case
+          when fecha_evento <= fecha_limite_snapshot then 1
+          else 0
+        end as cumplido
+      from resolution_events
+      where fecha_limite_snapshot is not null
+    ),
+    historical_deadlines as (
+      select
+        cohort.ticket_id,
+        case
+          when cohort.fecha_resolucion <= cohort.fecha_limite then 1
+          else 0
+        end as cumplido
+      from cohort
+      where cohort.estado in ('resuelto', 'cerrado')
+        and cohort.fecha_resolucion is not null
+        and cohort.fecha_limite is not null
+        and cohort.fecha_resolucion >= cohort.fecha_creacion
+        and cohort.fecha_resolucion <= ${nowMs}
+        and cohort.fecha_limite >= cohort.fecha_creacion
+        and not exists (
+          select 1
+          from resolution_events
+          where resolution_events.ticket_id = cohort.ticket_id
+            and resolution_events.orden_desc = 1
+            and resolution_events.fecha_limite_snapshot is not null
+        )
+    ),
+    all_deadlines as (
+      select cumplido, 1 as es_auditable
+      from audited_deadlines
+      union all
+      select cumplido, 0 as es_auditable
+      from historical_deadlines
     ),
     deadline_stats as (
       select
         count(*) as muestra,
-        coalesce(sum(cumplido), 0) as cumplidos
-      from audited_deadlines
+        coalesce(sum(cumplido), 0) as cumplidos,
+        coalesce(sum(es_auditable), 0) as muestra_auditable,
+        coalesce(sum(
+          case when es_auditable = 1 then cumplido else 0 end
+        ), 0) as cumplidos_auditables,
+        coalesce(sum(
+          case when es_auditable = 0 then 1 else 0 end
+        ), 0) as muestra_historica,
+        coalesce(sum(
+          case when es_auditable = 0 then cumplido else 0 end
+        ), 0) as cumplidos_historicos
+      from all_deadlines
     )
     select
       count(*) as total,
@@ -250,7 +316,11 @@ export function consultarResumenEquipo<TSchema extends Record<string, unknown>>(
       (select promedio_ms from resolution_stats) as resolucion_promedio_ms,
       (select mediana_ms from resolution_stats) as resolucion_mediana_ms,
       (select muestra from deadline_stats) as plazo_muestra,
-      (select cumplidos from deadline_stats) as plazo_cumplidos
+      (select cumplidos from deadline_stats) as plazo_cumplidos,
+      (select muestra_auditable from deadline_stats) as plazo_muestra_auditable,
+      (select cumplidos_auditables from deadline_stats) as plazo_cumplidos_auditables,
+      (select muestra_historica from deadline_stats) as plazo_muestra_historica,
+      (select cumplidos_historicos from deadline_stats) as plazo_cumplidos_historicos
       from cohort
     `);
 
@@ -294,9 +364,23 @@ export function consultarResumenEquipo<TSchema extends Record<string, unknown>>(
         mediana_horas: millisecondsToRoundedHours(row.resolucion_mediana_ms),
       },
       cumplimiento_plazo_auditable: {
+        muestra: numberOf(row.plazo_muestra_auditable),
+        cumplidos: numberOf(row.plazo_cumplidos_auditables),
+        porcentaje: percentage(
+          numberOf(row.plazo_cumplidos_auditables),
+          numberOf(row.plazo_muestra_auditable),
+        ),
+      },
+      cumplimiento_plazo: {
         muestra: deadlineSample,
         cumplidos: deadlinesMet,
         porcentaje: percentage(deadlinesMet, deadlineSample),
+        muestra_auditable: numberOf(row.plazo_muestra_auditable),
+        cumplidos_auditables: numberOf(row.plazo_cumplidos_auditables),
+        muestra_historica_reconstruida: numberOf(row.plazo_muestra_historica),
+        cumplidos_historicos_reconstruidos: numberOf(
+          row.plazo_cumplidos_historicos,
+        ),
       },
       backlog_vencido: {
         abiertos: opened,

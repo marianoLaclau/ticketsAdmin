@@ -4,7 +4,7 @@ import {
   MOTIVO_CATEGORIA_LABELS,
   PRIORIDADES_VALIDAS,
 } from "@workspace/ingesta";
-import { CalendarRange, FilterX } from "lucide-react";
+import { CalendarRange, CircleHelp, FilterX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { isValidCalendarDate } from "@/lib/calendar-date";
 import {
   createDefaultRendimientoUrlState,
@@ -152,7 +158,7 @@ export function RendimientoFiltersPanel({
           <div className="space-y-1.5">
             <Label
               htmlFor="rendimiento-periodo"
-              className="flex items-center gap-1.5 text-xs text-muted-foreground"
+              className="flex h-6 items-center gap-1.5 text-xs text-muted-foreground"
             >
               <CalendarRange className="h-3.5 w-3.5" aria-hidden="true" />
               Período
@@ -182,12 +188,30 @@ export function RendimientoFiltersPanel({
           </div>
 
           <div className="space-y-1.5">
-            <Label
-              htmlFor="rendimiento-empresa"
-              className="text-xs text-muted-foreground"
-            >
-              Empresa
-            </Label>
+            <div className="flex h-6 items-center gap-1.5">
+              <Label
+                htmlFor="rendimiento-empresa"
+                className="text-xs text-muted-foreground"
+              >
+                Empresa
+              </Label>
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      aria-label="Ayuda sobre búsqueda por nombre"
+                    >
+                      <CircleHelp className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    Busca coincidencias dentro del nombre.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <Input
               id="rendimiento-empresa"
               type="search"
@@ -202,18 +226,15 @@ export function RendimientoFiltersPanel({
                 }))
               }
             />
-            <p
-              id="rendimiento-empresa-ayuda"
-              className="text-[11px] leading-snug text-muted-foreground"
-            >
+            <span id="rendimiento-empresa-ayuda" className="sr-only">
               Busca coincidencias dentro del nombre.
-            </p>
+            </span>
           </div>
 
           <div className="space-y-1.5">
             <Label
               htmlFor="rendimiento-categoria"
-              className="text-xs text-muted-foreground"
+              className="flex h-6 items-center text-xs text-muted-foreground"
             >
               Categoría
             </Label>
@@ -245,7 +266,7 @@ export function RendimientoFiltersPanel({
           <div className="space-y-1.5">
             <Label
               htmlFor="rendimiento-prioridad"
-              className="text-xs text-muted-foreground"
+              className="flex h-6 items-center text-xs text-muted-foreground"
             >
               Prioridad
             </Label>

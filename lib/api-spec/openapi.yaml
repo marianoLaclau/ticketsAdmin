@@ -1355,6 +1355,11 @@ paths:
         plazo vigente al resolverse. El cambio `resuelto` a `cerrado` no cuenta
         como otra resolución.
 
+        `cumplimiento_plazo` agrega a esa evidencia una reconstrucción de la
+        última finalización de tickets legacy usando sus valores persistidos de
+        `fecha_resolucion` y `fecha_limite`. Expone ambas muestras por separado
+        y nunca duplica una finalización que ya posee snapshot auditable.
+
         `backlog_vencido`, `antiguedad_backlog` y `cobertura_asignacion`
         describen únicamente los tickets actualmente abiertos del mismo conjunto
         analizado. No incorporan backlog creado fuera del período solicitado.
@@ -1400,28 +1405,37 @@ paths:
     get:
       operationId: getRendimientoPersonas
       tags: [rendimiento]
-      summary: Consultar indicadores auditables por persona
+      summary: Consultar indicadores de finalización por persona
       description: |
         Usa el mismo conjunto analizado de tickets visibles por `fecha_creacion` que las
         demás vistas de Rendimiento. `empresa`, `motivo_categoria` y `prioridad`
         se aplican antes de calcular cualquier indicador.
 
-        Una resolución se atribuye exclusivamente al `autor_usuario_id` de una
+        Una resolución auditada se atribuye al `autor_usuario_id` de una
         transición desde un estado no final hacia `resuelto` o `cerrado`. El
-        cambio posterior de `resuelto` a `cerrado` no crea otra resolución. El
-        tiempo atribuible son horas corridas desde la creación del ticket hasta
-        ese evento; no representa tiempo exclusivo de trabajo de la persona.
+        cambio posterior de `resuelto` a `cerrado` no crea otra resolución.
+        También incorpora tickets legacy finalizados que conservan
+        `fecha_resolucion` y `asignado_usuario_id`, pero no tienen una transición
+        de resolución: se informan por separado como finalizaciones históricas.
+        En un ticket cerrado esa fuente identifica al responsable de la última
+        transición final persistida, no necesariamente al primer resolutor.
 
-        El cumplimiento solo usa eventos atribuibles que conservaron
-        `fecha_limite_snapshot`. La carga es una fotografía al instante
+        El tiempo atribuible son horas corridas desde la creación del ticket
+        hasta el evento auditado o la `fecha_resolucion` legacy; no representa
+        tiempo exclusivo de trabajo de la persona.
+
+        El cumplimiento solo usa eventos auditados que conservaron
+        `fecha_limite_snapshot`; nunca estima el plazo de las filas legacy. La
+        carga es una fotografía al instante
         `generado_en` de tickets abiertos con `asignado_usuario_id` estructurado.
         `resoluciones_reabiertas` observa el resultado de una resolución
-        atribuible: cuenta esa resolución una sola vez si luego existe una
+        auditada: cuenta esa resolución una sola vez si luego existe una
         transición de estado final a no final antes de la siguiente resolución
         del mismo ticket. Es contexto operativo, no una calificación negativa.
 
         Las personas se devuelven alfabéticamente, nunca como ranking. La API no
-        calcula puntajes ni posiciones y explicita la cobertura global para que
+        calcula puntajes ni posiciones y evalúa la comparabilidad sobre todas las
+        finalizaciones analizadas, incluidas las históricas atribuibles, para que
         una muestra pequeña o incompleta no se presente como comparable.
       security:
         - sessionCookie: []
@@ -1876,6 +1890,55 @@ components:
           minimum: 0
           maximum: 100
 
+    RendimientoCumplimientoPlazo:
+      type: object
+      additionalProperties: false
+      description: >
+        Cumplimiento combinado del plazo. Prioriza transiciones no-final a final
+        que conservaron fecha_limite_snapshot y, cuando la última finalización
+        de un ticket no posee esa evidencia, reconstruye una única finalización
+        histórica comparando fecha_resolucion con fecha_limite. Solo considera
+        resoluciones ocurridas hasta generado_en. Las cantidades por fuente
+        permiten distinguir evidencia auditable de la reconstrucción legacy.
+        porcentaje es null cuando muestra es cero.
+      required:
+        - muestra
+        - cumplidos
+        - porcentaje
+        - muestra_auditable
+        - cumplidos_auditables
+        - muestra_historica_reconstruida
+        - cumplidos_historicos_reconstruidos
+      properties:
+        muestra:
+          type: integer
+          minimum: 0
+          description: Finalizaciones evaluadas entre ambas fuentes.
+        cumplidos:
+          type: integer
+          minimum: 0
+          description: Finalizaciones dentro del plazo entre ambas fuentes.
+        porcentaje:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 100
+        muestra_auditable:
+          type: integer
+          minimum: 0
+          description: Transiciones con snapshot histórico del plazo.
+        cumplidos_auditables:
+          type: integer
+          minimum: 0
+        muestra_historica_reconstruida:
+          type: integer
+          minimum: 0
+          description: >
+            Tickets finales sin una transición auditable equivalente, evaluados
+            con sus fechas de resolución y límite persistidas.
+        cumplidos_historicos_reconstruidos:
+          type: integer
+          minimum: 0
+
     RendimientoBacklogVencido:
       type: object
       additionalProperties: false
@@ -2011,6 +2074,7 @@ components:
         - estado_actual
         - resolucion_con_fecha
         - cumplimiento_plazo_auditable
+        - cumplimiento_plazo
         - backlog_vencido
         - antiguedad_backlog
         - cobertura_asignacion
@@ -2031,6 +2095,8 @@ components:
           $ref: "#/components/schemas/RendimientoResolucionConFecha"
         cumplimiento_plazo_auditable:
           $ref: "#/components/schemas/RendimientoCumplimientoPlazoAuditable"
+        cumplimiento_plazo:
+          $ref: "#/components/schemas/RendimientoCumplimientoPlazo"
         backlog_vencido:
           $ref: "#/components/schemas/RendimientoBacklogVencido"
         antiguedad_backlog:
@@ -2054,13 +2120,15 @@ components:
       type: object
       additionalProperties: false
       description: >
-        Cobertura global de autoría para las resoluciones del conjunto analizado. El
-        estado de comparación usa el mismo criterio auditable que Calidad de
-        datos; aun cuando sea disponible, cada muestra individual debe quedar
-        visible y la respuesta no constituye un ranking.
+        Cobertura global de autoría para las finalizaciones del conjunto
+        analizado. Distingue las transiciones auditadas de los snapshots legacy;
+        aun cuando sea disponible, cada muestra individual debe quedar visible
+        y la respuesta no constituye un ranking.
       required:
         - resoluciones_evaluadas
         - resoluciones_atribuidas
+        - finalizaciones_historicas_detectadas
+        - finalizaciones_historicas_atribuidas
         - porcentaje_atribucion
         - atribucion_desde
         - comparacion_individual_estado
@@ -2071,34 +2139,50 @@ components:
         resoluciones_evaluadas:
           type: integer
           minimum: 0
-          description: Total de transiciones no-final a final del conjunto analizado.
+          description: >
+            Hechos de finalización analizados: transiciones no-final a final más
+            tickets legacy finalizados con fecha y sin una transición equivalente.
         resoluciones_atribuidas:
           type: integer
           minimum: 0
           description: >
-            Resoluciones evaluadas con autor_usuario_id que referencia un
-            usuario persistido.
+            Hechos evaluados con un usuario estructurado atribuible.
+        finalizaciones_historicas_detectadas:
+          type: integer
+          minimum: 0
+          description: >
+            Subconjunto recuperado desde tickets legacy finalizados con fecha,
+            sin evento real de resolución. No constituye auditoría de transición.
+        finalizaciones_historicas_atribuidas:
+          type: integer
+          minimum: 0
+          description: >
+            Finalizaciones históricas detectadas cuyo asignado_usuario_id
+            referencia un usuario persistido.
         porcentaje_atribucion:
           type: [number, "null"]
           minimum: 0
           maximum: 100
           description: >
-            Porcentaje de resoluciones atribuidas; null cuando
+            Porcentaje de finalizaciones atribuidas; null cuando
             resoluciones_evaluadas es cero.
         atribucion_desde:
           type: [string, "null"]
           format: date-time
           description: >
-            Primera resolución atribuible del conjunto analizado, o null cuando no hay
+            Primera finalización atribuible del conjunto analizado, o null cuando no hay
             ninguna.
         comparacion_individual_estado:
           type: string
           enum: [insuficiente, parcial, disponible]
           description: >
-            insuficiente cuando hay menos de 10 resoluciones evaluadas o menos
-            de 80% de autoría; parcial desde 80% y antes de 95%; disponible a
-            partir de 95%. disponible acredita cobertura global, no una muestra
-            individual suficiente ni permiso para construir un ranking.
+            Se calcula sobre todos los hechos de finalización analizados:
+            transiciones reales no-final a final y tickets históricos sin evento
+            equivalente. insuficiente cuando hay menos de 10 finalizaciones o
+            menos de 80% de autoría estructurada; parcial desde 80% y antes de
+            95%; disponible a partir de 95%. disponible acredita cobertura
+            global, no una muestra individual suficiente ni permiso para
+            construir un ranking.
         minimo_resoluciones_comparables:
           type: integer
           enum: [10]
@@ -2144,8 +2228,9 @@ components:
       additionalProperties: false
       description: >
         Horas corridas desde fecha_creacion del ticket hasta cada transición
-        no-final a final atribuida a la persona. Solo incluye duraciones válidas
-        y no negativas. No mide tiempo exclusivo de trabajo. promedio_horas y
+        no-final a final atribuida o finalización histórica atribuible. Solo
+        incluye duraciones válidas, no negativas y no futuras respecto del
+        snapshot. No mide tiempo exclusivo de trabajo. promedio_horas y
         mediana_horas son null cuando muestra es cero.
       required:
         - muestra
@@ -2207,12 +2292,14 @@ components:
       type: object
       additionalProperties: false
       description: >
-        Indicadores auditables de una persona. Las cantidades son hechos
-        independientes; no se combinan en un puntaje ni determinan una posición.
+        Indicadores por persona con fuente auditable o histórica explícita. Las
+        cantidades son hechos independientes; no se combinan en un puntaje ni
+        determinan una posición.
       required:
         - usuario
         - tickets_resueltos
         - resoluciones_atribuidas
+        - finalizaciones_historicas_atribuidas
         - tiempo_resolucion_atribuible
         - cumplimiento_plazo_auditable
         - carga_actual
@@ -2224,16 +2311,23 @@ components:
           type: integer
           minimum: 0
           description: >
-            Tickets distintos con al menos una resolución atribuida a la
-            persona. Puede ser menor que resoluciones_atribuidas cuando el mismo
-            ticket fue reabierto y resuelto nuevamente por ella.
+            Tickets distintos con al menos una finalización atribuida a la
+            persona, auditada o recuperada desde el snapshot legacy. Puede ser
+            menor que resoluciones_atribuidas cuando el mismo ticket fue
+            reabierto y resuelto nuevamente por ella.
         resoluciones_atribuidas:
           type: integer
           minimum: 0
           description: >
-            Eventos no-final a final cuyo autor_usuario_id coincide con el
-            usuario. Un ticket puede aportar más de uno si fue reabierto y
-            resuelto nuevamente.
+            Finalizaciones atribuidas al usuario. Incluye eventos no-final a
+            final y snapshots legacy sin evento; un ticket auditado puede
+            aportar más de uno si fue reabierto y resuelto nuevamente.
+        finalizaciones_historicas_atribuidas:
+          type: integer
+          minimum: 0
+          description: >
+            Subconjunto de resoluciones_atribuidas recuperado desde tickets
+            legacy finalizados sin evento de resolución.
         tiempo_resolucion_atribuible:
           $ref: "#/components/schemas/RendimientoTiempoResolucionAtribuible"
         cumplimiento_plazo_auditable:

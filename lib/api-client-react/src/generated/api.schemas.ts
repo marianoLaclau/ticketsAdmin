@@ -209,6 +209,42 @@ export interface RendimientoCumplimientoPlazoAuditable {
 }
 
 /**
+ * Cumplimiento combinado del plazo. Prioriza transiciones no-final a final que conservaron fecha_limite_snapshot y, cuando la última finalización de un ticket no posee esa evidencia, reconstruye una única finalización histórica comparando fecha_resolucion con fecha_limite. Solo considera resoluciones ocurridas hasta generado_en. Las cantidades por fuente permiten distinguir evidencia auditable de la reconstrucción legacy. porcentaje es null cuando muestra es cero.
+ */
+export interface RendimientoCumplimientoPlazo {
+  /**
+     * Finalizaciones evaluadas entre ambas fuentes.
+     * @minimum 0
+     */
+  muestra: number;
+  /**
+     * Finalizaciones dentro del plazo entre ambas fuentes.
+     * @minimum 0
+     */
+  cumplidos: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  porcentaje: number | null;
+  /**
+     * Transiciones con snapshot histórico del plazo.
+     * @minimum 0
+     */
+  muestra_auditable: number;
+  /** @minimum 0 */
+  cumplidos_auditables: number;
+  /**
+     * Tickets finales sin una transición auditable equivalente, evaluados con sus fechas de resolución y límite persistidas.
+     * @minimum 0
+     */
+  muestra_historica_reconstruida: number;
+  /** @minimum 0 */
+  cumplidos_historicos_reconstruidos: number;
+}
+
+/**
  * Fotografía del backlog del conjunto analizado al instante generado_en. porcentaje usa todos los tickets actualmente abiertos como denominador; con_plazo explicita cuántos poseen una fecha límite verificable. Un plazo igual al snapshot todavía no está vencido. porcentaje es null cuando no hay backlog.
  */
 export interface RendimientoBacklogVencido {
@@ -291,6 +327,7 @@ export interface RendimientoResumenEquipo {
   estado_actual: RendimientoEstadoActual;
   resolucion_con_fecha: RendimientoResolucionConFecha;
   cumplimiento_plazo_auditable: RendimientoCumplimientoPlazoAuditable;
+  cumplimiento_plazo: RendimientoCumplimientoPlazo;
   backlog_vencido: RendimientoBacklogVencido;
   antiguedad_backlog: RendimientoAntiguedadBacklog;
   cobertura_asignacion: RendimientoCoberturaAsignacion;
@@ -301,7 +338,7 @@ export interface RendimientoResumenEquipo {
 }
 
 /**
- * insuficiente cuando hay menos de 10 resoluciones evaluadas o menos de 80% de autoría; parcial desde 80% y antes de 95%; disponible a partir de 95%. disponible acredita cobertura global, no una muestra individual suficiente ni permiso para construir un ranking.
+ * Se calcula sobre todos los hechos de finalización analizados: transiciones reales no-final a final y tickets históricos sin evento equivalente. insuficiente cuando hay menos de 10 finalizaciones o menos de 80% de autoría estructurada; parcial desde 80% y antes de 95%; disponible a partir de 95%. disponible acredita cobertura global, no una muestra individual suficiente ni permiso para construir un ranking.
  */
 export type RendimientoPersonasCoberturaComparacionIndividualEstado = typeof RendimientoPersonasCoberturaComparacionIndividualEstado[keyof typeof RendimientoPersonasCoberturaComparacionIndividualEstado];
 
@@ -343,32 +380,42 @@ export const RendimientoPersonasCoberturaUmbralCoberturaDisponiblePorcentaje = {
 } as const;
 
 /**
- * Cobertura global de autoría para las resoluciones del conjunto analizado. El estado de comparación usa el mismo criterio auditable que Calidad de datos; aun cuando sea disponible, cada muestra individual debe quedar visible y la respuesta no constituye un ranking.
+ * Cobertura global de autoría para las finalizaciones del conjunto analizado. Distingue las transiciones auditadas de los snapshots legacy; aun cuando sea disponible, cada muestra individual debe quedar visible y la respuesta no constituye un ranking.
  */
 export interface RendimientoPersonasCobertura {
   /**
-     * Total de transiciones no-final a final del conjunto analizado.
+     * Hechos de finalización analizados: transiciones no-final a final más tickets legacy finalizados con fecha y sin una transición equivalente.
      * @minimum 0
      */
   resoluciones_evaluadas: number;
   /**
-     * Resoluciones evaluadas con autor_usuario_id que referencia un usuario persistido.
+     * Hechos evaluados con un usuario estructurado atribuible.
      * @minimum 0
      */
   resoluciones_atribuidas: number;
   /**
-     * Porcentaje de resoluciones atribuidas; null cuando resoluciones_evaluadas es cero.
+     * Subconjunto recuperado desde tickets legacy finalizados con fecha, sin evento real de resolución. No constituye auditoría de transición.
+     * @minimum 0
+     */
+  finalizaciones_historicas_detectadas: number;
+  /**
+     * Finalizaciones históricas detectadas cuyo asignado_usuario_id referencia un usuario persistido.
+     * @minimum 0
+     */
+  finalizaciones_historicas_atribuidas: number;
+  /**
+     * Porcentaje de finalizaciones atribuidas; null cuando resoluciones_evaluadas es cero.
      * @minimum 0
      * @maximum 100
      * @nullable
      */
   porcentaje_atribucion: number | null;
   /**
-     * Primera resolución atribuible del conjunto analizado, o null cuando no hay ninguna.
+     * Primera finalización atribuible del conjunto analizado, o null cuando no hay ninguna.
      * @nullable
      */
   atribucion_desde: string | null;
-  /** insuficiente cuando hay menos de 10 resoluciones evaluadas o menos de 80% de autoría; parcial desde 80% y antes de 95%; disponible a partir de 95%. disponible acredita cobertura global, no una muestra individual suficiente ni permiso para construir un ranking. */
+  /** Se calcula sobre todos los hechos de finalización analizados: transiciones reales no-final a final y tickets históricos sin evento equivalente. insuficiente cuando hay menos de 10 finalizaciones o menos de 80% de autoría estructurada; parcial desde 80% y antes de 95%; disponible a partir de 95%. disponible acredita cobertura global, no una muestra individual suficiente ni permiso para construir un ranking. */
   comparacion_individual_estado: RendimientoPersonasCoberturaComparacionIndividualEstado;
   /** Muestra global mínima exigida antes de comparar personas. */
   minimo_resoluciones_comparables: RendimientoPersonasCoberturaMinimoResolucionesComparables;
@@ -398,7 +445,7 @@ export interface RendimientoPersonaUsuario {
 }
 
 /**
- * Horas corridas desde fecha_creacion del ticket hasta cada transición no-final a final atribuida a la persona. Solo incluye duraciones válidas y no negativas. No mide tiempo exclusivo de trabajo. promedio_horas y mediana_horas son null cuando muestra es cero.
+ * Horas corridas desde fecha_creacion del ticket hasta cada transición no-final a final atribuida o finalización histórica atribuible. Solo incluye duraciones válidas, no negativas y no futuras respecto del snapshot. No mide tiempo exclusivo de trabajo. promedio_horas y mediana_horas son null cuando muestra es cero.
  */
 export interface RendimientoTiempoResolucionAtribuible {
   /** @minimum 0 */
@@ -442,20 +489,25 @@ export interface RendimientoCargaActualPersona {
 }
 
 /**
- * Indicadores auditables de una persona. Las cantidades son hechos independientes; no se combinan en un puntaje ni determinan una posición.
+ * Indicadores por persona con fuente auditable o histórica explícita. Las cantidades son hechos independientes; no se combinan en un puntaje ni determinan una posición.
  */
 export interface RendimientoPersona {
   usuario: RendimientoPersonaUsuario;
   /**
-     * Tickets distintos con al menos una resolución atribuida a la persona. Puede ser menor que resoluciones_atribuidas cuando el mismo ticket fue reabierto y resuelto nuevamente por ella.
+     * Tickets distintos con al menos una finalización atribuida a la persona, auditada o recuperada desde el snapshot legacy. Puede ser menor que resoluciones_atribuidas cuando el mismo ticket fue reabierto y resuelto nuevamente por ella.
      * @minimum 0
      */
   tickets_resueltos: number;
   /**
-     * Eventos no-final a final cuyo autor_usuario_id coincide con el usuario. Un ticket puede aportar más de uno si fue reabierto y resuelto nuevamente.
+     * Finalizaciones atribuidas al usuario. Incluye eventos no-final a final y snapshots legacy sin evento; un ticket auditado puede aportar más de uno si fue reabierto y resuelto nuevamente.
      * @minimum 0
      */
   resoluciones_atribuidas: number;
+  /**
+     * Subconjunto de resoluciones_atribuidas recuperado desde tickets legacy finalizados sin evento de resolución.
+     * @minimum 0
+     */
+  finalizaciones_historicas_atribuidas: number;
   tiempo_resolucion_atribuible: RendimientoTiempoResolucionAtribuible;
   cumplimiento_plazo_auditable: RendimientoCumplimientoPersonaAuditable;
   carga_actual: RendimientoCargaActualPersona;

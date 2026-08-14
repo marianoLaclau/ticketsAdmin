@@ -2721,6 +2721,11 @@ export const getGetRendimientoResumenEquipoUrl = (params?: GetRendimientoResumen
  * plazo vigente al resolverse. El cambio `resuelto` a `cerrado` no cuenta
  * como otra resolución.
  *
+ * `cumplimiento_plazo` agrega a esa evidencia una reconstrucción de la
+ * última finalización de tickets legacy usando sus valores persistidos de
+ * `fecha_resolucion` y `fecha_limite`. Expone ambas muestras por separado
+ * y nunca duplica una finalización que ya posee snapshot auditable.
+ *
  * `backlog_vencido`, `antiguedad_backlog` y `cobertura_asignacion`
  * describen únicamente los tickets actualmente abiertos del mismo conjunto
  * analizado. No incorporan backlog creado fuera del período solicitado.
@@ -2812,24 +2817,33 @@ export const getGetRendimientoPersonasUrl = (params?: GetRendimientoPersonasPara
  * demás vistas de Rendimiento. `empresa`, `motivo_categoria` y `prioridad`
  * se aplican antes de calcular cualquier indicador.
  *
- * Una resolución se atribuye exclusivamente al `autor_usuario_id` de una
+ * Una resolución auditada se atribuye al `autor_usuario_id` de una
  * transición desde un estado no final hacia `resuelto` o `cerrado`. El
- * cambio posterior de `resuelto` a `cerrado` no crea otra resolución. El
- * tiempo atribuible son horas corridas desde la creación del ticket hasta
- * ese evento; no representa tiempo exclusivo de trabajo de la persona.
+ * cambio posterior de `resuelto` a `cerrado` no crea otra resolución.
+ * También incorpora tickets legacy finalizados que conservan
+ * `fecha_resolucion` y `asignado_usuario_id`, pero no tienen una transición
+ * de resolución: se informan por separado como finalizaciones históricas.
+ * En un ticket cerrado esa fuente identifica al responsable de la última
+ * transición final persistida, no necesariamente al primer resolutor.
  *
- * El cumplimiento solo usa eventos atribuibles que conservaron
- * `fecha_limite_snapshot`. La carga es una fotografía al instante
+ * El tiempo atribuible son horas corridas desde la creación del ticket
+ * hasta el evento auditado o la `fecha_resolucion` legacy; no representa
+ * tiempo exclusivo de trabajo de la persona.
+ *
+ * El cumplimiento solo usa eventos auditados que conservaron
+ * `fecha_limite_snapshot`; nunca estima el plazo de las filas legacy. La
+ * carga es una fotografía al instante
  * `generado_en` de tickets abiertos con `asignado_usuario_id` estructurado.
  * `resoluciones_reabiertas` observa el resultado de una resolución
- * atribuible: cuenta esa resolución una sola vez si luego existe una
+ * auditada: cuenta esa resolución una sola vez si luego existe una
  * transición de estado final a no final antes de la siguiente resolución
  * del mismo ticket. Es contexto operativo, no una calificación negativa.
  *
  * Las personas se devuelven alfabéticamente, nunca como ranking. La API no
- * calcula puntajes ni posiciones y explicita la cobertura global para que
+ * calcula puntajes ni posiciones y evalúa la comparabilidad sobre todas las
+ * finalizaciones analizadas, incluidas las históricas atribuibles, para que
  * una muestra pequeña o incompleta no se presente como comparable.
- * @summary Consultar indicadores auditables por persona
+ * @summary Consultar indicadores de finalización por persona
  */
 export const getRendimientoPersonas = async (params?: GetRendimientoPersonasParams, options?: RequestInit): Promise<RendimientoPersonas> => {
 
@@ -2876,7 +2890,7 @@ export type GetRendimientoPersonasQueryError = ErrorType<void | AdminAccessUnaut
 
 
 /**
- * @summary Consultar indicadores auditables por persona
+ * @summary Consultar indicadores de finalización por persona
  */
 
 export function useGetRendimientoPersonas<TData = Awaited<ReturnType<typeof getRendimientoPersonas>>, TError = ErrorType<void | AdminAccessUnauthorized | GetRendimientoPersonas403>>(

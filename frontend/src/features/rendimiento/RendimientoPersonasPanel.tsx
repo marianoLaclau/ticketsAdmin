@@ -5,6 +5,8 @@ import type {
 } from "@workspace/api-client-react";
 import {
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   CircleAlert,
   Inbox,
   RotateCcw,
@@ -12,6 +14,7 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
+import { useId, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -86,9 +89,9 @@ function getCoverageConfig(
   switch (status) {
     case "disponible":
       return {
-        title: "Cobertura global disponible",
+        title: "Cobertura suficiente para comparar",
         description:
-          "La autoría global alcanza el umbral auditable. Las muestras individuales siguen siendo descriptivas y no forman una clasificación.",
+          "La muestra atribuible alcanza el umbral definido e incluye finalizaciones auditadas e históricas. Las fuentes permanecen visibles y no forman una clasificación automática.",
         icon: CheckCircle2,
         className: "border-emerald-200 bg-emerald-50 text-emerald-950",
         iconClassName: "text-emerald-700",
@@ -97,7 +100,7 @@ function getCoverageConfig(
       return {
         title: "Cobertura global parcial",
         description:
-          "Parte de las resoluciones no tiene un autor estructurado. Los hechos se muestran en orden alfabético, con sus muestras y sin comparaciones de desempeño.",
+          "Parte de las finalizaciones no tiene un responsable estructurado. Los hechos se muestran en orden alfabético, con sus muestras y sin comparaciones de desempeño.",
         icon: ShieldAlert,
         className: "border-amber-200 bg-amber-50 text-amber-950",
         iconClassName: "text-amber-700",
@@ -106,7 +109,7 @@ function getCoverageConfig(
       return {
         title: "Cobertura insuficiente para comparar",
         description:
-          "La muestra global no permite comparar operadores de forma responsable. Se conservan visibles los hechos descriptivos y la carga actual, siempre con sus muestras.",
+          "La muestra global no permite comparar operadores de forma responsable. Se conservan visibles las finalizaciones auditadas, las recuperadas del historial y la carga actual.",
         icon: CircleAlert,
         className: "border-slate-300 bg-slate-50 text-slate-950",
         iconClassName: "text-slate-600",
@@ -126,7 +129,36 @@ function CoverageNotice({ data }: { data: RendimientoPersonas }) {
     ? " Primera atribución del conjunto analizado: " +
       formatDateTime(coverage.atribucion_desde, data.periodo.timezone) +
       "."
-    : " Todavía no hay una resolución con autor estructurado en el conjunto analizado.";
+    : " Todavía no hay una finalización con responsable estructurado en el conjunto analizado.";
+  const historicalContext =
+    coverage.finalizaciones_historicas_detectadas > 0
+      ? " Incluye " +
+        pluralize(
+          coverage.finalizaciones_historicas_atribuidas,
+          "finalización histórica atribuida",
+          "finalizaciones históricas atribuidas",
+        ) +
+        " de " +
+        numberFormatter.format(coverage.finalizaciones_historicas_detectadas) +
+        " detectadas sin evento de resolución."
+      : "";
+  const auditedFinalizations = Math.max(
+    0,
+    coverage.resoluciones_evaluadas -
+      coverage.finalizaciones_historicas_detectadas,
+  );
+  const comparisonContext =
+    " La disponibilidad para comparar se evalúa sobre las " +
+    pluralize(
+      coverage.resoluciones_evaluadas,
+      "finalización analizada",
+      "finalizaciones analizadas",
+    ) +
+    ": " +
+    numberFormatter.format(auditedFinalizations) +
+    " con evento y " +
+    numberFormatter.format(coverage.finalizaciones_historicas_detectadas) +
+    " históricas.";
 
   return (
     <section
@@ -156,7 +188,9 @@ function CoverageNotice({ data }: { data: RendimientoPersonas }) {
             {numberFormatter.format(coverage.resoluciones_atribuidas)} de{" "}
             {numberFormatter.format(coverage.resoluciones_evaluadas)}
           </strong>{" "}
-          resoluciones ({percentage}).{attributionContext}
+          finalizaciones ({percentage}).{attributionContext}
+          {historicalContext}
+          {comparisonContext}
         </p>
       </div>
     </section>
@@ -233,6 +267,11 @@ function PersonRow({ person }: { person: RendimientoPersona }) {
       : "Sin muestra";
   const timeValue =
     time.muestra > 0 ? formatHours(time.mediana_horas) : "Sin muestra";
+  const historicalFinalizations = person.finalizaciones_historicas_atribuidas;
+  const auditedFinalizations = Math.max(
+    0,
+    person.resoluciones_atribuidas - historicalFinalizations,
+  );
 
   return (
     <li>
@@ -275,27 +314,45 @@ function PersonRow({ person }: { person: RendimientoPersona }) {
 
         <dl className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <PersonFact
-            label="Tickets resueltos"
+            label="Tickets con finalización"
             value={numberFormatter.format(person.tickets_resueltos)}
             details={[
               pluralize(
                 person.resoluciones_atribuidas,
-                "resolución atribuible",
-                "resoluciones atribuibles",
+                "finalización atribuible",
+                "finalizaciones atribuibles",
               ),
+              ...(historicalFinalizations > 0
+                ? [
+                    pluralize(
+                      historicalFinalizations,
+                      "recuperada del historial",
+                      "recuperadas del historial",
+                    ),
+                  ]
+                : []),
             ]}
           />
           <PersonFact
-            label="Tiempo hasta resolver"
+            label="Tiempo hasta finalizar"
             value={timeValue}
             details={
               time.muestra > 0
                 ? [
                     "Mediana · promedio " + formatHours(time.promedio_horas),
                     "Muestra: " +
-                      pluralize(time.muestra, "resolución", "resoluciones"),
+                      pluralize(time.muestra, "finalización", "finalizaciones"),
+                    ...(historicalFinalizations > 0
+                      ? [
+                          pluralize(
+                            historicalFinalizations,
+                            "fecha histórica incluida",
+                            "fechas históricas incluidas",
+                          ),
+                        ]
+                      : []),
                   ]
-                : ["Sin resoluciones con duración válida"]
+                : ["Sin finalizaciones con duración válida"]
             }
           />
           <PersonFact
@@ -310,8 +367,13 @@ function PersonRow({ person }: { person: RendimientoPersona }) {
                       " resoluciones",
                     "Muestra auditable: " +
                       numberFormatter.format(compliance.muestra),
+                    ...(historicalFinalizations > 0
+                      ? [
+                          "El historial sin snapshot no entra en este porcentaje",
+                        ]
+                      : []),
                   ]
-                : ["Sin resoluciones con plazo auditable"]
+                : ["Sin resoluciones auditadas con plazo verificable"]
             }
           />
           <PersonFact
@@ -335,9 +397,9 @@ function PersonRow({ person }: { person: RendimientoPersona }) {
             details={[
               "de " +
                 pluralize(
-                  person.resoluciones_atribuidas,
-                  "resolución atribuible",
-                  "resoluciones atribuibles",
+                  auditedFinalizations,
+                  "resolución con evento",
+                  "resoluciones con evento",
                 ),
             ]}
           />
@@ -347,7 +409,17 @@ function PersonRow({ person }: { person: RendimientoPersona }) {
   );
 }
 
+const INITIAL_VISIBLE_OPERATORS = 3;
+
 function PeopleList({ people }: { people: readonly RendimientoPersona[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const listId = useId();
+  const hasMore = people.length > INITIAL_VISIBLE_OPERATORS;
+  const visiblePeople = expanded
+    ? people
+    : people.slice(0, INITIAL_VISIBLE_OPERATORS);
+  const hiddenCount = people.length - INITIAL_VISIBLE_OPERATORS;
+
   return (
     <Card className="overflow-hidden border-slate-200 shadow-sm">
       <CardHeader className="border-b border-slate-100 p-5 sm:p-6">
@@ -358,8 +430,9 @@ function PeopleList({ people }: { people: readonly RendimientoPersona[] }) {
               <h2 className="font-semibold">Actividad por operador</h2>
             </div>
             <CardDescription className="mt-1 max-w-3xl leading-relaxed">
-              Hechos auditables presentados por nombre. Cada indicador conserva
-              su propia muestra y no se combina en un puntaje.
+              Finalizaciones auditadas e históricas presentadas por nombre. Cada
+              indicador conserva su propia muestra y no se combina en un
+              puntaje.
             </CardDescription>
           </div>
           <Badge
@@ -371,11 +444,34 @@ function PeopleList({ people }: { people: readonly RendimientoPersona[] }) {
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <ul className="divide-y divide-slate-100">
-          {people.map((person) => (
+        <ul id={listId} className="divide-y divide-slate-100">
+          {visiblePeople.map((person) => (
             <PersonRow key={person.usuario.id} person={person} />
           ))}
         </ul>
+        {hasMore ? (
+          <div className="border-t border-slate-100 px-4 py-3 text-center sm:px-5">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-expanded={expanded}
+              aria-controls={listId}
+              onClick={() => setExpanded((current) => !current)}
+            >
+              {expanded ? (
+                <ChevronUp className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              ) : (
+                <ChevronDown className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              )}
+              {expanded
+                ? "Mostrar solo 3 operadores"
+                : `Ver ${numberFormatter.format(hiddenCount)} ${
+                    hiddenCount === 1 ? "operador más" : "operadores más"
+                  }`}
+            </Button>
+          </div>
+        ) : null}
         <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-5">
           <p
             id="rendimiento-reaperturas-contexto"
@@ -424,9 +520,9 @@ export function RendimientoPersonasPanel({
                   Rendimiento individual
                 </h2>
                 <CardDescription className="mt-1 max-w-3xl leading-relaxed">
-                  Resoluciones atribuibles, tiempos, cumplimiento y carga actual
-                  por operador, sin completar datos faltantes ni construir
-                  clasificaciones.
+                  Finalizaciones atribuibles, tiempos, cumplimiento auditable y
+                  carga actual por operador, distinguiendo el historial
+                  recuperado y sin construir clasificaciones.
                 </CardDescription>
               </div>
             </div>
@@ -443,14 +539,26 @@ export function RendimientoPersonasPanel({
               detail="conjunto analizado con los filtros actuales"
             />
             <SummaryFact
-              label="Resoluciones verificadas"
+              label="Finalizaciones analizadas"
               value={numberFormatter.format(
                 data.cobertura.resoluciones_evaluadas,
               )}
-              detail="transiciones de un estado abierto a uno final"
+              detail={
+                data.cobertura.finalizaciones_historicas_detectadas > 0
+                  ? numberFormatter.format(
+                      data.cobertura.resoluciones_evaluadas -
+                        data.cobertura.finalizaciones_historicas_detectadas,
+                    ) +
+                    " con evento · " +
+                    numberFormatter.format(
+                      data.cobertura.finalizaciones_historicas_detectadas,
+                    ) +
+                    " históricas"
+                  : "transiciones de un estado abierto a uno final"
+              }
             />
             <SummaryFact
-              label="Resoluciones atribuidas"
+              label="Finalizaciones atribuidas"
               value={numberFormatter.format(
                 data.cobertura.resoluciones_atribuidas,
               )}
@@ -466,7 +574,9 @@ export function RendimientoPersonasPanel({
             Snapshot generado el{" "}
             {formatDateTime(data.periodo.generado_en, data.periodo.timezone)}.
             Los tiempos miden horas corridas desde la creación del ticket, no
-            tiempo exclusivo de trabajo.
+            tiempo exclusivo de trabajo. Las finalizaciones históricas usan la
+            fecha persistida del ticket y nunca se incorporan al cumplimiento
+            auditable sin un snapshot del plazo.
           </p>
         </CardContent>
       </Card>

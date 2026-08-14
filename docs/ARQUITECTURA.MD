@@ -269,28 +269,45 @@ flowchart LR
 ```
 
 Resumen y Operadores distinguen la fotografía actual de los eventos históricos.
-Una resolución solo es atribuible cuando un seguimiento prueba una transición
-de estado no final a final y posee `autor_usuario_id`; el cumplimiento histórico usa el
-`fecha_limite_snapshot` preservado en ese evento. Las muestras y coberturas son
-parte del contrato para no presentar estimaciones incompletas como hechos.
+Una resolución con evento se atribuye por `autor_usuario_id`; `0021` recupera esa
+FK en eventos legacy solo si la asignación auditada y el snapshot del autor
+corroboran la misma identidad. Los tickets finales anteriores que conservan
+`fecha_resolucion` y responsable, pero no una transición, forman una fuente
+separada de finalizaciones históricas para cantidades y tiempos. En Operadores,
+el cumplimiento individual usa exclusivamente `fecha_limite_snapshot`
+preservado en un evento real. El Resumen del equipo ofrece además un total
+histórico: conserva todos esos eventos auditables y, cuando la última resolución
+de un ticket final no tiene snapshot o no existe un evento equivalente, agrega
+una única reconstrucción con `fecha_resolucion` y `fecha_limite` persistidas y
+coherentes, siempre que la resolución no sea futura respecto de `generado_en`.
+Las muestras, fuentes y coberturas son parte del contrato para no
+presentar esa reconstrucción como auditoría inmutable. El estado que habilita
+una comparación individual se calcula sobre todos los hechos atribuibles del
+conjunto analizado: transiciones reales y finalizaciones históricas recuperadas
+desde tickets legacy. Ambas fuentes permanecen desglosadas y el cumplimiento
+individual del plazo sigue limitado a transiciones reales con snapshot, para no
+presentar una reconstrucción como auditoría inmutable.
 
 El Resumen del equipo calcula cuatro indicadores sobre ese mismo snapshot:
 
-| Indicador                        | Numerador / valor                                                               | Denominador / muestra                                                      |
-| -------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Cumplimiento auditable del plazo | Resoluciones cuyo evento ocurrió antes o exactamente en `fecha_limite_snapshot` | Transiciones reales no-final → final que conservaron el snapshot del plazo |
-| Backlog vencido                  | Abiertos con `fecha_limite < generado_en`                                       | Todos los tickets actualmente abiertos del conjunto analizado              |
-| Antigüedad mediana               | Mediana exacta de horas hábiles entre `fecha_creacion` y `generado_en`          | Abiertos con fecha de creación no futura                                   |
-| Cobertura de asignación          | Abiertos con `asignado_usuario_id`                                              | Todos los tickets actualmente abiertos del conjunto analizado              |
+| Indicador                    | Numerador / valor                                                                                                     | Denominador / muestra                                                                                |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Cumplimiento total del plazo | Finalizaciones antes o exactamente en su vencimiento preservado o, para el tramo legacy, en `fecha_limite` persistida | Eventos no-final → final con snapshot más una última finalización histórica reconstruible por ticket |
+| Backlog vencido              | Abiertos con `fecha_limite < generado_en`                                                                             | Todos los tickets actualmente abiertos del conjunto analizado                                        |
+| Antigüedad mediana           | Mediana exacta de horas hábiles entre `fecha_creacion` y `generado_en`                                                | Abiertos con fecha de creación no futura                                                             |
+| Cobertura de asignación      | Abiertos con `asignado_usuario_id`                                                                                    | Todos los tickets actualmente abiertos del conjunto analizado                                        |
 
 `abierto` equivale a un estado distinto de `resuelto` y `cerrado`. La cobertura
 de asignación no utiliza `asignado_a`, porque ese texto solo conserva una
 representación histórica. El backlog vencido informa además cuántos abiertos
 poseen `fecha_limite`, de modo que la cobertura del plazo no quede implícita.
 Cuando un denominador o muestra vale cero, el contrato devuelve `null` en lugar
-de fabricar un 0 % o una mediana. El cumplimiento anterior a la captura de
-`fecha_limite_snapshot` no se reconstruye con campos actuales: queda
-correctamente identificado como histórico sin muestra auditable.
+de fabricar un 0 % o una mediana. El contrato conserva
+`cumplimiento_plazo_auditable` para la evidencia estricta y agrega
+`cumplimiento_plazo` para el total visible, con contadores separados por fuente.
+La reconstrucción legacy usa valores persistidos actuales, puede cambiar si se
+editan y no recupera ciclos antiguos que ya no están representados en el ticket;
+por eso nunca se etiqueta como evidencia auditable.
 
 Las horas hábiles reutilizan `@workspace/ingesta`: se cuentan las 24 horas de
 lunes a viernes en `America/Argentina/Buenos_Aires`, se omiten sábados y
@@ -490,7 +507,7 @@ Es una proyección interna uno-a-cero-o-uno: la presencia del `ticket_id` indica
 
 Es la auditoría temporal del ticket. Registra notas manuales, alta automática desde Serin, transiciones de estado, cambios de prioridad, reasignaciones y campos editados. La asignación guarda tanto IDs como snapshots legibles para que el historial siga siendo entendible aunque un usuario sea desactivado o eliminado.
 
-`autor_usuario_id` es una FK nullable a `usuarios.id` con `ON DELETE SET NULL`. Las acciones humanas nuevas guardan allí la identidad autenticada; los eventos automáticos y el historial anterior a la migración permanecen en `null`. La columna `autor` conserva el snapshot legible, por lo que eliminar o renombrar una cuenta no vuelve incomprensible la auditoría. El índice `(autor_usuario_id, fecha_creacion, id)` permite recuperar actividad atribuida con un orden estable.
+`autor_usuario_id` es una FK nullable a `usuarios.id` con `ON DELETE SET NULL`. Las acciones humanas nuevas guardan allí la identidad autenticada; los eventos automáticos permanecen en `null`. `0021` completa resoluciones históricas cuando la última asignación estructurada hasta el evento y `autor` coinciden con el mismo usuario; los casos sin doble evidencia no se modifican. La columna `autor` conserva el snapshot legible y el índice `(autor_usuario_id, fecha_creacion, id)` permite recuperar actividad atribuida con un orden estable. Las cuentas referenciadas por autoría, asignaciones o tickets históricos deben desactivarse: el borrado físico se bloquea para no aplicar `SET NULL` sobre la evidencia.
 
 `campos_editados` contiene únicamente nombres de campos, no una copia de valores sensibles.
 

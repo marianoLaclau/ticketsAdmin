@@ -181,9 +181,9 @@ function getComparisonNoticeConfig(
   switch (data.comparacion_individual_estado) {
     case "disponible":
       return {
-        title: "Comparación individual disponible",
+        title: "Cobertura auditable disponible",
         description:
-          "La muestra y la atribución alcanzan el umbral auditable definido por el servidor." +
+          "Los eventos auditables alcanzan el umbral definido. Operadores puede incorporar además finalizaciones históricas atribuibles para comparar volumen y tiempos." +
           historicalContext,
         icon: CheckCircle2,
         className: "border-emerald-200 bg-emerald-50 text-emerald-950",
@@ -191,9 +191,9 @@ function getComparisonNoticeConfig(
       };
     case "parcial":
       return {
-        title: "Comparación individual con cobertura parcial",
+        title: "Cobertura auditable parcial",
         description:
-          "Los indicadores por operador deben interpretarse con cautela porque parte de las resoluciones no tiene autor estructurado." +
+          "Parte de los eventos auditables no tiene autor estructurado. Esta cobertura no incluye las finalizaciones históricas atribuibles que sí se muestran en Operadores." +
           historicalContext,
         icon: ShieldAlert,
         className: "border-amber-200 bg-amber-50 text-amber-950",
@@ -201,9 +201,9 @@ function getComparisonNoticeConfig(
       };
     default:
       return {
-        title: "Comparación individual no disponible",
+        title: "Cobertura auditable limitada",
         description:
-          "La muestra o la cobertura de autoría todavía no permite comparar operadores sin inducir conclusiones incompletas." +
+          "La muestra de eventos auditables es limitada. La vista Operadores evalúa por separado el conjunto completo, incluidas las finalizaciones históricas atribuibles." +
           historicalContext,
         icon: CircleAlert,
         className: "border-red-200 bg-red-50 text-red-950",

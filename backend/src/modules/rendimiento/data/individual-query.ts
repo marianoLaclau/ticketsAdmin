@@ -33,6 +33,7 @@ export type PerformanceIndividualMetric = {
   };
   tickets_resueltos: number;
   resoluciones_atribuidas: number;
+  finalizaciones_historicas_atribuidas: number;
   tiempo_resolucion_atribuible: {
     muestra: number;
     promedio_horas: number | null;
@@ -55,6 +56,8 @@ export type PerformanceIndividualsResult = {
   cobertura: {
     resoluciones_evaluadas: number;
     resoluciones_atribuidas: number;
+    finalizaciones_historicas_detectadas: number;
+    finalizaciones_historicas_atribuidas: number;
     porcentaje_atribucion: number | null;
     atribucion_desde: Date | null;
     comparacion_individual_estado: IndividualComparisonStatus;
@@ -69,6 +72,8 @@ type RawCoverage = {
   tickets_evaluados: number;
   resoluciones_evaluadas: number;
   resoluciones_atribuidas: number;
+  finalizaciones_historicas_detectadas: number;
+  finalizaciones_historicas_atribuidas: number;
   atribucion_desde: number | null;
 };
 
@@ -79,6 +84,7 @@ type RawIndividualMetric = {
   usuario_activo: number;
   tickets_resueltos: number;
   resoluciones_atribuidas: number;
+  finalizaciones_historicas_atribuidas: number;
   duracion_muestra: number;
   duracion_promedio_ms: number | null;
   duracion_mediana_ms: number | null;
@@ -115,9 +121,12 @@ function percentage(numerator: number, denominator: number): number | null {
 }
 
 /**
- * Calcula indicadores individuales exclusivamente sobre identidades y eventos
- * estructurados. La asignacion actual nunca se usa para adjudicar resoluciones:
- * solo representa la carga abierta al instante del snapshot.
+ * Calcula indicadores individuales sobre resoluciones auditadas y sobre la
+ * fotografia final persistida de tickets legacy que no tienen un evento de
+ * resolucion. Esa recuperacion historica se mantiene identificada por separado.
+ * La asignacion actual solo adjudica esas filas legacy sin evento; para los
+ * eventos reales se exige autor_usuario_id. En tickets abiertos representa
+ * exclusivamente la carga al instante del snapshot.
  *
  * Se ejecutan dos sentencias agregadas dentro del mismo snapshot de lectura:
  * una conserva las magnitudes globales aun cuando no haya usuarios y otra
@@ -134,25 +143,57 @@ export function consultarRendimientoPersonas<
     throw new RangeError("El instante del rendimiento individual no es valido");
   }
 
+  const nowMs = now.getTime();
   const cohortCondition = and(...buildPerformanceCohortConditions(filters))!;
 
   return database.transaction((tx): PerformanceIndividualsResult => {
     const coverage = tx.get<RawCoverage>(sql`
       with cohort as (
-        select ${ticketsTable.id} as ticket_id
+        select
+          ${ticketsTable.id} as ticket_id,
+          ${ticketsTable.estado} as estado,
+          ${ticketsTable.asignado_usuario_id} as asignado_usuario_id,
+          ${ticketsTable.fecha_creacion} as fecha_creacion,
+          ${ticketsTable.fecha_resolucion} as fecha_resolucion
         from ${ticketsTable}
         where ${cohortCondition}
       ),
       resolution_events as (
         select
+          ${seguimientosTable.ticket_id} as ticket_id,
           ${seguimientosTable.autor_usuario_id} as autor_usuario_id,
-          ${seguimientosTable.fecha_creacion} as fecha_evento
+          ${seguimientosTable.fecha_creacion} as fecha_evento,
+          0 as es_historica
         from ${seguimientosTable}
         inner join cohort
           on cohort.ticket_id = ${seguimientosTable.ticket_id}
         where ${seguimientosTable.estado_anterior} is not null
           and ${seguimientosTable.estado_anterior} not in ('resuelto', 'cerrado')
           and ${seguimientosTable.estado_nuevo} in ('resuelto', 'cerrado')
+          and ${seguimientosTable.fecha_creacion} >= cohort.fecha_creacion
+          and ${seguimientosTable.fecha_creacion} <= ${nowMs}
+      ),
+      historical_finalizations as (
+        select
+          cohort.ticket_id,
+          cohort.asignado_usuario_id as autor_usuario_id,
+          cohort.fecha_resolucion as fecha_evento,
+          1 as es_historica
+        from cohort
+        where cohort.estado in ('resuelto', 'cerrado')
+          and cohort.fecha_resolucion is not null
+          and cohort.fecha_resolucion >= cohort.fecha_creacion
+          and cohort.fecha_resolucion <= ${nowMs}
+          and not exists (
+            select 1
+            from resolution_events
+            where resolution_events.ticket_id = cohort.ticket_id
+          )
+      ),
+      analyzed_finalizations as (
+        select * from resolution_events
+        union all
+        select * from historical_finalizations
       )
       select
         (select count(*) from cohort) as tickets_evaluados,
@@ -162,22 +203,33 @@ export function consultarRendimientoPersonas<
             when exists (
               select 1
               from ${usuariosTable}
-              where ${usuariosTable.id} = resolution_events.autor_usuario_id
+              where ${usuariosTable.id} = analyzed_finalizations.autor_usuario_id
             ) then 1
             else 0
           end
         ), 0) as resoluciones_atribuidas,
+        coalesce(sum(es_historica), 0) as finalizaciones_historicas_detectadas,
+        coalesce(sum(
+          case
+            when es_historica = 1 and exists (
+              select 1
+              from ${usuariosTable}
+              where ${usuariosTable.id} = analyzed_finalizations.autor_usuario_id
+            ) then 1
+            else 0
+          end
+        ), 0) as finalizaciones_historicas_atribuidas,
         min(
           case
             when exists (
               select 1
               from ${usuariosTable}
-              where ${usuariosTable.id} = resolution_events.autor_usuario_id
+              where ${usuariosTable.id} = analyzed_finalizations.autor_usuario_id
             ) then fecha_evento
             else null
           end
         ) as atribucion_desde
-      from resolution_events
+      from analyzed_finalizations
     `);
 
     if (!coverage) {
@@ -192,6 +244,7 @@ export function consultarRendimientoPersonas<
           ${ticketsTable.id} as ticket_id,
           ${ticketsTable.fecha_creacion} as fecha_creacion,
           ${ticketsTable.fecha_limite} as fecha_limite,
+          ${ticketsTable.fecha_resolucion} as fecha_resolucion,
           ${ticketsTable.estado} as estado,
           ${ticketsTable.asignado_usuario_id} as asignado_usuario_id
         from ${ticketsTable}
@@ -211,6 +264,8 @@ export function consultarRendimientoPersonas<
         where ${seguimientosTable.estado_anterior} is not null
           and ${seguimientosTable.estado_anterior} not in ('resuelto', 'cerrado')
           and ${seguimientosTable.estado_nuevo} in ('resuelto', 'cerrado')
+          and ${seguimientosTable.fecha_creacion} >= cohort.fecha_creacion
+          and ${seguimientosTable.fecha_creacion} <= ${nowMs}
       ),
       resolution_windows as (
         select
@@ -231,11 +286,47 @@ export function consultarRendimientoPersonas<
         inner join ${usuariosTable}
           on ${usuariosTable.id} = resolution_windows.autor_usuario_id
       ),
+      historical_finalizations as (
+        select
+          null as resolucion_id,
+          cohort.ticket_id as ticket_id,
+          cohort.asignado_usuario_id as autor_usuario_id,
+          cohort.fecha_resolucion as fecha_evento,
+          null as fecha_limite_snapshot,
+          cohort.fecha_creacion as ticket_fecha_creacion,
+          1 as es_historica
+        from cohort
+        where cohort.estado in ('resuelto', 'cerrado')
+          and cohort.fecha_resolucion is not null
+          and cohort.fecha_resolucion >= cohort.fecha_creacion
+          and cohort.fecha_resolucion <= ${nowMs}
+          and not exists (
+            select 1
+            from resolution_events
+            where resolution_events.ticket_id = cohort.ticket_id
+          )
+      ),
+      attributed_finalizations as (
+        select
+          attributed_resolutions.resolucion_id,
+          attributed_resolutions.ticket_id,
+          attributed_resolutions.autor_usuario_id,
+          attributed_resolutions.fecha_evento,
+          attributed_resolutions.fecha_limite_snapshot,
+          attributed_resolutions.ticket_fecha_creacion,
+          0 as es_historica
+        from attributed_resolutions
+        union all
+        select historical_finalizations.*
+        from historical_finalizations
+        inner join ${usuariosTable}
+          on ${usuariosTable.id} = historical_finalizations.autor_usuario_id
+      ),
       valid_durations as (
         select
           autor_usuario_id,
           fecha_evento - ticket_fecha_creacion as duracion_ms
-        from attributed_resolutions
+        from attributed_finalizations
         where fecha_evento >= ticket_fecha_creacion
       ),
       ranked_durations as (
@@ -269,6 +360,7 @@ export function consultarRendimientoPersonas<
           autor_usuario_id,
           count(distinct ticket_id) as tickets_resueltos,
           count(*) as resoluciones_atribuidas,
+          coalesce(sum(es_historica), 0) as finalizaciones_historicas_atribuidas,
           count(fecha_limite_snapshot) as plazo_muestra,
           coalesce(sum(
             case
@@ -278,7 +370,7 @@ export function consultarRendimientoPersonas<
               else 0
             end
           ), 0) as plazo_cumplidos
-        from attributed_resolutions
+        from attributed_finalizations
         group by autor_usuario_id
       ),
       current_load as (
@@ -335,6 +427,8 @@ export function consultarRendimientoPersonas<
         ${usuariosTable.activo} as usuario_activo,
         coalesce(resolution_stats.tickets_resueltos, 0) as tickets_resueltos,
         coalesce(resolution_stats.resoluciones_atribuidas, 0) as resoluciones_atribuidas,
+        coalesce(resolution_stats.finalizaciones_historicas_atribuidas, 0)
+          as finalizaciones_historicas_atribuidas,
         coalesce(duration_stats.muestra, 0) as duracion_muestra,
         duration_stats.promedio_ms as duracion_promedio_ms,
         duration_stats.mediana_ms as duracion_mediana_ms,
@@ -359,11 +453,16 @@ export function consultarRendimientoPersonas<
 
     const evaluatedResolutions = numberOf(coverage.resoluciones_evaluadas);
     const attributedResolutions = numberOf(coverage.resoluciones_atribuidas);
+    const historicalFinalizations = numberOf(
+      coverage.finalizaciones_historicas_detectadas,
+    );
+    const attributedHistoricalFinalizations = numberOf(
+      coverage.finalizaciones_historicas_atribuidas,
+    );
     const actorCoverage = buildQualityProportion(
       attributedResolutions,
       evaluatedResolutions,
     );
-
     const people = rows.map((row) => {
       const deadlineSample = numberOf(row.plazo_muestra);
       const deadlinesMet = numberOf(row.plazo_cumplidos);
@@ -377,6 +476,9 @@ export function consultarRendimientoPersonas<
         },
         tickets_resueltos: numberOf(row.tickets_resueltos),
         resoluciones_atribuidas: numberOf(row.resoluciones_atribuidas),
+        finalizaciones_historicas_atribuidas: numberOf(
+          row.finalizaciones_historicas_atribuidas,
+        ),
         tiempo_resolucion_atribuible: {
           muestra: numberOf(row.duracion_muestra),
           promedio_horas: millisecondsToRoundedHours(row.duracion_promedio_ms),
@@ -407,6 +509,8 @@ export function consultarRendimientoPersonas<
       cobertura: {
         resoluciones_evaluadas: evaluatedResolutions,
         resoluciones_atribuidas: attributedResolutions,
+        finalizaciones_historicas_detectadas: historicalFinalizations,
+        finalizaciones_historicas_atribuidas: attributedHistoricalFinalizations,
         porcentaje_atribucion: actorCoverage.porcentaje,
         atribucion_desde:
           coverage.atribucion_desde === null

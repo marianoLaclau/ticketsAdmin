@@ -35,6 +35,15 @@ const BASE_PROPS: ResumenEquipoPanelProps = {
     cumplidos: 58,
     porcentaje: 80.6,
   },
+  cumplimiento_plazo: {
+    muestra: 72,
+    cumplidos: 58,
+    porcentaje: 80.6,
+    muestra_auditable: 72,
+    cumplidos_auditables: 58,
+    muestra_historica_reconstruida: 0,
+    cumplidos_historicos_reconstruidos: 0,
+  },
   backlog_vencido: {
     abiertos: 64,
     con_plazo: 60,
@@ -131,7 +140,12 @@ test("presenta volumen, indicadores operativos, distribuciones y tiempos con sus
   assert.ok(sla);
   assert.ok(within(sla).getByText("80,6%"));
   assert.ok(within(sla).getByText("Período evaluado: Mes actual"));
-  assert.ok(within(sla).getByText("58 de 72 resoluciones dentro del plazo"));
+  assert.ok(within(sla).getByText("58 de 72 finalizaciones dentro del plazo"));
+  assert.ok(
+    within(sla).getByText(
+      "Con vencimiento preservado: 58 de 72 dentro del plazo.",
+    ),
+  );
   assert.ok(
     within(sla).getByRole("progressbar", {
       name: "Cumplimiento del plazo",
@@ -187,16 +201,56 @@ test("mantiene muestras de cumplimiento mayores a los finalizados sin recortarla
         ...BASE_PROPS.estado_actual,
         finalizados: 8,
       }}
-      cumplimiento_plazo_auditable={{
+      cumplimiento_plazo={{
         muestra: 12,
         cumplidos: 9,
         porcentaje: 75,
+        muestra_auditable: 8,
+        cumplidos_auditables: 6,
+        muestra_historica_reconstruida: 4,
+        cumplidos_historicos_reconstruidos: 3,
       }}
     />,
   );
 
-  assert.ok(screen.getByText("9 de 12 resoluciones dentro del plazo"));
+  assert.ok(screen.getByText("9 de 12 finalizaciones dentro del plazo"));
   assert.ok(screen.getByText("75%"));
+});
+
+test("expone el cumplimiento histórico completo y su fuente", (t) => {
+  t.after(cleanup);
+  render(
+    <ResumenEquipoPanel
+      {...BASE_PROPS}
+      periodFilterLabel="Todo el historial"
+      cumplimiento_plazo={{
+        muestra: 115,
+        cumplidos: 86,
+        porcentaje: 74.8,
+        muestra_auditable: 1,
+        cumplidos_auditables: 1,
+        muestra_historica_reconstruida: 114,
+        cumplidos_historicos_reconstruidos: 85,
+      }}
+    />,
+  );
+
+  const compliance = screen
+    .getByRole("heading", { name: "Cumplimiento del plazo" })
+    .closest<HTMLElement>("article");
+  assert.ok(compliance);
+  assert.ok(within(compliance).getByText("74,8%"));
+  assert.ok(
+    within(compliance).getByText("86 de 115 finalizaciones dentro del plazo"),
+  );
+  assert.ok(
+    within(compliance).getByText(
+      "Con vencimiento preservado: 1 de 1 dentro del plazo · Históricas reconstruidas: 85 de 114 dentro del plazo.",
+    ),
+  );
+  assert.ok(
+    within(compliance).getByText("Período evaluado: Todo el historial"),
+  );
 });
 
 test("presenta estados analíticos vacíos sin inventar valores", (t) => {
@@ -209,10 +263,14 @@ test("presenta estados analíticos vacíos sin inventar valores", (t) => {
         promedio_horas: null,
         mediana_horas: null,
       }}
-      cumplimiento_plazo_auditable={{
+      cumplimiento_plazo={{
         muestra: 0,
         cumplidos: 0,
         porcentaje: null,
+        muestra_auditable: 0,
+        cumplidos_auditables: 0,
+        muestra_historica_reconstruida: 0,
+        cumplidos_historicos_reconstruidos: 0,
       }}
       distribucion_estado={{
         nuevo: 0,
@@ -379,6 +437,15 @@ test("presenta un estado vacío general y permite limpiar filtros", async (t) =>
         muestra: 0,
         cumplidos: 0,
         porcentaje: null,
+      }}
+      cumplimiento_plazo={{
+        muestra: 0,
+        cumplidos: 0,
+        porcentaje: null,
+        muestra_auditable: 0,
+        cumplidos_auditables: 0,
+        muestra_historica_reconstruida: 0,
+        cumplidos_historicos_reconstruidos: 0,
       }}
       backlog_vencido={{
         abiertos: 0,

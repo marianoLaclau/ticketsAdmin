@@ -22,6 +22,8 @@ function personasData(): RendimientoPersonas {
     cobertura: {
       resoluciones_evaluadas: 8,
       resoluciones_atribuidas: 6,
+      finalizaciones_historicas_detectadas: 2,
+      finalizaciones_historicas_atribuidas: 2,
       porcentaje_atribucion: 75,
       atribucion_desde: "2026-08-03T15:00:00.000Z",
       comparacion_individual_estado: "insuficiente",
@@ -39,6 +41,7 @@ function personasData(): RendimientoPersonas {
         },
         tickets_resueltos: 4,
         resoluciones_atribuidas: 5,
+        finalizaciones_historicas_atribuidas: 2,
         tiempo_resolucion_atribuible: {
           muestra: 4,
           promedio_horas: 25.5,
@@ -64,6 +67,7 @@ function personasData(): RendimientoPersonas {
         },
         tickets_resueltos: 1,
         resoluciones_atribuidas: 1,
+        finalizaciones_historicas_atribuidas: 0,
         tiempo_resolucion_atribuible: {
           muestra: 0,
           promedio_horas: null,
@@ -111,9 +115,11 @@ test("muestra hechos y muestras aun con cobertura insuficiente, sin ranking", as
     .closest<HTMLElement>("article");
   assert.ok(ana);
   assert.ok(within(ana).getByText("4"));
-  assert.ok(within(ana).getByText("5 resoluciones atribuibles"));
+  assert.ok(within(ana).getByText("5 finalizaciones atribuibles"));
+  assert.ok(within(ana).getByText("2 recuperadas del historial"));
   assert.ok(within(ana).getByText("18 h 15 min"));
-  assert.ok(within(ana).getByText("Muestra: 4 resoluciones"));
+  assert.ok(within(ana).getByText("Muestra: 4 finalizaciones"));
+  assert.ok(within(ana).getByText("2 fechas históricas incluidas"));
   assert.ok(within(ana).getByText("66,7%"));
   assert.ok(within(ana).getByText("2 de 3 resoluciones"));
   assert.ok(within(ana).getByText("3 abiertos"));
@@ -151,6 +157,85 @@ test("presenta datos no medibles como Sin muestra y conserva los ceros reales", 
   assert.equal(within(bruno).queryByText("0 h"), null);
 });
 
+test("habilita la comparación con el historial atribuible completo", (t) => {
+  t.after(cleanup);
+  const data = personasData();
+  data.cobertura = {
+    ...data.cobertura,
+    resoluciones_evaluadas: 12,
+    resoluciones_atribuidas: 12,
+    finalizaciones_historicas_detectadas: 10,
+    finalizaciones_historicas_atribuidas: 10,
+    porcentaje_atribucion: 100,
+    comparacion_individual_estado: "disponible",
+  };
+
+  render(<RendimientoPersonasPanel data={data} onClearFilters={() => {}} />);
+
+  assert.ok(
+    screen.getByRole("heading", {
+      name: "Cobertura suficiente para comparar",
+    }),
+  );
+  assert.ok(
+    screen.getByText(
+      /12 finalizaciones analizadas: 2 con evento y 10 históricas/,
+    ),
+  );
+});
+
+test("muestra tres operadores y permite desplegar o contraer el resto", async (t) => {
+  t.after(cleanup);
+  const user = userEvent.setup();
+  const data = personasData();
+  const template = data.personas[0]!;
+  data.personas = [
+    ...data.personas,
+    ...["Carla Díaz", "Diego López", "Elena Ruiz"].map((nombre, index) => ({
+      ...template,
+      usuario: {
+        ...template.usuario,
+        id: index + 3,
+        nombre,
+      },
+    })),
+  ];
+
+  render(<RendimientoPersonasPanel data={data} onClearFilters={() => {}} />);
+
+  assert.ok(screen.getByRole("heading", { name: "Carla Díaz" }));
+  assert.equal(screen.queryByRole("heading", { name: "Diego López" }), null);
+  assert.equal(screen.queryByRole("heading", { name: "Elena Ruiz" }), null);
+
+  const expand = screen.getByRole("button", { name: "Ver 2 operadores más" });
+  assert.equal(expand.getAttribute("aria-expanded"), "false");
+  const controlledListId = expand.getAttribute("aria-controls");
+  assert.ok(controlledListId);
+  assert.ok(document.getElementById(controlledListId));
+
+  await user.click(expand);
+
+  assert.ok(screen.getByRole("heading", { name: "Diego López" }));
+  assert.ok(screen.getByRole("heading", { name: "Elena Ruiz" }));
+  const collapse = screen.getByRole("button", {
+    name: "Mostrar solo 3 operadores",
+  });
+  assert.equal(collapse.getAttribute("aria-expanded"), "true");
+
+  await user.click(collapse);
+
+  assert.equal(screen.queryByRole("heading", { name: "Diego López" }), null);
+  assert.equal(screen.queryByRole("heading", { name: "Elena Ruiz" }), null);
+  assert.equal(
+    screen
+      .getByRole("button", { name: "Ver 2 operadores más" })
+      .getAttribute("aria-expanded"),
+    "false",
+  );
+
+  await assertNoAxeViolations();
+});
+
 test("el estado vacío explica el conjunto analizado y permite limpiar filtros", async (t) => {
   t.after(cleanup);
   const user = userEvent.setup();
@@ -160,6 +245,8 @@ test("el estado vacío explica el conjunto analizado y permite limpiar filtros",
     ...data.cobertura,
     resoluciones_evaluadas: 0,
     resoluciones_atribuidas: 0,
+    finalizaciones_historicas_detectadas: 0,
+    finalizaciones_historicas_atribuidas: 0,
     porcentaje_atribucion: null,
     atribucion_desde: null,
   };

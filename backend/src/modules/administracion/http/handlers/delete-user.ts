@@ -4,9 +4,10 @@ import {
   rolesTable,
   seguimientosTable,
   sesionesTable,
+  ticketsTable,
   usuariosTable,
 } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { DeleteAdminUserBody, DeleteAdminUserParams } from "@workspace/api-zod";
 import { revokeEventClientsForUsers } from "../../../../shared/realtime/events";
 import {
@@ -27,9 +28,9 @@ const normalizeUsername = (value: string): string => value.trim().toLowerCase();
  * La primera es `confirmar: true`; la segunda es repetir el nombre de usuario
  * exacto, para que un id equivocado no termine borrando a otra persona.
  *
- * El historial no se pierde: las referencias en tickets y seguimientos son
- * ON DELETE SET NULL y el nombre de quien hizo cada movimiento queda como
- * snapshot textual en la propia fila.
+ * El historial no se pierde: una cuenta referenciada por autoría, asignaciones
+ * o tickets no se borra físicamente y debe desactivarse. Para las cuentas sin
+ * historia, las FK conservan además ON DELETE SET NULL como defensa de esquema.
  */
 export async function deleteAdminUser(
   req: Request,
@@ -85,8 +86,9 @@ export async function deleteAdminUser(
       }
 
       // La identidad estructurada hace que estas acciones sean atribuibles de
-      // forma verificable. Un borrado físico aplicaría SET NULL y perdería esa
-      // relación, por lo que una cuenta con historial debe desactivarse.
+      // forma verificable. Un borrado físico aplicaría SET NULL y perdería la
+      // autoría, la asignación histórica o el responsable de un ticket legacy.
+      // Una cuenta con cualquiera de esas evidencias debe desactivarse.
       const auditHistory = tx
         .select({ id: seguimientosTable.id })
         .from(seguimientosTable)
@@ -94,6 +96,27 @@ export async function deleteAdminUser(
         .limit(1)
         .get();
       if (auditHistory) return { kind: "audit_history" } as const;
+
+      const assignmentHistory = tx
+        .select({ id: seguimientosTable.id })
+        .from(seguimientosTable)
+        .where(
+          or(
+            eq(seguimientosTable.asignado_anterior_usuario_id, actual.id),
+            eq(seguimientosTable.asignado_nuevo_usuario_id, actual.id),
+          ),
+        )
+        .limit(1)
+        .get();
+      if (assignmentHistory) return { kind: "audit_history" } as const;
+
+      const assignedTicket = tx
+        .select({ id: ticketsTable.id })
+        .from(ticketsTable)
+        .where(eq(ticketsTable.asignado_usuario_id, actual.id))
+        .limit(1)
+        .get();
+      if (assignedTicket) return { kind: "audit_history" } as const;
 
       // Nunca dejar el sistema sin un SysAdmin capaz de entrar.
       const esSysAdminAutenticable =
