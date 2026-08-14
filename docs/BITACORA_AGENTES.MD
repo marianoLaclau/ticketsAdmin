@@ -3740,6 +3740,9 @@ chatInput }`. Al primer uso se recupera o genera un UUID v4 y se guarda bajo
 
 ### Deploy y calidad
 
+- El workflow Deploy reutiliza Quality como condición previa. Sus jobs de
+  validación y Playwright deben aprobar antes de que el runner self-hosted pueda
+  leer la base, crear el backup o recrear contenedores.
 - Deploy valida antes del backup que existan `WEBHOOK_API_KEY` y las tres
   variables requeridas del asistente. Las inyecta únicamente al crear los
   contenedores y nunca imprime sus valores. Una configuración incompleta deja

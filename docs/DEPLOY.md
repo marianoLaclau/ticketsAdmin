@@ -9,6 +9,7 @@ workflow cambia, este runbook debe actualizarse en el mismo cambio.
 ```mermaid
 flowchart TD
     trigger[Push a main o ejecución manual]
+    quality[Quality más E2E]
     checkout[Checkout en runner self-hosted]
     secrets[Validación de secretos requeridos]
     backup[Backup SQLite online<br/>más integrity_check]
@@ -20,10 +21,11 @@ flowchart TD
     diagnostics[Si falla: compose ps y logs]
     volume[(ticketsadmin_tickets_data)]
 
-    trigger --> checkout --> secrets --> backup --> build --> deploy
+    trigger --> quality --> checkout --> secrets --> backup --> build --> deploy
     volume --> backup
     deploy --> migrate --> volume
     deploy --> health --> smoke
+    quality -. fallo .-> diagnostics
     secrets -. fallo .-> diagnostics
     backup -. fallo .-> diagnostics
     build -. fallo .-> diagnostics
@@ -35,16 +37,18 @@ El workflow:
 
 1. serializa los despliegues con el grupo `deploy-testing` y no cancela uno ya
    iniciado;
-2. valida que estén configurados el webhook de ingreso y las credenciales del
+2. invoca el workflow reutilizable Quality y exige que aprueben tanto el gate
+   de código como los recorridos E2E antes de reservar el runner productivo;
+3. valida que estén configurados el webhook de ingreso y las credenciales del
    asistente, sin imprimir sus valores;
-3. crea un backup consistente mediante la API `.backup` de SQLite y exige
+4. crea un backup consistente mediante la API `.backup` de SQLite y exige
    `PRAGMA integrity_check = ok` antes de continuar;
-4. construye las imágenes con valores no sensibles, sin exponer secretos al
+5. construye las imágenes con valores no sensibles, sin exponer secretos al
    build;
-5. inyecta los secretos solamente en `docker compose up`;
-6. espera hasta 180 segundos a que Compose declare saludables ambos servicios;
-7. comprueba `/api/readyz` directamente en el backend y que Nginx sirva la SPA;
-8. si algo falla, muestra estado y las últimas líneas de logs sin modificar los
+6. inyecta los secretos solamente en `docker compose up`;
+7. espera hasta 180 segundos a que Compose declare saludables ambos servicios;
+8. comprueba `/api/readyz` directamente en el backend y que Nginx sirva la SPA;
+9. si algo falla, muestra estado y las últimas líneas de logs sin modificar los
    datos.
 
 El volumen nombrado `ticketsadmin_tickets_data` conserva `/data/tickets.db`
@@ -59,9 +63,9 @@ volúmenes, no hace `prune` y no restaura un backup automáticamente.
   exige inspección antes de decidir entre corregir hacia adelante o revertir
   código.
 - [Quality](../.github/workflows/quality.yml) ejecuta lint, tests, typecheck,
-  builds y Playwright en pull requests o por invocación explícita. El workflow
-  Deploy es independiente; la protección de `main` debe exigir Quality si se
-  quiere impedir que llegue código no validado.
+  builds y Playwright en pull requests o por invocación explícita. Deploy
+  reutiliza ese mismo workflow como job obligatorio; un fallo impide que el job
+  self-hosted toque datos o contenedores.
 - Si no existe el volumen o no existe `/data/tickets.db`, el workflow lo trata
   como una instalación nueva y continúa sin backup. En un servidor que ya
   debería tener datos, ese mensaje requiere detenerse y verificar el volumen.

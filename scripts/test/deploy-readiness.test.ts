@@ -131,6 +131,18 @@ test("el workflow serializa deploys desde main sin cancelar uno activo", () => {
   assert.match(workflow, /timeout-minutes: 30/);
 });
 
+test("el deploy exige Quality y E2E antes de usar el runner productivo", () => {
+  assert.match(
+    workflow,
+    /jobs:\n\s+quality:\n\s+uses: \.\/\.github\/workflows\/quality\.yml/,
+  );
+  assert.match(workflow, /deploy:\n\s+needs: quality\n\s+runs-on: self-hosted/);
+  assert.match(
+    readRepositoryFile(".github/workflows/quality.yml"),
+    /workflow_call:/,
+  );
+});
+
 test("no quedan entrypoints ni metadatos del orquestador retirado", () => {
   for (const path of [
     ".github/workflows/recover-pending.yml",

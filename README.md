@@ -112,7 +112,7 @@ Abrir http://localhost:3000. En una base nueva, el primer arranque crea el usuar
 - `pnpm --filter @workspace/db exec drizzle-kit generate --config ./drizzle.config.ts` — genera el SQL de migración tras cambiar el schema (commitear el resultado)
 - `docker compose up -d --build` — levanta los contenedores con los valores de `.env`; requiere la clave de ingreso y la configuración completa del asistente n8n. `BOOTSTRAP_SYSADMIN_PASSWORD` deja de ser necesario después de asegurar la base (ver [docs/DEPLOY.md](docs/DEPLOY.md))
 
-El workflow Quality de GitHub exige dos jobs en orden: `quality` y luego `e2e`. El segundo instala Chromium, ejecuta los cuatro flujos Playwright sobre un stack efímero y, si falla, publica `playwright-diagnostics` durante 7 días. Ambos validan pull requests. El deploy desde `main` vive en un workflow independiente; la protección de rama debe exigir Quality si se quiere convertir esa validación en condición de merge.
+El workflow Quality de GitHub exige dos jobs en orden: `quality` y luego `e2e`. El segundo instala Chromium, ejecuta los flujos Playwright sobre un stack efímero y, si falla, publica `playwright-diagnostics` durante 7 días. Ambos validan pull requests y el workflow Deploy reutiliza el gate completo antes de ejecutar el job self-hosted: un push directo a `main` no toca datos ni contenedores si Quality o E2E fallan.
 
 ## Configuración
 

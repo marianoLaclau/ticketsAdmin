@@ -615,6 +615,7 @@ La suite `e2e/` usa Playwright con Desktop Chrome, un solo worker y una base SQL
 ```mermaid
 flowchart TD
     trigger[Push a main o ejecución manual]
+    quality[Quality más E2E]
     runner[Runner self-hosted]
     secrets[Preflight de secretos]
     backup[Backup SQLite online<br/>más integrity_check]
@@ -628,11 +629,12 @@ flowchart TD
     intervention[Intervención manual]
     volume[(tickets_data volume)]
 
-    trigger --> runner --> secrets --> backup --> images --> rollout
+    trigger --> quality --> runner --> secrets --> backup --> images --> rollout
     volume --> backup
     rollout --> migrate --> volume
     rollout --> health
     health -->|sí| smoke --> active
+    quality -. fallo .-> diagnostics
     secrets -. fallo .-> diagnostics
     backup -. fallo .-> diagnostics
     images -. fallo .-> diagnostics
@@ -642,7 +644,7 @@ flowchart TD
     diagnostics --> intervention
 ```
 
-El workflow Deploy corre en el runner self-hosted ante cada push a `main` o por `workflow_dispatch`. El grupo de concurrencia `deploy-testing` serializa ejecuciones y `cancel-in-progress: false` evita interrumpir un despliegue que ya empezó. Quality y Deploy son workflows independientes; la política de merge debe exigir Quality si se necesita ese gate antes de llegar a `main`.
+El workflow Deploy se activa ante cada push a `main` o por `workflow_dispatch`. El grupo de concurrencia `deploy-testing` serializa ejecuciones y `cancel-in-progress: false` evita interrumpir un despliegue que ya empezó. Antes de reservar el runner self-hosted, invoca el workflow reutilizable Quality: sus jobs de validación y E2E deben aprobar para habilitar el job que accede a Docker y a los datos productivos.
 
 Antes de tocar los datos, el workflow valida que existan `WEBHOOK_API_KEY` y las tres variables requeridas del asistente n8n, sin imprimir sus valores. Después, un contenedor efímero monta `ticketsadmin_tickets_data` en solo lectura y usa la API `.backup` de SQLite. La copia queda fuera del checkout en `/var/lib/ticketsadmin/backups` y debe superar `PRAGMA integrity_check`. Si no existe el volumen o `tickets.db`, se considera una instalación nueva. Un secreto ausente o un fallo real de backup detienen el job.
 
