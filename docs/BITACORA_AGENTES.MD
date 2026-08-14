@@ -3752,6 +3752,20 @@ chatInput }`. Al primer uso se recupera o genera un UUID v4 y se guarda bajo
   saturación por múltiples procesos JSDOM. Un hook de pruebas limitado a CSS
   locales permite importar la página real sin mover estilos al entrypoint ni
   ocultar errores de otros módulos.
-- Validación del candidato hasta este punto: contrato OpenAPI 30/30, workflow
-  de deploy 4/4, consultas focales backend 22/22 y suite completa de
-  componentes 111/111. No se realizó push.
+- Validación focal: contrato OpenAPI 30/30, workflow de deploy 4/4, consultas
+  backend 22/22 y suite completa de componentes 111/111.
+- `pnpm quality` finalizó con código 0: lint, formato, artefactos generados,
+  schema Drizzle, pruebas de todos los workspaces, TypeScript y builds quedaron
+  sincronizados. Playwright aprobó los 11 recorridos E2E.
+- Las imágenes `ticketsadmin-backend:local` y `ticketsadmin-frontend:local`
+  construyeron desde cero. Un stack temporal en puertos 15000/13000 respondió
+  readiness directa, SPA y readiness a través de Nginx; después se retiraron
+  únicamente sus contenedores y volumen aislado.
+- Se creó un backup local nuevo mediante la API online y se verificó contra su
+  evidencia: integridad, claves foráneas, esquema, tamaño, páginas y SHA-256.
+  El restore drill se ejecutó solo sobre una copia bajo `backups/` y validó
+  tanto el destino restaurado como su recovery; `data/tickets.db` permaneció
+  intacta.
+- El escaneo comparó los cinco valores sensibles configurados contra los 505
+  archivos versionados y todo el historial Git, sin coincidencias. Los
+  artefactos de backup están ignorados. No se realizó push.
