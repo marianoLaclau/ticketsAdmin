@@ -8,10 +8,8 @@ import type {
 } from "@workspace/api-client-react";
 import { Router } from "wouter";
 import { memoryLocation } from "wouter/memory-location";
-import {
-  buildRepetitionContactTicketSignature,
-  RendimientoReiteracionesPanel,
-} from "../src/features/rendimiento/RendimientoReiteracionesPanel.tsx";
+import { RendimientoReiteracionesPanel } from "../src/features/rendimiento/RendimientoReiteracionesPanel.tsx";
+import { buildRepetitionContactTicketSignature } from "../src/features/rendimiento/reiteraciones-format.ts";
 import {
   RendimientoReiteracionesErrorState,
   RendimientoReiteracionesLoadingState,

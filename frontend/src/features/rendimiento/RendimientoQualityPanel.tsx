@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import {
   formatRendimientoDateTime,
   formatRendimientoPeriod,
+  rendimientoNumberFormatter,
 } from "./rendimiento-format";
 
 type CoverageKey = keyof RendimientoCoberturasCalidadDatos;
@@ -83,7 +84,6 @@ const COVERAGE_DEFINITIONS: readonly CoverageDefinition[] = [
   },
 ] as const;
 
-const numberFormatter = new Intl.NumberFormat("es-AR");
 const percentageFormatter = new Intl.NumberFormat("es-AR", {
   minimumFractionDigits: 0,
   maximumFractionDigits: 1,
@@ -141,9 +141,9 @@ function CoverageCard({
       />
       <p className="mt-2 text-xs text-muted-foreground">
         <span className="font-semibold tabular-nums text-foreground">
-          {numberFormatter.format(coverage.numerador)}
+          {rendimientoNumberFormatter.format(coverage.numerador)}
         </span>{" "}
-        de {numberFormatter.format(coverage.denominador)} casos con el dato
+        de {rendimientoNumberFormatter.format(coverage.denominador)} casos con el dato
         disponible
       </p>
     </article>
@@ -270,7 +270,7 @@ export function RendimientoQualityPanel({
                 Tickets evaluados
               </p>
               <p className="mt-1 text-2xl font-bold tabular-nums">
-                {numberFormatter.format(data.tickets_evaluados)}
+                {rendimientoNumberFormatter.format(data.tickets_evaluados)}
               </p>
             </div>
             <div className="rounded-lg border bg-slate-50 p-3">
@@ -278,7 +278,7 @@ export function RendimientoQualityPanel({
                 Resoluciones evaluadas
               </p>
               <p className="mt-1 text-2xl font-bold tabular-nums">
-                {numberFormatter.format(data.resoluciones_evaluadas)}
+                {rendimientoNumberFormatter.format(data.resoluciones_evaluadas)}
               </p>
             </div>
           </div>

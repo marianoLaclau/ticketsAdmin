@@ -1,4 +1,3 @@
-import type { LucideIcon } from "lucide-react";
 import {
   AlertCircle,
   BarChart3,
@@ -19,96 +18,29 @@ import {
   CardDescription,
   CardHeader,
 } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { getEstadoLabel } from "@/lib/estados";
 import { cn } from "@/lib/utils";
 import {
-  formatRendimientoDateTime,
   formatRendimientoPeriod,
+  rendimientoNumberFormatter,
 } from "./rendimiento-format";
-
-export interface ResumenEquipoPeriodo {
-  fecha_desde: string | null;
-  fecha_hasta: string | null;
-  timezone: string;
-  generado_en: string;
-}
-
-export interface ResumenEquipoEstadoActual {
-  total: number;
-  abiertos: number;
-  finalizados: number;
-  vencidos_abiertos: number;
-}
-
-export interface ResumenEquipoResolucionConFecha {
-  muestra: number;
-  promedio_horas: number | null;
-  mediana_horas: number | null;
-}
-
-export interface ResumenEquipoCumplimiento {
-  muestra: number;
-  cumplidos: number;
-  porcentaje: number | null;
-}
-
-export interface ResumenEquipoCumplimientoTotal extends ResumenEquipoCumplimiento {
-  muestra_auditable: number;
-  cumplidos_auditables: number;
-  muestra_historica_reconstruida: number;
-  cumplidos_historicos_reconstruidos: number;
-}
-
-export interface ResumenEquipoBacklogVencido {
-  abiertos: number;
-  con_plazo: number;
-  vencidos: number;
-  porcentaje: number | null;
-}
-
-export interface ResumenEquipoAntiguedadBacklog {
-  muestra: number;
-  mediana_horas_habiles: number | null;
-}
-
-export interface ResumenEquipoCoberturaAsignacion {
-  abiertos: number;
-  asignados: number;
-  sin_asignar: number;
-  porcentaje: number | null;
-}
-
-export interface ResumenEquipoEstadoDistribucion {
-  nuevo: number;
-  en_proceso: number;
-  pendiente: number;
-  resuelto: number;
-  cerrado: number;
-}
-
-export interface ResumenEquipoPrioridadDistribucion {
-  baja: number;
-  media: number;
-  alta: number;
-  urgente: number;
-}
-
-export interface ResumenEquipoPanelProps {
-  periodo: ResumenEquipoPeriodo;
-  periodFilterLabel: string;
-  tickets_ingresados: number;
-  estado_actual: ResumenEquipoEstadoActual;
-  resolucion_con_fecha: ResumenEquipoResolucionConFecha;
-  cumplimiento_plazo_auditable: ResumenEquipoCumplimiento;
-  cumplimiento_plazo: ResumenEquipoCumplimientoTotal;
-  backlog_vencido: ResumenEquipoBacklogVencido;
-  antiguedad_backlog: ResumenEquipoAntiguedadBacklog;
-  cobertura_asignacion: ResumenEquipoCoberturaAsignacion;
-  distribucion_estado: ResumenEquipoEstadoDistribucion;
-  distribucion_prioridad: ResumenEquipoPrioridadDistribucion;
-  onClearFilters: () => void;
-}
+import { KpiCard, OperationalKpiCard } from "./ResumenEquipoKpiCards";
+import {
+  decimalFormatter,
+  formatBusinessHours,
+  formatGeneratedAt,
+  formatHours,
+  formatPercentage,
+  normalizeCount,
+  normalizePercentage,
+} from "./resumen-equipo-format";
+import type {
+  ResumenEquipoEstadoDistribucion,
+  ResumenEquipoPanelProps,
+  ResumenEquipoResolucionConFecha,
+  ResumenEquipoPrioridadDistribucion,
+} from "./resumen-equipo-types";
+export type * from "./resumen-equipo-types";
 
 interface VisualConfig {
   label: string;
@@ -167,199 +99,6 @@ const PRIORIDAD_CONFIG: Readonly<Record<string, VisualConfig>> = {
   },
 };
 
-const numberFormatter = new Intl.NumberFormat("es-AR");
-const decimalFormatter = new Intl.NumberFormat("es-AR", {
-  maximumFractionDigits: 1,
-});
-
-function normalizeCount(value: number): number {
-  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
-}
-
-function normalizePercentage(value: number | null): number | null {
-  return value === null || !Number.isFinite(value)
-    ? null
-    : Math.min(100, Math.max(0, value));
-}
-
-function formatGeneratedAt(value: string, timezone: string): string {
-  return formatRendimientoDateTime(value, timezone) ?? "hora no disponible";
-}
-
-function formatHours(value: number | null): string {
-  if (value === null || !Number.isFinite(value) || value < 0) {
-    return "No disponible";
-  }
-  if (value < 1) return `${Math.round(value * 60)} min`;
-
-  const wholeHours = Math.floor(value);
-  const minutes = Math.round((value - wholeHours) * 60);
-  if (minutes === 60) return `${wholeHours + 1} h`;
-  return minutes > 0
-    ? `${numberFormatter.format(wholeHours)} h ${minutes} min`
-    : `${numberFormatter.format(wholeHours)} h`;
-}
-
-function formatBusinessHours(value: number | null): string {
-  if (value === null || !Number.isFinite(value) || value < 0) {
-    return "Sin muestra";
-  }
-  if (value < 1) return `${Math.round(value * 60)} min hábiles`;
-
-  const wholeHours = Math.floor(value);
-  const minutes = Math.round((value - wholeHours) * 60);
-  if (minutes === 60) return `${wholeHours + 1} h hábiles`;
-  return minutes > 0
-    ? `${numberFormatter.format(wholeHours)} h ${minutes} min hábiles`
-    : `${numberFormatter.format(wholeHours)} h hábiles`;
-}
-
-function formatPercentage(value: number | null): string {
-  const percentage = normalizePercentage(value);
-  return percentage === null
-    ? "Sin muestra"
-    : `${decimalFormatter.format(percentage)}%`;
-}
-
-interface KpiCardProps {
-  title: string;
-  value: number;
-  detail: string;
-  icon: LucideIcon;
-  tone: "slate" | "blue" | "emerald" | "red";
-}
-
-const KPI_TONES: Record<KpiCardProps["tone"], string> = {
-  slate: "border-slate-200 bg-card text-slate-700 [&_.kpi-icon]:bg-slate-100",
-  blue: "border-blue-200 bg-blue-50 text-blue-800 [&_.kpi-icon]:bg-blue-100",
-  emerald:
-    "border-emerald-200 bg-emerald-50 text-emerald-800 [&_.kpi-icon]:bg-emerald-100",
-  red: "border-red-200 bg-red-50 text-red-800 [&_.kpi-icon]:bg-red-100",
-};
-
-function KpiCard({ title, value, detail, icon: Icon, tone }: KpiCardProps) {
-  return (
-    <article
-      className={cn(
-        "flex min-w-0 items-center gap-4 rounded-xl border px-4 py-4 shadow-sm sm:px-5",
-        KPI_TONES[tone],
-      )}
-    >
-      <div className="kpi-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
-        <Icon className="h-5 w-5" aria-hidden="true" />
-      </div>
-      <div className="min-w-0">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider">
-          {title}
-        </h3>
-        <p className="mt-1 text-3xl font-bold leading-none tabular-nums">
-          {numberFormatter.format(normalizeCount(value))}
-        </p>
-        <p className="mt-1 text-[11px] opacity-80">{detail}</p>
-      </div>
-    </article>
-  );
-}
-
-interface OperationalKpiCardProps {
-  id: string;
-  title: string;
-  value: string;
-  detail: string;
-  description: string;
-  note?: string | undefined;
-  icon: LucideIcon;
-  tone: "blue" | "amber" | "violet" | "emerald";
-  percentage?: number | null;
-  progressValueText?: string | undefined;
-  scopeLabel?: string | undefined;
-}
-
-const OPERATIONAL_KPI_TONES: Record<OperationalKpiCardProps["tone"], string> = {
-  blue: "bg-blue-50 text-blue-700",
-  amber: "bg-amber-50 text-amber-700",
-  violet: "bg-violet-50 text-violet-700",
-  emerald: "bg-emerald-50 text-emerald-700",
-};
-
-function OperationalKpiCard({
-  id,
-  title,
-  value,
-  detail,
-  description,
-  note,
-  icon: Icon,
-  tone,
-  percentage,
-  progressValueText,
-  scopeLabel,
-}: OperationalKpiCardProps) {
-  const descriptionId = `${id}-description`;
-  const normalizedProgress = normalizePercentage(percentage ?? null);
-
-  return (
-    <article
-      className="flex min-w-0 flex-col rounded-xl border bg-card p-4 shadow-sm sm:p-5"
-      aria-describedby={descriptionId}
-    >
-      <div className="flex items-start gap-3">
-        <div
-          className={cn(
-            "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-            OPERATIONAL_KPI_TONES[tone],
-          )}
-        >
-          <Icon className="h-5 w-5" aria-hidden="true" />
-        </div>
-        <div className="min-w-0">
-          <h3 id={id} className="text-sm font-semibold leading-tight">
-            {title}
-          </h3>
-          {scopeLabel ? (
-            <Badge
-              variant="outline"
-              className="mt-1 h-auto max-w-full whitespace-normal bg-slate-50 px-2 py-0.5 text-left text-[10px] font-medium leading-tight text-muted-foreground"
-            >
-              Período evaluado: {scopeLabel}
-            </Badge>
-          ) : null}
-          <p className="mt-2 text-2xl font-bold leading-none tabular-nums sm:text-3xl">
-            {value}
-          </p>
-        </div>
-      </div>
-
-      <p className="mt-3 text-xs font-medium leading-relaxed text-foreground">
-        {detail}
-      </p>
-      <p
-        id={descriptionId}
-        className="mt-1 text-xs leading-relaxed text-muted-foreground"
-      >
-        {description}
-      </p>
-      {note ? (
-        <p className="mt-2 text-xs font-medium leading-relaxed text-amber-800">
-          {note}
-        </p>
-      ) : null}
-
-      {normalizedProgress !== null ? (
-        <div className="mt-auto pt-4">
-          <Progress
-            value={normalizedProgress}
-            aria-label={title}
-            aria-valuetext={
-              progressValueText ?? formatPercentage(percentage ?? null)
-            }
-          />
-        </div>
-      ) : null}
-    </article>
-  );
-}
-
 function DistributionList({
   id,
   title,
@@ -411,7 +150,7 @@ function DistributionList({
                   </span>
                   <span className="shrink-0 tabular-nums text-muted-foreground">
                     <strong className="text-foreground">
-                      {numberFormatter.format(item.cantidad)}
+                      {rendimientoNumberFormatter.format(item.cantidad)}
                     </strong>{" "}
                     ({decimalFormatter.format(percentage)}%)
                   </span>
@@ -419,7 +158,7 @@ function DistributionList({
                 <div
                   className="h-2 overflow-hidden rounded-full bg-slate-100"
                   role="img"
-                  aria-label={`${config.label}: ${numberFormatter.format(item.cantidad)} de ${numberFormatter.format(total)} tickets`}
+                  aria-label={`${config.label}: ${rendimientoNumberFormatter.format(item.cantidad)} de ${rendimientoNumberFormatter.format(total)} tickets`}
                 >
                   <div
                     className={cn("h-full rounded-full", config.barClassName)}
@@ -458,9 +197,9 @@ function CoverageNotice({
       />
       <p>
         Cobertura parcial: {subject} usa{" "}
-        {numberFormatter.format(normalizedSample)}
+        {rendimientoNumberFormatter.format(normalizedSample)}
         {" de "}
-        {numberFormatter.format(normalizedExpected)} tickets finalizados.
+        {rendimientoNumberFormatter.format(normalizedExpected)} tickets finalizados.
       </p>
     </div>
   );
@@ -530,7 +269,7 @@ function TimingPanel({
           </div>
         )}
         <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-          Muestra: {numberFormatter.format(sample)} tickets finalizados con
+          Muestra: {rendimientoNumberFormatter.format(sample)} tickets finalizados con
           fechas utilizables. Las horas son corridas: incluyen noches, fines de
           semana y feriados.
         </p>
@@ -694,7 +433,7 @@ export function ResumenEquipoPanel({
             <KpiCard
               title="Abiertos"
               value={opened}
-              detail={`de ${numberFormatter.format(total)} en el conjunto analizado`}
+              detail={`de ${rendimientoNumberFormatter.format(total)} en el conjunto analizado`}
               icon={AlertCircle}
               tone="blue"
             />
@@ -746,7 +485,7 @@ export function ResumenEquipoPanel({
                     }
                     detail={
                       hasCompliance
-                        ? `${numberFormatter.format(complianceFulfilled)} de ${numberFormatter.format(complianceSample)} finalizaciones dentro del plazo`
+                        ? `${rendimientoNumberFormatter.format(complianceFulfilled)} de ${rendimientoNumberFormatter.format(complianceSample)} finalizaciones dentro del plazo`
                         : "No hay finalizaciones con fechas de plazo utilizables."
                     }
                     description="Finalizaciones realizadas dentro del plazo registrado."
@@ -756,7 +495,7 @@ export function ResumenEquipoPanel({
                     percentage={hasCompliance ? compliancePercentage : null}
                     progressValueText={
                       hasCompliance
-                        ? `${formatPercentage(compliancePercentage)}, ${numberFormatter.format(complianceFulfilled)} de ${numberFormatter.format(complianceSample)} finalizaciones dentro del plazo`
+                        ? `${formatPercentage(compliancePercentage)}, ${rendimientoNumberFormatter.format(complianceFulfilled)} de ${rendimientoNumberFormatter.format(complianceSample)} finalizaciones dentro del plazo`
                         : undefined
                     }
                   />
@@ -771,12 +510,12 @@ export function ResumenEquipoPanel({
                     detail={
                       backlogOpen === 0
                         ? "No hay tickets abiertos en el conjunto analizado."
-                        : `${numberFormatter.format(backlogOverdue)} de ${numberFormatter.format(backlogOpen)} tickets abiertos del conjunto analizado`
+                        : `${rendimientoNumberFormatter.format(backlogOverdue)} de ${rendimientoNumberFormatter.format(backlogOpen)} tickets abiertos del conjunto analizado`
                     }
                     description="Proporción del backlog que ya superó su fecha límite."
                     note={
                       backlogOpen > 0 && backlogWithDeadline < backlogOpen
-                        ? `Cobertura parcial: ${numberFormatter.format(backlogWithDeadline)} de ${numberFormatter.format(backlogOpen)} con plazo verificable.`
+                        ? `Cobertura parcial: ${rendimientoNumberFormatter.format(backlogWithDeadline)} de ${rendimientoNumberFormatter.format(backlogOpen)} con plazo verificable.`
                         : undefined
                     }
                     icon={Clock3}
@@ -784,7 +523,7 @@ export function ResumenEquipoPanel({
                     percentage={backlogPercentage}
                     progressValueText={
                       backlogPercentage !== null
-                        ? `${formatPercentage(backlogPercentage)}, ${numberFormatter.format(backlogOverdue)} de ${numberFormatter.format(backlogOpen)} tickets abiertos vencidos`
+                        ? `${formatPercentage(backlogPercentage)}, ${rendimientoNumberFormatter.format(backlogOverdue)} de ${rendimientoNumberFormatter.format(backlogOpen)} tickets abiertos vencidos`
                         : undefined
                     }
                   />
@@ -798,7 +537,7 @@ export function ResumenEquipoPanel({
                     }
                     detail={
                       hasBacklogAge
-                        ? `Mediana de ${numberFormatter.format(backlogAgeSample)} tickets abiertos`
+                        ? `Mediana de ${rendimientoNumberFormatter.format(backlogAgeSample)} tickets abiertos`
                         : "No hay tickets abiertos con fechas utilizables."
                     }
                     description="Tiempo hábil transcurrido desde la creación de los tickets que siguen abiertos."
@@ -816,7 +555,7 @@ export function ResumenEquipoPanel({
                     detail={
                       assignmentOpen === 0
                         ? "No hay tickets abiertos en el conjunto analizado."
-                        : `${numberFormatter.format(assigned)} de ${numberFormatter.format(assignmentOpen)} tickets abiertos con operador asignado`
+                        : `${rendimientoNumberFormatter.format(assigned)} de ${rendimientoNumberFormatter.format(assignmentOpen)} tickets abiertos con operador asignado`
                     }
                     description="Proporción del backlog que tiene un responsable identificado."
                     icon={UserCheck}
@@ -824,7 +563,7 @@ export function ResumenEquipoPanel({
                     percentage={assignmentPercentage}
                     progressValueText={
                       assignmentPercentage !== null
-                        ? `${formatPercentage(assignmentPercentage)}, ${numberFormatter.format(assigned)} de ${numberFormatter.format(assignmentOpen)} tickets abiertos con operador asignado`
+                        ? `${formatPercentage(assignmentPercentage)}, ${rendimientoNumberFormatter.format(assigned)} de ${rendimientoNumberFormatter.format(assignmentOpen)} tickets abiertos con operador asignado`
                         : undefined
                     }
                   />
