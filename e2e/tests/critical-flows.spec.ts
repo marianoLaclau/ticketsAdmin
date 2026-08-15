@@ -277,6 +277,12 @@ test("Controller consulta Rendimiento de extremo a extremo sin permisos de escri
     page.getByRole("heading", { name: "Contacto Reiterado" }),
   ).toBeVisible();
 
+  // El panel presenta los contactos en dos niveles: la tarjeta resume y los
+  // tickets solo aparecen al abrir el detalle. Sin este paso el link no existe.
+  await page
+    .getByRole("button", { name: "Ver detalles de Contacto Reiterado" })
+    .click();
+
   const repeatedTicketLink = page.getByRole("link", {
     name: `Abrir ticket #${secondTicket.ticket.id} de Contacto Reiterado`,
   });
