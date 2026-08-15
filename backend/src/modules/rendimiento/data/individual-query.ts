@@ -44,6 +44,11 @@ export type PerformanceIndividualMetric = {
     cumplidos: number;
     porcentaje: number | null;
   };
+  cumplimiento_plazo: {
+    muestra: number;
+    cumplidos: number;
+    porcentaje: number | null;
+  };
   carga_actual: {
     abiertos_asignados: number;
     vencidos_asignados: number;
@@ -90,6 +95,8 @@ type RawIndividualMetric = {
   duracion_mediana_ms: number | null;
   plazo_muestra: number;
   plazo_cumplidos: number;
+  plazo_total_muestra: number;
+  plazo_total_cumplidos: number;
   abiertos_asignados: number;
   vencidos_asignados: number;
   resoluciones_reabiertas: number;
@@ -373,6 +380,69 @@ export function consultarRendimientoPersonas<
         from attributed_finalizations
         group by autor_usuario_id
       ),
+      latest_resolution as (
+        select
+          resolucion_id,
+          ticket_id,
+          autor_usuario_id,
+          fecha_limite_snapshot
+        from resolution_windows
+        where siguiente_resolucion_id is null
+      ),
+      audited_deadline_facts as (
+        select
+          autor_usuario_id,
+          case
+            when fecha_evento <= fecha_limite_snapshot then 1
+            else 0
+          end as cumplido
+        from attributed_resolutions
+        where fecha_limite_snapshot is not null
+      ),
+      reconstructed_deadline_facts as (
+        select
+          case
+            when latest_resolution.resolucion_id is null
+              then cohort.asignado_usuario_id
+            else latest_resolution.autor_usuario_id
+          end as autor_usuario_id,
+          case
+            when cohort.fecha_resolucion <= cohort.fecha_limite then 1
+            else 0
+          end as cumplido
+        from cohort
+        left join latest_resolution
+          on latest_resolution.ticket_id = cohort.ticket_id
+        inner join ${usuariosTable} as deadline_user
+          on deadline_user.id = case
+            when latest_resolution.resolucion_id is null
+              then cohort.asignado_usuario_id
+            else latest_resolution.autor_usuario_id
+          end
+        where cohort.estado in ('resuelto', 'cerrado')
+          and cohort.fecha_resolucion is not null
+          and cohort.fecha_limite is not null
+          and cohort.fecha_resolucion >= cohort.fecha_creacion
+          and cohort.fecha_resolucion <= ${nowMs}
+          and cohort.fecha_limite >= cohort.fecha_creacion
+          and (
+            latest_resolution.resolucion_id is null
+            or latest_resolution.fecha_limite_snapshot is null
+          )
+      ),
+      deadline_facts as (
+        select * from audited_deadline_facts
+        union all
+        select * from reconstructed_deadline_facts
+      ),
+      deadline_stats as (
+        select
+          autor_usuario_id,
+          count(*) as plazo_total_muestra,
+          coalesce(sum(cumplido), 0) as plazo_total_cumplidos
+        from deadline_facts
+        group by autor_usuario_id
+      ),
       current_load as (
         select
           asignado_usuario_id as usuario_id,
@@ -434,6 +504,9 @@ export function consultarRendimientoPersonas<
         duration_stats.mediana_ms as duracion_mediana_ms,
         coalesce(resolution_stats.plazo_muestra, 0) as plazo_muestra,
         coalesce(resolution_stats.plazo_cumplidos, 0) as plazo_cumplidos,
+        coalesce(deadline_stats.plazo_total_muestra, 0) as plazo_total_muestra,
+        coalesce(deadline_stats.plazo_total_cumplidos, 0)
+          as plazo_total_cumplidos,
         coalesce(current_load.abiertos_asignados, 0) as abiertos_asignados,
         coalesce(current_load.vencidos_asignados, 0) as vencidos_asignados,
         coalesce(reopened_resolutions.resoluciones_reabiertas, 0)
@@ -444,6 +517,8 @@ export function consultarRendimientoPersonas<
         on resolution_stats.autor_usuario_id = ${usuariosTable.id}
       left join duration_stats
         on duration_stats.autor_usuario_id = ${usuariosTable.id}
+      left join deadline_stats
+        on deadline_stats.autor_usuario_id = ${usuariosTable.id}
       left join current_load
         on current_load.usuario_id = ${usuariosTable.id}
       left join reopened_resolutions
@@ -466,6 +541,8 @@ export function consultarRendimientoPersonas<
     const people = rows.map((row) => {
       const deadlineSample = numberOf(row.plazo_muestra);
       const deadlinesMet = numberOf(row.plazo_cumplidos);
+      const totalDeadlineSample = numberOf(row.plazo_total_muestra);
+      const totalDeadlinesMet = numberOf(row.plazo_total_cumplidos);
 
       return {
         usuario: {
@@ -488,6 +565,11 @@ export function consultarRendimientoPersonas<
           muestra: deadlineSample,
           cumplidos: deadlinesMet,
           porcentaje: percentage(deadlinesMet, deadlineSample),
+        },
+        cumplimiento_plazo: {
+          muestra: totalDeadlineSample,
+          cumplidos: totalDeadlinesMet,
+          porcentaje: percentage(totalDeadlinesMet, totalDeadlineSample),
         },
         carga_actual: {
           abiertos_asignados: numberOf(row.abiertos_asignados),

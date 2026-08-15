@@ -21,7 +21,7 @@ export function formatRendimientoPeriod(
   if (from && to) return `${from} al ${to}`;
   if (from) return `Desde ${from}`;
   if (to) return `Hasta ${to}`;
-  return "Todo el historial";
+  return "Período completo";
 }
 
 export function formatRendimientoDateTime(

@@ -582,32 +582,6 @@ export function ResumenEquipoPanel({
     complianceSample > 0
       ? normalizePercentage(cumplimiento_plazo.porcentaje)
       : null;
-  const complianceAuditableSample = Math.min(
-    normalizeCount(cumplimiento_plazo.muestra_auditable),
-    complianceSample,
-  );
-  const complianceHistoricalSample = Math.min(
-    normalizeCount(cumplimiento_plazo.muestra_historica_reconstruida),
-    complianceSample - complianceAuditableSample,
-  );
-  const complianceAuditableFulfilled = Math.min(
-    normalizeCount(cumplimiento_plazo.cumplidos_auditables),
-    complianceAuditableSample,
-  );
-  const complianceHistoricalFulfilled = Math.min(
-    normalizeCount(cumplimiento_plazo.cumplidos_historicos_reconstruidos),
-    complianceHistoricalSample,
-  );
-  const complianceSourceNote = [
-    complianceAuditableSample > 0
-      ? `Con vencimiento preservado: ${numberFormatter.format(complianceAuditableFulfilled)} de ${numberFormatter.format(complianceAuditableSample)} dentro del plazo`
-      : null,
-    complianceHistoricalSample > 0
-      ? `Históricas reconstruidas: ${numberFormatter.format(complianceHistoricalFulfilled)} de ${numberFormatter.format(complianceHistoricalSample)} dentro del plazo`
-      : null,
-  ]
-    .filter((detail): detail is string => detail !== null)
-    .join(" · ");
   const backlogOpen = normalizeCount(backlog_vencido.abiertos);
   const backlogOverdue = Math.min(
     normalizeCount(backlog_vencido.vencidos),
@@ -680,7 +654,7 @@ export function ResumenEquipoPanel({
         </CardHeader>
         <CardContent className="p-5 sm:p-6">
           <p className="text-xs text-muted-foreground">
-            Estado al snapshot del{" "}
+            Estado registrado el{" "}
             {formatGeneratedAt(periodo.generado_en, periodo.timezone)}
           </p>
         </CardContent>
@@ -757,7 +731,7 @@ export function ResumenEquipoPanel({
                 </div>
                 <CardDescription className="max-w-3xl leading-relaxed">
                   Seguimiento del plazo, el backlog y su asignación al momento
-                  del snapshot.
+                  de la consulta.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-5 sm:p-6">
@@ -776,11 +750,6 @@ export function ResumenEquipoPanel({
                         : "No hay finalizaciones con fechas de plazo utilizables."
                     }
                     description="Finalizaciones realizadas dentro del plazo registrado."
-                    note={
-                      hasCompliance && complianceSourceNote
-                        ? `${complianceSourceNote}.`
-                        : undefined
-                    }
                     scopeLabel={periodFilterLabel}
                     icon={ListChecks}
                     tone="blue"

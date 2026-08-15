@@ -1,16 +1,15 @@
 import type {
   RendimientoPersona,
   RendimientoPersonas,
-  RendimientoPersonasCoberturaComparacionIndividualEstado,
 } from "@workspace/api-client-react";
 import {
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
-  CircleAlert,
+  Gauge,
   Inbox,
-  RotateCcw,
-  ShieldAlert,
+  Minus,
+  TrendingDown,
+  TrendingUp,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -28,6 +27,11 @@ import {
   formatRendimientoDateTime,
   formatRendimientoPeriod,
 } from "./rendimiento-format";
+import {
+  calculateOperatorPerformance,
+  OPERATOR_PERFORMANCE_CONFIG,
+  type OperatorPerformanceResult,
+} from "./operator-performance";
 
 interface RendimientoPersonasPanelProps {
   data: RendimientoPersonas;
@@ -72,128 +76,6 @@ function getInitials(name: string): string {
 function pluralize(count: number, singular: string, plural: string): string {
   return (
     numberFormatter.format(count) + " " + (count === 1 ? singular : plural)
-  );
-}
-
-interface CoverageConfig {
-  title: string;
-  description: string;
-  icon: typeof CheckCircle2;
-  className: string;
-  iconClassName: string;
-}
-
-function getCoverageConfig(
-  status: RendimientoPersonasCoberturaComparacionIndividualEstado,
-): CoverageConfig {
-  switch (status) {
-    case "disponible":
-      return {
-        title: "Cobertura suficiente para comparar",
-        description:
-          "La muestra atribuible alcanza el umbral definido e incluye finalizaciones auditadas e históricas. Las fuentes permanecen visibles y no forman una clasificación automática.",
-        icon: CheckCircle2,
-        className: "border-emerald-200 bg-emerald-50 text-emerald-950",
-        iconClassName: "text-emerald-700",
-      };
-    case "parcial":
-      return {
-        title: "Cobertura global parcial",
-        description:
-          "Parte de las finalizaciones no tiene un responsable estructurado. Los hechos se muestran en orden alfabético, con sus muestras y sin comparaciones de desempeño.",
-        icon: ShieldAlert,
-        className: "border-amber-200 bg-amber-50 text-amber-950",
-        iconClassName: "text-amber-700",
-      };
-    default:
-      return {
-        title: "Cobertura insuficiente para comparar",
-        description:
-          "La muestra global no permite comparar operadores de forma responsable. Se conservan visibles las finalizaciones auditadas, las recuperadas del historial y la carga actual.",
-        icon: CircleAlert,
-        className: "border-slate-300 bg-slate-50 text-slate-950",
-        iconClassName: "text-slate-600",
-      };
-  }
-}
-
-function CoverageNotice({ data }: { data: RendimientoPersonas }) {
-  const coverage = data.cobertura;
-  const config = getCoverageConfig(coverage.comparacion_individual_estado);
-  const Icon = config.icon;
-  const percentage =
-    coverage.porcentaje_atribucion === null
-      ? "Sin muestra"
-      : percentageFormatter.format(coverage.porcentaje_atribucion) + "%";
-  const attributionContext = coverage.atribucion_desde
-    ? " Primera atribución del conjunto analizado: " +
-      formatDateTime(coverage.atribucion_desde, data.periodo.timezone) +
-      "."
-    : " Todavía no hay una finalización con responsable estructurado en el conjunto analizado.";
-  const historicalContext =
-    coverage.finalizaciones_historicas_detectadas > 0
-      ? " Incluye " +
-        pluralize(
-          coverage.finalizaciones_historicas_atribuidas,
-          "finalización histórica atribuida",
-          "finalizaciones históricas atribuidas",
-        ) +
-        " de " +
-        numberFormatter.format(coverage.finalizaciones_historicas_detectadas) +
-        " detectadas sin evento de resolución."
-      : "";
-  const auditedFinalizations = Math.max(
-    0,
-    coverage.resoluciones_evaluadas -
-      coverage.finalizaciones_historicas_detectadas,
-  );
-  const comparisonContext =
-    " La disponibilidad para comparar se evalúa sobre las " +
-    pluralize(
-      coverage.resoluciones_evaluadas,
-      "finalización analizada",
-      "finalizaciones analizadas",
-    ) +
-    ": " +
-    numberFormatter.format(auditedFinalizations) +
-    " con evento y " +
-    numberFormatter.format(coverage.finalizaciones_historicas_detectadas) +
-    " históricas.";
-
-  return (
-    <section
-      className={cn(
-        "flex items-start gap-3 rounded-xl border p-4",
-        config.className,
-      )}
-      aria-labelledby="rendimiento-personas-cobertura-heading"
-      role="status"
-      aria-live="polite"
-    >
-      <Icon
-        className={cn("mt-0.5 h-5 w-5 shrink-0", config.iconClassName)}
-        aria-hidden="true"
-      />
-      <div className="min-w-0">
-        <h3
-          id="rendimiento-personas-cobertura-heading"
-          className="font-semibold"
-        >
-          {config.title}
-        </h3>
-        <p className="mt-1 text-sm leading-relaxed">{config.description}</p>
-        <p className="mt-2 text-xs leading-relaxed">
-          Autor identificado en{" "}
-          <strong>
-            {numberFormatter.format(coverage.resoluciones_atribuidas)} de{" "}
-            {numberFormatter.format(coverage.resoluciones_evaluadas)}
-          </strong>{" "}
-          finalizaciones ({percentage}).{attributionContext}
-          {historicalContext}
-          {comparisonContext}
-        </p>
-      </div>
-    </section>
   );
 }
 
@@ -257,9 +139,152 @@ function PersonFact({
   );
 }
 
+interface PerformancePresentation {
+  label: string;
+  icon: typeof TrendingUp;
+  valueClassName: string;
+  trackClassName: string;
+  indicatorClassName: string;
+}
+
+function getPerformancePresentation(
+  performance: OperatorPerformanceResult,
+): PerformancePresentation {
+  switch (performance.state) {
+    case "favorable":
+      return {
+        label: "Favorable",
+        icon: TrendingUp,
+        valueClassName: "text-emerald-700",
+        trackClassName: "bg-emerald-100",
+        indicatorClassName: "bg-emerald-600",
+      };
+    case "atencion":
+      return {
+        label: "Requiere atención",
+        icon: TrendingDown,
+        valueClassName: "text-red-700",
+        trackClassName: "bg-red-100",
+        indicatorClassName: "bg-red-600",
+      };
+    case "muestra_inicial":
+      return {
+        label: "Muestra inicial",
+        icon: Minus,
+        valueClassName: "text-slate-700",
+        trackClassName: "bg-slate-200",
+        indicatorClassName: "bg-slate-500",
+      };
+    default:
+      return {
+        label: "No disponible",
+        icon: Minus,
+        valueClassName: "text-slate-600",
+        trackClassName: "bg-slate-200",
+        indicatorClassName: "bg-slate-400",
+      };
+  }
+}
+
+function OperatorPerformanceFact({ person }: { person: RendimientoPersona }) {
+  const performance = calculateOperatorPerformance({
+    cumplimiento_plazo: person.cumplimiento_plazo,
+    carga_actual: person.carga_actual,
+  });
+  const presentation = getPerformancePresentation(performance);
+  const Icon = presentation.icon;
+  const score = performance.score;
+  const formattedScore =
+    score === null ? "Sin muestra" : percentageFormatter.format(score) + "/100";
+  const scoreDescription =
+    score === null
+      ? "Sin datos suficientes para calcular el indicador"
+      : percentageFormatter.format(score) +
+        " de 100, " +
+        presentation.label.toLocaleLowerCase("es-AR");
+
+  return (
+    <div className="min-w-0 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+      <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        Rendimiento operativo
+      </dt>
+      <dd className="mt-1 flex items-center justify-between gap-2">
+        <span
+          className={cn(
+            "text-lg font-bold tabular-nums",
+            presentation.valueClassName,
+          )}
+        >
+          {formattedScore}
+        </span>
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 text-[11px] font-semibold",
+            presentation.valueClassName,
+          )}
+        >
+          <Icon className="h-4 w-4" aria-hidden="true" />
+          {presentation.label}
+        </span>
+      </dd>
+      <dd className="mt-2">
+        {score === null ? (
+          <div
+            className={cn("h-2 rounded-full", presentation.trackClassName)}
+            aria-hidden="true"
+          />
+        ) : (
+          <div
+            role="meter"
+            aria-label={
+              "Índice de rendimiento operativo de " + person.usuario.nombre
+            }
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={score}
+            aria-valuetext={scoreDescription}
+            className={cn(
+              "h-2 overflow-hidden rounded-full",
+              presentation.trackClassName,
+            )}
+          >
+            <div
+              className={cn(
+                "h-full rounded-full transition-[width] duration-500",
+                presentation.indicatorClassName,
+              )}
+              style={{ width: score + "%" }}
+              aria-hidden="true"
+            />
+          </div>
+        )}
+      </dd>
+      <dd className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+        {performance.deadlineScore === null
+          ? "Sin cierres con plazo medible"
+          : "Plazo " +
+            percentageFormatter.format(performance.deadlineScore) +
+            "% · carga al día " +
+            percentageFormatter.format(performance.currentLoadScore) +
+            "%"}
+      </dd>
+      {performance.state === "muestra_inicial" ? (
+        <dd className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
+          Resultado preliminar:{" "}
+          {numberFormatter.format(performance.deadlineSample)} de{" "}
+          {numberFormatter.format(
+            OPERATOR_PERFORMANCE_CONFIG.minimumDeadlineSample,
+          )}{" "}
+          casos mínimos
+        </dd>
+      ) : null}
+    </div>
+  );
+}
+
 function PersonRow({ person }: { person: RendimientoPersona }) {
   const time = person.tiempo_resolucion_atribuible;
-  const compliance = person.cumplimiento_plazo_auditable;
+  const compliance = person.cumplimiento_plazo;
   const workload = person.carga_actual;
   const complianceValue =
     compliance.muestra > 0 && compliance.porcentaje !== null
@@ -267,11 +292,6 @@ function PersonRow({ person }: { person: RendimientoPersona }) {
       : "Sin muestra";
   const timeValue =
     time.muestra > 0 ? formatHours(time.mediana_horas) : "Sin muestra";
-  const historicalFinalizations = person.finalizaciones_historicas_atribuidas;
-  const auditedFinalizations = Math.max(
-    0,
-    person.resoluciones_atribuidas - historicalFinalizations,
-  );
 
   return (
     <li>
@@ -319,18 +339,9 @@ function PersonRow({ person }: { person: RendimientoPersona }) {
             details={[
               pluralize(
                 person.resoluciones_atribuidas,
-                "finalización atribuible",
-                "finalizaciones atribuibles",
+                "finalización registrada",
+                "finalizaciones registradas",
               ),
-              ...(historicalFinalizations > 0
-                ? [
-                    pluralize(
-                      historicalFinalizations,
-                      "recuperada del historial",
-                      "recuperadas del historial",
-                    ),
-                  ]
-                : []),
             ]}
           />
           <PersonFact
@@ -342,15 +353,6 @@ function PersonRow({ person }: { person: RendimientoPersona }) {
                     "Mediana · promedio " + formatHours(time.promedio_horas),
                     "Muestra: " +
                       pluralize(time.muestra, "finalización", "finalizaciones"),
-                    ...(historicalFinalizations > 0
-                      ? [
-                          pluralize(
-                            historicalFinalizations,
-                            "fecha histórica incluida",
-                            "fechas históricas incluidas",
-                          ),
-                        ]
-                      : []),
                   ]
                 : ["Sin finalizaciones con duración válida"]
             }
@@ -365,15 +367,9 @@ function PersonRow({ person }: { person: RendimientoPersona }) {
                       " de " +
                       numberFormatter.format(compliance.muestra) +
                       " resoluciones",
-                    "Muestra auditable: " +
-                      numberFormatter.format(compliance.muestra),
-                    ...(historicalFinalizations > 0
-                      ? [
-                          "El historial sin snapshot no entra en este porcentaje",
-                        ]
-                      : []),
+                    "Muestra: " + numberFormatter.format(compliance.muestra),
                   ]
-                : ["Sin resoluciones auditadas con plazo verificable"]
+                : ["Sin resoluciones con plazo verificable"]
             }
           />
           <PersonFact
@@ -387,22 +383,11 @@ function PersonRow({ person }: { person: RendimientoPersona }) {
               workload.vencidos_asignados > 0
                 ? pluralize(workload.vencidos_asignados, "vencido", "vencidos")
                 : "Sin vencidos",
-              "Asignación al snapshot actual",
+              "Asignación actual",
             ]}
             tone={workload.vencidos_asignados > 0 ? "risk" : "default"}
           />
-          <PersonFact
-            label="Resoluciones reabiertas"
-            value={numberFormatter.format(person.resoluciones_reabiertas)}
-            details={[
-              "de " +
-                pluralize(
-                  auditedFinalizations,
-                  "resolución con evento",
-                  "resoluciones con evento",
-                ),
-            ]}
-          />
+          <OperatorPerformanceFact person={person} />
         </dl>
       </article>
     </li>
@@ -430,9 +415,8 @@ function PeopleList({ people }: { people: readonly RendimientoPersona[] }) {
               <h2 className="font-semibold">Actividad por operador</h2>
             </div>
             <CardDescription className="mt-1 max-w-3xl leading-relaxed">
-              Finalizaciones auditadas e históricas presentadas por nombre. Cada
-              indicador conserva su propia muestra y no se combina en un
-              puntaje.
+              Volumen, tiempos, cumplimiento y carga actual presentados por
+              nombre. Cada indicador conserva su propia muestra.
             </CardDescription>
           </div>
           <Badge
@@ -444,11 +428,22 @@ function PeopleList({ people }: { people: readonly RendimientoPersona[] }) {
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <ul id={listId} className="divide-y divide-slate-100">
-          {visiblePeople.map((person) => (
-            <PersonRow key={person.usuario.id} person={person} />
-          ))}
-        </ul>
+        <div
+          id={listId}
+          role={expanded ? "region" : undefined}
+          aria-label={expanded ? "Lista ampliada de operadores" : undefined}
+          tabIndex={expanded ? 0 : undefined}
+          className={cn(
+            expanded &&
+              "scroll-sutil max-h-[680px] overflow-y-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
+          )}
+        >
+          <ul className="divide-y divide-slate-100">
+            {visiblePeople.map((person) => (
+              <PersonRow key={person.usuario.id} person={person} />
+            ))}
+          </ul>
+        </div>
         {hasMore ? (
           <div className="border-t border-slate-100 px-4 py-3 text-center sm:px-5">
             <Button
@@ -472,18 +467,21 @@ function PeopleList({ people }: { people: readonly RendimientoPersona[] }) {
             </Button>
           </div>
         ) : null}
-        <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-5">
-          <p
-            id="rendimiento-reaperturas-contexto"
-            className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"
-          >
-            <RotateCcw
-              className="mt-0.5 h-3.5 w-3.5 shrink-0"
-              aria-hidden="true"
-            />
-            Resoluciones reabiertas describe qué ocurrió después de una
-            resolución; no atribuye la acción de reabrir ni implica por sí sola
-            una evaluación negativa.
+        <div className="flex items-start gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-3 text-xs leading-relaxed text-muted-foreground sm:px-5">
+          <Gauge
+            className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+            aria-hidden="true"
+          />
+          <p>
+            El rendimiento operativo pondera{" "}
+            {OPERATOR_PERFORMANCE_CONFIG.deadlineWeightPercentage}% el
+            cumplimiento del plazo y{" "}
+            {OPERATOR_PERFORMANCE_CONFIG.currentLoadWeightPercentage}% la carga
+            abierta sin vencer. Desde{" "}
+            {OPERATOR_PERFORMANCE_CONFIG.favorableScore} puntos se muestra
+            favorable; con menos de{" "}
+            {OPERATOR_PERFORMANCE_CONFIG.minimumDeadlineSample} cierres
+            permanece neutral.
           </p>
         </div>
       </CardContent>
@@ -520,9 +518,8 @@ export function RendimientoPersonasPanel({
                   Rendimiento individual
                 </h2>
                 <CardDescription className="mt-1 max-w-3xl leading-relaxed">
-                  Finalizaciones atribuibles, tiempos, cumplimiento auditable y
-                  carga actual por operador, distinguiendo el historial
-                  recuperado y sin construir clasificaciones.
+                  Finalizaciones, tiempos, cumplimiento del plazo y carga actual
+                  por operador.
                 </CardDescription>
               </div>
             </div>
@@ -543,19 +540,7 @@ export function RendimientoPersonasPanel({
               value={numberFormatter.format(
                 data.cobertura.resoluciones_evaluadas,
               )}
-              detail={
-                data.cobertura.finalizaciones_historicas_detectadas > 0
-                  ? numberFormatter.format(
-                      data.cobertura.resoluciones_evaluadas -
-                        data.cobertura.finalizaciones_historicas_detectadas,
-                    ) +
-                    " con evento · " +
-                    numberFormatter.format(
-                      data.cobertura.finalizaciones_historicas_detectadas,
-                    ) +
-                    " históricas"
-                  : "transiciones de un estado abierto a uno final"
-              }
+              detail="cierres y resoluciones del conjunto analizado"
             />
             <SummaryFact
               label="Finalizaciones atribuidas"
@@ -567,16 +552,14 @@ export function RendimientoPersonasPanel({
             <SummaryFact
               label="Operadores informados"
               value={numberFormatter.format(data.personas.length)}
-              detail="usuarios persistidos, activos o inactivos"
+              detail="usuarios activos e inactivos"
             />
           </dl>
           <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-            Snapshot generado el{" "}
+            Actualizado el{" "}
             {formatDateTime(data.periodo.generado_en, data.periodo.timezone)}.
             Los tiempos miden horas corridas desde la creación del ticket, no
-            tiempo exclusivo de trabajo. Las finalizaciones históricas usan la
-            fecha persistida del ticket y nunca se incorporan al cumplimiento
-            auditable sin un snapshot del plazo.
+            tiempo exclusivo de trabajo.
           </p>
         </CardContent>
       </Card>
@@ -604,7 +587,6 @@ export function RendimientoPersonasPanel({
         </Card>
       ) : (
         <>
-          <CoverageNotice data={data} />
           {data.personas.length > 0 ? (
             <PeopleList people={data.personas} />
           ) : (

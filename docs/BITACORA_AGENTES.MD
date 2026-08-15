@@ -3933,3 +3933,57 @@ commits locales independientes; no se realizó push.
   Playwright, ESLint sin advertencias, Prettier, schema Drizzle, TypeScript y los
   builds productivos. Los servidores locales quedaron apagados antes de la
   publicación para no competir con el runner de despliegue.
+
+## 2026-08-14 — Rendimiento operativo, listas acotadas y documentación vigente
+
+**Agente:** Codex
+
+### Lectura ejecutiva y presentación
+
+- Operadores consume el nuevo `cumplimiento_plazo` total por persona, mientras
+  `cumplimiento_plazo_auditable` permanece en el contrato como fuente técnica.
+  La interfaz evita mostrar esa distinción interna y presenta el resultado que
+  corresponde al conjunto seleccionado.
+- Se incorporó **Rendimiento operativo** como índice derivado exclusivamente en
+  el frontend: 70 % cumplimiento total del plazo y 30 % proporción de abiertos
+  asignados todavía no vencidos. Sin muestra del plazo no calcula un valor; con
+  menos de cinco casos muestra **Muestra inicial**; desde cinco, 80 puntos o más
+  es **Favorable** y un valor inferior **Requiere atención**. No altera el orden
+  alfabético ni constituye un ranking.
+- La lista de Operadores muestra tres personas inicialmente y contiene el resto
+  en un área de hasta 680 px con scroll propio.
+- Contactos recurrentes presenta tres contactos compactos con nombre de
+  referencia, coincidencia enmascarada, cantidad de llamados, abiertos,
+  vencidos, prioridad, último llamado y responsable. **Ver detalles** abre las
+  fechas, la antigüedad, los responsables y los tickets; el resto de contactos
+  usa el mismo límite visual y conserva la paginación server-side.
+- La etiqueta visible del alcance global pasó a **Período completo**. Se retiró
+  de la interfaz ejecutiva la jerga sobre fuentes reconstruidas, auditoría y
+  registros anteriores; la separación técnica permanece disponible en API y
+  documentación para explicar el origen de los cálculos.
+
+### Reconciliación documental
+
+- Se sincronizaron `README.md`, los README de backend/frontend,
+  `docs/README.md`, `docs/ARQUITECTURA.MD`, `docs/FLUJO.md` y `docs/DEPLOY.md`.
+- Se eliminó del flujo vigente la segunda elevación administrativa ya retirada:
+  Administración depende de sesión + rol SysAdmin. También se corrigieron el
+  catálogo protegido de cuatro roles y la política real de contraseñas nuevas
+  de 8–128 caracteres.
+- El modelo de estados documenta la regla implementada: un ticket nace en
+  `nuevo`, no puede volver allí después de ser trabajado, admite resolución en
+  la misma llamada y reapertura; el progreso se deriva del estado.
+- La cadena de migraciones quedó actualizada hasta
+  `0021_backfill_resolution_actors.sql` y el runbook aclara que Quality/E2E
+  bloquea el job productivo antes de acceder al runner.
+- El backup manual previo a un rollback ahora valida `integrity_check`, y el
+  arranque local distingue la configuración opcional del asistente de los
+  secretos obligatorios para un deploy productivo.
+
+### Alcance
+
+- Esta intervención documental no escribió SQLite ni modificó datos.
+- La auditoría de enlaces locales no encontró destinos ni anchors rotos; las
+  búsquedas sobre la documentación vigente no conservaron referencias a
+  `adminIntent`, la política 16–128 ni el nombre visible anterior del período.
+- Los cambios permanecen locales: no se realizó commit ni push.

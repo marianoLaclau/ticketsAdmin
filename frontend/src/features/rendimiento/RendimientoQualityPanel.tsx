@@ -44,7 +44,7 @@ const COVERAGE_DEFINITIONS: readonly CoverageDefinition[] = [
     key: "actor_resolucion",
     title: "Autor de resolución",
     description:
-      "Resoluciones cuyo historial identifica al usuario que finalizó el ticket.",
+      "Resoluciones con un usuario identificado como responsable del cierre.",
     icon: UserCheck,
   },
   {
@@ -64,8 +64,7 @@ const COVERAGE_DEFINITIONS: readonly CoverageDefinition[] = [
   {
     key: "asignacion_estructurada",
     title: "Asignación estructurada",
-    description:
-      "Asignaciones vinculadas a un usuario identificable y no solo a texto histórico.",
+    description: "Asignaciones vinculadas a un usuario identificado.",
     icon: Link2,
   },
   {
@@ -91,14 +90,6 @@ const percentageFormatter = new Intl.NumberFormat("es-AR", {
 });
 function formatGeneratedAt(value: string, timezone: string): string {
   return formatRendimientoDateTime(value, timezone) ?? "hora no disponible";
-}
-
-function formatAttributionStart(
-  value: string | null,
-  timezone: string,
-): string | null {
-  if (!value) return null;
-  return formatRendimientoDateTime(value, timezone);
 }
 
 function CoverageCard({
@@ -170,41 +161,30 @@ interface ComparisonNoticeConfig {
 function getComparisonNoticeConfig(
   data: RendimientoCalidadDatos,
 ): ComparisonNoticeConfig {
-  const attributionStart = formatAttributionStart(
-    data.atribucion_desde,
-    data.periodo.timezone,
-  );
-  const historicalContext = attributionStart
-    ? ` La atribución estructurada se observa desde ${attributionStart}.`
-    : " Todavía no hay una resolución con autor estructurado en este conjunto analizado.";
-
   switch (data.comparacion_individual_estado) {
     case "disponible":
       return {
-        title: "Cobertura auditable disponible",
+        title: "Datos suficientes",
         description:
-          "Los eventos auditables alcanzan el umbral definido. Operadores puede incorporar además finalizaciones históricas atribuibles para comparar volumen y tiempos." +
-          historicalContext,
+          "La información disponible alcanza el umbral definido para calcular estos indicadores.",
         icon: CheckCircle2,
         className: "border-emerald-200 bg-emerald-50 text-emerald-950",
         iconClassName: "text-emerald-700",
       };
     case "parcial":
       return {
-        title: "Cobertura auditable parcial",
+        title: "Datos parciales",
         description:
-          "Parte de los eventos auditables no tiene autor estructurado. Esta cobertura no incluye las finalizaciones históricas atribuibles que sí se muestran en Operadores." +
-          historicalContext,
+          "Parte de las finalizaciones no tiene un responsable identificado; los porcentajes usan los casos con datos disponibles.",
         icon: ShieldAlert,
         className: "border-amber-200 bg-amber-50 text-amber-950",
         iconClassName: "text-amber-700",
       };
     default:
       return {
-        title: "Cobertura auditable limitada",
+        title: "Datos insuficientes",
         description:
-          "La muestra de eventos auditables es limitada. La vista Operadores evalúa por separado el conjunto completo, incluidas las finalizaciones históricas atribuibles." +
-          historicalContext,
+          "La cantidad de datos disponibles es reducida. Interpretá los indicadores con cautela.",
         icon: CircleAlert,
         className: "border-red-200 bg-red-50 text-red-950",
         iconClassName: "text-red-700",
@@ -270,7 +250,7 @@ export function RendimientoQualityPanel({
                 </h2>
                 <CardDescription className="max-w-3xl leading-relaxed">
                   Qué proporción del conjunto analizado puede sostener métricas
-                  auditables sin completar ni inferir datos faltantes.
+                  confiables sin completar ni inferir datos faltantes.
                 </CardDescription>
               </div>
             </div>
@@ -278,7 +258,7 @@ export function RendimientoQualityPanel({
               variant="outline"
               className="w-fit shrink-0 border-emerald-200 bg-emerald-50 text-emerald-800"
             >
-              Datos auditados
+              Calidad de datos
             </Badge>
           </div>
         </CardHeader>
@@ -303,8 +283,7 @@ export function RendimientoQualityPanel({
             </div>
           </div>
           <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-            Período: {formatRendimientoPeriod(data.periodo)} · Snapshot generado
-            el{" "}
+            Período: {formatRendimientoPeriod(data.periodo)} · Actualizado el{" "}
             {formatGeneratedAt(data.periodo.generado_en, data.periodo.timezone)}
           </p>
         </CardContent>

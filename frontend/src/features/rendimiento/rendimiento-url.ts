@@ -29,7 +29,7 @@ export type RendimientoPrioridad = (typeof PRIORIDADES_VALIDAS)[number];
 export const RENDIMIENTO_PERIODO_LABELS: Readonly<
   Record<RendimientoPeriodo, string>
 > = {
-  todo: "Todo el historial",
+  todo: "Período completo",
   mes: "Mes actual",
   semana: "Semana actual",
   ultimos_30: "Últimos 30 días",

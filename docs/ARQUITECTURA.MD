@@ -207,9 +207,9 @@ Las pantallas principales son:
 - `/admin`: CRUD, importación, cuarentena y zona peligrosa.
 - `/admin/roles-usuarios`: gestión de usuarios y roles para SysAdmin.
 
-La pantalla de identidades administrativas se organiza como feature en `frontend/src/features/admin-directory`. La página conserva la composición de pestañas; los paneles de usuarios y roles concentran sus respectivas consultas, filtros, formularios, diálogos y mutaciones. El request administrativo cruza esas fronteras como una única dependencia y la API key no se incorpora a query keys ni se replica en otro estado cliente. Las invalidaciones por prefijo mantienen sincronizados ambos catálogos sin acoplar sus estados locales.
+La pantalla de identidades administrativas se organiza como feature en `frontend/src/features/admin-directory`. La página conserva la composición de pestañas; los paneles de usuarios y roles concentran sus respectivas consultas, filtros, formularios, diálogos y mutaciones. Todas las operaciones viajan con la cookie de sesión same-origin y el backend vuelve a exigir el rol SysAdmin en cada request; no existe una segunda credencial administrativa ni estado de elevación en el navegador. Las invalidaciones por prefijo mantienen sincronizados ambos catálogos sin acoplar sus estados locales.
 
-La administración de tickets se modulariza en `frontend/src/features/admin-tickets`. El panel de registros concentra listado, CRUD, caché optimista y resolución de conflictos; sus diálogos son hermanos de `TabsContent` para conservar estado al alternar pestañas. El importador CSV mantiene archivo, simulación y confirmación definitiva, y la zona peligrosa concentra conteo, confirmación y truncado. Las consultas reciben una versión opaca para separar credenciales sucesivas sin exponer la API key en las query keys; la credencial sólo viaja en `RequestInit`. `Admin.tsx` mantiene la cabecera y la composición de pestañas.
+La administración de tickets se modulariza en `frontend/src/features/admin-tickets`. El panel de registros concentra listado, CRUD, caché optimista y resolución de conflictos; sus diálogos son hermanos de `TabsContent` para conservar estado al alternar pestañas. El importador CSV mantiene archivo, simulación y confirmación definitiva, y la zona peligrosa concentra conteo, confirmación y truncado. Las query keys describen únicamente recursos, filtros y paginación; la autorización depende de la sesión y nunca se duplica como dato de caché. `Admin.tsx` mantiene la cabecera y la composición de pestañas.
 
 El detalle operativo se descompone en `frontend/src/features/ticket-detail`. Las tarjetas sin estado reciben por props fragmentos tipados del contrato `Ticket`; el historial es controlado y deja query, mutación y reset exitoso en la página. Consultas, editores y control optimista permanecen allí hasta que puedan trasladarse como unidades cohesionadas, sin repartir drafts ni mutaciones entre componentes.
 
@@ -268,25 +268,34 @@ flowchart LR
     contract --> ui[Cards y estados React]
 ```
 
-Resumen y Operadores distinguen la fotografía actual de los eventos históricos.
-Una resolución con evento se atribuye por `autor_usuario_id`; `0021` recupera esa
-FK en eventos legacy solo si la asignación auditada y el snapshot del autor
-corroboran la misma identidad. Los tickets finales anteriores que conservan
-`fecha_resolucion` y responsable, pero no una transición, forman una fuente
-separada de finalizaciones históricas para cantidades y tiempos. En Operadores,
-el cumplimiento individual usa exclusivamente `fecha_limite_snapshot`
-preservado en un evento real. El Resumen del equipo ofrece además un total
-histórico: conserva todos esos eventos auditables y, cuando la última resolución
-de un ticket final no tiene snapshot o no existe un evento equivalente, agrega
-una única reconstrucción con `fecha_resolucion` y `fecha_limite` persistidas y
-coherentes, siempre que la resolución no sea futura respecto de `generado_en`.
-Las muestras, fuentes y coberturas son parte del contrato para no
-presentar esa reconstrucción como auditoría inmutable. El estado que habilita
-una comparación individual se calcula sobre todos los hechos atribuibles del
-conjunto analizado: transiciones reales y finalizaciones históricas recuperadas
-desde tickets legacy. Ambas fuentes permanecen desglosadas y el cumplimiento
-individual del plazo sigue limitado a transiciones reales con snapshot, para no
-presentar una reconstrucción como auditoría inmutable.
+Resumen y Operadores conservan en el contrato la diferencia entre evidencia de
+eventos y datos reconstruibles. Una resolución con evento se atribuye por
+`autor_usuario_id`; `0021` recupera esa FK en registros anteriores solo si la
+asignación estructurada y el snapshot del autor corroboran la misma identidad.
+Los tickets finales que conservan `fecha_resolucion` y responsable, pero no una
+transición equivalente, aportan cantidades y tiempos sin fabricar un evento.
+
+Ambas vistas exponen dos lecturas del plazo. `cumplimiento_plazo_auditable` usa
+exclusivamente transiciones no-final → final que preservaron
+`fecha_limite_snapshot`. `cumplimiento_plazo` conserva esos hechos y agrega una
+única última finalización reconstruible por ticket final cuando faltó el
+snapshot, siempre que `fecha_creacion`, `fecha_resolucion` y `fecha_limite` sean
+coherentes y la resolución no sea futura respecto de `generado_en`. En
+Operadores, el responsable de esa reconstrucción es el autor de la última
+resolución cuando existe o, en su ausencia, `asignado_usuario_id`. Las fuentes
+y muestras permanecen separadas en la API para diagnóstico, aunque la interfaz
+ejecutiva presenta el resultado combinado sin exponer jerga de implementación.
+
+La UI deriva además un **Rendimiento operativo** por operador; no se persiste ni
+forma parte del contrato HTTP. El cálculo pondera 70 % el cumplimiento total del
+plazo y 30 % la proporción de abiertos asignados que todavía no están vencidos.
+Si no hay abiertos, la segunda componente vale 100; si no existe muestra del
+plazo, el índice queda sin valor. Con menos de cinco finalizaciones se muestra
+como **Muestra inicial**. Desde cinco casos, un resultado mayor o igual a 80 se
+presenta como **Favorable** y uno inferior como **Requiere atención**. Es una
+señal descriptiva para orientar la revisión, no un ranking ni una decisión
+automática sobre la persona; los valores base permanecen visibles para poder
+interpretarla.
 
 El Resumen del equipo calcula cuatro indicadores sobre ese mismo snapshot:
 
@@ -320,7 +329,7 @@ resuelve el rango y el orden central; la exclusión de cuarentena consulta su PK
 Los filtros temporales delimitan por fecha de creación, no reconstruyen el
 estado a una fecha pasada. Por ejemplo, “mes actual” muestra la situación de
 hoy de los tickets creados durante ese mes y excluye backlog más antiguo; para
-una lectura global debe elegirse todo el historial. Empresa, categoría y
+una lectura global debe elegirse **Período completo**. Empresa, categoría y
 prioridad también describen sus valores actuales dentro del conjunto analizado.
 
 Contactos recurrentes asignan exactamente una clave canónica por ticket, con precedencia
@@ -338,6 +347,15 @@ globales y recién entonces aplica el orden de riesgo con `row_number()`. La API
 entrega como máximo 50 grupos por página y no materializa en Node.js los grupos
 de otras páginas. Por tanto, el resultado es una señal acotada para revisión
 operativa y no una identidad civil inferida.
+
+La presentación mantiene tres contactos visibles inicialmente. Cada encabezado
+resume nombre de referencia, coincidencia enmascarada, llamados, abiertos,
+vencidos, prioridad, último contacto y responsable actual. **Ver detalles**
+expone fechas, antigüedad, distribución de responsables y tickets relacionados;
+la lista completa de contactos se despliega dentro de un contenedor de 680 px
+como máximo con scroll propio. El paginado server-side continúa delimitando la
+respuesta y cada contacto conserva un control independiente para ampliar sus
+tickets más allá de los tres primeros.
 
 ## 3. Contrato y paquetes compartidos
 
@@ -492,7 +510,11 @@ Es la entidad operativa principal:
 - `motivo` y `resumen` conservan el texto recibido.
 - `motivo_categoria` es una columna derivada de `motivo`/`resumen` mediante reglas deterministas. El catálogo de 14 códigos, el criterio de cada uno y el orden de precedencia están documentados en [docs/FLUJO.md](FLUJO.md#4-categorías-de-motivo). El texto original nunca se reescribe.
 - `estado_empleado` admite `Activo` o `Inactivo` cuando existe una empresa asociada y proviene del dato recibido desde Serin.
-- `estado` sigue el flujo `nuevo → en_proceso → pendiente → resuelto → cerrado`.
+- `estado` nace en `nuevo` y puede pasar a cualquier otro estado; una vez
+  trabajado no puede regresar a `nuevo`. `resuelto` y `cerrado` son finales,
+  pero ambos se pueden reabrir hacia `en_proceso` o `pendiente`.
+- `progreso` se deriva del estado (`0`, `25`, `50`, `75` o `100`) y no es una
+  decisión independiente del cliente.
 - `prioridad` admite `baja`, `media`, `alta` y `urgente`; el runner puede promoverla, pero nunca degradarla automáticamente.
 - `asignado_usuario_id` es la identidad autoritativa. `asignado_a` conserva un snapshot legible y compatibilidad con datos históricos.
 - `fecha_limite` representa el vencimiento SLA; `fecha_resolucion` se completa al resolver/cerrar y se limpia al reabrir.
@@ -674,6 +696,7 @@ flowchart TD
     health{Backend y frontend healthy}
     smoke[Smoke de readyz y SPA]
     active[Release activa]
+    blocked[Deploy bloqueado en GitHub]
     diagnostics[Estado y logs]
     intervention[Intervención manual]
     volume[(tickets_data volume)]
@@ -683,7 +706,7 @@ flowchart TD
     rollout --> migrate --> volume
     rollout --> health
     health -->|sí| smoke --> active
-    quality -. fallo .-> diagnostics
+    quality -->|fallo| blocked
     secrets -. fallo .-> diagnostics
     backup -. fallo .-> diagnostics
     images -. fallo .-> diagnostics
@@ -718,6 +741,8 @@ En local, `pnpm --filter @workspace/db run push` combina `drizzle-kit push` con 
 0017            → backfill de préstamos, obra social, sanciones y proveedores
 0018            → retira la elevación por sesión
 0019            → autor estructurado nullable e índice de actividad en seguimientos
+0020            → snapshot del vencimiento en cada resolución auditable
+0021            → backfill conservador de autores de resolución corroborados
 ```
 
 La columna física conserva el nombre histórico `sesiones.token` para permitir un rollback estructural, pero el schema la expone como `token_hash`. Desde `0011`, toda fila nueva contiene `sha256:<digest>` y el arranque elimina formatos crudos o inválidos después de validar secretos, antes del seed y antes de abrir el puerto. La migración fuerza un único re-login; no se admite un despliegue simultáneo de binarios anteriores y posteriores a este cambio. Un rollback rápido conserva el schema e invalida las sesiones creadas por la otra versión, pero el piso soportado es `06db746`, primer commit cuyo extractor rechaza todo lo que no sea raw de 64 hex.

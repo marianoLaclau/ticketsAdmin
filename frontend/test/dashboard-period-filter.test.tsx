@@ -29,7 +29,7 @@ const defaultProps: ComponentProps<typeof DashboardPeriodFilter> = {
     fecha_hasta: "2026-08-07",
   },
   error: null,
-  appliedPeriodLabel: "Todo el historial",
+  appliedPeriodLabel: "Período completo",
   onPeriodChange: () => undefined,
   onFromChange: () => undefined,
   onToChange: () => undefined,
@@ -61,7 +61,7 @@ test("delega el período predefinido sin presentar fechas", async (t) => {
   );
   assert.equal(
     screen.getByRole("status").textContent,
-    "Período aplicado: Todo el historial",
+    "Período aplicado: Período completo",
   );
 
   const browser = userEvent.setup();

@@ -197,9 +197,14 @@ function personasResponse(): RendimientoPersonas {
           mediana_horas: 18.25,
         },
         cumplimiento_plazo_auditable: {
-          muestra: 10,
-          cumplidos: 8,
-          porcentaje: 80,
+          muestra: 9,
+          cumplidos: 7,
+          porcentaje: 77.8,
+        },
+        cumplimiento_plazo: {
+          muestra: 13,
+          cumplidos: 10,
+          porcentaje: 76.9,
         },
         carga_actual: {
           abiertos_asignados: 4,
@@ -448,8 +453,12 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
   assert.ok(
     await screen.findByRole("heading", { name: "Rendimiento individual" }),
   );
-  assert.ok(screen.getByRole("heading", { name: "Cobertura global parcial" }));
   assert.ok(screen.getByRole("heading", { name: "Ada Lovelace" }));
+  assert.ok(
+    screen.getByRole("meter", {
+      name: "Índice de rendimiento operativo de Ada Lovelace",
+    }),
+  );
   assert.ok(screen.getByText("Orden alfabético A–Z"));
   assert.equal(screen.queryByText("En preparación"), null);
   assert.equal(screen.queryByText("Próxima etapa"), null);
@@ -469,6 +478,9 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
   );
   assert.ok(screen.getByRole("heading", { name: "Cobertura de identidad" }));
   assert.ok(screen.getByRole("heading", { name: "Grace Hopper" }));
+  await user.click(
+    screen.getByRole("button", { name: "Ver detalles de Grace Hopper" }),
+  );
   assert.ok(
     screen.getByRole("link", {
       name: "Abrir ticket #202 de Grace Hopper",
@@ -530,10 +542,10 @@ test("presenta las cuatro vistas de Rendimiento con datos operativos", async (t)
   assert.ok(
     await screen.findByRole("heading", { name: "Calidad y cobertura" }),
   );
-  assert.ok(screen.getByText("Datos auditados"));
+  assert.ok(screen.getAllByText("Calidad de datos").length >= 2);
   assert.ok(
     screen.getByRole("heading", {
-      name: "Cobertura auditable parcial",
+      name: "Datos parciales",
     }),
   );
   assert.ok(
@@ -593,13 +605,13 @@ test("consulta todo el historial sin enviar límites de fecha", async (t) => {
   );
 
   assert.ok(await screen.findByRole("heading", { name: "Resumen del equipo" }));
-  assert.ok(screen.getAllByText("Todo el historial").length >= 1);
+  assert.ok(screen.getAllByText("Período completo").length >= 1);
   const complianceCard = screen
     .getByRole("heading", { name: "Cumplimiento del plazo" })
     .closest<HTMLElement>("article");
   assert.ok(complianceCard);
   assert.ok(
-    within(complianceCard).getByText("Período evaluado: Todo el historial"),
+    within(complianceCard).getByText("Período evaluado: Período completo"),
   );
   assert.equal(location.history.at(-1), "/rendimiento?periodo=todo");
 

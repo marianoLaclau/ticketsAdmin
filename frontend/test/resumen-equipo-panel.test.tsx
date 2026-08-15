@@ -141,11 +141,7 @@ test("presenta volumen, indicadores operativos, distribuciones y tiempos con sus
   assert.ok(within(sla).getByText("80,6%"));
   assert.ok(within(sla).getByText("Período evaluado: Mes actual"));
   assert.ok(within(sla).getByText("58 de 72 finalizaciones dentro del plazo"));
-  assert.ok(
-    within(sla).getByText(
-      "Con vencimiento preservado: 58 de 72 dentro del plazo.",
-    ),
-  );
+  assert.equal(within(sla).queryByText(/vencimiento preservado/i), null);
   assert.ok(
     within(sla).getByRole("progressbar", {
       name: "Cumplimiento del plazo",
@@ -217,12 +213,12 @@ test("mantiene muestras de cumplimiento mayores a los finalizados sin recortarla
   assert.ok(screen.getByText("75%"));
 });
 
-test("expone el cumplimiento histórico completo y su fuente", (t) => {
+test("expone el cumplimiento del período sin detalles internos de origen", (t) => {
   t.after(cleanup);
   render(
     <ResumenEquipoPanel
       {...BASE_PROPS}
-      periodFilterLabel="Todo el historial"
+      periodFilterLabel="Período completo"
       cumplimiento_plazo={{
         muestra: 115,
         cumplidos: 86,
@@ -243,14 +239,11 @@ test("expone el cumplimiento histórico completo y su fuente", (t) => {
   assert.ok(
     within(compliance).getByText("86 de 115 finalizaciones dentro del plazo"),
   );
-  assert.ok(
-    within(compliance).getByText(
-      "Con vencimiento preservado: 1 de 1 dentro del plazo · Históricas reconstruidas: 85 de 114 dentro del plazo.",
-    ),
+  assert.equal(
+    within(compliance).queryByText(/históric|reconstru|preservado/i),
+    null,
   );
-  assert.ok(
-    within(compliance).getByText("Período evaluado: Todo el historial"),
-  );
+  assert.ok(within(compliance).getByText("Período evaluado: Período completo"));
 });
 
 test("presenta estados analíticos vacíos sin inventar valores", (t) => {

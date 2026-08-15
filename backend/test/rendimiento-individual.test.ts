@@ -259,6 +259,11 @@ describe("consulta de rendimiento individual", () => {
             cumplidos: 1,
             porcentaje: 50,
           },
+          cumplimiento_plazo: {
+            muestra: 2,
+            cumplidos: 1,
+            porcentaje: 50,
+          },
           carga_actual: {
             abiertos_asignados: 2,
             vencidos_asignados: 1,
@@ -433,12 +438,173 @@ describe("consulta de rendimiento individual", () => {
         cumplidos: 1,
         porcentaje: 100,
       },
+      cumplimiento_plazo: {
+        muestra: 1,
+        cumplidos: 1,
+        porcentaje: 100,
+      },
       carga_actual: {
         abiertos_asignados: 0,
         vencidos_asignados: 0,
       },
       resoluciones_reabiertas: 0,
     });
+    sqlite.close();
+  });
+
+  it("combina plazos persistidos y eventos por operador sin duplicar ciclos", () => {
+    const { sqlite, database } = createDatabase();
+    const roleId = insertRole(sqlite);
+    const anaId = insertUser(sqlite, { roleId, name: "Ana" });
+    const brunoId = insertUser(sqlite, { roleId, name: "Bruno" });
+
+    const audited = insertTicket(sqlite, {
+      conversationId: "plazo-auditado",
+      createdAt: "2026-08-01T08:00:00.000Z",
+      status: "resuelto",
+      assignedUserId: brunoId,
+      deadline: "2026-08-01T09:00:00.000Z",
+      resolvedAt: "2026-08-01T10:00:00.000Z",
+    });
+    insertStateChange(sqlite, {
+      ticketId: audited,
+      from: "en_proceso",
+      to: "resuelto",
+      authorUserId: anaId,
+      happenedAt: "2026-08-01T10:00:00.000Z",
+      deadlineSnapshot: "2026-08-01T11:00:00.000Z",
+    });
+
+    insertTicket(sqlite, {
+      conversationId: "plazo-sin-evento-en-termino",
+      createdAt: "2026-08-02T08:00:00.000Z",
+      status: "cerrado",
+      assignedUserId: anaId,
+      deadline: "2026-08-02T12:00:00.000Z",
+      resolvedAt: "2026-08-02T11:00:00.000Z",
+    });
+    insertTicket(sqlite, {
+      conversationId: "plazo-sin-evento-vencido",
+      createdAt: "2026-08-03T08:00:00.000Z",
+      status: "resuelto",
+      assignedUserId: anaId,
+      deadline: "2026-08-03T12:00:00.000Z",
+      resolvedAt: "2026-08-03T13:00:00.000Z",
+    });
+
+    const withoutSnapshot = insertTicket(sqlite, {
+      conversationId: "plazo-evento-sin-snapshot",
+      createdAt: "2026-08-04T08:00:00.000Z",
+      status: "resuelto",
+      assignedUserId: anaId,
+      deadline: "2026-08-04T12:00:00.000Z",
+      resolvedAt: "2026-08-04T11:00:00.000Z",
+    });
+    insertStateChange(sqlite, {
+      ticketId: withoutSnapshot,
+      from: "en_proceso",
+      to: "resuelto",
+      authorUserId: brunoId,
+      happenedAt: "2026-08-04T11:00:00.000Z",
+    });
+
+    const withoutActor = insertTicket(sqlite, {
+      conversationId: "plazo-evento-sin-actor",
+      createdAt: "2026-08-05T08:00:00.000Z",
+      status: "resuelto",
+      assignedUserId: anaId,
+      deadline: "2026-08-05T12:00:00.000Z",
+      resolvedAt: "2026-08-05T11:00:00.000Z",
+    });
+    insertStateChange(sqlite, {
+      ticketId: withoutActor,
+      from: "en_proceso",
+      to: "resuelto",
+      happenedAt: "2026-08-05T11:00:00.000Z",
+    });
+
+    const multipleCycles = insertTicket(sqlite, {
+      conversationId: "plazo-dos-ciclos",
+      createdAt: "2026-08-06T08:00:00.000Z",
+      status: "cerrado",
+      assignedUserId: anaId,
+      deadline: "2026-08-06T17:00:00.000Z",
+      resolvedAt: "2026-08-06T16:00:00.000Z",
+    });
+    insertStateChange(sqlite, {
+      ticketId: multipleCycles,
+      from: "nuevo",
+      to: "resuelto",
+      authorUserId: anaId,
+      happenedAt: "2026-08-06T09:00:00.000Z",
+      deadlineSnapshot: "2026-08-06T10:00:00.000Z",
+    });
+    insertStateChange(sqlite, {
+      ticketId: multipleCycles,
+      from: "resuelto",
+      to: "en_proceso",
+      happenedAt: "2026-08-06T12:00:00.000Z",
+    });
+    insertStateChange(sqlite, {
+      ticketId: multipleCycles,
+      from: "en_proceso",
+      to: "cerrado",
+      authorUserId: brunoId,
+      happenedAt: "2026-08-06T16:00:00.000Z",
+    });
+
+    insertTicket(sqlite, {
+      conversationId: "plazo-sin-evento-sin-actor",
+      createdAt: "2026-08-07T08:00:00.000Z",
+      status: "resuelto",
+      deadline: "2026-08-07T12:00:00.000Z",
+      resolvedAt: "2026-08-07T11:00:00.000Z",
+    });
+    insertTicket(sqlite, {
+      conversationId: "plazo-incoherente",
+      createdAt: "2026-08-08T08:00:00.000Z",
+      status: "resuelto",
+      assignedUserId: anaId,
+      deadline: "2026-08-08T07:00:00.000Z",
+      resolvedAt: "2026-08-08T11:00:00.000Z",
+    });
+
+    const result = consultarRendimientoPersonas(
+      database,
+      {},
+      new Date("2026-08-31T12:00:00.000Z"),
+    );
+    const ana = result.personas.find((person) => person.usuario.id === anaId);
+    const bruno = result.personas.find(
+      (person) => person.usuario.id === brunoId,
+    );
+
+    assert.deepEqual(ana?.cumplimiento_plazo_auditable, {
+      muestra: 2,
+      cumplidos: 2,
+      porcentaje: 100,
+    });
+    assert.deepEqual(ana?.cumplimiento_plazo, {
+      muestra: 4,
+      cumplidos: 3,
+      porcentaje: 75,
+    });
+    assert.deepEqual(bruno?.cumplimiento_plazo_auditable, {
+      muestra: 0,
+      cumplidos: 0,
+      porcentaje: null,
+    });
+    assert.deepEqual(bruno?.cumplimiento_plazo, {
+      muestra: 2,
+      cumplidos: 2,
+      porcentaje: 100,
+    });
+
+    // El ticket auditado pertenece a Ana por el autor del evento, aunque la
+    // asignación actual sea Bruno. Los eventos sin actor tampoco se adjudican
+    // usando esa asignación como sustituto.
+    assert.equal(ana?.resoluciones_atribuidas, 5);
+    assert.equal(bruno?.resoluciones_atribuidas, 2);
     sqlite.close();
   });
 
@@ -643,6 +809,11 @@ describe("consulta de rendimiento individual", () => {
           cumplidos: 0,
           porcentaje: null,
         },
+        cumplimiento_plazo: {
+          muestra: 0,
+          cumplidos: 0,
+          porcentaje: null,
+        },
         carga_actual: {
           abiertos_asignados: 0,
           vencidos_asignados: 0,
@@ -665,6 +836,11 @@ describe("consulta de rendimiento individual", () => {
           mediana_horas: null,
         },
         cumplimiento_plazo_auditable: {
+          muestra: 0,
+          cumplidos: 0,
+          porcentaje: null,
+        },
+        cumplimiento_plazo: {
           muestra: 0,
           cumplidos: 0,
           porcentaje: null,

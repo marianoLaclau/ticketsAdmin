@@ -2270,6 +2270,30 @@ components:
           minimum: 0
           maximum: 100
 
+    RendimientoCumplimientoPersona:
+      type: object
+      additionalProperties: false
+      description: >
+        Finalizaciones atribuibles con fechas de resolución y vencimiento
+        coherentes. Combina eventos que conservaron el vencimiento con una única
+        reconstrucción de la última finalización cuando ese dato no quedó en el
+        evento. porcentaje es null cuando muestra es cero.
+      required:
+        - muestra
+        - cumplidos
+        - porcentaje
+      properties:
+        muestra:
+          type: integer
+          minimum: 0
+        cumplidos:
+          type: integer
+          minimum: 0
+        porcentaje:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 100
+
     RendimientoCargaActualPersona:
       type: object
       additionalProperties: false
@@ -2302,6 +2326,7 @@ components:
         - finalizaciones_historicas_atribuidas
         - tiempo_resolucion_atribuible
         - cumplimiento_plazo_auditable
+        - cumplimiento_plazo
         - carga_actual
         - resoluciones_reabiertas
       properties:
@@ -2332,6 +2357,8 @@ components:
           $ref: "#/components/schemas/RendimientoTiempoResolucionAtribuible"
         cumplimiento_plazo_auditable:
           $ref: "#/components/schemas/RendimientoCumplimientoPersonaAuditable"
+        cumplimiento_plazo:
+          $ref: "#/components/schemas/RendimientoCumplimientoPersona"
         carga_actual:
           $ref: "#/components/schemas/RendimientoCargaActualPersona"
         resoluciones_reabiertas:

@@ -1407,6 +1407,13 @@ export const getRendimientoPersonasResponsePersonasItemCumplimientoPlazoAuditabl
 export const getRendimientoPersonasResponsePersonasItemCumplimientoPlazoAuditablePorcentajeMin = 0;
 export const getRendimientoPersonasResponsePersonasItemCumplimientoPlazoAuditablePorcentajeMax = 100;
 
+export const getRendimientoPersonasResponsePersonasItemCumplimientoPlazoMuestraMin = 0;
+
+export const getRendimientoPersonasResponsePersonasItemCumplimientoPlazoCumplidosMin = 0;
+
+export const getRendimientoPersonasResponsePersonasItemCumplimientoPlazoPorcentajeMin = 0;
+export const getRendimientoPersonasResponsePersonasItemCumplimientoPlazoPorcentajeMax = 100;
+
 export const getRendimientoPersonasResponsePersonasItemCargaActualAbiertosAsignadosMin = 0;
 
 export const getRendimientoPersonasResponsePersonasItemCargaActualVencidosAsignadosMin = 0;
@@ -1455,6 +1462,11 @@ export const GetRendimientoPersonasResponse = zod.object({
   "cumplidos": zod.number().min(getRendimientoPersonasResponsePersonasItemCumplimientoPlazoAuditableCumplidosMin),
   "porcentaje": zod.number().min(getRendimientoPersonasResponsePersonasItemCumplimientoPlazoAuditablePorcentajeMin).max(getRendimientoPersonasResponsePersonasItemCumplimientoPlazoAuditablePorcentajeMax).nullable()
 }).describe('Resoluciones atribuibles a la persona que conservaron fecha_limite_snapshot. Cumple cuando la fecha del evento no supera el snapshot; porcentaje es null cuando muestra es cero.\n'),
+  "cumplimiento_plazo": zod.object({
+  "muestra": zod.number().min(getRendimientoPersonasResponsePersonasItemCumplimientoPlazoMuestraMin),
+  "cumplidos": zod.number().min(getRendimientoPersonasResponsePersonasItemCumplimientoPlazoCumplidosMin),
+  "porcentaje": zod.number().min(getRendimientoPersonasResponsePersonasItemCumplimientoPlazoPorcentajeMin).max(getRendimientoPersonasResponsePersonasItemCumplimientoPlazoPorcentajeMax).nullable()
+}).describe('Finalizaciones atribuibles con fechas de resolución y vencimiento coherentes. Combina eventos que conservaron el vencimiento con una única reconstrucción de la última finalización cuando ese dato no quedó en el evento. porcentaje es null cuando muestra es cero.\n'),
   "carga_actual": zod.object({
   "abiertos_asignados": zod.number().min(getRendimientoPersonasResponsePersonasItemCargaActualAbiertosAsignadosMin),
   "vencidos_asignados": zod.number().min(getRendimientoPersonasResponsePersonasItemCargaActualVencidosAsignadosMin)

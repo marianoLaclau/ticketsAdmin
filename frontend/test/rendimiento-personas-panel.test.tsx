@@ -52,6 +52,11 @@ function personasData(): RendimientoPersonas {
           cumplidos: 2,
           porcentaje: 66.7,
         },
+        cumplimiento_plazo: {
+          muestra: 8,
+          cumplidos: 7,
+          porcentaje: 87.5,
+        },
         carga_actual: {
           abiertos_asignados: 3,
           vencidos_asignados: 1,
@@ -78,6 +83,11 @@ function personasData(): RendimientoPersonas {
           cumplidos: 0,
           porcentaje: null,
         },
+        cumplimiento_plazo: {
+          muestra: 0,
+          cumplidos: 0,
+          porcentaje: null,
+        },
         carga_actual: {
           abiertos_asignados: 0,
           vencidos_asignados: 0,
@@ -88,7 +98,7 @@ function personasData(): RendimientoPersonas {
   };
 }
 
-test("muestra hechos y muestras aun con cobertura insuficiente, sin ranking", async (t) => {
+test("muestra indicadores claros sin exponer detalles técnicos de cobertura", async (t) => {
   t.after(cleanup);
   render(
     <main>
@@ -100,12 +110,10 @@ test("muestra hechos y muestras aun con cobertura insuficiente, sin ranking", as
   );
 
   assert.ok(screen.getByRole("heading", { name: "Rendimiento individual" }));
-  assert.ok(
-    screen.getByRole("heading", {
-      name: "Cobertura insuficiente para comparar",
-    }),
-  );
+  assert.equal(screen.queryByText(/cobertura suficiente para comparar/i), null);
+  assert.equal(screen.queryByText(/históric|auditable|reabiert/i), null);
   assert.ok(screen.getByText("Orden alfabético A–Z"));
+  assert.ok(screen.getByText(/Actualizado el/));
   assert.ok(!screen.queryByText(/mejor operador/i));
   assert.ok(!screen.queryByRole("columnheader", { name: /posición|puntaje/i }));
   assert.ok(!screen.queryByRole("button", { name: /ordenar/i }));
@@ -115,16 +123,27 @@ test("muestra hechos y muestras aun con cobertura insuficiente, sin ranking", as
     .closest<HTMLElement>("article");
   assert.ok(ana);
   assert.ok(within(ana).getByText("4"));
-  assert.ok(within(ana).getByText("5 finalizaciones atribuibles"));
-  assert.ok(within(ana).getByText("2 recuperadas del historial"));
+  assert.ok(within(ana).getByText("5 finalizaciones registradas"));
   assert.ok(within(ana).getByText("18 h 15 min"));
   assert.ok(within(ana).getByText("Muestra: 4 finalizaciones"));
-  assert.ok(within(ana).getByText("2 fechas históricas incluidas"));
-  assert.ok(within(ana).getByText("66,7%"));
-  assert.ok(within(ana).getByText("2 de 3 resoluciones"));
+  assert.ok(within(ana).getByText("87,5%"));
+  assert.ok(within(ana).getByText("7 de 8 resoluciones"));
   assert.ok(within(ana).getByText("3 abiertos"));
   assert.ok(within(ana).getByText("1 vencido"));
-  assert.ok(within(ana).getByText("1", { selector: "dd" }));
+  assert.ok(within(ana).getByText("Asignación actual"));
+  assert.ok(within(ana).getByText("81,3/100"));
+  assert.ok(within(ana).getByText("Favorable"));
+  assert.ok(
+    screen.getByText(
+      /pondera 70% el cumplimiento del plazo y 30% la carga abierta sin vencer/i,
+    ),
+  );
+  assert.ok(screen.getByText(/desde 80 puntos se muestra favorable/i));
+  const meter = within(ana).getByRole("meter", {
+    name: "Índice de rendimiento operativo de Ana Pérez",
+  });
+  assert.equal(meter.getAttribute("aria-valuenow"), "81.3");
+  assert.equal(meter.getAttribute("aria-valuetext"), "81,3 de 100, favorable");
 
   const anaHeading = screen.getByRole("heading", { name: "Ana Pérez" });
   const brunoHeading = screen.getByRole("heading", { name: "Bruno Soto" });
@@ -145,19 +164,79 @@ test("presenta datos no medibles como Sin muestra y conserva los ceros reales", 
   data.cobertura.comparacion_individual_estado = "parcial";
   render(<RendimientoPersonasPanel data={data} onClearFilters={() => {}} />);
 
-  assert.ok(screen.getByRole("heading", { name: "Cobertura global parcial" }));
+  assert.equal(screen.queryByText(/cobertura global parcial/i), null);
   const bruno = screen
     .getByRole("heading", { name: "Bruno Soto" })
     .closest<HTMLElement>("article");
   assert.ok(bruno);
-  assert.equal(within(bruno).getAllByText("Sin muestra").length, 2);
+  assert.equal(within(bruno).getAllByText("Sin muestra").length, 3);
+  assert.ok(within(bruno).getByText("No disponible"));
   assert.ok(within(bruno).getByText("0 abiertos"));
   assert.ok(within(bruno).getByText("Sin vencidos"));
+  assert.equal(within(bruno).queryByRole("meter"), null);
   assert.equal(within(bruno).queryByText("0%"), null);
   assert.equal(within(bruno).queryByText("0 h"), null);
 });
 
-test("habilita la comparación con el historial atribuible completo", (t) => {
+test("mantiene neutral el indicador cuando la muestra todavía es pequeña", (t) => {
+  t.after(cleanup);
+  const data = personasData();
+  const ana = data.personas[0]!;
+  ana.cumplimiento_plazo = {
+    muestra: 4,
+    cumplidos: 4,
+    porcentaje: 100,
+  };
+  ana.carga_actual = {
+    abiertos_asignados: 0,
+    vencidos_asignados: 0,
+  };
+  data.personas = [ana];
+
+  render(<RendimientoPersonasPanel data={data} onClearFilters={() => {}} />);
+
+  const article = screen
+    .getByRole("heading", { name: "Ana Pérez" })
+    .closest<HTMLElement>("article");
+  assert.ok(article);
+  assert.ok(within(article).getByText("Muestra inicial"));
+  assert.ok(within(article).getByText("100/100"));
+  assert.ok(
+    within(article).getByText("Resultado preliminar: 4 de 5 casos mínimos"),
+  );
+  assert.equal(within(article).queryByText("Favorable"), null);
+  assert.equal(
+    within(article).getByRole("meter").getAttribute("aria-valuetext"),
+    "100 de 100, muestra inicial",
+  );
+});
+
+test("señala con texto el rendimiento que requiere atención", (t) => {
+  t.after(cleanup);
+  const data = personasData();
+  const ana = data.personas[0]!;
+  ana.cumplimiento_plazo = {
+    muestra: 10,
+    cumplidos: 6,
+    porcentaje: 60,
+  };
+  data.personas = [ana];
+
+  render(<RendimientoPersonasPanel data={data} onClearFilters={() => {}} />);
+
+  const article = screen
+    .getByRole("heading", { name: "Ana Pérez" })
+    .closest<HTMLElement>("article");
+  assert.ok(article);
+  assert.ok(within(article).getByText("Requiere atención"));
+  assert.ok(within(article).getByText("62/100"));
+  assert.equal(
+    within(article).getByRole("meter").getAttribute("aria-valuetext"),
+    "62 de 100, requiere atención",
+  );
+});
+
+test("mantiene fuera de la interfaz la explicación interna de cobertura", (t) => {
   t.after(cleanup);
   const data = personasData();
   data.cobertura = {
@@ -172,16 +251,9 @@ test("habilita la comparación con el historial atribuible completo", (t) => {
 
   render(<RendimientoPersonasPanel data={data} onClearFilters={() => {}} />);
 
-  assert.ok(
-    screen.getByRole("heading", {
-      name: "Cobertura suficiente para comparar",
-    }),
-  );
-  assert.ok(
-    screen.getByText(
-      /12 finalizaciones analizadas: 2 con evento y 10 históricas/,
-    ),
-  );
+  assert.equal(screen.queryByText(/cobertura suficiente para comparar/i), null);
+  assert.equal(screen.queryByText(/históric|auditable/i), null);
+  assert.ok(screen.getByText("cierres y resoluciones del conjunto analizado"));
 });
 
 test("muestra tres operadores y permite desplegar o contraer el resto", async (t) => {
@@ -211,12 +283,18 @@ test("muestra tres operadores y permite desplegar o contraer el resto", async (t
   assert.equal(expand.getAttribute("aria-expanded"), "false");
   const controlledListId = expand.getAttribute("aria-controls");
   assert.ok(controlledListId);
-  assert.ok(document.getElementById(controlledListId));
+  const operatorList = document.getElementById(controlledListId);
+  assert.ok(operatorList);
+  assert.equal(operatorList.getAttribute("tabindex"), null);
+  assert.equal(operatorList.className.includes("overflow-y-auto"), false);
 
   await user.click(expand);
 
   assert.ok(screen.getByRole("heading", { name: "Diego López" }));
   assert.ok(screen.getByRole("heading", { name: "Elena Ruiz" }));
+  assert.equal(operatorList.getAttribute("tabindex"), "0");
+  assert.ok(operatorList.className.includes("max-h-[680px]"));
+  assert.ok(operatorList.className.includes("overflow-y-auto"));
   const collapse = screen.getByRole("button", {
     name: "Mostrar solo 3 operadores",
   });

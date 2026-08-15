@@ -116,7 +116,7 @@ function reiteracionesData(): RendimientoReiteraciones {
   };
 }
 
-test("presenta riesgo, cobertura, identidad enmascarada y expande tickets", async (t) => {
+test("presenta un resumen compacto y despliega detalles y tickets en dos niveles", async (t) => {
   t.after(cleanup);
   const user = userEvent.setup();
   const location = memoryLocation({ path: "/rendimiento" });
@@ -146,6 +146,29 @@ test("presenta riesgo, cobertura, identidad enmascarada y expande tickets", asyn
   assert.ok(within(contact).getByText("4 llamados"));
   assert.ok(within(contact).getByText("3 abiertos"));
   assert.ok(within(contact).getByText("1 vencido"));
+  assert.ok(within(contact).getByText("Último llamado"));
+  assert.ok(within(contact).getByText("Responsable actual"));
+  assert.ok(within(contact).getByText("Carla Ruiz +1"));
+  assert.equal(
+    within(contact).queryByRole("link", {
+      name: "Abrir ticket #100 de Ana Pérez",
+    }),
+    null,
+  );
+
+  const details = within(contact).getByRole("button", {
+    name: "Ver detalles de Ana Pérez",
+  });
+  assert.equal(details.getAttribute("aria-expanded"), "false");
+  const detailsId = details.getAttribute("aria-controls");
+  assert.ok(detailsId);
+  const detailsPanel = document.getElementById(detailsId) as HTMLElement;
+  assert.ok(detailsPanel);
+  assert.equal(detailsPanel.hidden, true);
+
+  await user.click(details);
+  assert.equal(details.getAttribute("aria-expanded"), "true");
+  assert.equal(detailsPanel.hidden, false);
   assert.ok(within(contact).getByText("2 días 4 h"));
   assert.ok(within(contact).getAllByText("Carla Ruiz").length >= 1);
   assert.ok(within(contact).getAllByText("Sin asignar").length >= 1);
@@ -173,6 +196,19 @@ test("presenta riesgo, cobertura, identidad enmascarada y expande tickets", asyn
     within(contact).getByRole("button", {
       name: "Mostrar solo los 3 más recientes",
     }),
+  );
+
+  await user.click(
+    within(contact).getByRole("button", {
+      name: "Ocultar detalles de Ana Pérez",
+    }),
+  );
+  assert.equal(detailsPanel.hidden, true);
+  assert.equal(
+    within(contact).queryByRole("link", {
+      name: "Abrir ticket #100 de Ana Pérez",
+    }),
+    null,
   );
 
   await assertNoAxeViolations();
@@ -351,6 +387,75 @@ test("pagina contactos y bloquea la navegacion mientras carga", async (t) => {
   assert.equal(previousPages, 0);
 });
 
+test("muestra tres contactos y limita con scroll la lista ampliada", async (t) => {
+  t.after(cleanup);
+  const user = userEvent.setup();
+  const base = reiteracionesData();
+  const primaryContact = base.contactos[0];
+  assert.ok(primaryContact);
+  const buildContact = (name: string, firstTicketId: number) => ({
+    ...primaryContact,
+    grupo_id: `grupo-opaco-${name}`,
+    nombre_referencia: name,
+    cantidad_llamados: 2,
+    abiertos: 1,
+    vencidos_abiertos: 0,
+    tickets: [ticket(firstTicketId), ticket(firstTicketId - 1)],
+  });
+  const contacts = [
+    primaryContact,
+    buildContact("Bruno Díaz", 110),
+    buildContact("Camila Soto", 112),
+    buildContact("Diego Ruiz", 114),
+  ];
+  const location = memoryLocation({ path: "/rendimiento" });
+
+  render(
+    <Router hook={location.hook} searchHook={location.searchHook}>
+      <RendimientoReiteracionesPanel
+        data={{
+          ...base,
+          resumen: { ...base.resumen, contactos_reiterados: contacts.length },
+          contactos: contacts,
+        }}
+        onClearFilters={() => {}}
+      />
+    </Router>,
+  );
+
+  assert.ok(screen.getByRole("heading", { name: "Ana Pérez" }));
+  assert.ok(screen.getByRole("heading", { name: "Bruno Díaz" }));
+  assert.ok(screen.getByRole("heading", { name: "Camila Soto" }));
+  assert.equal(screen.queryByRole("heading", { name: "Diego Ruiz" }), null);
+
+  const expand = screen.getByRole("button", {
+    name: "Ver 1 contacto más",
+  });
+  assert.equal(expand.getAttribute("aria-expanded"), "false");
+  const listId = expand.getAttribute("aria-controls");
+  assert.ok(listId);
+
+  await user.click(expand);
+
+  assert.equal(expand.getAttribute("aria-expanded"), "true");
+  assert.ok(screen.getByRole("heading", { name: "Diego Ruiz" }));
+  const expandedList = screen.getByRole("region", {
+    name: "Lista ampliada de contactos recurrentes",
+  });
+  assert.equal(expandedList.id, listId);
+  assert.ok(expandedList.classList.contains("max-h-[680px]"));
+  assert.ok(expandedList.classList.contains("overflow-y-auto"));
+  assert.ok(expandedList.classList.contains("scroll-sutil"));
+  assert.equal(expandedList.getAttribute("tabindex"), "0");
+
+  await assertNoAxeViolations();
+
+  await user.click(
+    screen.getByRole("button", { name: "Mostrar solo 3 contactos" }),
+  );
+  assert.equal(screen.queryByRole("heading", { name: "Diego Ruiz" }), null);
+});
+
 test("mantiene expandido el contacto correcto al reordenar resultados", async (t) => {
   t.after(cleanup);
   const user = userEvent.setup();
@@ -394,6 +499,11 @@ test("mantiene expandido el contacto correcto al reordenar resultados", async (t
     .closest<HTMLElement>("article");
   assert.ok(primaryCard);
   await user.click(
+    within(primaryCard).getByRole("button", {
+      name: `Ver detalles de ${primaryContact.nombre_referencia}`,
+    }),
+  );
+  await user.click(
     within(primaryCard).getByRole("button", { name: /Ver 1 ticket/ }),
   );
   assert.ok(within(primaryCard).getByText("Ticket #97"));
@@ -416,6 +526,14 @@ test("mantiene expandido el contacto correcto al reordenar resultados", async (t
     .closest<HTMLElement>("article");
   assert.ok(reorderedPrimaryCard);
   assert.ok(within(reorderedPrimaryCard).getByText("Ticket #97"));
+  assert.equal(
+    within(reorderedPrimaryCard)
+      .getByRole("button", {
+        name: `Ocultar detalles de ${primaryContact.nombre_referencia}`,
+      })
+      .getAttribute("aria-expanded"),
+    "true",
+  );
   assert.equal(
     within(reorderedPrimaryCard)
       .getByRole("button", {

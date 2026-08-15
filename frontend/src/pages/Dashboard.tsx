@@ -157,7 +157,7 @@ export default function Dashboard() {
   const periodoLabel = getDashboardPeriodLabel(periodo);
   const appliedPeriodLabel = dashboardParams
     ? getDashboardRangeLabel(dashboardParams)
-    : "Todo el historial";
+    : "Período completo";
   const resueltosDelPeriodo =
     periodo === "todo" ? stats?.resueltos_hoy : stats?.resueltos_periodo;
 

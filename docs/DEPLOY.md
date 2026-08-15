@@ -18,6 +18,7 @@ flowchart TD
     migrate[Migraciones al iniciar backend]
     health[Healthchecks de backend y frontend]
     smoke[Smoke: readyz directo y SPA]
+    blocked[Deploy bloqueado en GitHub]
     diagnostics[Si falla: compose ps y logs]
     volume[(ticketsadmin_tickets_data)]
 
@@ -25,7 +26,7 @@ flowchart TD
     volume --> backup
     deploy --> migrate --> volume
     deploy --> health --> smoke
-    quality -. fallo .-> diagnostics
+    quality -->|fallo| blocked
     secrets -. fallo .-> diagnostics
     backup -. fallo .-> diagnostics
     build -. fallo .-> diagnostics
@@ -48,8 +49,9 @@ El workflow:
 6. inyecta los secretos solamente en `docker compose up`;
 7. espera hasta 180 segundos a que Compose declare saludables ambos servicios;
 8. comprueba `/api/readyz` directamente en el backend y que Nginx sirva la SPA;
-9. si algo falla, muestra estado y las últimas líneas de logs sin modificar los
-   datos.
+9. si falla una etapa ejecutada en el runner productivo, muestra estado y las
+   últimas líneas de logs sin modificar los datos. Si falla Quality/E2E, el job
+   productivo ni siquiera comienza y el diagnóstico queda en ese workflow.
 
 El volumen nombrado `ticketsadmin_tickets_data` conserva `/data/tickets.db`
 entre recreaciones. El workflow no ejecuta `docker compose down -v`, no elimina
@@ -298,9 +300,16 @@ Cuando la versión nueva está rota y hay que recuperar servicio ya. Se hace un
 backup primero porque un cambio de código no revierte una migración aplicada:
 
 ```bash
-# 1. Copia consistente de la base antes de tocar nada.
-docker run --rm   -v ticketsadmin_tickets_data:/data:ro   -v /var/lib/ticketsadmin/backups:/backups   alpine:3 sh -c 'apk add --no-cache sqlite >/dev/null &&
-    sqlite3 /data/tickets.db ".backup /backups/pre-rollback-$(date -u +%Y%m%d-%H%M%S).db"'
+# 1. Copia consistente y verificada de la base antes de tocar nada.
+docker run --rm \
+  -v ticketsadmin_tickets_data:/data:ro \
+  -v /var/lib/ticketsadmin/backups:/backups \
+  alpine:3 sh -c 'set -eu
+    apk add --no-cache sqlite >/dev/null
+    backup="/backups/pre-rollback-$(date -u +%Y%m%d-%H%M%S).db"
+    sqlite3 /data/tickets.db ".backup \"$backup\""
+    test "$(sqlite3 "$backup" "PRAGMA integrity_check;")" = "ok"
+    echo "Backup verificado: $backup"'
 
 # 2. Elegir el commit sano y reconstruir sobre él.
 git log --oneline -10
@@ -347,10 +356,12 @@ pnpm --filter @workspace/backend run dev      # :5000
 pnpm --filter @workspace/frontend run dev     # :3000, en otra terminal
 ```
 
-Requiere un `.env` en la raíz con `WEBHOOK_API_KEY`, las tres variables
-requeridas `N8N_CHAT_*` y, en una base nueva, `BOOTSTRAP_SYSADMIN_PASSWORD`.
-Arranca con la base vacía: para trabajar con datos reales, copiar un backup a
-`data/tickets.db` con los servicios detenidos.
+Requiere un `.env` en la raíz con `WEBHOOK_API_KEY` y, en una base nueva,
+`BOOTSTRAP_SYSADMIN_PASSWORD`. Las tres credenciales `N8N_CHAT_*` son
+obligatorias para publicar el asistente en producción, pero opcionales durante
+el desarrollo local: si faltan, solo ese endpoint responde `503` y el resto de
+la aplicación arranca. Con una base vacía, para trabajar con datos reales hay
+que restaurar un backup en `data/tickets.db` con los servicios detenidos.
 
 **El `dev` del backend no tiene watch**: es `build && start`, así que después de
 cambiar código hay que reiniciarlo. Un backend viejo sirviendo una build vieja

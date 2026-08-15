@@ -479,6 +479,22 @@ export interface RendimientoCumplimientoPersonaAuditable {
 }
 
 /**
+ * Finalizaciones atribuibles con fechas de resolución y vencimiento coherentes. Combina eventos que conservaron el vencimiento con una única reconstrucción de la última finalización cuando ese dato no quedó en el evento. porcentaje es null cuando muestra es cero.
+ */
+export interface RendimientoCumplimientoPersona {
+  /** @minimum 0 */
+  muestra: number;
+  /** @minimum 0 */
+  cumplidos: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  porcentaje: number | null;
+}
+
+/**
  * Fotografía del conjunto analizado al instante generado_en. Solo cuenta tickets actualmente no finales cuyo asignado_usuario_id coincide con la persona; vencidos_asignados es un subconjunto de abiertos_asignados.
  */
 export interface RendimientoCargaActualPersona {
@@ -510,6 +526,7 @@ export interface RendimientoPersona {
   finalizaciones_historicas_atribuidas: number;
   tiempo_resolucion_atribuible: RendimientoTiempoResolucionAtribuible;
   cumplimiento_plazo_auditable: RendimientoCumplimientoPersonaAuditable;
+  cumplimiento_plazo: RendimientoCumplimientoPersona;
   carga_actual: RendimientoCargaActualPersona;
   /**
      * Resoluciones atribuibles de la persona tras las que ocurrió al menos una transición final a no-final y antes de la siguiente resolución del mismo ticket. Cada resolución se cuenta como máximo una vez; no atribuye la acción de reabrir y no implica una evaluación negativa.

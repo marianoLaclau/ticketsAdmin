@@ -2095,6 +2095,11 @@ describe("módulo de Rendimiento", () => {
             cumplidos: 0,
             porcentaje: null,
           },
+          cumplimiento_plazo: {
+            muestra: 0,
+            cumplidos: 0,
+            porcentaje: null,
+          },
           carga_actual: {
             abiertos_asignados: 0,
             vencidos_asignados: 0,
@@ -2121,6 +2126,11 @@ describe("módulo de Rendimiento", () => {
             cumplidos: 1,
             porcentaje: 100,
           },
+          cumplimiento_plazo: {
+            muestra: 1,
+            cumplidos: 1,
+            porcentaje: 100,
+          },
           carga_actual: {
             abiertos_asignados: 0,
             vencidos_asignados: 0,
@@ -2143,6 +2153,11 @@ describe("módulo de Rendimiento", () => {
             mediana_horas: null,
           },
           cumplimiento_plazo_auditable: {
+            muestra: 0,
+            cumplidos: 0,
+            porcentaje: null,
+          },
+          cumplimiento_plazo: {
             muestra: 0,
             cumplidos: 0,
             porcentaje: null,

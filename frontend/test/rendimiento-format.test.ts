@@ -20,7 +20,7 @@ describe("formato compartido de Rendimiento", () => {
     );
     assert.equal(
       formatRendimientoPeriod({ fecha_desde: null, fecha_hasta: null }),
-      "Todo el historial",
+      "Período completo",
     );
   });
 

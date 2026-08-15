@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type {
   RendimientoReiteracionContacto,
   RendimientoReiteracionTicket,
@@ -43,6 +43,7 @@ interface RendimientoReiteracionesPanelProps {
 }
 
 const INITIAL_VISIBLE_TICKETS = 3;
+const INITIAL_VISIBLE_CONTACTS = 3;
 const numberFormatter = new Intl.NumberFormat("es-AR");
 const percentageFormatter = new Intl.NumberFormat("es-AR", {
   maximumFractionDigits: 1,
@@ -259,22 +260,41 @@ function ContactCard({
   signature: string;
   timezone: string;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const [ticketsExpanded, setTicketsExpanded] = useState(false);
   const headingId = `rendimiento-reiteracion-contacto-${signature}`;
+  const detailsId = `rendimiento-reiteracion-detalles-${signature}`;
   const ticketsId = `rendimiento-reiteracion-tickets-${signature}`;
   const hasMore = contact.tickets.length > INITIAL_VISIBLE_TICKETS;
-  const visibleTickets = expanded
+  const visibleTickets = ticketsExpanded
     ? contact.tickets
     : contact.tickets.slice(0, INITIAL_VISIBLE_TICKETS);
   const hiddenCount = contact.tickets.length - INITIAL_VISIBLE_TICKETS;
+  const primaryResponsible = contact.responsables[0];
+  const additionalResponsibleCount = Math.max(
+    0,
+    contact.responsables.length - 1,
+  );
+  const responsibleSummary = primaryResponsible
+    ? `${primaryResponsible.nombre}${
+        additionalResponsibleCount > 0
+          ? ` +${numberFormatter.format(additionalResponsibleCount)}`
+          : ""
+      }`
+    : "Sin asignar";
 
   return (
     <article
       className="overflow-hidden rounded-xl border border-slate-200 bg-card shadow-sm"
       aria-labelledby={headingId}
     >
-      <div className="border-b border-slate-100 bg-slate-50/70 p-4 sm:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div
+        className={cn(
+          "bg-slate-50/70 p-4 sm:p-5",
+          detailsExpanded && "border-b border-slate-100",
+        )}
+      >
+        <div className="grid gap-4 md:grid-cols-2 md:items-center xl:grid-cols-[minmax(220px,1.1fr)_minmax(300px,1.35fr)_minmax(250px,1fr)_auto]">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h3
@@ -295,7 +315,7 @@ function ContactCard({
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex min-w-0 flex-wrap gap-2">
             <Badge variant="secondary">
               {numberFormatter.format(contact.cantidad_llamados)} llamados
             </Badge>
@@ -324,11 +344,59 @@ function ContactCard({
             )}
             <PrioridadBadge prioridad={contact.prioridad_maxima} />
           </div>
+
+          <dl className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+            <div className="min-w-0">
+              <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Último llamado
+              </dt>
+              <dd className="mt-0.5 truncate text-xs font-medium tabular-nums text-foreground">
+                <time dateTime={contact.ultimo_contacto}>
+                  {formatDateTime(contact.ultimo_contacto, timezone)}
+                </time>
+              </dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Responsable actual
+              </dt>
+              <dd
+                className="mt-0.5 truncate text-xs font-medium text-foreground"
+                title={contact.responsables
+                  .map((responsible) => responsible.nombre)
+                  .join(", ")}
+              >
+                {responsibleSummary}
+              </dd>
+            </div>
+          </dl>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full shrink-0 bg-white md:w-auto md:justify-self-end"
+            aria-expanded={detailsExpanded}
+            aria-controls={detailsId}
+            aria-label={`${detailsExpanded ? "Ocultar" : "Ver"} detalles de ${contact.nombre_referencia}`}
+            onClick={() => setDetailsExpanded((current) => !current)}
+          >
+            {detailsExpanded ? (
+              <ChevronUp className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            )}
+            {detailsExpanded ? "Ocultar detalles" : "Ver detalles"}
+          </Button>
         </div>
       </div>
 
-      <div className="space-y-4 p-4 sm:p-5">
-        <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div
+        id={detailsId}
+        className="space-y-4 p-4 sm:p-5"
+        hidden={!detailsExpanded}
+      >
+        <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <div>
             <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Primer contacto
@@ -336,16 +404,6 @@ function ContactCard({
             <dd className="mt-1 text-sm font-medium tabular-nums">
               <time dateTime={contact.primer_contacto}>
                 {formatDateTime(contact.primer_contacto, timezone)}
-              </time>
-            </dd>
-          </div>
-          <div>
-            <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Último contacto
-            </dt>
-            <dd className="mt-1 text-sm font-medium tabular-nums">
-              <time dateTime={contact.ultimo_contacto}>
-                {formatDateTime(contact.ultimo_contacto, timezone)}
               </time>
             </dd>
           </div>
@@ -416,16 +474,16 @@ function ContactCard({
               variant="ghost"
               size="sm"
               className="mt-2"
-              aria-expanded={expanded}
+              aria-expanded={ticketsExpanded}
               aria-controls={ticketsId}
-              onClick={() => setExpanded((current) => !current)}
+              onClick={() => setTicketsExpanded((current) => !current)}
             >
-              {expanded ? (
+              {ticketsExpanded ? (
                 <ChevronUp className="mr-1.5 h-4 w-4" aria-hidden="true" />
               ) : (
                 <ChevronDown className="mr-1.5 h-4 w-4" aria-hidden="true" />
               )}
-              {expanded
+              {ticketsExpanded
                 ? "Mostrar solo los 3 más recientes"
                 : `Ver ${numberFormatter.format(hiddenCount)} ${
                     hiddenCount === 1 ? "ticket más" : "tickets más"
@@ -435,6 +493,78 @@ function ContactCard({
         </section>
       </div>
     </article>
+  );
+}
+
+function ContactsList({
+  contacts,
+  timezone,
+}: {
+  contacts: readonly RendimientoReiteracionContacto[];
+  timezone: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const listId = useId();
+  const hasMore = contacts.length > INITIAL_VISIBLE_CONTACTS;
+  const visibleContacts = expanded
+    ? contacts
+    : contacts.slice(0, INITIAL_VISIBLE_CONTACTS);
+  const hiddenCount = contacts.length - INITIAL_VISIBLE_CONTACTS;
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-card shadow-sm">
+      <div
+        id={listId}
+        className={cn(
+          "space-y-3 p-3 sm:p-4",
+          expanded &&
+            hasMore &&
+            "scroll-sutil max-h-[680px] overflow-y-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
+        )}
+        role={expanded && hasMore ? "region" : undefined}
+        aria-label={
+          expanded && hasMore
+            ? "Lista ampliada de contactos recurrentes"
+            : undefined
+        }
+        tabIndex={expanded && hasMore ? 0 : undefined}
+      >
+        {visibleContacts.map((contact) => {
+          const signature = buildRepetitionContactTicketSignature(contact);
+          return (
+            <ContactCard
+              key={signature}
+              contact={contact}
+              signature={signature}
+              timezone={timezone}
+            />
+          );
+        })}
+      </div>
+      {hasMore ? (
+        <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-3 text-center">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-expanded={expanded}
+            aria-controls={listId}
+            onClick={() => setExpanded((current) => !current)}
+          >
+            {expanded ? (
+              <ChevronUp className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            )}
+            {expanded
+              ? "Mostrar solo 3 contactos"
+              : `Ver ${numberFormatter.format(hiddenCount)} ${
+                  hiddenCount === 1 ? "contacto más" : "contactos más"
+                }`}
+          </Button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -616,7 +746,7 @@ export function RendimientoReiteracionesPanel({
               aria-hidden="true"
             />
             <span>
-              Snapshot generado el{" "}
+              Actualizado el{" "}
               {formatDateTime(data.periodo.generado_en, data.periodo.timezone)}.
               El estado, responsable, prioridad y vencimiento son actuales.
             </span>
@@ -677,25 +807,16 @@ export function RendimientoReiteracionesPanel({
                   Casos que necesitan seguimiento
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Orden operativo del servidor: vencimiento, prioridad,
-                  antigüedad y contacto más reciente.
+                  Nombre, llamados y estado actual en una vista compacta. Abrí
+                  los detalles para consultar fechas, responsables y tickets; el
+                  orden prioriza vencimiento, prioridad y antigüedad.
                 </p>
               </div>
             </div>
-            <div className="space-y-4">
-              {data.contactos.map((contact) => {
-                const signature =
-                  buildRepetitionContactTicketSignature(contact);
-                return (
-                  <ContactCard
-                    key={signature}
-                    contact={contact}
-                    signature={signature}
-                    timezone={data.periodo.timezone}
-                  />
-                );
-              })}
-            </div>
+            <ContactsList
+              contacts={data.contactos}
+              timezone={data.periodo.timezone}
+            />
           </section>
           <RepetitionsPagination
             data={data}
