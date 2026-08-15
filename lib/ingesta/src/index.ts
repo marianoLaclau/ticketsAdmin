@@ -21,8 +21,11 @@ export { filaATicket, parseBoolean } from "./fila-a-ticket";
 export {
   ESTADOS_VALIDOS,
   PRIORIDADES_VALIDAS,
+  type EstadoTicket,
+  type PrioridadTicket,
   type TicketImportado,
 } from "./types";
+export * from "./estados";
 export * from "./motivos";
 export * from "./sla";
 export * from "./serin";

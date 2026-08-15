@@ -940,6 +940,61 @@ describe("edición y auditoría atómica", () => {
     assert.equal(total, 1);
   });
 
+  it("rechaza volver a nuevo y no toca el ticket ni su auditoría", async () => {
+    const enProceso = await jsonRequest("/tickets/1", "PATCH", {
+      estado: "en_proceso",
+    });
+    assert.equal(enProceso.status, 200);
+    const versionTrabajada = ((await enProceso.json()) as { version: number })
+      .version;
+
+    const regreso = await jsonRequest("/tickets/1", "PATCH", {
+      estado: "nuevo",
+    });
+    assert.equal(regreso.status, 400);
+    assert.match(
+      ((await regreso.json()) as { error: string }).error,
+      /no puede volver a "nuevo"/,
+    );
+
+    // Un rechazo no consume versión, no cambia el estado y no audita.
+    const row = sqlite
+      .prepare("SELECT estado, version, progreso FROM tickets WHERE id = 1")
+      .get() as { estado: string; version: number; progreso: number };
+    assert.equal(row.estado, "en_proceso");
+    assert.equal(row.version, versionTrabajada);
+
+    const [{ total }] = sqlite
+      .prepare(
+        "SELECT count(*) AS total FROM seguimientos WHERE ticket_id = 1 AND estado_nuevo = 'nuevo'",
+      )
+      .all() as Array<{ total: number }>;
+    assert.equal(total, 0);
+  });
+
+  it("permite reabrir un ticket cerrado hacia en_proceso", async () => {
+    const cerrado = await jsonRequest(
+      "/tickets/1",
+      "PATCH",
+      { estado: "cerrado" },
+      { role: "SysAdmin", userId: 2 },
+    );
+    assert.equal(cerrado.status, 200);
+
+    const reabierto = await jsonRequest("/tickets/1", "PATCH", {
+      estado: "en_proceso",
+    });
+    assert.equal(reabierto.status, 200);
+
+    const ticket = (await reabierto.json()) as {
+      estado: string;
+      progreso: number;
+    };
+    assert.equal(ticket.estado, "en_proceso");
+    // El progreso acompaña al estado sin que el cliente lo mande.
+    assert.equal(ticket.progreso, 25);
+  });
+
   it("revierte el ticket si falla la inserción de su auditoría", async () => {
     sqlite.exec(`
       CREATE TRIGGER fail_ticket_audit

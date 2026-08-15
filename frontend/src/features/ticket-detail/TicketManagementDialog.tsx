@@ -28,6 +28,7 @@ interface TicketManagementDialogProps {
   open: boolean;
   form: TicketManagementForm;
   canCloseTickets: boolean;
+  canReturnToNew: boolean;
   showTechnicalDeadline: boolean;
   isReloadingConflict: boolean;
   hasVersionConflict: boolean;
@@ -46,6 +47,7 @@ export function TicketManagementDialog({
   open,
   form,
   canCloseTickets,
+  canReturnToNew,
   showTechnicalDeadline,
   isReloadingConflict,
   hasVersionConflict,
@@ -124,7 +126,9 @@ export function TicketManagementDialog({
                         key={estado}
                         value={estado}
                         disabled={
-                          estado === TicketEstado.cerrado && !canCloseTickets
+                          (estado === TicketEstado.cerrado &&
+                            !canCloseTickets) ||
+                          (estado === TicketEstado.nuevo && !canReturnToNew)
                         }
                       >
                         {getEstadoLabel(estado).toUpperCase()}

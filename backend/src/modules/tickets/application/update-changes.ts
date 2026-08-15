@@ -1,5 +1,10 @@
 import { ticketsTable, type Ticket } from "@workspace/db/schema";
-import { clasificarMotivo } from "@workspace/ingesta";
+import {
+  clasificarMotivo,
+  esEstadoFinal,
+  progresoDeEstado,
+  type EstadoTicket,
+} from "@workspace/ingesta";
 import type { ParsedTicketUpdateBody } from "./update-validation";
 
 export type TicketUpdates = Partial<typeof ticketsTable.$inferInsert>;
@@ -77,7 +82,13 @@ export function buildTicketUpdateChanges({
   if (body.notas !== undefined) {
     requested.notas = normalizeNullableText(body.notas);
   }
-  if (body.progreso !== undefined) requested.progreso = body.progreso;
+  // El progreso no se toma del cliente: es la lectura porcentual del estado.
+  // Aceptarlo por separado permitía guardar un `resuelto` con 0%, y la UI ya
+  // lo derivaba por su cuenta. Derivarlo acá deja una sola fuente y corrige de
+  // paso las filas históricas que quedaron incoherentes.
+  requested.progreso = progresoDeEstado(
+    (body.estado ?? current.estado) as EstadoTicket,
+  );
   if (body.fecha_limite !== undefined) {
     requested.fecha_limite = new Date(body.fecha_limite.getTime());
   }
@@ -114,10 +125,10 @@ export function buildTicketUpdateChanges({
     body.estado !== current.estado &&
     body.fecha_resolucion === undefined
   ) {
-    const estadoAnteriorFinalizado =
-      current.estado === "resuelto" || current.estado === "cerrado";
-    const estadoNuevoFinalizado =
-      body.estado === "resuelto" || body.estado === "cerrado";
+    const estadoAnteriorFinalizado = esEstadoFinal(
+      current.estado as EstadoTicket,
+    );
+    const estadoNuevoFinalizado = esEstadoFinal(body.estado as EstadoTicket);
 
     if (estadoNuevoFinalizado && !estadoAnteriorFinalizado) {
       // Cada resolución real debe reflejar su propio instante, incluso si

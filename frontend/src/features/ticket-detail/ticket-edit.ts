@@ -1,4 +1,5 @@
 import type { Ticket } from "@workspace/api-client-react";
+import { PROGRESO_POR_ESTADO } from "@workspace/ingesta";
 import type { TicketChanges } from "@/lib/ticket-version";
 
 const FUNCTIONAL_TICKET_FIELD_LABELS = {
@@ -42,14 +43,12 @@ export interface TicketManagementForm {
   fecha_limite: string;
 }
 
+/**
+ * Espejo del backend, no una copia: el porcentaje se deriva del estado en una
+ * sola fuente y acá solo se reexporta para que la UI lo muestre.
+ */
 export const TICKET_STATE_PROGRESS: Readonly<Record<Ticket["estado"], number>> =
-  {
-    nuevo: 0,
-    en_proceso: 25,
-    pendiente: 50,
-    resuelto: 75,
-    cerrado: 100,
-  };
+  PROGRESO_POR_ESTADO;
 
 const cleanRequired = (value: string): string => value.trim();
 const cleanOptional = (value: string | null | undefined): string | null =>

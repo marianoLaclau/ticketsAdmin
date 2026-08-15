@@ -963,7 +963,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/Ticket"
         "400":
-          description: Body inválido, versión ausente o sin campos editables
+          description: >
+            Body inválido, versión ausente, sin campos editables o transición de
+            estado no permitida (un ticket ya trabajado no vuelve a `nuevo`).
         "401":
           description: Sesion invalida o ausente
           content:

@@ -18,6 +18,7 @@ import {
   getUserErrorMessage,
   isTicketVersionConflict,
 } from "@/lib/error-messages";
+import { ESTADO_INICIAL } from "@workspace/ingesta";
 import { getEstadoLabel } from "@/lib/estados";
 import { invalidateTicketDomainQueries } from "@/lib/query-invalidation";
 import {
@@ -403,6 +404,9 @@ export function useTicketDetailEditing({
     managementDialog: {
       open: isEditing,
       form: editData,
+      // Un ticket ya trabajado no vuelve a "nuevo"; el backend lo rechaza, así
+      // que la opción no se ofrece en vez de dejar que falle al guardar.
+      canReturnToNew: ticket?.estado === ESTADO_INICIAL,
       isReloadingConflict,
       hasVersionConflict,
       isSaving: updateTicket.isPending,

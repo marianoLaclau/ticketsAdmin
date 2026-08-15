@@ -2,7 +2,13 @@ import { Router } from "express";
 import { db, esTicketVacio, ticketsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateAdminTicketBody } from "@workspace/api-zod";
-import { calcularFechaLimiteSla, clasificarMotivo } from "@workspace/ingesta";
+import {
+  calcularFechaLimiteSla,
+  clasificarMotivo,
+  ESTADO_INICIAL,
+  type EstadoTicket,
+  type PrioridadTicket,
+} from "@workspace/ingesta";
 import { requireSysAdmin } from "../../auth";
 import { broadcastEvent } from "../../../shared/realtime/events";
 import { findInvalidRfc3339DateTimeField } from "../../../shared/validation/rfc3339";
@@ -68,12 +74,8 @@ router.post("/admin/tickets", async (req, res) => {
       motivo_categoria: clasificarMotivo(data.motivo, data.resumen),
       resumen: data.resumen ?? null,
       notificado: data.notificado ?? false,
-      estado:
-        (data.estado as
-          "nuevo" | "en_proceso" | "pendiente" | "resuelto" | "cerrado") ??
-        "nuevo",
-      prioridad:
-        (data.prioridad as "baja" | "media" | "alta" | "urgente") ?? "media",
+      estado: (data.estado as EstadoTicket) ?? ESTADO_INICIAL,
+      prioridad: (data.prioridad as PrioridadTicket) ?? "media",
       asignado_a: data.asignado_a ?? null,
       audio_url: data.audio_url ?? null,
       notas: data.notas ?? null,

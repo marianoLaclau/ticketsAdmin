@@ -620,21 +620,47 @@ Las API keys, las credenciales Basic Auth del chat y el secreto bootstrap se ent
 
 ## 7. Estados, SLA y auditoría
 
+La regla que el código aplica es una sola: **no se vuelve a `nuevo`**. Cualquier
+otro movimiento está permitido, incluidas las reaperturas de un caso resuelto o
+cerrado.
+
 ```mermaid
 stateDiagram-v2
     [*] --> nuevo
-    nuevo --> en_proceso: primera gestión
-    en_proceso --> pendiente: fue contactado
-    pendiente --> en_proceso: retomar gestión
-    en_proceso --> resuelto: resolver
-    pendiente --> resuelto: resolver
+    nuevo --> en_proceso
+    nuevo --> pendiente
+    nuevo --> resuelto: se resuelve en la misma llamada
+    nuevo --> cerrado
+    en_proceso --> pendiente
+    en_proceso --> resuelto
+    en_proceso --> cerrado
+    pendiente --> en_proceso
+    pendiente --> resuelto
+    pendiente --> cerrado
     resuelto --> cerrado: cierre autorizado
     resuelto --> en_proceso: reabrir
+    resuelto --> pendiente: reabrir
     cerrado --> en_proceso: reabrir
+    cerrado --> pendiente: reabrir
 ```
+
+Por qué es tan permisiva: sobre el histórico de producción, `nuevo -> resuelto`
+concentra 58 de los 76 cambios de estado reales, porque muchas consultas se
+resuelven durante la misma llamada. Un flujo lineal obligatorio rechazaría el
+uso mayoritario del equipo. Lo único que se prohíbe es retroceder a `nuevo`:
+borraría la evidencia de que el ticket ya fue trabajado y falsearía las lecturas
+de Rendimiento, que cuentan transiciones de un estado no-final a uno final.
+
+La máquina vive en `lib/ingesta/src/estados.ts`
+(`esTransicionDeEstadoValida`, `describirTransicionInvalida`) y se aplica en el
+`PATCH /api/tickets/:id`, que es el único camino que cambia el estado. Un
+intento inválido devuelve `400` con el motivo, sin escribir el ticket ni auditar.
 
 Reglas complementarias:
 
+- El progreso (`0`–`100`) no es un dato independiente: se deriva del estado con
+  `progresoDeEstado()` e ignora lo que envíe el cliente, de modo que no puede
+  existir un `resuelto` con 0%. La UI lo muestra, no lo decide.
 - El primer cambio desde `nuevo` autoasigna el ticket al usuario autenticado.
 - Cada cambio posterior de estado lo asigna al último usuario que lo modificó.
 - A 24 horas hábiles del vencimiento, la prioridad mínima pasa a `alta`.

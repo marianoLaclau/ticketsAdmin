@@ -2,15 +2,16 @@ import { and, eq, inArray, isNotNull, not, sql } from "drizzle-orm";
 import {
   calcularHorasHabilesRestantes,
   calcularPrioridadPorSla,
+  ESTADOS_FINALES,
+  type EstadoTicket,
   type PrioridadSla,
 } from "@workspace/ingesta";
 import { logger } from "../../../shared/observability/logger";
 import { broadcastEvent } from "../../../shared/realtime/events";
 
-export const ESTADOS_FINALIZADOS_PRIORIDAD = ["resuelto", "cerrado"] as const;
+export const ESTADOS_FINALIZADOS_PRIORIDAD = ESTADOS_FINALES;
 
-export type EstadoTicketPrioridad =
-  "nuevo" | "en_proceso" | "pendiente" | "resuelto" | "cerrado";
+export type EstadoTicketPrioridad = EstadoTicket;
 
 export interface TicketCandidatoPrioridad {
   id: number;

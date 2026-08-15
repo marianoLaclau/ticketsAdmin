@@ -430,6 +430,7 @@ test("la UI de gestión bloquea todos sus campos durante PATCH y recarga", (t) =
         open
         form={ticketToManagementForm(ticket, "2026-08-11T10:25")}
         canCloseTickets
+        canReturnToNew
         showTechnicalDeadline
         isReloadingConflict={pending === "reload"}
         hasVersionConflict={pending === "reload"}
@@ -507,6 +508,7 @@ test("la gestión usa un formulario nativo y vincula sus ayudas", (t) => {
       open
       form={ticketToManagementForm(ticket, "2026-08-11T10:25")}
       canCloseTickets={false}
+      canReturnToNew
       showTechnicalDeadline
       isReloadingConflict={false}
       hasVersionConflict={false}
@@ -551,6 +553,73 @@ test("la gestión usa un formulario nativo y vincula sus ayudas", (t) => {
   assert.equal(onSave.mock.callCount(), 1);
   fireEvent.click(cancelButton);
   assert.deepEqual(onOpenChange.mock.calls[0]?.arguments, [false]);
+});
+
+test("no ofrece volver a NUEVO en un ticket que ya fue trabajado", (t) => {
+  t.after(cleanup);
+
+  // Radix refleja cada SelectItem en un <option> nativo para el formulario, y
+  // ahí propaga el estado deshabilitado.
+  const findStateOption = (label: string) =>
+    screen
+      .getAllByRole("option", { hidden: true })
+      .find(
+        (option) => option.textContent?.trim() === label,
+      ) as HTMLOptionElement | undefined;
+
+  const { rerender } = render(
+    <TicketManagementDialog
+      open
+      form={ticketToManagementForm(
+        { ...ticket, estado: "en_proceso" },
+        "2026-08-11T10:25",
+      )}
+      canCloseTickets
+      canReturnToNew={false}
+      showTechnicalDeadline
+      isReloadingConflict={false}
+      hasVersionConflict={false}
+      isSaving={false}
+      onOpenChange={() => undefined}
+      onReloadLatest={() => undefined}
+      onStateChange={() => undefined}
+      onPriorityChange={() => undefined}
+      onProgressChange={() => undefined}
+      onDeadlineChange={() => undefined}
+      onNotesChange={() => undefined}
+      onSave={() => undefined}
+    />,
+  );
+
+  const nuevoDeshabilitado = findStateOption("NUEVO");
+  assert.ok(nuevoDeshabilitado, "la opción NUEVO debería estar en la lista");
+  assert.equal(nuevoDeshabilitado.disabled, true);
+  // Los demás estados siguen disponibles: la regla solo cierra el regreso.
+  assert.equal(findStateOption("RESUELTO")?.disabled, false);
+
+  // Un ticket todavía en "nuevo" sí puede conservar ese estado.
+  rerender(
+    <TicketManagementDialog
+      open
+      form={ticketToManagementForm(ticket, "2026-08-11T10:25")}
+      canCloseTickets
+      canReturnToNew
+      showTechnicalDeadline
+      isReloadingConflict={false}
+      hasVersionConflict={false}
+      isSaving={false}
+      onOpenChange={() => undefined}
+      onReloadLatest={() => undefined}
+      onStateChange={() => undefined}
+      onPriorityChange={() => undefined}
+      onProgressChange={() => undefined}
+      onDeadlineChange={() => undefined}
+      onNotesChange={() => undefined}
+      onSave={() => undefined}
+    />,
+  );
+
+  assert.equal(findStateOption("NUEVO")?.disabled, false);
 });
 
 test("la UI funcional bloquea todos sus campos durante PATCH y recarga", (t) => {

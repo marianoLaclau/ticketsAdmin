@@ -11,6 +11,9 @@ import {
   calcularFechaLimiteSla,
   clasificarMotivo,
   crearSeguimientoOrigenSerin,
+  ESTADO_INICIAL,
+  type EstadoTicket,
+  type PrioridadTicket,
 } from "@workspace/ingesta";
 import { requireWebhookKey } from "../../auth";
 import { broadcastEvent } from "../../../shared/realtime/events";
@@ -61,12 +64,8 @@ router.post("/webhooks/ticket", requireWebhookKey, async (req, res) => {
         motivo_categoria: clasificarMotivo(data.motivo, data.resumen),
         resumen: data.resumen ?? null,
         notificado: data.notificado ?? false,
-        estado:
-          (data.estado as
-            "nuevo" | "en_proceso" | "pendiente" | "resuelto" | "cerrado") ??
-          "nuevo",
-        prioridad:
-          (data.prioridad as "baja" | "media" | "alta" | "urgente") ?? "media",
+        estado: (data.estado as EstadoTicket) ?? ESTADO_INICIAL,
+        prioridad: (data.prioridad as PrioridadTicket) ?? "media",
         asignado_a: data.asignado_a ?? null,
         audio_url: data.audio_url ?? null,
         notas: data.notas ?? null,

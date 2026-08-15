@@ -84,6 +84,8 @@ describe("construccion de cambios de un ticket", () => {
 
     const result = buildChanges(current, body);
 
+    // El progreso enviado por el cliente (25) se descarta: el ticket sigue en
+    // "nuevo", así que su porcentaje derivado es 0 y no hay cambio real.
     assert.deepEqual(result.changedFields, [
       "hora",
       "nombre",
@@ -94,7 +96,6 @@ describe("construccion de cambios de un ticket", () => {
       "prioridad",
       "audio_url",
       "notas",
-      "progreso",
       "fecha_limite",
     ]);
     assert.deepEqual(Object.keys(result.updates), result.changedFields);
@@ -108,7 +109,6 @@ describe("construccion de cambios de un ticket", () => {
       prioridad: "alta",
       audio_url: null,
       notas: "Revisar",
-      progreso: 25,
       fecha_limite: new Date("2026-08-15T18:00:00.000Z"),
     });
     assert.notStrictEqual(result.updates.fecha_limite, body.fecha_limite);
@@ -213,12 +213,14 @@ describe("construccion de cambios de un ticket", () => {
     assert.deepEqual(resolved, {
       updates: {
         estado: "resuelto",
+        progreso: 75,
         asignado_usuario_id: 9,
         asignado_a: "Operadora Uno",
         fecha_resolucion: NOW,
       },
       changedFields: [
         "estado",
+        "progreso",
         "asignado_usuario_id",
         "asignado_a",
         "fecha_resolucion",
@@ -235,12 +237,14 @@ describe("construccion de cambios de un ticket", () => {
     assert.deepEqual(reopened, {
       updates: {
         estado: "en_proceso",
+        progreso: 25,
         asignado_usuario_id: 9,
         asignado_a: "Operadora Uno",
         fecha_resolucion: null,
       },
       changedFields: [
         "estado",
+        "progreso",
         "asignado_usuario_id",
         "asignado_a",
         "fecha_resolucion",
@@ -257,10 +261,16 @@ describe("construccion de cambios de un ticket", () => {
     assert.deepEqual(finalToFinal, {
       updates: {
         estado: "cerrado",
+        progreso: 100,
         asignado_usuario_id: 9,
         asignado_a: "Operadora Uno",
       },
-      changedFields: ["estado", "asignado_usuario_id", "asignado_a"],
+      changedFields: [
+        "estado",
+        "progreso",
+        "asignado_usuario_id",
+        "asignado_a",
+      ],
     });
 
     const sameState = buildChanges(
@@ -280,6 +290,7 @@ describe("construccion de cambios de un ticket", () => {
 
     assert.deepEqual(result.changedFields, [
       "estado",
+      "progreso",
       "fecha_resolucion",
       "asignado_usuario_id",
       "asignado_a",
@@ -293,5 +304,33 @@ describe("construccion de cambios de un ticket", () => {
       body.fecha_resolucion,
     );
     assert.notStrictEqual(result.updates.fecha_resolucion, NOW);
+  });
+
+  it("deriva el progreso del estado e ignora el que mande el cliente", () => {
+    // Un progreso contradictorio con el estado no llega a persistirse: la
+    // combinación "resuelto con 0%" era posible antes de derivarlo acá.
+    const contradictorio = buildChanges(
+      createTicket(),
+      parseBody({ expected_version: 3, estado: "resuelto", progreso: 0 }),
+    );
+    assert.equal(contradictorio.updates.progreso, 75);
+
+    const exagerado = buildChanges(
+      createTicket(),
+      parseBody({ expected_version: 3, estado: "en_proceso", progreso: 99 }),
+    );
+    assert.equal(exagerado.updates.progreso, 25);
+  });
+
+  it("corrige el progreso incoherente de una fila histórica al editarla", () => {
+    // Filas viejas quedaron con un porcentaje que no correspondía a su estado.
+    // La primera edición las alinea sin pedir nada al cliente.
+    const result = buildChanges(
+      createTicket({ estado: "cerrado", progreso: 10 }),
+      parseBody({ expected_version: 3, notas: "Revisión de cierre" }),
+    );
+
+    assert.equal(result.updates.progreso, 100);
+    assert.ok(result.changedFields.includes("progreso"));
   });
 });

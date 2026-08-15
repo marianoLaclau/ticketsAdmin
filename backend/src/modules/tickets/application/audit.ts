@@ -39,6 +39,9 @@ const STRUCTURED_AUDIT_FIELDS = new Set([
   // La categoría cambia como consecuencia del motivo/resumen y no representa
   // una segunda edición realizada por el usuario.
   "motivo_categoria",
+  // El progreso se deriva del estado, cuyo cambio ya se informa arriba.
+  // Listarlo como campo editado sugeriría una edición que nadie hizo.
+  "progreso",
 ]);
 
 export function formatTicketAuditAuthor(actor: TicketAuditActor): string {

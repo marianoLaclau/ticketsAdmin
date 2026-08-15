@@ -17,6 +17,10 @@ import {
   UpdateTicketQueryParams,
 } from "@workspace/api-zod";
 import {
+  describirTransicionInvalida,
+  type EstadoTicket,
+} from "@workspace/ingesta";
+import {
   puedeCerrarTickets,
   requireTicketWriteAccess,
   requireSysAdmin,
@@ -48,6 +52,7 @@ const router = Router();
 type PatchTransactionResult =
   | { kind: "not_found" }
   | { kind: "forbidden" }
+  | { kind: "invalid_transition"; message: string }
   | {
       kind: "conflict";
       ticketId: number;
@@ -143,6 +148,15 @@ router.patch(
         ) {
           return { kind: "forbidden" };
         }
+        if (body.estado !== undefined) {
+          const transicionInvalida = describirTransicionInvalida(
+            current.estado as EstadoTicket,
+            body.estado as EstadoTicket,
+          );
+          if (transicionInvalida) {
+            return { kind: "invalid_transition", message: transicionInvalida };
+          }
+        }
         if (body.expected_version !== current.version) {
           return {
             kind: "conflict",
@@ -235,6 +249,10 @@ router.patch(
       res
         .status(403)
         .json({ error: "Solo un administrador puede cerrar tickets" });
+      return;
+    }
+    if (result.kind === "invalid_transition") {
+      res.status(400).json({ error: result.message });
       return;
     }
     if (result.kind === "conflict") {

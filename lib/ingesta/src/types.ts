@@ -16,6 +16,9 @@ export const PRIORIDADES_VALIDAS = [
   "urgente",
 ] as const;
 
+export type EstadoTicket = (typeof ESTADOS_VALIDOS)[number];
+export type PrioridadTicket = (typeof PRIORIDADES_VALIDAS)[number];
+
 export interface TicketImportado {
   conversation_id: string;
   hora: string;
