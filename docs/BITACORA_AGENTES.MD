@@ -1,4 +1,22 @@
-# Bitácora de agentes
+# Bitácora de agentes — archivo histórico (congelada)
+
+> **Este archivo no se sigue alimentando.** Queda como registro de una etapa en
+> la que cada intervención se anotaba acá: llegó a 285 entradas y casi 4.000
+> líneas, un volumen que ya nadie consulta y que crecía más rápido de lo que
+> aportaba. Lo que sí hay que conservar son las **decisiones con su porqué**, y
+> ese lugar es la sección "Decisiones y límites conocidos" de
+> [ARQUITECTURA.MD](ARQUITECTURA.MD).
+>
+> Dónde va cada cosa a partir de ahora:
+>
+> - **Qué se hizo y por qué en un cambio puntual** → el mensaje del commit.
+> - **Una decisión que condiciona el sistema** → §11 de ARQUITECTURA.MD.
+> - **Una regla operativa para quien trabaje después** → el `CLAUDE.md` del área
+>   correspondiente.
+>
+> Lo de abajo se conserva sin modificar por valor histórico.
+
+---
 
 Registro de intervenciones realizadas por asistentes sobre el repositorio. Cada entrada debe indicar alcance, decisiones, archivos afectados y validaciones ejecutadas.
 
