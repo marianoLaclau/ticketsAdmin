@@ -563,9 +563,8 @@ test("no ofrece volver a NUEVO en un ticket que ya fue trabajado", (t) => {
   const findStateOption = (label: string) =>
     screen
       .getAllByRole("option", { hidden: true })
-      .find(
-        (option) => option.textContent?.trim() === label,
-      ) as HTMLOptionElement | undefined;
+      .find((option) => option.textContent?.trim() === label) as
+      HTMLOptionElement | undefined;
 
   const { rerender } = render(
     <TicketManagementDialog

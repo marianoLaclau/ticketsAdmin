@@ -199,7 +199,8 @@ function CoverageNotice({
         Cobertura parcial: {subject} usa{" "}
         {rendimientoNumberFormatter.format(normalizedSample)}
         {" de "}
-        {rendimientoNumberFormatter.format(normalizedExpected)} tickets finalizados.
+        {rendimientoNumberFormatter.format(normalizedExpected)} tickets
+        finalizados.
       </p>
     </div>
   );
@@ -269,9 +270,9 @@ function TimingPanel({
           </div>
         )}
         <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-          Muestra: {rendimientoNumberFormatter.format(sample)} tickets finalizados con
-          fechas utilizables. Las horas son corridas: incluyen noches, fines de
-          semana y feriados.
+          Muestra: {rendimientoNumberFormatter.format(sample)} tickets
+          finalizados con fechas utilizables. Las horas son corridas: incluyen
+          noches, fines de semana y feriados.
         </p>
         <CoverageNotice
           sample={sample}

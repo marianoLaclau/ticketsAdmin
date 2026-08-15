@@ -25,7 +25,13 @@ const KPI_TONES: Record<KpiCardProps["tone"], string> = {
   red: "border-red-200 bg-red-50 text-red-800 [&_.kpi-icon]:bg-red-100",
 };
 
-export function KpiCard({ title, value, detail, icon: Icon, tone }: KpiCardProps) {
+export function KpiCard({
+  title,
+  value,
+  detail,
+  icon: Icon,
+  tone,
+}: KpiCardProps) {
   return (
     <article
       className={cn(

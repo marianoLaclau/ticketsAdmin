@@ -157,7 +157,8 @@ function ContactCard({
 
           <div className="flex min-w-0 flex-wrap gap-2">
             <Badge variant="secondary">
-              {rendimientoNumberFormatter.format(contact.cantidad_llamados)} llamados
+              {rendimientoNumberFormatter.format(contact.cantidad_llamados)}{" "}
+              llamados
             </Badge>
             <Badge
               variant="outline"
@@ -271,7 +272,9 @@ function ContactCard({
                         {responsible.nombre}
                       </span>
                       <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                        {rendimientoNumberFormatter.format(responsible.cantidad_abiertos)}{" "}
+                        {rendimientoNumberFormatter.format(
+                          responsible.cantidad_abiertos,
+                        )}{" "}
                         {responsible.cantidad_abiertos === 1
                           ? "abierto"
                           : "abiertos"}

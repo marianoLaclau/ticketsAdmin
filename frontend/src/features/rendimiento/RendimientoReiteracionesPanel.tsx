@@ -90,8 +90,8 @@ function CoverageNotice({ data }: { data: RendimientoReiteraciones }) {
           </h3>
           <p className="mt-1 text-sm leading-relaxed">
             {rendimientoNumberFormatter.format(identity.numerador)} de{" "}
-            {rendimientoNumberFormatter.format(identity.denominador)} tickets tienen DNI,
-            teléfono o email utilizable ({percentage}).
+            {rendimientoNumberFormatter.format(identity.denominador)} tickets
+            tienen DNI, teléfono o email utilizable ({percentage}).
           </p>
           <p className="mt-2 text-xs leading-relaxed text-blue-900">
             Las coincidencias usan una clave canónica con precedencia DNI,
@@ -104,7 +104,9 @@ function CoverageNotice({ data }: { data: RendimientoReiteraciones }) {
                 className="mt-0.5 h-3.5 w-3.5 shrink-0"
                 aria-hidden="true"
               />
-              {rendimientoNumberFormatter.format(data.cobertura.ambiguos_detectados)}{" "}
+              {rendimientoNumberFormatter.format(
+                data.cobertura.ambiguos_detectados,
+              )}{" "}
               {data.cobertura.ambiguos_detectados === 1
                 ? "ticket ambiguo se mantuvo separado"
                 : "tickets ambiguos se mantuvieron separados"}{" "}
@@ -160,7 +162,9 @@ function RepetitionsPagination({
             {" "}
             · Contactos {rendimientoNumberFormatter.format(firstResult)}–
             {rendimientoNumberFormatter.format(lastResult)} de{" "}
-            {rendimientoNumberFormatter.format(data.resumen.contactos_reiterados)}
+            {rendimientoNumberFormatter.format(
+              data.resumen.contactos_reiterados,
+            )}
           </>
         ) : null}
       </p>

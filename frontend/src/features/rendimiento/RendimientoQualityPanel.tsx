@@ -143,8 +143,8 @@ function CoverageCard({
         <span className="font-semibold tabular-nums text-foreground">
           {rendimientoNumberFormatter.format(coverage.numerador)}
         </span>{" "}
-        de {rendimientoNumberFormatter.format(coverage.denominador)} casos con el dato
-        disponible
+        de {rendimientoNumberFormatter.format(coverage.denominador)} casos con
+        el dato disponible
       </p>
     </article>
   );

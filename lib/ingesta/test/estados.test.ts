@@ -83,7 +83,10 @@ describe("progreso derivado del estado", () => {
     );
 
     assert.deepEqual(porcentajes, [0, 25, 50, 75, 100]);
-    assert.equal(Object.keys(PROGRESO_POR_ESTADO).length, ESTADOS_VALIDOS.length);
+    assert.equal(
+      Object.keys(PROGRESO_POR_ESTADO).length,
+      ESTADOS_VALIDOS.length,
+    );
   });
 
   it("reconoce resuelto y cerrado como estados finales", () => {

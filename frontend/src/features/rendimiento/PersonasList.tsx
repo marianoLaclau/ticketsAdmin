@@ -295,7 +295,8 @@ function PersonRow({ person }: { person: RendimientoPersona }) {
                       " de " +
                       rendimientoNumberFormatter.format(compliance.muestra) +
                       " resoluciones",
-                    "Muestra: " + rendimientoNumberFormatter.format(compliance.muestra),
+                    "Muestra: " +
+                      rendimientoNumberFormatter.format(compliance.muestra),
                   ]
                 : ["Sin resoluciones con plazo verificable"]
             }
@@ -324,7 +325,11 @@ function PersonRow({ person }: { person: RendimientoPersona }) {
 
 const INITIAL_VISIBLE_OPERATORS = 3;
 
-export function PeopleList({ people }: { people: readonly RendimientoPersona[] }) {
+export function PeopleList({
+  people,
+}: {
+  people: readonly RendimientoPersona[];
+}) {
   const [expanded, setExpanded] = useState(false);
   const listId = useId();
   const hasMore = people.length > INITIAL_VISIBLE_OPERATORS;

@@ -26,8 +26,14 @@ export function getInitials(name: string): string {
   return initials || "U";
 }
 
-export function pluralize(count: number, singular: string, plural: string): string {
+export function pluralize(
+  count: number,
+  singular: string,
+  plural: string,
+): string {
   return (
-    rendimientoNumberFormatter.format(count) + " " + (count === 1 ? singular : plural)
+    rendimientoNumberFormatter.format(count) +
+    " " +
+    (count === 1 ? singular : plural)
   );
 }
