@@ -236,7 +236,7 @@ export function Sidebar({
         </div>
         <div className="mt-3 border-t border-sidebar-border/50 pt-2 text-center">
           <p className="text-[9px] font-medium uppercase tracking-[0.18em] text-sidebar-foreground/40">
-            GSB IT - V1.0
+            GSB IT - V1.5
           </p>
         </div>
       </div>
