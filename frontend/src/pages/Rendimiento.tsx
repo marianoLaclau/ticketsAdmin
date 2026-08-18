@@ -72,7 +72,7 @@ export default function Rendimiento() {
   };
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col space-y-4 p-4 md:p-8">
+    <div className="mx-auto flex min-h-full w-full max-w-[1600px] shrink-0 flex-col space-y-4 px-4 pb-24 pt-4 md:px-8 md:pb-28 md:pt-8">
       <header className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="max-w-3xl">
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
