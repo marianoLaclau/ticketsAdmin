@@ -18,11 +18,19 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { MetricHelp } from "./MetricHelp";
 import {
   calculateOperatorPerformance,
   OPERATOR_PERFORMANCE_CONFIG,
   type OperatorPerformanceResult,
 } from "./operator-performance";
+
+const OPERATOR_PERFORMANCE_TOOLTIP =
+  `score = Plazo × ${OPERATOR_PERFORMANCE_CONFIG.deadlineWeightPercentage / 100} + Carga al día × ${OPERATOR_PERFORMANCE_CONFIG.currentLoadWeightPercentage / 100}. ` +
+  "Plazo: % de sus resoluciones atribuidas dentro del plazo de 48hs hábiles. " +
+  "Carga al día: % de sus tickets abiertos que no están vencidos ahora mismo (100% si no tiene ninguno abierto). " +
+  `Con menos de ${OPERATOR_PERFORMANCE_CONFIG.minimumDeadlineSample} finalizaciones muestra "Muestra inicial" en vez de un score, para no comparar con pocos datos. ` +
+  `Favorable a partir de ${OPERATOR_PERFORMANCE_CONFIG.favorableScore}/100.`;
 import { rendimientoNumberFormatter } from "./rendimiento-format";
 import {
   formatHours,
@@ -133,8 +141,12 @@ function OperatorPerformanceFact({ person }: { person: RendimientoPersona }) {
 
   return (
     <div className="min-w-0 rounded-lg border border-slate-200 bg-slate-50/70 p-3">
-      <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <dt className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         Rendimiento operativo
+        <MetricHelp
+          label="Rendimiento operativo"
+          text={OPERATOR_PERFORMANCE_TOOLTIP}
+        />
       </dt>
       <dd className="mt-1 flex items-center justify-between gap-2">
         <span

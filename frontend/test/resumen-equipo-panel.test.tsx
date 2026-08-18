@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ResumenEquipoPanelProps } from "../src/features/rendimiento/ResumenEquipoPanel.tsx";
 import { ResumenEquipoPanel } from "../src/features/rendimiento/ResumenEquipoPanel.tsx";
@@ -9,6 +15,9 @@ import {
   ResumenEquipoLoadingState,
 } from "../src/features/rendimiento/ResumenEquipoView.tsx";
 import { assertNoAxeViolations } from "./axe.ts";
+import { installDomEventRealm } from "./dom-event-realm.ts";
+
+installDomEventRealm();
 
 const BASE_PROPS: ResumenEquipoPanelProps = {
   periodo: {
@@ -518,4 +527,30 @@ test("anuncia carga y error del resumen y permite reintentar", async (t) => {
   assert.ok(screen.getByRole("alert"));
   await user.click(screen.getByRole("button", { name: "Reintentar" }));
   assert.equal(retries, 1);
+});
+
+test("cada indicador operativo tiene un tooltip que explica su cálculo", (t) => {
+  t.after(cleanup);
+  render(
+    <main>
+      <ResumenEquipoPanel {...BASE_PROPS} />
+    </main>,
+  );
+
+  const casos: Array<[string, RegExp]> = [
+    ["Cumplimiento del plazo", /finalizaciones auditadas/],
+    ["Backlog vencido", /todavía abierto.*cuya fecha límite ya pasó/],
+    ["Antigüedad del backlog", /Mediana de horas hábiles/],
+    ["Cobertura de asignación", /nombre suelto en texto libre/],
+  ];
+
+  for (const [titulo, textoEsperado] of casos) {
+    const boton = screen.getByRole("button", {
+      name: `Cómo se calcula: ${titulo}`,
+    });
+    fireEvent.focus(boton);
+    const tooltip = screen.getByRole("tooltip");
+    assert.match(tooltip.textContent ?? "", textoEsperado);
+    fireEvent.blur(boton);
+  }
 });

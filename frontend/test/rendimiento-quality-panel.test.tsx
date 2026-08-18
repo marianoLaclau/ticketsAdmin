@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { RendimientoCalidadDatos } from "@workspace/api-client-react";
 import {
@@ -9,6 +9,9 @@ import {
 } from "../src/features/rendimiento/RendimientoQualityView.tsx";
 import { RendimientoQualityPanel } from "../src/features/rendimiento/RendimientoQualityPanel.tsx";
 import { assertNoAxeViolations } from "./axe.ts";
+import { installDomEventRealm } from "./dom-event-realm.ts";
+
+installDomEventRealm();
 
 function qualityData(
   comparison: RendimientoCalidadDatos["comparacion_individual_estado"] = "parcial",
@@ -179,4 +182,30 @@ test("los estados loading y error son anunciados y permiten reintentar", async (
   assert.ok(screen.getByRole("alert"));
   await user.click(screen.getByRole("button", { name: "Reintentar" }));
   assert.equal(retries, 1);
+});
+
+test("cada cobertura tiene un tooltip que explica numerador y denominador", (t) => {
+  t.after(cleanup);
+  render(
+    <RendimientoQualityPanel data={qualityData()} onClearFilters={() => {}} />,
+  );
+
+  const casos: Array<[string, RegExp]> = [
+    ["Autor de resolución", /autor_usuario_id registrado/],
+    ["Fecha de resolución", /conservan su fecha_resolucion/],
+    ["Plazo al resolver", /snapshot del vencimiento vigente/],
+    ["Asignación estructurada", /usuario real \(con ID\) asignado/],
+    ["Identidad del contacto", /DNI, teléfono o email/],
+    ["Fecha límite", /fecha_limite válida registrada/],
+  ];
+
+  for (const [titulo, textoEsperado] of casos) {
+    const boton = screen.getByRole("button", {
+      name: `Cómo se calcula: ${titulo}`,
+    });
+    fireEvent.focus(boton);
+    const tooltip = screen.getByRole("tooltip");
+    assert.match(tooltip.textContent ?? "", textoEsperado);
+    fireEvent.blur(boton);
+  }
 });

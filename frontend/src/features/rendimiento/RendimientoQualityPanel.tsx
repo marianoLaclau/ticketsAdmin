@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { MetricHelp } from "./MetricHelp";
 import {
   formatRendimientoDateTime,
   formatRendimientoPeriod,
@@ -37,6 +38,8 @@ interface CoverageDefinition {
   key: CoverageKey;
   title: string;
   description: string;
+  /** Numerador y denominador exactos — más preciso que `description`. */
+  tooltip: string;
   icon: LucideIcon;
 }
 
@@ -46,6 +49,8 @@ const COVERAGE_DEFINITIONS: readonly CoverageDefinition[] = [
     title: "Autor de resolución",
     description:
       "Resoluciones con un usuario identificado como responsable del cierre.",
+    tooltip:
+      "Numerador: resoluciones auditadas con autor_usuario_id registrado. Denominador: total de resoluciones auditadas (con evento de cierre verificado), no el total de tickets. Esta es la cobertura que define el semáforo de arriba.",
     icon: UserCheck,
   },
   {
@@ -53,6 +58,8 @@ const COVERAGE_DEFINITIONS: readonly CoverageDefinition[] = [
     title: "Fecha de resolución",
     description:
       "Tickets finalizados que conservan la fecha efectiva de resolución.",
+    tooltip:
+      "Numerador: tickets resueltos o cerrados que conservan su fecha_resolucion. Denominador: total de tickets finalizados (resueltos + cerrados) del conjunto analizado.",
     icon: CalendarCheck2,
   },
   {
@@ -60,12 +67,16 @@ const COVERAGE_DEFINITIONS: readonly CoverageDefinition[] = [
     title: "Plazo al resolver",
     description:
       "Resoluciones que conservaron el vencimiento vigente para medir cumplimiento.",
+    tooltip:
+      "Numerador: resoluciones auditadas que conservan el snapshot del vencimiento vigente al momento del cierre. Denominador: total de resoluciones auditadas. Suele ser baja porque el snapshot solo existe desde que se empezó a registrar.",
     icon: Clock3,
   },
   {
     key: "asignacion_estructurada",
     title: "Asignación estructurada",
     description: "Asignaciones vinculadas a un usuario identificado.",
+    tooltip:
+      "Numerador: tickets con un usuario real (con ID) asignado. Denominador: tickets que tienen algún tipo de asignación, sea usuario real o solo un nombre en texto libre.",
     icon: Link2,
   },
   {
@@ -73,6 +84,8 @@ const COVERAGE_DEFINITIONS: readonly CoverageDefinition[] = [
     title: "Identidad del contacto",
     description:
       "Tickets con DNI, teléfono o email utilizable para detectar contactos recurrentes.",
+    tooltip:
+      "Numerador: tickets con DNI, teléfono o email en formato utilizable. Denominador: todo el conjunto analizado. Es la base de la que depende la pantalla de Contactos recurrentes.",
     icon: ContactRound,
   },
   {
@@ -80,6 +93,8 @@ const COVERAGE_DEFINITIONS: readonly CoverageDefinition[] = [
     title: "Fecha límite",
     description:
       "Tickets con un vencimiento válido para analizar riesgo y cumplimiento del plazo.",
+    tooltip:
+      "Numerador: tickets con una fecha_limite válida registrada. Denominador: todo el conjunto analizado.",
     icon: CalendarCheck2,
   },
 ] as const;
@@ -117,9 +132,12 @@ function CoverageCard({
             <Icon className="h-4.5 w-4.5" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold leading-tight text-foreground">
-              {definition.title}
-            </h3>
+            <div className="flex items-center gap-1.5">
+              <h3 className="text-sm font-semibold leading-tight text-foreground">
+                {definition.title}
+              </h3>
+              <MetricHelp label={definition.title} text={definition.tooltip} />
+            </div>
             <p
               id={descriptionId}
               className="mt-1 text-xs leading-relaxed text-muted-foreground"

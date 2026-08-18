@@ -490,6 +490,7 @@ export function ResumenEquipoPanel({
                         : "No hay finalizaciones con fechas de plazo utilizables."
                     }
                     description="Finalizaciones realizadas dentro del plazo registrado."
+                    tooltip="Cumplidos ÷ evaluadas del período. Suma dos fuentes: finalizaciones auditadas (con evento de cierre registrado) que ocurrieron antes o igual al vencimiento vigente en ese momento, más finalizaciones históricas reconstruidas (sin evento auditado) donde la fecha de resolución del ticket es anterior o igual a su fecha límite actual."
                     scopeLabel={periodFilterLabel}
                     icon={ListChecks}
                     tone="blue"
@@ -514,6 +515,7 @@ export function ResumenEquipoPanel({
                         : `${rendimientoNumberFormatter.format(backlogOverdue)} de ${rendimientoNumberFormatter.format(backlogOpen)} tickets abiertos del conjunto analizado`
                     }
                     description="Proporción del backlog que ya superó su fecha límite."
+                    tooltip="Vencidos ÷ abiertos totales, ambos recalculados en el instante en que cargás la pantalla. 'Vencido' es un ticket todavía abierto (no resuelto ni cerrado) cuya fecha límite ya pasó respecto de ahora."
                     note={
                       backlogOpen > 0 && backlogWithDeadline < backlogOpen
                         ? `Cobertura parcial: ${rendimientoNumberFormatter.format(backlogWithDeadline)} de ${rendimientoNumberFormatter.format(backlogOpen)} con plazo verificable.`
@@ -542,6 +544,7 @@ export function ResumenEquipoPanel({
                         : "No hay tickets abiertos con fechas utilizables."
                     }
                     description="Tiempo hábil transcurrido desde la creación de los tickets que siguen abiertos."
+                    tooltip="Mediana de horas hábiles (no cuentan sábados ni domingos) desde la fecha de creación hasta ahora, calculada solo sobre los tickets que siguen abiertos en este momento. No es un promedio de todo lo que alguna vez estuvo abierto."
                     icon={CalendarClock}
                     tone="violet"
                   />
@@ -559,6 +562,7 @@ export function ResumenEquipoPanel({
                         : `${rendimientoNumberFormatter.format(assigned)} de ${rendimientoNumberFormatter.format(assignmentOpen)} tickets abiertos con operador asignado`
                     }
                     description="Proporción del backlog que tiene un responsable identificado."
+                    tooltip="Asignados ÷ abiertos totales. Solo cuenta asignación a un usuario real con ID — un nombre suelto en texto libre, sin usuario vinculado, no cuenta como asignado."
                     icon={UserCheck}
                     tone="emerald"
                     percentage={assignmentPercentage}

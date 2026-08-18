@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { RendimientoPersonas } from "@workspace/api-client-react";
 import {
@@ -9,6 +15,9 @@ import {
 } from "../src/features/rendimiento/RendimientoPersonasView.tsx";
 import { RendimientoPersonasPanel } from "../src/features/rendimiento/RendimientoPersonasPanel.tsx";
 import { assertNoAxeViolations } from "./axe.ts";
+import { installDomEventRealm } from "./dom-event-realm.ts";
+
+installDomEventRealm();
 
 function personasData(): RendimientoPersonas {
   return {
@@ -176,6 +185,30 @@ test("presenta datos no medibles como Sin muestra y conserva los ceros reales", 
   assert.equal(within(bruno).queryByRole("meter"), null);
   assert.equal(within(bruno).queryByText("0%"), null);
   assert.equal(within(bruno).queryByText("0 h"), null);
+});
+
+test("el rendimiento operativo de cada operador tiene un tooltip con la fórmula", (t) => {
+  t.after(cleanup);
+  render(
+    <RendimientoPersonasPanel
+      data={personasData()}
+      onClearFilters={() => {}}
+    />,
+  );
+
+  const ana = screen
+    .getByRole("heading", { name: "Ana Pérez" })
+    .closest<HTMLElement>("article");
+  assert.ok(ana);
+
+  const boton = within(ana).getByRole("button", {
+    name: "Cómo se calcula: Rendimiento operativo",
+  });
+  fireEvent.focus(boton);
+  const tooltip = screen.getByRole("tooltip");
+  assert.match(tooltip.textContent ?? "", /score = Plazo × 0\.7/);
+  assert.match(tooltip.textContent ?? "", /plazo de 48hs hábiles/);
+  fireEvent.blur(boton);
 });
 
 test("mantiene neutral el indicador cuando la muestra todavía es pequeña", (t) => {

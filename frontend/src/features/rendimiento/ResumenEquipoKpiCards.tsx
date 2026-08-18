@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { MetricHelp } from "./MetricHelp";
 import { rendimientoNumberFormatter } from "./rendimiento-format";
 import {
   formatPercentage,
@@ -67,6 +68,7 @@ interface OperationalKpiCardProps {
   percentage?: number | null;
   progressValueText?: string | undefined;
   scopeLabel?: string | undefined;
+  tooltip: string;
 }
 
 const OPERATIONAL_KPI_TONES: Record<OperationalKpiCardProps["tone"], string> = {
@@ -88,6 +90,7 @@ export function OperationalKpiCard({
   percentage,
   progressValueText,
   scopeLabel,
+  tooltip,
 }: OperationalKpiCardProps) {
   const descriptionId = `${id}-description`;
   const normalizedProgress = normalizePercentage(percentage ?? null);
@@ -107,9 +110,12 @@ export function OperationalKpiCard({
           <Icon className="h-5 w-5" aria-hidden="true" />
         </div>
         <div className="min-w-0">
-          <h3 id={id} className="text-sm font-semibold leading-tight">
-            {title}
-          </h3>
+          <div className="flex items-center gap-1.5">
+            <h3 id={id} className="text-sm font-semibold leading-tight">
+              {title}
+            </h3>
+            <MetricHelp label={title} text={tooltip} />
+          </div>
           {scopeLabel ? (
             <Badge
               variant="outline"
