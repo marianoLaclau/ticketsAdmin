@@ -1481,12 +1481,12 @@ paths:
     get:
       operationId: getRendimientoReiteraciones
       tags: [rendimiento]
-      summary: Detectar contactos reiterados con tickets todavía abiertos
+      summary: Detectar contactos reiterados dentro del conjunto analizado
       description: |
         Detecta reiteraciones dentro del mismo conjunto analizado de tickets visibles por
         `fecha_creacion`; `empresa`, `motivo_categoria` y `prioridad` se aplican
-        antes de agrupar. Un contacto solo aparece cuando reúne al menos dos
-        tickets distintos y conserva al menos uno en estado no final.
+        antes de agrupar. Un contacto aparece cuando reúne al menos dos tickets
+        distintos, incluso si todos ya están resueltos o cerrados.
 
         Cada ticket recibe una única clave canónica, con precedencia DNI,
         teléfono y email. Una identidad secundaria solo hereda un DNI cuando su
@@ -1497,11 +1497,14 @@ paths:
 
         La API nunca devuelve DNI, teléfono o email completos. Expone una clave
         de grupo opaca, un valor enmascarado y los ids de tickets necesarios para
-        revisar el caso. Los grupos se ordenan por riesgo: primero vencidos,
-        luego prioridad máxima, antigüedad del abierto, último contacto y clave.
-        Ese orden se aplica sobre el conjunto completo antes de paginar. El
-        resumen conserva los totales globales del conjunto analizado y `contactos` contiene
-        únicamente los grupos de la página solicitada.
+        revisar el caso. Los grupos con tickets abiertos se muestran antes que
+        los completamente finalizados; dentro de los abiertos se priorizan
+        vencimiento, prioridad máxima y antigüedad, y después se usa el último
+        contacto y la clave. Para un grupo sin tickets abiertos,
+        `antiguedad_abierto_horas` y `prioridad_maxima` son `null`, y
+        `responsables` está vacío. Ese orden se aplica sobre el conjunto completo antes de
+        paginar. El resumen conserva los totales globales del conjunto analizado
+        y `contactos` contiene únicamente los grupos de la página solicitada.
       security:
         - sessionCookie: []
       parameters:
@@ -2434,12 +2437,15 @@ components:
         tickets_involucrados:
           type: integer
           minimum: 0
+          description: Total de tickets pertenecientes a todos los grupos reiterados, abiertos o finalizados.
         abiertos:
           type: integer
           minimum: 0
+          description: Tickets actualmente abiertos dentro de todos los grupos reiterados; puede ser cero.
         vencidos_abiertos:
           type: integer
           minimum: 0
+          description: Subconjunto de `abiertos` cuyo plazo ya venció; puede ser cero.
 
     RendimientoReiteracionCoincidencia:
       type: object
@@ -2546,10 +2552,12 @@ components:
           minimum: 2
         abiertos:
           type: integer
-          minimum: 1
+          minimum: 0
+          description: Tickets actualmente abiertos del grupo; vale cero si todos fueron finalizados.
         vencidos_abiertos:
           type: integer
           minimum: 0
+          description: Tickets abiertos y vencidos del grupo; vale cero si no hay abiertos.
         primer_contacto:
           type: string
           format: date-time
@@ -2559,12 +2567,14 @@ components:
         antiguedad_abierto_horas:
           type: [number, "null"]
           minimum: 0
-          description: Horas corridas desde el ticket abierto más antiguo al snapshot.
+          description: Horas corridas desde el ticket abierto más antiguo al snapshot; es `null` cuando el grupo está totalmente finalizado.
         prioridad_maxima:
-          type: string
-          enum: [baja, media, alta, urgente]
+          type: [string, "null"]
+          enum: [baja, media, alta, urgente, null]
+          description: Máxima prioridad entre los tickets abiertos; es `null` cuando el grupo está totalmente finalizado.
         responsables:
           type: array
+          description: Responsables de los tickets actualmente abiertos; es un arreglo vacío si el grupo está totalmente finalizado.
           items:
             $ref: "#/components/schemas/RendimientoReiteracionResponsable"
         tickets:
@@ -2612,9 +2622,10 @@ components:
         contactos:
           type: array
           description: >
-            Grupos de la página solicitada con dos o más tickets y al menos uno
-            abierto. Conservan el orden global por riesgo operativo y nunca
-            representan una identificación civil definitiva.
+            Grupos de la página solicitada con dos o más tickets dentro del
+            conjunto filtrado, aunque todos estén finalizados. Conservan el
+            orden global por riesgo operativo y nunca representan una
+            identificación civil definitiva.
           items:
             $ref: "#/components/schemas/RendimientoReiteracionContacto"
 

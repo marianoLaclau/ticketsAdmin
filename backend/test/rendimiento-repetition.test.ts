@@ -470,6 +470,75 @@ describe("consulta de contactos reiterados", () => {
     sqlite.close();
   });
 
+  it("incluye contactos finalizados sin desplazar a los que requieren seguimiento", () => {
+    const { sqlite, database } = createDatabase();
+    const now = new Date("2026-08-15T12:00:00.000Z");
+
+    insertTicket(sqlite, {
+      conversationId: "finalizados-resuelto",
+      createdAt: "2026-08-10T12:00:00.000Z",
+      name: "Contacto finalizado",
+      email: "finalizados@example.test",
+      status: "resuelto",
+      priority: "alta",
+    });
+    insertTicket(sqlite, {
+      conversationId: "finalizados-cerrado",
+      createdAt: "2026-08-11T12:00:00.000Z",
+      name: "Contacto finalizado",
+      email: "finalizados@example.test",
+      status: "cerrado",
+      priority: "urgente",
+    });
+    insertTicket(sqlite, {
+      conversationId: "seguimiento-final",
+      createdAt: "2026-08-12T12:00:00.000Z",
+      name: "Contacto con seguimiento",
+      email: "seguimiento@example.test",
+      status: "cerrado",
+      priority: "urgente",
+    });
+    insertTicket(sqlite, {
+      conversationId: "seguimiento-abierto",
+      createdAt: "2026-08-14T12:00:00.000Z",
+      name: "Contacto con seguimiento",
+      email: "seguimiento@example.test",
+      status: "nuevo",
+      priority: "baja",
+    });
+
+    const result = runRendimientoRepetitionQuery(database, {}, now);
+
+    assert.deepEqual(result.resumen, {
+      contactos_reiterados: 2,
+      tickets_involucrados: 4,
+      abiertos: 1,
+      vencidos_abiertos: 0,
+    });
+    assert.deepEqual(
+      result.contactos.map((contact) => contact.nombre_referencia),
+      ["Contacto con seguimiento", "Contacto finalizado"],
+    );
+
+    const activeContact = result.contactos[0]!;
+    assert.equal(activeContact.abiertos, 1);
+    assert.equal(activeContact.antiguedad_abierto_horas, 24);
+    assert.equal(activeContact.prioridad_maxima, "baja");
+
+    const finalizedContact = result.contactos[1]!;
+    assert.equal(finalizedContact.abiertos, 0);
+    assert.equal(finalizedContact.vencidos_abiertos, 0);
+    assert.equal(finalizedContact.antiguedad_abierto_horas, null);
+    assert.equal(finalizedContact.prioridad_maxima, null);
+    assert.deepEqual(finalizedContact.responsables, []);
+    assert.equal(
+      finalizedContact.tickets.every((ticket) => ticket.vencido === false),
+      true,
+    );
+
+    sqlite.close();
+  });
+
   it("devuelve el estado vacio y rechaza un reloj invalido", () => {
     const { sqlite, database } = createDatabase();
     const result = runRendimientoRepetitionQuery(

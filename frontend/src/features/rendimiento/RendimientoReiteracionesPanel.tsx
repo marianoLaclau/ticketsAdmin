@@ -259,8 +259,8 @@ export function RendimientoReiteracionesPanel({
                   Contactos recurrentes
                 </h2>
                 <CardDescription className="mt-1 max-w-3xl leading-relaxed">
-                  Coincidencias operativas con múltiples llamados y al menos una
-                  gestión todavía abierta, ordenadas por riesgo.
+                  Coincidencias operativas con dos o más llamados dentro del
+                  conjunto filtrado, incluidas las que ya fueron finalizadas.
                 </CardDescription>
               </div>
             </div>
@@ -274,7 +274,7 @@ export function RendimientoReiteracionesPanel({
             <SummaryFact
               title="Contactos recurrentes"
               value={data.resumen.contactos_reiterados}
-              detail="grupos con al menos un ticket abierto"
+              detail="grupos con dos o más llamados"
             />
             <SummaryFact
               title="Tickets involucrados"
@@ -325,8 +325,8 @@ export function RendimientoReiteracionesPanel({
         <>
           <CoverageNotice data={data} />
           <NoResultsState
-            title="No se detectaron contactos recurrentes con gestiones abiertas"
-            description="Hay tickets identificables, pero ningún grupo reúne al menos dos llamados y conserva un ticket actualmente abierto."
+            title="No se detectaron contactos recurrentes"
+            description="Hay tickets identificables, pero ningún grupo reúne al menos dos llamados dentro del conjunto seleccionado."
           />
         </>
       ) : data.contactos.length === 0 ? (
@@ -357,12 +357,12 @@ export function RendimientoReiteracionesPanel({
                   id="rendimiento-reiteraciones-listado-heading"
                   className="text-base font-semibold"
                 >
-                  Casos que necesitan seguimiento
+                  Contactos recurrentes detectados
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Nombre, llamados y estado actual en una vista compacta. Abrí
-                  los detalles para consultar fechas, responsables y tickets; el
-                  orden prioriza vencimiento, prioridad y antigüedad.
+                  Nombre, llamados y situación actual en una vista compacta.
+                  Abrí los detalles para consultar fechas, responsables y
+                  tickets relacionados.
                 </p>
               </div>
             </div>

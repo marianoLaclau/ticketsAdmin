@@ -337,21 +337,27 @@ DNI, teléfono y email. Una identidad secundaria sin DNI solo hereda uno cuando
 la asociación directa en el conjunto analizado es unívoca. Se rechazan formatos inválidos,
 secuencias numéricas repetidas y valores centinela como “sin correo”; no se
 calculan componentes conexos ni se encadenan coincidencias, porque eso podría
-fusionar personas por un dato compartido o incorrecto. Solo se publican grupos
-con dos tickets o más y al menos uno abierto; el identificador completo nunca
-sale de la capa de datos, la API entrega una máscara y un `grupo_id` opaco.
+fusionar personas por un dato compartido o incorrecto. Se publican todos los
+grupos con dos tickets o más dentro del conjunto filtrado, aunque todos estén
+finalizados; abiertos y vencidos se mantienen como contexto operativo, no como
+condición de inclusión. El identificador completo nunca sale de la capa de datos:
+la API entrega una máscara y un `grupo_id` opaco.
 
 La consulta usa dos lecturas fijas dentro del mismo snapshot SQLite. Materializa
 el conjunto analizado y su clave canónica una vez por lectura, calcula cobertura y totales
-globales y recién entonces aplica el orden de riesgo con `row_number()`. La API
+globales y recién entonces aplica el orden operativo con `row_number()`: primero
+ubica grupos con casos abiertos y, dentro de ellos, prioriza vencimiento,
+prioridad y antigüedad. En un grupo totalmente finalizado, la antigüedad abierta
+y la prioridad máxima son `null`, y no hay responsables actuales. La API
 entrega como máximo 50 grupos por página y no materializa en Node.js los grupos
 de otras páginas. Por tanto, el resultado es una señal acotada para revisión
 operativa y no una identidad civil inferida.
 
 La presentación mantiene tres contactos visibles inicialmente. Cada encabezado
 resume nombre de referencia, coincidencia enmascarada, llamados, abiertos,
-vencidos, prioridad, último contacto y responsable actual. **Ver detalles**
-expone fechas, antigüedad, distribución de responsables y tickets relacionados;
+vencidos, prioridad abierta cuando corresponda, último contacto y responsable actual. Los grupos sin
+abiertos se presentan como finalizados, sin atribuirles un responsable actual.
+**Ver detalles** expone fechas, antigüedad, distribución de responsables y tickets relacionados;
 la lista completa de contactos se despliega dentro de un contenedor de 680 px
 como máximo con scroll propio. El paginado server-side continúa delimitando la
 respuesta y cada contacto conserva un control independiente para ampliar sus

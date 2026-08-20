@@ -570,11 +570,20 @@ export interface RendimientoReiteracionesResumen {
      * @minimum 0
      */
   contactos_reiterados: number;
-  /** @minimum 0 */
+  /**
+     * Total de tickets pertenecientes a todos los grupos reiterados, abiertos o finalizados.
+     * @minimum 0
+     */
   tickets_involucrados: number;
-  /** @minimum 0 */
+  /**
+     * Tickets actualmente abiertos dentro de todos los grupos reiterados; puede ser cero.
+     * @minimum 0
+     */
   abiertos: number;
-  /** @minimum 0 */
+  /**
+     * Subconjunto de `abiertos` cuyo plazo ya venció; puede ser cero.
+     * @minimum 0
+     */
   vencidos_abiertos: number;
 }
 
@@ -671,7 +680,11 @@ export interface RendimientoReiteracionTicket {
   asignado_a: string | null;
 }
 
-export type RendimientoReiteracionContactoPrioridadMaxima = typeof RendimientoReiteracionContactoPrioridadMaxima[keyof typeof RendimientoReiteracionContactoPrioridadMaxima];
+/**
+ * Máxima prioridad entre los tickets abiertos; es `null` cuando el grupo está totalmente finalizado.
+ * @nullable
+ */
+export type RendimientoReiteracionContactoPrioridadMaxima = typeof RendimientoReiteracionContactoPrioridadMaxima[keyof typeof RendimientoReiteracionContactoPrioridadMaxima] | null;
 
 
 export const RendimientoReiteracionContactoPrioridadMaxima = {
@@ -695,19 +708,30 @@ export interface RendimientoReiteracionContacto {
   coincidencia: RendimientoReiteracionCoincidencia;
   /** @minimum 2 */
   cantidad_llamados: number;
-  /** @minimum 1 */
+  /**
+     * Tickets actualmente abiertos del grupo; vale cero si todos fueron finalizados.
+     * @minimum 0
+     */
   abiertos: number;
-  /** @minimum 0 */
+  /**
+     * Tickets abiertos y vencidos del grupo; vale cero si no hay abiertos.
+     * @minimum 0
+     */
   vencidos_abiertos: number;
   primer_contacto: string;
   ultimo_contacto: string;
   /**
-     * Horas corridas desde el ticket abierto más antiguo al snapshot.
+     * Horas corridas desde el ticket abierto más antiguo al snapshot; es `null` cuando el grupo está totalmente finalizado.
      * @minimum 0
      * @nullable
      */
   antiguedad_abierto_horas: number | null;
+  /**
+     * Máxima prioridad entre los tickets abiertos; es `null` cuando el grupo está totalmente finalizado.
+     * @nullable
+     */
   prioridad_maxima: RendimientoReiteracionContactoPrioridadMaxima;
+  /** Responsables de los tickets actualmente abiertos; es un arreglo vacío si el grupo está totalmente finalizado. */
   responsables: RendimientoReiteracionResponsable[];
   /**
      * Tickets del grupo ordenados desde el contacto más reciente.
@@ -738,7 +762,7 @@ export interface RendimientoReiteraciones {
      * @minimum 0
      */
   total_paginas: number;
-  /** Grupos de la página solicitada con dos o más tickets y al menos uno abierto. Conservan el orden global por riesgo operativo y nunca representan una identificación civil definitiva. */
+  /** Grupos de la página solicitada con dos o más tickets dentro del conjunto filtrado, aunque todos estén finalizados. Conservan el orden global por riesgo operativo y nunca representan una identificación civil definitiva. */
   contactos: RendimientoReiteracionContacto[];
 }
 

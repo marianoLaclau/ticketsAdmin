@@ -2929,8 +2929,8 @@ export const getGetRendimientoReiteracionesUrl = (params?: GetRendimientoReitera
 /**
  * Detecta reiteraciones dentro del mismo conjunto analizado de tickets visibles por
  * `fecha_creacion`; `empresa`, `motivo_categoria` y `prioridad` se aplican
- * antes de agrupar. Un contacto solo aparece cuando reúne al menos dos
- * tickets distintos y conserva al menos uno en estado no final.
+ * antes de agrupar. Un contacto aparece cuando reúne al menos dos tickets
+ * distintos, incluso si todos ya están resueltos o cerrados.
  *
  * Cada ticket recibe una única clave canónica, con precedencia DNI,
  * teléfono y email. Una identidad secundaria solo hereda un DNI cuando su
@@ -2941,12 +2941,15 @@ export const getGetRendimientoReiteracionesUrl = (params?: GetRendimientoReitera
  *
  * La API nunca devuelve DNI, teléfono o email completos. Expone una clave
  * de grupo opaca, un valor enmascarado y los ids de tickets necesarios para
- * revisar el caso. Los grupos se ordenan por riesgo: primero vencidos,
- * luego prioridad máxima, antigüedad del abierto, último contacto y clave.
- * Ese orden se aplica sobre el conjunto completo antes de paginar. El
- * resumen conserva los totales globales del conjunto analizado y `contactos` contiene
- * únicamente los grupos de la página solicitada.
- * @summary Detectar contactos reiterados con tickets todavía abiertos
+ * revisar el caso. Los grupos con tickets abiertos se muestran antes que
+ * los completamente finalizados; dentro de los abiertos se priorizan
+ * vencimiento, prioridad máxima y antigüedad, y después se usa el último
+ * contacto y la clave. Para un grupo sin tickets abiertos,
+ * `antiguedad_abierto_horas` y `prioridad_maxima` son `null`, y
+ * `responsables` está vacío. Ese orden se aplica sobre el conjunto completo antes de
+ * paginar. El resumen conserva los totales globales del conjunto analizado
+ * y `contactos` contiene únicamente los grupos de la página solicitada.
+ * @summary Detectar contactos reiterados dentro del conjunto analizado
  */
 export const getRendimientoReiteraciones = async (params?: GetRendimientoReiteracionesParams, options?: RequestInit): Promise<RendimientoReiteraciones> => {
 
@@ -2993,7 +2996,7 @@ export type GetRendimientoReiteracionesQueryError = ErrorType<void | AdminAccess
 
 
 /**
- * @summary Detectar contactos reiterados con tickets todavía abiertos
+ * @summary Detectar contactos reiterados dentro del conjunto analizado
  */
 
 export function useGetRendimientoReiteraciones<TData = Awaited<ReturnType<typeof getRendimientoReiteraciones>>, TError = ErrorType<void | AdminAccessUnauthorized | GetRendimientoReiteraciones403>>(

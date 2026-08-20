@@ -1479,8 +1479,8 @@ export const GetRendimientoPersonasResponse = zod.object({
 /**
  * Detecta reiteraciones dentro del mismo conjunto analizado de tickets visibles por
  * `fecha_creacion`; `empresa`, `motivo_categoria` y `prioridad` se aplican
- * antes de agrupar. Un contacto solo aparece cuando reúne al menos dos
- * tickets distintos y conserva al menos uno en estado no final.
+ * antes de agrupar. Un contacto aparece cuando reúne al menos dos tickets
+ * distintos, incluso si todos ya están resueltos o cerrados.
  *
  * Cada ticket recibe una única clave canónica, con precedencia DNI,
  * teléfono y email. Una identidad secundaria solo hereda un DNI cuando su
@@ -1491,12 +1491,15 @@ export const GetRendimientoPersonasResponse = zod.object({
  *
  * La API nunca devuelve DNI, teléfono o email completos. Expone una clave
  * de grupo opaca, un valor enmascarado y los ids de tickets necesarios para
- * revisar el caso. Los grupos se ordenan por riesgo: primero vencidos,
- * luego prioridad máxima, antigüedad del abierto, último contacto y clave.
- * Ese orden se aplica sobre el conjunto completo antes de paginar. El
- * resumen conserva los totales globales del conjunto analizado y `contactos` contiene
- * únicamente los grupos de la página solicitada.
- * @summary Detectar contactos reiterados con tickets todavía abiertos
+ * revisar el caso. Los grupos con tickets abiertos se muestran antes que
+ * los completamente finalizados; dentro de los abiertos se priorizan
+ * vencimiento, prioridad máxima y antigüedad, y después se usa el último
+ * contacto y la clave. Para un grupo sin tickets abiertos,
+ * `antiguedad_abierto_horas` y `prioridad_maxima` son `null`, y
+ * `responsables` está vacío. Ese orden se aplica sobre el conjunto completo antes de
+ * paginar. El resumen conserva los totales globales del conjunto analizado
+ * y `contactos` contiene únicamente los grupos de la página solicitada.
+ * @summary Detectar contactos reiterados dentro del conjunto analizado
  */
 export const getRendimientoReiteracionesQueryPaginaDefault = 1;
 
@@ -1544,6 +1547,7 @@ export const getRendimientoReiteracionesResponseTotalPaginasMin = 0;
 
 export const getRendimientoReiteracionesResponseContactosItemCantidadLlamadosMin = 2;
 
+export const getRendimientoReiteracionesResponseContactosItemAbiertosMin = 0;
 
 export const getRendimientoReiteracionesResponseContactosItemVencidosAbiertosMin = 0;
 
@@ -1577,9 +1581,9 @@ export const GetRendimientoReiteracionesResponse = zod.object({
 }).describe('Cobertura de identidad del conjunto analizado. ambiguos_detectados cuenta tickets cuya identidad secundaria utilizable apunta directamente a más de un DNI; esos casos no se fusionan de forma transitiva.\n'),
   "resumen": zod.object({
   "contactos_reiterados": zod.number().min(getRendimientoReiteracionesResponseResumenContactosReiteradosMin).describe('Total global de grupos reiterados en el conjunto analizado, no solo en la página actual.'),
-  "tickets_involucrados": zod.number().min(getRendimientoReiteracionesResponseResumenTicketsInvolucradosMin),
-  "abiertos": zod.number().min(getRendimientoReiteracionesResponseResumenAbiertosMin),
-  "vencidos_abiertos": zod.number().min(getRendimientoReiteracionesResponseResumenVencidosAbiertosMin)
+  "tickets_involucrados": zod.number().min(getRendimientoReiteracionesResponseResumenTicketsInvolucradosMin).describe('Total de tickets pertenecientes a todos los grupos reiterados, abiertos o finalizados.'),
+  "abiertos": zod.number().min(getRendimientoReiteracionesResponseResumenAbiertosMin).describe('Tickets actualmente abiertos dentro de todos los grupos reiterados; puede ser cero.'),
+  "vencidos_abiertos": zod.number().min(getRendimientoReiteracionesResponseResumenVencidosAbiertosMin).describe('Subconjunto de `abiertos` cuyo plazo ya venció; puede ser cero.')
 }),
   "pagina": zod.number().min(1).describe('Página solicitada; puede superar `total_paginas` y devolver `contactos` vacío.'),
   "limite": zod.number().min(1).max(getRendimientoReiteracionesResponseLimiteMax).describe('Tamaño de página aplicado.'),
@@ -1592,17 +1596,17 @@ export const GetRendimientoReiteracionesResponse = zod.object({
   "valor_enmascarado": zod.string().min(1)
 }).describe('Identificador operativo enmascarado; nunca contiene el dato completo.'),
   "cantidad_llamados": zod.number().min(getRendimientoReiteracionesResponseContactosItemCantidadLlamadosMin),
-  "abiertos": zod.number().min(1),
-  "vencidos_abiertos": zod.number().min(getRendimientoReiteracionesResponseContactosItemVencidosAbiertosMin),
+  "abiertos": zod.number().min(getRendimientoReiteracionesResponseContactosItemAbiertosMin).describe('Tickets actualmente abiertos del grupo; vale cero si todos fueron finalizados.'),
+  "vencidos_abiertos": zod.number().min(getRendimientoReiteracionesResponseContactosItemVencidosAbiertosMin).describe('Tickets abiertos y vencidos del grupo; vale cero si no hay abiertos.'),
   "primer_contacto": zod.coerce.date(),
   "ultimo_contacto": zod.coerce.date(),
-  "antiguedad_abierto_horas": zod.number().min(getRendimientoReiteracionesResponseContactosItemAntiguedadAbiertoHorasMin).nullable().describe('Horas corridas desde el ticket abierto más antiguo al snapshot.'),
-  "prioridad_maxima": zod.enum(['baja', 'media', 'alta', 'urgente']),
+  "antiguedad_abierto_horas": zod.number().min(getRendimientoReiteracionesResponseContactosItemAntiguedadAbiertoHorasMin).nullable().describe('Horas corridas desde el ticket abierto más antiguo al snapshot; es `null` cuando el grupo está totalmente finalizado.'),
+  "prioridad_maxima": zod.union([zod.literal('baja'),zod.literal('media'),zod.literal('alta'),zod.literal('urgente'),zod.literal(null)]).nullable().describe('Máxima prioridad entre los tickets abiertos; es `null` cuando el grupo está totalmente finalizado.'),
   "responsables": zod.array(zod.object({
   "usuario_id": zod.number().min(1).nullable(),
   "nombre": zod.string().min(1).describe('Nombre visible del responsable o `Sin asignar`.'),
   "cantidad_abiertos": zod.number().min(1)
-})),
+})).describe('Responsables de los tickets actualmente abiertos; es un arreglo vacío si el grupo está totalmente finalizado.'),
   "tickets": zod.array(zod.object({
   "id": zod.number().min(1),
   "fecha_creacion": zod.coerce.date(),
@@ -1614,7 +1618,7 @@ export const GetRendimientoReiteracionesResponse = zod.object({
   "asignado_usuario_id": zod.number().min(1).nullable(),
   "asignado_a": zod.string().nullable()
 })).min(getRendimientoReiteracionesResponseContactosItemTicketsMin).describe('Tickets del grupo ordenados desde el contacto más reciente.')
-})).describe('Grupos de la página solicitada con dos o más tickets y al menos uno abierto. Conservan el orden global por riesgo operativo y nunca representan una identificación civil definitiva.\n')
+})).describe('Grupos de la página solicitada con dos o más tickets dentro del conjunto filtrado, aunque todos estén finalizados. Conservan el orden global por riesgo operativo y nunca representan una identificación civil definitiva.\n')
 })
 
 

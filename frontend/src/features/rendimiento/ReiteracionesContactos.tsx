@@ -110,6 +110,7 @@ function ContactCard({
     ? contact.tickets
     : contact.tickets.slice(0, INITIAL_VISIBLE_TICKETS);
   const hiddenCount = contact.tickets.length - INITIAL_VISIBLE_TICKETS;
+  const isFinalized = contact.abiertos === 0;
   const primaryResponsible = contact.responsables[0];
   const additionalResponsibleCount = Math.max(
     0,
@@ -122,6 +123,7 @@ function ContactCard({
           : ""
       }`
     : "Sin asignar";
+  const currentSituation = isFinalized ? "Finalizado" : responsibleSummary;
 
   return (
     <article
@@ -160,13 +162,22 @@ function ContactCard({
               {rendimientoNumberFormatter.format(contact.cantidad_llamados)}{" "}
               llamados
             </Badge>
-            <Badge
-              variant="outline"
-              className="border-blue-200 bg-blue-50 text-blue-800"
-            >
-              {rendimientoNumberFormatter.format(contact.abiertos)}{" "}
-              {contact.abiertos === 1 ? "abierto" : "abiertos"}
-            </Badge>
+            {isFinalized ? (
+              <Badge
+                variant="outline"
+                className="border-emerald-200 bg-emerald-50 text-emerald-700"
+              >
+                Finalizado · 0 abiertos
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className="border-blue-200 bg-blue-50 text-blue-800"
+              >
+                {rendimientoNumberFormatter.format(contact.abiertos)}{" "}
+                {contact.abiertos === 1 ? "abierto" : "abiertos"}
+              </Badge>
+            )}
             {contact.vencidos_abiertos > 0 ? (
               <Badge
                 variant="outline"
@@ -180,10 +191,12 @@ function ContactCard({
                 variant="outline"
                 className="border-emerald-200 bg-emerald-50 text-emerald-700"
               >
-                Sin vencidos
+                Sin vencidos abiertos
               </Badge>
             )}
-            <PrioridadBadge prioridad={contact.prioridad_maxima} />
+            {contact.prioridad_maxima ? (
+              <PrioridadBadge prioridad={contact.prioridad_maxima} />
+            ) : null}
           </div>
 
           <dl className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
@@ -199,15 +212,19 @@ function ContactCard({
             </div>
             <div className="min-w-0">
               <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Responsable actual
+                {isFinalized ? "Situación actual" : "Responsable actual"}
               </dt>
               <dd
                 className="mt-0.5 truncate text-xs font-medium text-foreground"
-                title={contact.responsables
-                  .map((responsible) => responsible.nombre)
-                  .join(", ")}
+                title={
+                  isFinalized
+                    ? "Todos los tickets están finalizados"
+                    : contact.responsables
+                        .map((responsible) => responsible.nombre)
+                        .join(", ")
+                }
               >
-                {responsibleSummary}
+                {currentSituation}
               </dd>
             </div>
           </dl>
@@ -250,10 +267,14 @@ function ContactCard({
           </div>
           <div>
             <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Antigüedad del abierto
+              {isFinalized
+                ? "Estado de las gestiones"
+                : "Antigüedad del abierto"}
             </dt>
             <dd className="mt-1 text-sm font-medium tabular-nums">
-              {formatAge(contact.antiguedad_abierto_horas)}
+              {isFinalized
+                ? "Todos los tickets finalizados"
+                : formatAge(contact.antiguedad_abierto_horas)}
             </dd>
           </div>
           <div>
@@ -284,7 +305,7 @@ function ContactCard({
                 </ul>
               ) : (
                 <span className="text-sm text-muted-foreground">
-                  Sin asignar
+                  {isFinalized ? "Sin tickets abiertos" : "Sin asignar"}
                 </span>
               )}
             </dd>

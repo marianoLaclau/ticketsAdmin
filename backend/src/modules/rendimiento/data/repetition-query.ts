@@ -62,7 +62,7 @@ export type PerformanceRepetitionResult = {
     primer_contacto: Date;
     ultimo_contacto: Date;
     antiguedad_abierto_horas: number | null;
-    prioridad_maxima: Prioridad;
+    prioridad_maxima: Prioridad | null;
     responsables: Array<{
       usuario_id: number | null;
       nombre: string;
@@ -246,7 +246,7 @@ function buildRepeatedGroupsCtes(
         ) as primer_abierto,
         max(
           case
-            when estado in ('resuelto', 'cerrado') then 0
+            when estado in ('resuelto', 'cerrado') then null
             when prioridad = 'urgente' then 3
             when prioridad = 'alta' then 2
             when prioridad = 'media' then 1
@@ -257,9 +257,6 @@ function buildRepeatedGroupsCtes(
       where canonical_type is not null
       group by canonical_type, canonical_value
       having count(*) >= 2
-        and sum(
-          case when estado not in ('resuelto', 'cerrado') then 1 else 0 end
-        ) >= 1
     )
   `;
 }
@@ -376,6 +373,7 @@ export function runRendimientoRepetitionQuery<
           repeated_groups.*,
           row_number() over (
             order by
+              case when abiertos > 0 then 1 else 0 end desc,
               case when vencidos_abiertos > 0 then 1 else 0 end desc,
               prioridad_peso desc,
               primer_abierto asc,
@@ -437,16 +435,22 @@ export function runRendimientoRepetitionQuery<
         (ticket) =>
           ticket.fecha_limite !== null && ticket.fecha_limite < now.getTime(),
       );
-      const oldestOpen = Math.min(
-        ...openTickets.map((ticket) => Number(ticket.fecha_creacion)),
-      );
-      const priority = openTickets.reduce<Prioridad>(
-        (highest, ticket) =>
-          PRIORITY_WEIGHT[ticket.prioridad] > PRIORITY_WEIGHT[highest]
-            ? ticket.prioridad
-            : highest,
-        "baja",
-      );
+      const oldestOpen =
+        openTickets.length === 0
+          ? null
+          : Math.min(
+              ...openTickets.map((ticket) => Number(ticket.fecha_creacion)),
+            );
+      const priority =
+        openTickets.length === 0
+          ? null
+          : openTickets.reduce<Prioridad>(
+              (highest, ticket) =>
+                PRIORITY_WEIGHT[ticket.prioridad] > PRIORITY_WEIGHT[highest]
+                  ? ticket.prioridad
+                  : highest,
+              "baja",
+            );
 
       const responsibilities = new Map<
         string,
@@ -490,10 +494,13 @@ export function runRendimientoRepetitionQuery<
         ),
         ultimo_contacto: new Date(Number(newest.fecha_creacion)),
         antiguedad_abierto_horas:
-          Math.round(
-            (Math.max(0, now.getTime() - oldestOpen) / HOURS_IN_MILLISECONDS) *
-              100,
-          ) / 100,
+          oldestOpen === null
+            ? null
+            : Math.round(
+                (Math.max(0, now.getTime() - oldestOpen) /
+                  HOURS_IN_MILLISECONDS) *
+                  100,
+              ) / 100,
         prioridad_maxima: priority,
         responsables: [...responsibilities.values()].sort(
           (left, right) =>

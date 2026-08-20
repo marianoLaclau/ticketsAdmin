@@ -212,6 +212,71 @@ test("presenta un resumen compacto y despliega detalles y tickets en dos niveles
   await assertNoAxeViolations();
 });
 
+test("incluye y distingue contactos con todos sus tickets finalizados", async (t) => {
+  t.after(cleanup);
+  const user = userEvent.setup();
+  const base = reiteracionesData();
+  const originalContact = base.contactos[0];
+  assert.ok(originalContact);
+
+  const finalizedContact = {
+    ...originalContact,
+    cantidad_llamados: 2,
+    abiertos: 0,
+    vencidos_abiertos: 0,
+    antiguedad_abierto_horas: null,
+    prioridad_maxima: null,
+    responsables: [],
+    tickets: [
+      ticket(102, { estado: "resuelto", vencido: false }),
+      ticket(101, { estado: "cerrado", vencido: false }),
+    ],
+  };
+  const location = memoryLocation({ path: "/rendimiento" });
+
+  render(
+    <Router hook={location.hook} searchHook={location.searchHook}>
+      <RendimientoReiteracionesPanel
+        data={{
+          ...base,
+          resumen: {
+            contactos_reiterados: 1,
+            tickets_involucrados: 2,
+            abiertos: 0,
+            vencidos_abiertos: 0,
+          },
+          contactos: [finalizedContact],
+        }}
+        onClearFilters={() => {}}
+      />
+    </Router>,
+  );
+
+  assert.ok(screen.getByText(/incluidas las que ya fueron finalizadas/i));
+  const contact = screen
+    .getByRole("heading", { name: "Ana Pérez" })
+    .closest<HTMLElement>("article");
+  assert.ok(contact);
+  assert.ok(within(contact).getByText("Finalizado · 0 abiertos"));
+  assert.ok(within(contact).getByText("Sin vencidos abiertos"));
+  assert.ok(within(contact).getByText("Situación actual"));
+  assert.ok(within(contact).getByText("Finalizado"));
+  assert.equal(within(contact).queryByText("urgente"), null);
+
+  await user.click(
+    within(contact).getByRole("button", {
+      name: "Ver detalles de Ana Pérez",
+    }),
+  );
+  assert.ok(within(contact).getByText("Estado de las gestiones"));
+  assert.ok(within(contact).getByText("Todos los tickets finalizados"));
+  assert.ok(within(contact).getByText("Sin tickets abiertos"));
+  assert.ok(within(contact).getByText("Ticket #102"));
+  assert.ok(within(contact).getByText("Ticket #101"));
+
+  await assertNoAxeViolations();
+});
+
 test("distingue conjunto vacío, falta de identidad y ausencia de grupos", async (t) => {
   t.after(cleanup);
   const user = userEvent.setup();
@@ -292,7 +357,7 @@ test("distingue conjunto vacío, falta de identidad y ausencia de grupos", async
   );
   assert.ok(
     screen.getByRole("heading", {
-      name: "No se detectaron contactos recurrentes con gestiones abiertas",
+      name: "No se detectaron contactos recurrentes",
     }),
   );
 });
