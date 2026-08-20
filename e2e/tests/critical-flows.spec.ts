@@ -271,7 +271,10 @@ test("Controller consulta Rendimiento de extremo a extremo sin permisos de escri
   await page.getByRole("tab", { name: "Contactos recurrentes" }).click();
   await expect(page).toHaveURL(/vista=reiteraciones/);
   await expect(
-    page.getByRole("heading", { name: "Contactos recurrentes" }),
+    page.getByRole("heading", {
+      name: "Contactos recurrentes",
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Contacto Reiterado" }),
