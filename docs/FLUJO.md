@@ -1,6 +1,6 @@
 # GSB Tickets — Documentación del flujo completo
 
-> Última actualización: agosto 2026
+> Última actualización: septiembre 2026
 
 ## 1. El flujo de punta a punta
 
@@ -9,18 +9,20 @@
         │
         ▼
 ┌──────────────────┐   El agente de voz atiende, conversa con la persona
-│   ElevenLabs     │   y al cortar arma un JSON con todos los datos:
-│  (agente de voz) │   quién llamó, motivo, resumen, teléfono, DNI, empresa…
+│   ElevenLabs     │   y entrega los datos de la conversación y la grabación
+│  (agente de voz) │   para que n8n procese el resultado de la llamada.
 └────────┬─────────┘
-         │ JSON
+         │ datos + grabación
          ▼
-┌──────────────────┐   Orquesta el post-llamada. Hace dos cosas en paralelo:
-│       n8n        │   1) agrega una fila al Excel (respaldo histórico)
-└────────┬─────────┘   2) POST al webhook de este sistema
-         │
-         │  POST /api/webhooks/ticket
-         │  Header: x-api-key: <WEBHOOK_API_KEY>
-         ▼
+┌──────────────────┐   Normaliza y enriquece los datos. La ruta principal es:
+│       n8n        │   1) audio al storage local corporativo;
+└───────┬──┬──┬────┘   2) JSON directo al webhook de este sistema.
+        │  │  └──────── respaldo secundario de datos: Excel
+        │  └─────────── fallback del audio: OneDrive
+        │
+        │  POST /api/webhooks/ticket + x-api-key
+        │  (no pasa por Excel)
+        ▼
 ┌──────────────────┐   Valida el JSON (Zod), chequea que el conversation_id
 │  Backend (API)   │   no exista ya (idempotente) y guarda el ticket
 │  Express :5000   │   con estado "nuevo". Si llegó empresa, registra
@@ -44,14 +46,16 @@
 
 ### ElevenLabs (externo)
 
-Agente de voz conversacional que atiende el teléfono. Al finalizar cada llamada produce un JSON con los datos extraídos de la conversación y un link a la grabación (mp3 en SharePoint). Se identifica cada llamada con un `conversation_id` único (ej: `conv_4401kxjxp0te...`).
+Agente de voz conversacional que atiende el teléfono. Al finalizar cada llamada entrega los datos extraídos de la conversación, un `conversation_id` único (ej: `conv_4401kxjxp0te...`) y la grabación o la referencia necesaria para que n8n la procese.
 
 ### n8n (externo)
 
-Automatizador. Recibe el JSON de ElevenLabs y:
+Automatizador. Recibe el resultado de ElevenLabs, normaliza y enriquece los datos y ejecuta las rutas principales:
 
-1. Agrega una fila al Excel de respaldo (`registrosTelefonicos`).
-2. Hace un **HTTP Request** al webhook de este sistema.
+1. Guarda la grabación en el storage local corporativo y obtiene la referencia que enviará como `audio_url`.
+2. Hace un **HTTP Request directo** al webhook de este sistema con el JSON del ticket.
+
+Si el almacenamiento local del audio no está disponible, n8n utiliza OneDrive como fallback y envía en `audio_url` la referencia alternativa. Excel no participa del recorrido normal hacia la API: queda como respaldo secundario de los datos y como fuente de recuperación mediante el importador histórico. El backend nunca consulta el Excel para crear un ticket recibido por webhook.
 
 Si n8n reintenta un envío (timeout, error de red), no pasa nada: el webhook detecta el `conversation_id` repetido y responde 200 sin duplicar.
 
@@ -89,6 +93,8 @@ n8n y este sistema están en la misma red interna, así que n8n le pega directo 
   "notas": "{{ $json.notas }}"
 }
 ```
+
+`audio_url` contiene únicamente la referencia al archivo disponible en el destino efectivo —storage local corporativo o OneDrive si actuó el fallback—; el body no transporta la grabación binaria.
 
 No hace falta mandar `fecha_limite`: el webhook la preestablece solo a **48 horas hábiles**, pausando el reloj durante sábado y domingo (ver la sección de plazo de resolución más abajo). Los campos opcionales que no tengas simplemente se omiten del body.
 
@@ -240,7 +246,7 @@ El contrato declara el esquema `sessionCookie`, respaldado por la cookie `gsb_se
 | `motivo`                              | texto                  | Por qué llamó. Los procesos automáticos no lo reescriben; una corrección explícita desde el detalle sí puede editarlo y queda auditada.                                                                              |
 | `motivo_categoria`                    | enum derivado          | Clasificación estable: haberes/pagos, recibos/documentación, vacaciones/licencias, bajas/liquidación, empleo, contacto, reclamos, legales, **embargos** o sin clasificar.                                            |
 | `resumen`                             | texto, opcional        | Resumen de la conversación que arma ElevenLabs.                                                                                                                                                                      |
-| `audio_url`                           | texto, opcional        | Link a la grabación (SharePoint).                                                                                                                                                                                    |
+| `audio_url`                           | texto, opcional        | Referencia a la grabación. Normalmente apunta al storage local corporativo; puede apuntar a OneDrive cuando se utilizó el fallback.                                                                                  |
 | `notificado`                          | booleano               | Si ya se avisó al área correspondiente.                                                                                                                                                                              |
 | `estado`                              | enum                   | Nace en `nuevo`; después puede pasar entre `en_proceso`, `pendiente`, `resuelto` y `cerrado`, pero nunca volver a `nuevo`.                                                                                           |
 | `prioridad`                           | enum                   | `baja` / `media` / `alta` / `urgente`; puede subir automáticamente según las horas hábiles restantes y nunca baja por el proceso automático.                                                                         |
@@ -408,9 +414,9 @@ Dos precisiones que costaron un caso real cada una:
    con `LIKE` la precedencia del clasificador. Conviene verificarla comparando
    su resultado contra el del clasificador TypeScript sobre una copia real.
 
-## 5. El importador del histórico
+## 5. Recuperación desde el respaldo secundario
 
-[scripts/src/import-excel.ts](../scripts/src/import-excel.ts) — para cargar de una vez las llamadas viejas del Excel/CSV de n8n:
+[scripts/src/import-excel.ts](../scripts/src/import-excel.ts) permite cargar llamadas antiguas o recuperar datos conservados en el respaldo Excel/CSV de n8n. Es una vía separada y controlada: no forma parte de la ingesta normal ni se ejecuta automáticamente después de cada llamada.
 
 ```
 pnpm --filter @workspace/scripts run import-excel -- "ruta\archivo.csv" --dry-run   # simula
@@ -418,7 +424,7 @@ pnpm --filter @workspace/scripts run import-excel -- "ruta\archivo.csv"         
 ```
 
 - Acepta `.xlsx` y `.csv` (detecta el delimitador `;` o `,` solo).
-- Reconoce los encabezados del export de n8n (`id`, `fecha_hora`, `Observaciones`, `audio`, `VERDADERO/FALSO`…) y variantes con acentos. El mapeo está en `HEADER_ALIASES` dentro del script.
+- Reconoce los encabezados del respaldo o formato histórico de n8n (`id`, `fecha_hora`, `Observaciones`, `audio`, `VERDADERO/FALSO`…) y variantes con acentos. El mapeo está en `HEADER_ALIASES` dentro del script.
 - **Idempotente**: las filas cuyo `conversation_id` ya está en la base se saltean. Se puede correr mil veces.
 - **Atómico**: un error de persistencia revierte todas las filas insertables del archivo. La corrida real reserva el escritor SQLite; para archivos grandes, ejecutar primero `--dry-run` y hacer la carga en una ventana sin operadores modificando tickets.
 - Acepta fecha y hora combinadas (`"16/07/2026 - 11:34hs"`) o en columnas separadas; ambas forman un único `fecha_creacion` en la zona de Buenos Aires. Si ambas fuentes incluyen hora, tiene precedencia la columna `hora`.

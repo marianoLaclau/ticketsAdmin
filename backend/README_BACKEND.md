@@ -305,7 +305,8 @@ SQLite vía `better-sqlite3`, modo WAL, `foreign_keys = ON`. Definido en `lib/db
 | `prioridad`                           | text enum: `baja` \| `media` \| `alta` \| `urgente`, default `media`                          | Puede promoverse automáticamente según las horas hábiles restantes; nunca se degrada                                                |
 | `asignado_usuario_id`                 | integer → `usuarios.id`, nullable                                                             | Identidad autoritativa; `onDelete: set null`                                                                                        |
 | `asignado_a`                          | text, nullable                                                                                | Snapshot legible del responsable y compatibilidad histórica                                                                         |
-| `audio_url`, `notas`                  | text, nullable                                                                                |                                                                                                                                     |
+| `audio_url`                           | text, nullable                                                                                | Referencia externa al storage local corporativo o a OneDrive si actuó el fallback; SQLite no almacena el archivo                       |
+| `notas`                               | text, nullable                                                                                |                                                                                                                                       |
 | `progreso`                            | integer, default `0`                                                                          | 0–100                                                                                                                               |
 | `fecha_creacion`                      | integer (timestamp ms)                                                                        | Default: ahora; los importadores históricos usan la fecha/hora válida de la fila                                                    |
 | `fecha_limite`                        | integer (timestamp ms), nullable                                                              | SLA de 48 horas hábiles desde `fecha_creacion`, pausado sábado/domingo, si no viene explícita (webhook/alta/import)                 |
@@ -409,7 +410,9 @@ El CRUD de tickets de Administración también conserva un baseline versionado a
 
 En las respuestas de `Ticket` y `Seguimiento`, una columna nullable siempre conserva su propiedad y usa `null` cuando no hay valor; no se representa como propiedad ausente. OpenAPI marca esos campos como requeridos + nullable, `TicketDetail.seguimientos` siempre es un array y el codegen refleja la forma real de Drizzle en TypeScript y Zod.
 
-## Ingesta y CSV compartidos
+## Ingesta directa y recuperación CSV/Excel
+
+La ingesta normal entra directamente desde n8n por `POST /webhooks/ticket`; no consulta ni espera un archivo Excel. El Excel/CSV se conserva como respaldo secundario y solo participa si se ejecuta una recuperación o importación explícita. Del mismo modo, el backend persiste el `audio_url` resuelto por n8n: el destino principal de la grabación es el storage local corporativo y OneDrive queda como fallback externo al backend.
 
 `lib/ingesta/src/index.ts` (`@workspace/ingesta`) es una librería **pura** (sin DB, sin Node más allá de lo estándar) compartida por dos consumidores:
 

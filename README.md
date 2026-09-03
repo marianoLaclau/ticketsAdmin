@@ -1,12 +1,16 @@
 # GSB Tickets
 
-Sistema de gestión de tickets que se alimenta **automáticamente** de llamadas telefónicas: un agente de voz de ElevenLabs atiende la llamada, n8n arma el JSON y se lo manda a este sistema. Los tickets no se crean a mano en el flujo normal — nacen solos con cada llamada.
+Sistema de gestión de tickets que se alimenta **automáticamente** de llamadas telefónicas: un agente de voz de ElevenLabs atiende la llamada y n8n normaliza los datos, resguarda la grabación y envía el JSON directamente a este sistema. Los tickets no se crean a mano en el flujo normal — nacen solos con cada llamada.
 
 ```
 Llamada telefónica → ElevenLabs (agente de voz) → n8n → POST /api/webhooks/ticket → SQLite → Dashboard / Tickets / Rendimiento
-                                                              ↑
-                                                    también: importador CSV / panel admin
+                                                   ├─ audio → storage local corporativo
+                                                   │            └─ fallback: OneDrive
+                                                   └─ datos → Excel solo como respaldo secundario
 ```
+
+El backend no lee ese Excel durante la ingesta normal. Si hace falta recuperar
+registros, el archivo puede entrar posteriormente por el importador controlado.
 
 📖 **Flujo de negocio completo** (ElevenLabs → n8n → webhook → plazo de resolución): [docs/FLUJO.md](docs/FLUJO.md)
 🚀 **Despliegue en el servidor de testing** (Docker + CI/CD): [docs/DEPLOY.md](docs/DEPLOY.md)
@@ -21,6 +25,8 @@ Llamada telefónica → ElevenLabs (agente de voz) → n8n → POST /api/webhook
 ## Qué hace el sistema
 
 - **Ingesta automática**: cada llamada atendida por el agente de voz crea un ticket solo, vía webhook. Idempotente — un reintento de n8n no duplica nada.
+- **Grabaciones con almacenamiento principal local**: n8n guarda el archivo de audio en el storage corporativo. OneDrive queda como destino de contingencia cuando el almacenamiento principal no está disponible; el ticket conserva en `audio_url` la referencia resultante.
+- **Excel fuera del camino crítico**: los datos viajan directamente de n8n al webhook. Excel queda como respaldo secundario y fuente de recuperación mediante el importador, nunca como paso intermedio que el backend deba leer para crear el ticket.
 - **Plazo de resolución de 48 horas hábiles y prioridad dinámica**: el plazo corre de lunes a viernes durante las 24 horas y se pausa por completo los sábados y domingos. Los feriados aún cuentan como hábiles. Un ticket sin resolver sube, sin degradaciones, a prioridad `alta` cuando quedan 24 horas hábiles o menos y a `urgente` cuando quedan 12 horas hábiles o menos o ya venció.
 - **Cuarentena de registros vacíos**: una llamada sin datos útiles se conserva intacta en la base para auditoría, pero no aparece en Tickets ni participa del Dashboard o de las notificaciones operativas. Solo un SysAdmin puede verla desde Administración.
 - **Gestión de tickets**: dashboard con KPIs y gráficos filtrables por todo, semana, mes o rango personalizado; listado con responsable asignado, filtros combinables, ordenamiento server-side por todas sus columnas, paginación y exportación CSV incremental del resultado filtrado; detalle con edición funcional, historial auditable y reproductor de audio.
@@ -30,7 +36,7 @@ Llamada telefónica → ElevenLabs (agente de voz) → n8n → POST /api/webhook
 - **Login obligatorio con roles**: nadie ve ninguna pantalla ni puede pegarle a la API sin sesión iniciada. Cuatro roles de sistema con permisos distintos (ver sección Autenticación).
 - **Rendimiento ejecutivo**: SysAdmin y Controller disponen de `/rendimiento` con cuatro vistas operativas y pueden elegir **Período completo**, períodos predefinidos o un rango personalizado. **Resumen del equipo** muestra volumen, estado, distribuciones, tiempos y cuatro indicadores con muestra explícita: cumplimiento total del plazo, backlog vencido, antigüedad mediana del backlog en horas hábiles y cobertura de asignación. **Operadores** presenta volumen, tiempo, cumplimiento, carga e índice operativo por nombre, nunca como ranking: el frontend deriva el índice con 70 % de cumplimiento total del plazo y 30 % de carga abierta no vencida; desde 80 puntos se considera favorable y, con menos de cinco cierres medibles, se mantiene como muestra inicial neutral. El backend solo entrega los hechos necesarios y no calcula puntajes ni posiciones. Se muestran tres operadores inicialmente y el resto se despliega dentro de una lista acotada. **Contactos recurrentes** detecta todos los contactos con dos o más tickets dentro del conjunto filtrado, aunque sus gestiones ya estén finalizadas, mediante una identidad canónica no transitiva y enmascarada; los abiertos y vencidos se presentan como contexto adicional. Muestra tres contactos compactos, permite abrir sus datos y tickets relacionados y contiene la lista ampliada con scroll. La interfaz evita exponer distinciones técnicas entre fuentes de datos; esas fuentes permanecen separadas en el contrato para trazabilidad. **Calidad de datos** conserva las coberturas técnicas de cada medición.
 - **Panel de administración** (solo rol SysAdmin): tabla ampliada, ordenable y paginada, acceso al detalle incluso para registros en cuarentena, CRUD manual de tickets, importador de CSV con simulación previa, "zona peligrosa" para vaciar la base, y gestión de roles/usuarios con reset de contraseña.
-- **Importador del histórico**: script CLI que carga de una vez un Excel/CSV viejo con el mismo motor de parseo que usa el panel web.
+- **Importador histórico y de recuperación**: script CLI que carga un Excel/CSV antiguo o recupera el respaldo secundario con el mismo motor de parseo que usa el panel web.
 - **Backup online de SQLite**: copia consistente con el WAL, verificada con `integrity_check`, sin sobrescribir destinos.
 
 ## Autenticación y roles
@@ -105,7 +111,7 @@ Abrir http://localhost:3000. En una base nueva, el primer arranque crea el usuar
 - `pnpm run format` / `pnpm run format:check` — normaliza o verifica código y configuración con Prettier
 - `pnpm run quality` — reproduce el primer job del gate: lint, formato sin drift, codegen, schema Drizzle, pruebas no-browser, typecheck y builds; GitHub ejecuta después `pnpm run test:e2e` en un segundo job bloqueante
 - `pnpm --filter @workspace/db run push` — aplica el schema en una base local sin ledger y reconcilia sus invariantes SQL (dev only)
-- `pnpm --filter @workspace/scripts run import-excel -- <archivo.xlsx|csv> [--dry-run] [--sheet <nombre>]` — importa el histórico de llamadas (idempotente por conversation_id)
+- `pnpm --filter @workspace/scripts run import-excel -- <archivo.xlsx|csv> [--dry-run] [--sheet <nombre>]` — importa históricos o recupera el respaldo secundario (idempotente por `conversation_id`)
 - `pnpm run backup:db -- --output ./backups/tickets-AAAA-MM-DD.db` — backup SQLite consistente con WAL; valida integridad, claves foráneas y esquema mínimo, usa permisos restrictivos y nunca sobrescribe archivos
 - `pnpm run verify:db -- --source ./backups/tickets-AAAA-MM-DD.db --expect-evidence ./backups/evidencia.json` — reabre una copia transportada y exige que SHA-256, bytes y páginas coincidan con la evidencia del backup; para parsear JSON en automatización se ejecutan directamente los bundles `.mjs`, sin el output adicional de pnpm
 - `pnpm run restore:db -- --source ./backups/origen.db --recovery-output ./backups/pre-restore.db --confirm-stopped` — restaura offline con recovery previa obligatoria; detener antes todos los procesos que puedan escribir SQLite
@@ -143,7 +149,8 @@ Copiar `.env.example` a `.env` en la raíz:
 
 ## Decisiones de arquitectura
 
-- **Ingesta por webhook, no leyendo el Excel**: n8n hace POST a `/api/webhooks/ticket` con header `x-api-key`. Idempotente por `conversation_id` (reintento ⇒ 200 con `created: false`); el Excel de n8n queda solo como respaldo/histórico.
+- **Ingesta directa por webhook**: n8n hace POST a `/api/webhooks/ticket` con header `x-api-key`. Es idempotente por `conversation_id` (reintento ⇒ 200 con `created: false`) y no depende de Excel. El archivo queda como respaldo secundario para una recuperación controlada, no como origen del flujo normal.
+- **Grabaciones con contingencia desacoplada**: el audio se escribe primero en el storage local corporativo; OneDrive es el fallback. GSB Tickets persiste únicamente la referencia recibida en `audio_url` y no decide ni ejecuta el cambio de proveedor.
 - **Contract-first**: todo el contrato vive en `lib/api-spec/openapi.yaml`. Se edita el yaml, se corre `codegen`, y los dos lados (frontend y backend) quedan sincronizados por construcción.
 - **Backend modular por feature**: `backend/src/modules/` separa `auth`, `tickets`, `dashboard`, `rendimiento`, `administracion` e `ingestion`; `shared/` concentra infraestructura transversal y `routes/index.ts` se limita a componer routers y guards globales.
 - **SQLite en lugar de Postgres** (migrado 2026-07): better-sqlite3 con WAL alcanza para el volumen de llamadas, sin servidor de base de datos que administrar.

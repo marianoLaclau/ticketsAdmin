@@ -4005,3 +4005,39 @@ commits locales independientes; no se realizó push.
   búsquedas sobre la documentación vigente no conservaron referencias a
   `adminIntent`, la política 16–128 ni el nombre visible anterior del período.
 - Los cambios permanecen locales: no se realizó commit ni push.
+
+## 2026-09-03 — Actualización del flujo externo de llamadas y respaldos
+
+**Agente:** Codex
+
+### Arquitectura vigente
+
+- Los datos estructurados de cada llamada viajan directamente desde n8n a
+  `POST /api/webhooks/ticket`; Excel ya no forma parte del camino normal ni es
+  leído por el backend para crear el ticket.
+- Excel queda como respaldo secundario o fuente de recuperación. Su reingreso a
+  GSB Tickets se realiza de forma explícita mediante el importador idempotente
+  CSV/Excel y no se presenta como una dependencia de la ingesta diaria.
+- n8n guarda la grabación primero en el storage local corporativo. OneDrive es
+  el destino de fallback cuando el almacenamiento principal no está disponible.
+- GSB Tickets no almacena el binario del audio ni elige el proveedor: persiste
+  en `audio_url` la referencia que n8n resolvió antes de llamar al webhook.
+
+### Reconciliación documental
+
+- Se actualizaron el README principal, el flujo de negocio, la arquitectura y
+  los README de backend y frontend para separar visualmente el camino principal
+  de las rutas de contingencia.
+- Se retiraron las referencias vigentes al destino anterior de las grabaciones
+  y la descripción que ubicaba Excel como una salida habitual paralela al
+  webhook.
+- El importador existente se documentó también como mecanismo controlado de
+  recuperación del respaldo secundario, sin modificar su implementación.
+
+### Alcance
+
+- El cambio refleja una modificación del workflow externo de n8n. No cambia el
+  contrato HTTP, el schema SQLite ni el código de ejecución de GSB Tickets.
+- No se documentaron rutas, protocolos o permisos del storage local porque esa
+  infraestructura sigue siendo externa a este repositorio.
+- No se realizó commit ni push.

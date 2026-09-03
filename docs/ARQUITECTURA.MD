@@ -11,6 +11,8 @@ La arquitectura elegida es un **monolito modular fullstack**:
 - **Persistencia:** SQLite en modo WAL. El acceso operativo usa Drizzle ORM; el backup verificado usa directamente el driver `better-sqlite3`.
 - **Paquetes compartidos:** contrato OpenAPI, clientes generados, validadores Zod y lógica de ingesta/SLA.
 - **Actualización en vivo:** Server-Sent Events (SSE), sin un broker externo.
+- **Grabaciones:** storage local corporativo como destino principal y OneDrive como fallback administrado por n8n.
+- **Contingencia de datos:** entrega directa de n8n al webhook; Excel queda fuera del camino crítico como respaldo secundario recuperable mediante importación.
 - **Asistente RAG:** widget `@n8n/chat` diferido en Rendimiento y proxy autenticado desde el backend hacia n8n.
 - **Despliegue:** Docker Compose ejecutado por GitHub Actions sobre un runner self-hosted.
 
@@ -21,6 +23,9 @@ flowchart LR
     caller[Persona que llama] --> voice[Agente de voz]
     voice --> n8nIngest[n8n: normaliza el JSON]
     n8nIngest -->|POST /api/webhooks/ticket + x-api-key| api[Backend Express]
+    n8nIngest -->|audio: destino principal| localAudio[(Storage local corporativo)]
+    n8nIngest -.->|fallback del audio| oneDrive[(OneDrive)]
+    n8nIngest -.->|respaldo secundario de datos| excel[(Excel)]
     browser[Navegador] --> ui[Frontend React/Vite]
     ui -->|HTTP same-origin + cookie de sesión| api
     api --> db[(SQLite<br/>data/tickets.db)]
@@ -28,6 +33,8 @@ flowchart LR
     api --> serin[Datos de Serin<br/>recibidos en el webhook]
     api -->|POST del chat + Basic Auth server-side| rag[n8n: Chat Trigger<br/>bot RAG]
 ```
+
+Las líneas continuas representan el camino operativo normal. El ticket llega directamente desde n8n al webhook y el audio se guarda en el storage local de la empresa. Las líneas discontinuas son rutas de contingencia: OneDrive para la grabación y Excel para conservar o recuperar los datos. El backend no lee Excel en la creación normal ni selecciona el destino del audio; recibe el JSON y persiste la referencia resultante en `audio_url`.
 
 ## 2. Estilo arquitectónico
 
@@ -401,13 +408,16 @@ Otros paquetes compartidos:
 | `@workspace/api-client-react` | Hooks React Query y tipos de consumo                                          |
 | `@workspace/api-zod`          | Schemas Zod consumidos por el backend                                         |
 | `@workspace/password-policy`  | Límites y reglas puras de contraseñas nuevas compartidas por backend/frontend |
-| `@workspace/scripts`          | Importador histórico y backup de SQLite                                       |
+| `@workspace/scripts`          | Importador histórico/recuperación y backup de SQLite                          |
 
 ## 4. Flujo de una llamada
 
 ```mermaid
 sequenceDiagram
     participant N as n8n
+    participant A as Almacenamiento local
+    participant O as OneDrive
+    participant X as Excel de respaldo
     participant W as Webhook Express
     participant V as Zod / reglas
     participant D as Drizzle
@@ -415,7 +425,15 @@ sequenceDiagram
     participant E as SSE
     participant B as Navegadores
 
-    N->>W: POST /api/webhooks/ticket + x-api-key
+    N->>A: guarda la grabación
+    alt almacenamiento local no disponible
+        N->>O: guarda la grabación como fallback
+    end
+    opt contingencia o respaldo requerido
+        N-->>X: conserva datos como respaldo secundario
+    end
+    Note over N,X: Excel queda fuera del camino normal hacia la API
+    N->>W: POST directo /api/webhooks/ticket + x-api-key
     W->>V: valida payload y fechas
     V-->>W: datos normalizados
     W->>D: transacción de ticket
@@ -429,7 +447,7 @@ sequenceDiagram
     E-->>B: refresco en vivo
 ```
 
-El webhook es idempotente: un reintento con el mismo `conversation_id` devuelve el ticket existente y no duplica el seguimiento inicial de Serin.
+El webhook es idempotente: un reintento con el mismo `conversation_id` devuelve el ticket existente y no duplica el seguimiento inicial de Serin. El POST utiliza el JSON que n8n mantiene durante la ejecución; no lee la fila de Excel. Si se necesita recuperar información desde el respaldo secundario, se utiliza posteriormente el importador CSV/Excel como un procedimiento separado.
 
 ## 5. Modelo de datos
 
@@ -480,6 +498,7 @@ erDiagram
         text estado_empleado
         text motivo
         text motivo_categoria
+        text audio_url
         text estado
         text prioridad
         integer asignado_usuario_id FK
@@ -515,6 +534,7 @@ Es la entidad operativa principal:
 - `version` comienza en 1, no admite cero o negativos y avanza con cada modificación real de la fila. Es metadato interno de concurrencia: no se importa ni exporta como dato de negocio.
 - `motivo` y `resumen` conservan el texto recibido.
 - `motivo_categoria` es una columna derivada de `motivo`/`resumen` mediante reglas deterministas. El catálogo de 14 códigos, el criterio de cada uno y el orden de precedencia están documentados en [docs/FLUJO.md](FLUJO.md#4-categorías-de-motivo). El texto original nunca se reescribe.
+- `audio_url` es una referencia externa, no el archivo binario. n8n entrega normalmente la ubicación del storage local corporativo y, si debió usar la contingencia, la referencia de OneDrive.
 - `estado_empleado` admite `Activo` o `Inactivo` cuando existe una empresa asociada y proviene del dato recibido desde Serin.
 - `estado` nace en `nuevo` y puede pasar a cualquier otro estado; una vez
   trabajado no puede regresar a `nuevo`. `resuelto` y `cerrado` son finales,

@@ -6,7 +6,7 @@ Este directorio reúne la documentación operativa y técnica de GSB Tickets.
 
 1. [README principal](../README.md): propósito, arquitectura, instalación local y comandos habituales.
 2. [Arquitectura](ARQUITECTURA.MD): modelo de software, capas, datos, seguridad, flujos y despliegue.
-3. [Flujo de negocio](FLUJO.md): ingesta desde n8n, estados, plazos, clasificación, cuarentena y auditoría.
+3. [Flujo de negocio](FLUJO.md): ingesta directa desde n8n, almacenamiento de grabaciones, contingencias, estados, plazos, clasificación, cuarentena y auditoría.
 4. [Backend](../backend/README_BACKEND.md): API Express, autenticación, permisos, base de datos y migraciones.
 5. [Frontend](../frontend/README_FRONTEND.md): rutas, pantallas, estado de UI y componentes principales.
 6. [Despliegue](DEPLOY.md): Docker, runner de GitHub Actions, variables y verificación del servidor de testing.
